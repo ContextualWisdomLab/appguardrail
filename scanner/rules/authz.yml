@@ -1,0 +1,85 @@
+rules:
+  - id: api-route-missing-auth-check
+    patterns:
+      - pattern: |
+          export async function GET($REQ, $CTX) {
+            $DB.$METHOD(...)
+          }
+      - pattern: |
+          export async function POST($REQ, $CTX) {
+            $DB.$METHOD(...)
+          }
+      - pattern: |
+          export async function PUT($REQ, $CTX) {
+            $DB.$METHOD(...)
+          }
+      - pattern: |
+          export async function DELETE($REQ, $CTX) {
+            $DB.$METHOD(...)
+          }
+    message: |
+      API route handler accesses the database without an apparent authentication check.
+      Ensure every data-accessing route calls getServerSession(), auth(), or
+      supabase.auth.getUser() and returns 401 if the user is not authenticated.
+    severity: HIGH
+    languages: [typescript, javascript]
+    paths:
+      include:
+        - "**/app/api/**/*.ts"
+        - "**/pages/api/**/*.ts"
+
+  - id: db-query-without-user-filter
+    patterns:
+      - pattern: |
+          $DB.findMany({ where: { ... } })
+      - pattern: |
+          $DB.findAll(...)
+    message: |
+      Database query may be returning records for all users. Ensure the query
+      filters by the authenticated user's ID (e.g., { where: { userId: session.user.id } })
+      to prevent cross-user data exposure.
+    severity: WARNING
+    languages: [typescript, javascript]
+
+  - id: req-body-user-id-trust
+    patterns:
+      - pattern: |
+          $DB.$METHOD({ where: { userId: $REQ.body.userId } })
+      - pattern: |
+          $DB.$METHOD({ where: { userId: $REQ.query.userId } })
+    message: |
+      User ID is being taken directly from the request body or query string.
+      An attacker can provide any user ID to access or modify another user's data.
+      Use the authenticated user's ID from the session: session.user.id.
+    severity: CRITICAL
+    languages: [typescript, javascript]
+
+  - id: todo-skip-auth
+    patterns:
+      - pattern-regex: '(?i)(todo|fixme|hack|temp|temporary).{0,50}(auth|security|permission|check|protect)'
+      - pattern-regex: '(?i)(skip|bypass|disable|remove|add).{0,30}(auth|authentication|authorization|security)'
+      - pattern-regex: '(?i)//\s*(disable|mock|fake)\s*(auth|security)'
+    message: |
+      Comment suggests authentication or security check was intentionally skipped
+      or deferred. This is a common pattern in AI-generated code. Review and ensure
+      proper authentication and authorization are in place before deploying.
+    severity: HIGH
+    languages: [typescript, javascript, python]
+
+  - id: mock-auth-pattern
+    patterns:
+      - pattern: |
+          const session = { user: { id: $ID } }
+      - pattern: |
+          const user = { id: "test", ... }
+    message: |
+      Hardcoded mock session or user object detected. Ensure this is only used in
+      test files and is not present in production API handlers.
+    severity: HIGH
+    languages: [typescript, javascript]
+    paths:
+      exclude:
+        - "**/*.test.*"
+        - "**/*.spec.*"
+        - "**/tests/**"
+        - "**/__tests__/**"
