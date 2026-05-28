@@ -1,0 +1,80 @@
+rules:
+  - id: stripe-webhook-no-signature-verification
+    patterns:
+      - pattern: |
+          export async function POST($REQ) {
+            const event = await $REQ.json()
+            ...
+          }
+      - pattern: |
+          export default async function handler($REQ, $RES) {
+            const event = $REQ.body
+            ...
+          }
+    message: |
+      Stripe webhook handler may be missing signature verification.
+      Always call stripe.webhooks.constructEvent(rawBody, signature, secret)
+      and reject the request if verification fails. Using req.json() or req.body
+      directly as the event is insecure.
+    severity: CRITICAL
+    languages: [typescript, javascript]
+    paths:
+      include:
+        - "**/webhooks/**"
+        - "**/api/webhooks/**"
+        - "**/api/stripe/**"
+
+  - id: stripe-price-from-client
+    patterns:
+      - pattern: |
+          stripe.checkout.sessions.create({
+            line_items: [{ price: $REQ.body.$FIELD, ... }],
+            ...
+          })
+      - pattern: |
+          stripe.checkout.sessions.create({
+            line_items: [{ price: $REQ.query.$FIELD, ... }],
+            ...
+          })
+    message: |
+      Stripe checkout session is being created with a price from the client request.
+      An attacker can supply any price ID. Fetch the price ID from your database
+      or environment variables server-side.
+    severity: CRITICAL
+    languages: [typescript, javascript]
+
+  - id: stripe-amount-from-client
+    patterns:
+      - pattern: |
+          stripe.paymentIntents.create({
+            amount: $REQ.body.$FIELD,
+            ...
+          })
+    message: |
+      Stripe PaymentIntent is being created with an amount from the client request.
+      An attacker can supply any amount (including 0 or 1 cent). Calculate the
+      amount server-side from your product/price database.
+    severity: CRITICAL
+    languages: [typescript, javascript]
+
+  - id: stripe-secret-key-client-exposure
+    patterns:
+      - pattern-regex: 'NEXT_PUBLIC_STRIPE_SECRET'
+      - pattern-regex: 'NEXT_PUBLIC_.*STRIPE.*KEY'
+    message: |
+      Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+      to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+      secret key must only be used server-side.
+    severity: CRITICAL
+    languages: [generic]
+
+  - id: stripe-webhook-secret-missing
+    patterns:
+      - pattern-regex: 'constructEvent\([^,]+,\s*[^,]+,\s*["\x27]["\x27]\)'
+      - pattern-regex: 'constructEvent\([^,]+,\s*[^,]+,\s*undefined\)'
+    message: |
+      Stripe webhook constructEvent is called with an empty or undefined secret.
+      Set STRIPE_WEBHOOK_SECRET as an environment variable and pass it as the
+      third argument.
+    severity: CRITICAL
+    languages: [typescript, javascript]
