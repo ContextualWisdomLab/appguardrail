@@ -1,0 +1,66 @@
+rules:
+  - id: firebase-rules-allow-all
+    patterns:
+      - pattern-regex: 'allow\s+(read|write|read,\s*write)\s*:\s*if\s+true'
+    message: |
+      Firestore or Firebase Storage rule allows all reads or writes without
+      authentication. This exposes your data to anyone on the internet.
+      Replace with: allow read, write: if request.auth != null;
+      And add ownership checks for user-specific data.
+    severity: CRITICAL
+    languages: [generic]
+    paths:
+      include:
+        - "**/firestore.rules"
+        - "**/storage.rules"
+        - "**/*.rules"
+
+  - id: firebase-rules-no-auth
+    patterns:
+      - pattern-regex: 'allow\s+(read|write)\s*:\s*if\s+(?!request\.auth)'
+    message: |
+      Firebase rule may not check authentication. Ensure rules include
+      request.auth != null as a minimum check.
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/firestore.rules"
+        - "**/storage.rules"
+
+  - id: firebase-admin-in-client
+    patterns:
+      - pattern: |
+          import $X from 'firebase-admin'
+      - pattern: |
+          const admin = require('firebase-admin')
+    message: |
+      Firebase Admin SDK imported. Verify this file runs only server-side
+      (Cloud Function, API route, or backend service). The Admin SDK bypasses
+      all security rules and must never be used in client-side code.
+    severity: HIGH
+    languages: [typescript, javascript]
+
+  - id: firebase-service-account-hardcoded
+    patterns:
+      - pattern-regex: '"type"\s*:\s*"service_account"'
+    message: |
+      Firebase service account credentials may be hardcoded in source code.
+      Service account JSON should be stored as an environment variable or
+      loaded from a secrets manager, never committed to the repository.
+    severity: CRITICAL
+    languages: [generic]
+
+  - id: realtime-db-rules-allow-all
+    patterns:
+      - pattern-regex: '"\.(read|write)"\s*:\s*"?true"?'
+    message: |
+      Firebase Realtime Database rule allows unrestricted read or write access.
+      Replace with authentication checks: ".read": "auth != null"
+      and scope to user data: ".read": "$uid === auth.uid"
+    severity: CRITICAL
+    languages: [generic]
+    paths:
+      include:
+        - "**/database.rules.json"
+        - "**/database.rules.bolt"

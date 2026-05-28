@@ -1,0 +1,81 @@
+rules:
+  - id: nextjs-api-route-no-method-check
+    patterns:
+      - pattern: |
+          export default async function handler($REQ, $RES) {
+            $DB.$METHOD(...)
+          }
+    message: |
+      Next.js Pages Router API handler accesses the database without checking
+      the HTTP method. Add method validation (req.method === 'GET' etc.) and
+      ensure authentication is checked before any data access.
+    severity: WARNING
+    languages: [typescript, javascript]
+    paths:
+      include:
+        - "**/pages/api/**"
+
+  - id: nextjs-dangerous-cors
+    patterns:
+      - pattern: |
+          res.setHeader('Access-Control-Allow-Origin', '*')
+      - pattern: |
+          { key: 'Access-Control-Allow-Origin', value: '*' }
+    message: |
+      CORS is set to allow all origins (*). This is dangerous when combined with
+      credentials (cookies, Authorization headers). Restrict to known origins:
+      'https://yourdomain.com'
+    severity: HIGH
+    languages: [typescript, javascript]
+
+  - id: nextjs-missing-security-headers
+    patterns:
+      - pattern: |
+          module.exports = { ... }
+    message: |
+      Verify that next.config.js includes security headers:
+      X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
+      Content-Security-Policy, and Permissions-Policy.
+    severity: INFO
+    languages: [javascript]
+    paths:
+      include:
+        - "**/next.config.js"
+        - "**/next.config.mjs"
+        - "**/next.config.ts"
+
+  - id: nextjs-server-action-missing-auth
+    patterns:
+      - pattern: |
+          'use server'
+          ...
+          export async function $ACTION($ARGS) {
+            $DB.$METHOD(...)
+          }
+    message: |
+      Next.js server action accesses the database. Ensure authentication
+      is validated at the start of the action using auth() or getServerSession().
+    severity: HIGH
+    languages: [typescript, javascript]
+
+  - id: nextjs-env-secret-client-prefix
+    patterns:
+      - pattern-regex: 'NEXT_PUBLIC_(STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|OPENAI_API_KEY|API_SECRET)'
+    message: |
+      Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
+      in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
+      only referenced in server-side code.
+    severity: CRITICAL
+    languages: [generic]
+
+  - id: nextjs-redirect-without-return
+    patterns:
+      - pattern: |
+          redirect($URL)
+          $STMT
+    message: |
+      redirect() in Next.js App Router throws an error internally. Code after
+      redirect() will still execute if not handled correctly. Use 'return redirect(url)'
+      pattern or ensure redirect is the final statement.
+    severity: WARNING
+    languages: [typescript, javascript]
