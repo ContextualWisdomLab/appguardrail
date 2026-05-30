@@ -290,6 +290,7 @@ def cmd_init(args):
         rules_dir = project_root / ".cursor" / "rules"
         rules_dir.mkdir(parents=True, exist_ok=True)
         rules_file = rules_dir / "vibesec.md"
+        if rules_file.is_symlink(): rules_file.unlink()
         rules_file.write_text(RULES_CURSOR)
         installed.append(str(rules_file.relative_to(project_root)))
 
@@ -298,11 +299,13 @@ def cmd_init(args):
         if claude_file.exists():
             existing = claude_file.read_text()
             if "VibeSec" not in existing:
+                if claude_file.is_symlink(): claude_file.unlink()
                 claude_file.write_text(existing + "\n\n" + RULES_CLAUDE)
                 installed.append("CLAUDE.md (appended)")
             else:
                 print("CLAUDE.md already contains VibeSec rules — skipping.")
         else:
+            if claude_file.is_symlink(): claude_file.unlink()
             claude_file.write_text(RULES_CLAUDE)
             installed.append("CLAUDE.md")
 
@@ -310,11 +313,13 @@ def cmd_init(args):
         rules_dir = project_root / ".windsurf" / "rules"
         rules_dir.mkdir(parents=True, exist_ok=True)
         rules_file = rules_dir / "vibesec.md"
+        if rules_file.is_symlink(): rules_file.unlink()
         rules_file.write_text(RULES_WINDSURF)
         installed.append(str(rules_file.relative_to(project_root)))
 
     elif tool == "lovable":
         checklist_file = project_root / "VIBESEC_CHECKLIST.md"
+        if checklist_file.is_symlink(): checklist_file.unlink()
         checklist_file.write_text(CHECKLIST_TEMPLATE)
         installed.append("VIBESEC_CHECKLIST.md")
 
@@ -326,6 +331,7 @@ def cmd_init(args):
     # Always create the checklist
     checklist_file = project_root / "VIBESEC_CHECKLIST.md"
     if not checklist_file.exists():
+        if checklist_file.is_symlink(): checklist_file.unlink()
         checklist_file.write_text(CHECKLIST_TEMPLATE)
         installed.append("VIBESEC_CHECKLIST.md")
 
