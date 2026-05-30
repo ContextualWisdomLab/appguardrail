@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeSec SaaS Platform</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #f9fafb;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #111827;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        .error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1.5rem;
+        }
+        .result-box {
+            margin-top: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #f3f4f6;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VibeSec Scanner</h1>
+        <div class="subtitle">Security guardrails for vibe-coded apps (SaaS Edition)</div>
+
+        <form action="/scan" method="post">
+            <div class="form-group">
+                <label for="path">Server Path to Scan:</label>
+                <input type="text" id="path" name="path" value="{{ path if path else '.' }}" placeholder="e.g., . or /path/to/project">
+                <small style="color: #6b7280; display: block; margin-top: 0.25rem;">Note: In this demo, this scans local server paths.</small>
+            </div>
+            <button type="submit">Run Security Scan</button>
+        </form>
+
+        {% if error %}
+        <div class="error">
+            <strong>Error:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="result-box">
+            <h2>Scan Results</h2>
+            <pre><code>{{ result }}</code></pre>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

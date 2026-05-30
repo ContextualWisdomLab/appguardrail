@@ -133,6 +133,23 @@ vibesec/
 
 ---
 
+## Features
+
+- **CLI**: Fast, lightweight scanner (see quick start above).
+- **MCP Server**: Full MCP integration via `mcp_server.py`. Start with `python mcp_server.py`.
+- **SaaS Demo**: Web interface available via `app.py`. Start with `uvicorn app:app --port 8000`.
+
+### Docker Deployment
+
+A `Dockerfile` is provided for running the SaaS interface.
+
+```bash
+docker build -t vibesec-saas .
+docker run -p 8000:8000 vibesec-saas
+```
+
+---
+
 ## The VibeSec Fix Format
 
 VibeSec doesn't hand you a traditional security report. Every finding comes with:
