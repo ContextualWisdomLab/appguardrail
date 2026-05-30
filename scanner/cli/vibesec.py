@@ -286,42 +286,50 @@ def cmd_init(args):
 
     installed = []
 
-    if tool == "cursor":
-        rules_dir = project_root / ".cursor" / "rules"
-        rules_dir.mkdir(parents=True, exist_ok=True)
-        rules_file = rules_dir / "vibesec.md"
-        rules_file.write_text(RULES_CURSOR)
-        installed.append(str(rules_file.relative_to(project_root)))
+    tool_configs = {
+        "cursor": {
+            "path": Path(".cursor") / "rules" / "vibesec.md",
+            "content": RULES_CURSOR,
+        },
+        "windsurf": {
+            "path": Path(".windsurf") / "rules" / "vibesec.md",
+            "content": RULES_WINDSURF,
+        },
+        "lovable": {
+            "path": Path("VIBESEC_CHECKLIST.md"),
+            "content": CHECKLIST_TEMPLATE,
+        },
+        "claude-code": {
+            "path": Path("CLAUDE.md"),
+            "content": RULES_CLAUDE,
+            "append_marker": "VibeSec",
+        },
+    }
 
-    elif tool == "claude-code":
-        claude_file = project_root / "CLAUDE.md"
-        if claude_file.exists():
-            existing = claude_file.read_text()
-            if "VibeSec" not in existing:
-                claude_file.write_text(existing + "\n\n" + RULES_CLAUDE)
-                installed.append("CLAUDE.md (appended)")
-            else:
-                print("CLAUDE.md already contains VibeSec rules — skipping.")
-        else:
-            claude_file.write_text(RULES_CLAUDE)
-            installed.append("CLAUDE.md")
-
-    elif tool == "windsurf":
-        rules_dir = project_root / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True, exist_ok=True)
-        rules_file = rules_dir / "vibesec.md"
-        rules_file.write_text(RULES_WINDSURF)
-        installed.append(str(rules_file.relative_to(project_root)))
-
-    elif tool == "lovable":
-        checklist_file = project_root / "VIBESEC_CHECKLIST.md"
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
-        installed.append("VIBESEC_CHECKLIST.md")
-
-    else:
+    if tool not in tool_configs:
         print(f"Unknown tool: {tool}")
-        print("Supported tools: cursor, claude-code, windsurf, lovable")
+        print(f"Supported tools: {', '.join(tool_configs.keys())}")
         sys.exit(1)
+
+    config = tool_configs[tool]
+    target_file = project_root / config["path"]
+
+    if "append_marker" in config:
+        if target_file.exists():
+            existing = target_file.read_text()
+            if config["append_marker"] not in existing:
+                target_file.write_text(existing + "\n\n" + config["content"])
+                installed.append(f"{config['path']} (appended)")
+            else:
+                print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
+        else:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(config["content"])
+            installed.append(str(config["path"]))
+    else:
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        target_file.write_text(config["content"])
+        installed.append(str(config["path"]))
 
     # Always create the checklist
     checklist_file = project_root / "VIBESEC_CHECKLIST.md"
