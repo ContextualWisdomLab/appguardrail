@@ -3,6 +3,14 @@ import os
 import sys
 from pathlib import Path
 
+# Try importing yaml for parsing the rules.
+# We'll fail gracefully if it's not installed in the current env during direct script execution.
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+
 def init(args):
     tool = args.tool
     stack = args.stack
@@ -26,16 +34,58 @@ def init(args):
 
     print("Initialization complete.")
 
+def load_rules():
+    if not HAS_YAML:
+        print("[!] PyYAML is not installed. Using default fallback rules.")
+        print("[!] Please install the package using 'pip install .' to use external YML rules.")
+        return [
+            {"pattern": "SUPABASE_SERVICE_ROLE_KEY", "message": "Hardcoded Supabase Service Role Key found", "severity": "CRITICAL"},
+            {"pattern": "STRIPE_SECRET_KEY", "message": "Hardcoded Stripe Secret Key found", "severity": "CRITICAL"},
+            {"pattern": "origin: \"*\"", "message": "Dangerous CORS setting (origin: '*') found", "severity": "HIGH"},
+            {"pattern": "allow read, write: if true", "message": "Public Firebase rules found", "severity": "CRITICAL"}
+        ]
+
+    rules_dir = Path(__file__).resolve().parent.parent / "rules"
+    combined_rules = []
+
+    if rules_dir.exists() and rules_dir.is_dir():
+        for rule_file in rules_dir.glob("*.yml"):
+            try:
+                with open(rule_file, "r") as f:
+                    data = yaml.safe_load(f)
+                    if data and "rules" in data:
+                        combined_rules.extend(data["rules"])
+            except Exception as e:
+                print(f"Warning: Failed to parse rule file {rule_file}: {e}")
+
+    return combined_rules
+
+def extract_patterns(rule):
+    patterns = []
+    # Handle single pattern
+    if "pattern" in rule:
+        patterns.append(rule["pattern"])
+
+    # Handle semgrep-style patterns list
+    if "patterns" in rule and isinstance(rule["patterns"], list):
+        for p in rule["patterns"]:
+            if isinstance(p, str):
+                patterns.append(p)
+            elif isinstance(p, dict):
+                # E.g. {"pattern": "...", "pattern-regex": "..."}
+                if "pattern" in p:
+                    patterns.append(p["pattern"])
+                # We skip pattern-regex for now as we're doing simple string matching in MVP
+    return patterns
+
 def scan(args):
     path = args.path
     print(f"Scanning directory: {path}")
 
-    dangerous_patterns = {
-        "SUPABASE_SERVICE_ROLE_KEY": "Hardcoded Supabase Service Role Key found",
-        "STRIPE_SECRET_KEY": "Hardcoded Stripe Secret Key found",
-        "origin: \"*\"": "Dangerous CORS setting (origin: '*') found",
-        "allow read, write: if true": "Public Firebase rules found",
-    }
+    rules = load_rules()
+    if not rules:
+        print("No rules loaded. Exiting.")
+        return
 
     findings = []
 
@@ -51,11 +101,21 @@ def scan(args):
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    for pattern, warning in dangerous_patterns.items():
-                        if pattern in content:
-                            findings.append(f"{file_path}: {warning}")
-            except Exception:
-                pass
+            except (UnicodeDecodeError, IOError):
+                # Only ignore file read/decoding errors
+                continue
+
+            for rule in rules:
+                patterns_to_check = extract_patterns(rule)
+
+                for p in patterns_to_check:
+                    # In a real scanner this would be robust regex or AST parsing.
+                    # For this MVP, we do simple string subset matching.
+                    # Be careful with multi-line patterns.
+                    # If it's a simple string, we just check if it's in content.
+                    if p.strip() and p.strip() in content:
+                        findings.append(f"{file_path} [{rule.get('severity', 'UNKNOWN')}]: {rule['message'].strip()}")
+                        break # Prevent duplicate findings for the same rule in a single file
 
     if findings:
         print("\n[!] Vulnerabilities found:")
