@@ -401,10 +401,14 @@ def _scan_file(file_path: Path, base_path: Path):
     ext = file_path.suffix.lower()
     rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
 
+    # Optimization: Split the file content into lines only once,
+    # rather than repeatedly calling splitlines() for every rule.
+    lines = content.splitlines()
+
     for rule in SCAN_RULES:
         if rule["extensions"] and ext not in rule["extensions"]:
             continue
-        for line_num, line in enumerate(content.splitlines(), start=1):
+        for line_num, line in enumerate(lines, start=1):
             match = rule["pattern"].search(line)
             if match:
                 findings.append({

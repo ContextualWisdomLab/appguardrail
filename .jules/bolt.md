@@ -1,0 +1,3 @@
+## 2024-05-19 - Safe Python File Scanning Optimization
+**Learning:** When optimizing Python file scanning regex rules that are designed for line-by-line checks, blindly replacing line iteration with multiline `.finditer` is dangerous. It breaks regex anchors like `^` and `$`, leading to silent failures to match critical security vulnerabilities. Furthermore, `splitlines()` shouldn't be inside a rule-matching loop.
+**Action:** Always pre-calculate `content.splitlines()` once per file *outside* the rules loop instead of inside it. This provides a safe, significant performance boost without altering regex match semantics.
