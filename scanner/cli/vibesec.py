@@ -314,9 +314,7 @@ def cmd_init(args):
         installed.append(str(rules_file.relative_to(project_root)))
 
     elif tool == "lovable":
-        checklist_file = project_root / "VIBESEC_CHECKLIST.md"
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
-        installed.append("VIBESEC_CHECKLIST.md")
+        pass
 
     else:
         print(f"Unknown tool: {tool}")
@@ -423,7 +421,6 @@ def _scan_file(file_path: Path, base_path: Path):
         pass
 
     return findings
-
 
 def _print_scan_results(findings, files_scanned):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
