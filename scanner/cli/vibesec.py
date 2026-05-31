@@ -435,7 +435,7 @@ def _print_scan_results(findings, files_scanned):
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     for f in findings:
-        counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+        counts[f["severity"]] += 1
         icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
