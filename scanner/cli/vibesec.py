@@ -286,43 +286,50 @@ def cmd_init(args):
 
     installed = []
 
-    if tool == "cursor":
-        rules_dir = project_root / ".cursor" / "rules"
-        rules_dir.mkdir(parents=True, exist_ok=True)
-        rules_file = rules_dir / "vibesec.md"
-        rules_file.write_text(RULES_CURSOR)
-        installed.append(str(rules_file.relative_to(project_root)))
+    tool_configs = {
+        "cursor": {
+            "path": Path(".cursor") / "rules" / "vibesec.md",
+            "content": RULES_CURSOR,
+        },
+        "claude-code": {
+            "path": Path("CLAUDE.md"),
+            "content": RULES_CLAUDE,
+            "append_marker": "VibeSec",
+        },
+        "windsurf": {
+            "path": Path(".windsurf") / "rules" / "vibesec.md",
+            "content": RULES_WINDSURF,
+        },
+        "lovable": {
+            "shared_only": True,
+        },
+    }
 
-    elif tool == "claude-code":
-        claude_file = project_root / "CLAUDE.md"
-        if claude_file.exists():
-            existing = claude_file.read_text()
-            if "VibeSec" not in existing:
-                claude_file.write_text(existing + "\n\n" + RULES_CLAUDE)
-                installed.append("CLAUDE.md (appended)")
-            else:
-                print("CLAUDE.md already contains VibeSec rules — skipping.")
-        else:
-            claude_file.write_text(RULES_CLAUDE)
-            installed.append("CLAUDE.md")
-
-    elif tool == "windsurf":
-        rules_dir = project_root / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True, exist_ok=True)
-        rules_file = rules_dir / "vibesec.md"
-        rules_file.write_text(RULES_WINDSURF)
-        installed.append(str(rules_file.relative_to(project_root)))
-
-    elif tool == "lovable":
-        checklist_file = project_root / "VIBESEC_CHECKLIST.md"
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
-        installed.append("VIBESEC_CHECKLIST.md")
-
-    else:
+    if tool not in tool_configs:
         print(f"Unknown tool: {tool}")
-        print("Supported tools: cursor, claude-code, windsurf, lovable")
+        print(f"Supported tools: {', '.join(tool_configs.keys())}")
         sys.exit(1)
 
+    config = tool_configs[tool]
+    if not config.get("shared_only"):
+        target_file = project_root / config["path"]
+
+        if "append_marker" in config:
+            if target_file.exists():
+                existing = target_file.read_text()
+                if config["append_marker"] not in existing:
+                    target_file.write_text(existing + "\n\n" + config["content"])
+                    installed.append(f"{config['path']} (appended)")
+                else:
+                    print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
+            else:
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                target_file.write_text(config["content"])
+                installed.append(str(config["path"]))
+        else:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(config["content"])
+            installed.append(str(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "VIBESEC_CHECKLIST.md"
     if not checklist_file.exists():
@@ -393,31 +400,36 @@ def _collect_files(base_path: Path):
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="ignore")
-    except (OSError, PermissionError):
-        return findings
 
     ext = file_path.suffix.lower()
     rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
 
-    for rule in SCAN_RULES:
-        if rule["extensions"] and ext not in rule["extensions"]:
-            continue
-        for line_num, line in enumerate(content.splitlines(), start=1):
-            match = rule["pattern"].search(line)
-            if match:
-                findings.append({
-                    "rule_id": rule["id"],
-                    "severity": rule["severity"],
-                    "message": rule["message"],
-                    "file": str(rel_path),
-                    "line": line_num,
-                    "snippet": line.strip()[:120],
-                })
+    applicable_rules = [
+        rule for rule in SCAN_RULES
+        if not rule["extensions"] or ext in rule["extensions"]
+    ]
+
+    if not applicable_rules:
+        return findings
+
+    try:
+        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line_num, line in enumerate(f, start=1):
+                for rule in applicable_rules:
+                    match = rule["pattern"].search(line)
+                    if match:
+                        findings.append({
+                            "rule_id": rule["id"],
+                            "severity": rule["severity"],
+                            "message": rule["message"],
+                            "file": str(rel_path),
+                            "line": line_num,
+                            "snippet": line.strip()[:120],
+                        })
+    except (OSError, PermissionError):
+        pass
 
     return findings
-
 
 def _print_scan_results(findings, files_scanned):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
@@ -432,7 +444,7 @@ def _print_scan_results(findings, files_scanned):
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     for f in findings:
-        counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+        counts[f["severity"]] += 1
         icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
