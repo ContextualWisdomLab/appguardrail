@@ -154,17 +154,37 @@ CREATE TABLE projects (
 `app/api/admin/users/route.ts`
 
 ```typescript
-// ❌ VULNERABLE: Auth check skipped with a TODO
-export async function GET(req: Request) {
-  // TODO: add admin auth check
-  // Skipped for now to test the endpoint quickly
+// ✅ SECURE: Admin role verified server-side
+import { auth } from '@/auth';
 
-  const users = await db.user.findMany();
+export async function GET(req: Request) {
+  const session = await auth();
+
+  // Step 1: Require authentication
+  if (!session) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Step 2: Require admin role (from database, not just session claim)
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+
+  if (user?.role !== 'admin') {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const users = await db.user.findMany({
+    select: { id: true, email: true, createdAt: true, plan: true },
+    // Never include passwords, secrets, or sensitive fields
+  });
+
   return Response.json(users);
 }
 ```
 
-**Impact:** The `/api/admin/users` endpoint is publicly accessible and returns all user records.
+**Impact:** Previously, the `/api/admin/users` endpoint was publicly accessible and returned all user records. It is now secured.
 
 ---
 
