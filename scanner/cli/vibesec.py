@@ -396,6 +396,8 @@ def _collect_files(base_path: Path):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
         for filename in files:
             file_path = Path(root) / filename
+            if not file_path.is_file():
+                continue
             if file_path.suffix.lower() not in SKIP_EXTENSIONS:
                 yield file_path
 
@@ -403,6 +405,11 @@ def _collect_files(base_path: Path):
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
+    try:
+        if file_path.stat().st_size > 10 * 1024 * 1024:
+            return findings
+    except (OSError, PermissionError):
+        return findings
 
     ext = file_path.suffix.lower()
     rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
