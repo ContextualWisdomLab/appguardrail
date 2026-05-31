@@ -391,32 +391,36 @@ def _collect_files(base_path: Path):
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="ignore")
-    except (OSError, PermissionError):
-        return findings
 
     ext = file_path.suffix.lower()
     rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
 
-    lines = content.splitlines()
-    for rule in SCAN_RULES:
-        if rule["extensions"] and ext not in rule["extensions"]:
-            continue
-        for line_num, line in enumerate(lines, start=1):
-            match = rule["pattern"].search(line)
-            if match:
-                findings.append({
-                    "rule_id": rule["id"],
-                    "severity": rule["severity"],
-                    "message": rule["message"],
-                    "file": str(rel_path),
-                    "line": line_num,
-                    "snippet": line.strip()[:120],
-                })
+    applicable_rules = [
+        rule for rule in SCAN_RULES
+        if not rule["extensions"] or ext in rule["extensions"]
+    ]
+
+    if not applicable_rules:
+        return findings
+
+    try:
+        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line_num, line in enumerate(f, start=1):
+                for rule in applicable_rules:
+                    match = rule["pattern"].search(line)
+                    if match:
+                        findings.append({
+                            "rule_id": rule["id"],
+                            "severity": rule["severity"],
+                            "message": rule["message"],
+                            "file": str(rel_path),
+                            "line": line_num,
+                            "snippet": line.strip()[:120],
+                        })
+    except (OSError, PermissionError):
+        pass
 
     return findings
-
 
 def _print_scan_results(findings, files_scanned):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
