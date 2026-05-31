@@ -313,6 +313,9 @@ def cmd_init(args):
     config = tool_configs[tool]
     if not config.get("shared_only"):
         target_file = project_root / config["path"]
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        if target_file.is_symlink():
+            target_file.unlink()
 
         if "append_marker" in config:
             if target_file.exists():
@@ -323,15 +326,15 @@ def cmd_init(args):
                 else:
                     print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
             else:
-                target_file.parent.mkdir(parents=True, exist_ok=True)
                 target_file.write_text(config["content"])
                 installed.append(str(config["path"]))
         else:
-            target_file.parent.mkdir(parents=True, exist_ok=True)
             target_file.write_text(config["content"])
             installed.append(str(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "VIBESEC_CHECKLIST.md"
+    if checklist_file.is_symlink():
+        checklist_file.unlink()
     if not checklist_file.exists():
         checklist_file.write_text(CHECKLIST_TEMPLATE)
         installed.append("VIBESEC_CHECKLIST.md")
