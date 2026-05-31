@@ -319,6 +319,8 @@ def cmd_init(args):
                 existing = target_file.read_text()
                 if config["append_marker"] not in existing:
                     target_file.write_text(existing + "\n\n" + config["content"])
+                    installed.append(f"{config['path']} (appended)")
+                else:
                     print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
             else:
                 target_file.parent.mkdir(parents=True, exist_ok=True)
