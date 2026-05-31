@@ -314,9 +314,7 @@ def cmd_init(args):
         installed.append(str(rules_file.relative_to(project_root)))
 
     elif tool == "lovable":
-        checklist_file = project_root / "VIBESEC_CHECKLIST.md"
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
-        installed.append("VIBESEC_CHECKLIST.md")
+        pass
 
     else:
         print(f"Unknown tool: {tool}")
@@ -393,31 +391,36 @@ def _collect_files(base_path: Path):
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="ignore")
-    except (OSError, PermissionError):
-        return findings
 
     ext = file_path.suffix.lower()
     rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
 
-    for rule in SCAN_RULES:
-        if rule["extensions"] and ext not in rule["extensions"]:
-            continue
-        for line_num, line in enumerate(content.splitlines(), start=1):
-            match = rule["pattern"].search(line)
-            if match:
-                findings.append({
-                    "rule_id": rule["id"],
-                    "severity": rule["severity"],
-                    "message": rule["message"],
-                    "file": str(rel_path),
-                    "line": line_num,
-                    "snippet": line.strip()[:120],
-                })
+    applicable_rules = [
+        rule for rule in SCAN_RULES
+        if not rule["extensions"] or ext in rule["extensions"]
+    ]
+
+    if not applicable_rules:
+        return findings
+
+    try:
+        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line_num, line in enumerate(f, start=1):
+                for rule in applicable_rules:
+                    match = rule["pattern"].search(line)
+                    if match:
+                        findings.append({
+                            "rule_id": rule["id"],
+                            "severity": rule["severity"],
+                            "message": rule["message"],
+                            "file": str(rel_path),
+                            "line": line_num,
+                            "snippet": line.strip()[:120],
+                        })
+    except (OSError, PermissionError):
+        pass
 
     return findings
-
 
 def _print_scan_results(findings, files_scanned):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
@@ -432,7 +435,7 @@ def _print_scan_results(findings, files_scanned):
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     for f in findings:
-        counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+        counts[f["severity"]] += 1
         icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
