@@ -405,7 +405,13 @@ def _collect_files(base_path: Path):
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
+
+    # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
+    if not file_path.is_file():
+        return findings
+
     try:
+        # SECURITY: Prevent OOM by skipping extremely large files
         if file_path.stat().st_size > 10 * 1024 * 1024:
             return findings
     except (OSError, PermissionError):
