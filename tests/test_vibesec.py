@@ -1,8 +1,33 @@
+import re
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file
+
+MOCK_RULES = [
+    {
+        "id": "mock-secret",
+        "pattern": re.compile(r"MOCK_SECRET_KEY"),
+        "severity": "CRITICAL",
+        "message": "Found mock secret",
+        "extensions": None,
+    },
+    {
+        "id": "mock-todo",
+        "pattern": re.compile(r"TODO: fix auth"),
+        "severity": "HIGH",
+        "message": "Found auth todo",
+        "extensions": None,
+    },
+    {
+        "id": "mock-rules-ext",
+        "pattern": re.compile(r"allow all"),
+        "severity": "CRITICAL",
+        "message": "Allows all",
+        "extensions": [".rules"],
+    },
+]
 
 
 def test_scan_file_error_handling(tmp_path):
@@ -14,6 +39,60 @@ def test_scan_file_error_handling(tmp_path):
 
     with patch.object(Path, "open", side_effect=OSError("OS error")):
         assert _scan_file(test_file, tmp_path) == []
+
+
+@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_scan_file_no_findings(tmp_path):
+    test_file = tmp_path / "safe.py"
+    test_file.write_text("print('hello')\n")
+    assert _scan_file(test_file, tmp_path) == []
+
+
+@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_scan_file_with_findings(tmp_path):
+    test_file = tmp_path / "unsafe.ts"
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n")
+
+    findings = _scan_file(test_file, tmp_path)
+    assert len(findings) == 1
+    assert findings[0]["rule_id"] == "mock-secret"
+
+
+@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_scan_file_with_multiple_findings(tmp_path):
+    test_file = tmp_path / "unsafe_multiple.js"
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n")
+
+    findings = _scan_file(test_file, tmp_path)
+    rule_ids = [f["rule_id"] for f in findings]
+    assert len(findings) == 2
+    assert "mock-secret" in rule_ids
+    assert "mock-todo" in rule_ids
+
+
+def test_scan_file_unreadable(tmp_path):
+    test_file = tmp_path / "unreadable.ts"
+    test_file.write_text("MOCK_SECRET_KEY\n")
+
+    with patch.object(Path, "open", side_effect=PermissionError("Permission denied")):
+        assert _scan_file(test_file, tmp_path) == []
+
+
+@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_scan_file_extensions_filter(tmp_path):
+    test_file = tmp_path / "rules.js"
+    test_file.write_text("allow all\n")
+
+    findings = _scan_file(test_file, tmp_path)
+    rule_ids = [f["rule_id"] for f in findings]
+    assert "mock-rules-ext" not in rule_ids
+
+    test_file_rules = tmp_path / "firestore.rules"
+    test_file_rules.write_text("allow all\n")
+
+    findings = _scan_file(test_file_rules, tmp_path)
+    rule_ids = [f["rule_id"] for f in findings]
+    assert "mock-rules-ext" in rule_ids
 
 
 def test_collect_files():
