@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import re
 from pathlib import Path
 
 # Try importing yaml for parsing the rules.
@@ -62,6 +63,7 @@ def load_rules():
 
 def extract_patterns(rule):
     patterns = []
+    regexes = []
     # Handle single pattern
     if "pattern" in rule:
         patterns.append(rule["pattern"])
@@ -75,8 +77,9 @@ def extract_patterns(rule):
                 # E.g. {"pattern": "...", "pattern-regex": "..."}
                 if "pattern" in p:
                     patterns.append(p["pattern"])
-                # We skip pattern-regex for now as we're doing simple string matching in MVP
-    return patterns
+                if "pattern-regex" in p:
+                    regexes.append(p["pattern-regex"])
+    return patterns, regexes
 
 def scan(args):
     path = args.path
@@ -106,16 +109,25 @@ def scan(args):
                 continue
 
             for rule in rules:
-                patterns_to_check = extract_patterns(rule)
+                patterns_to_check, regexes_to_check = extract_patterns(rule)
 
+                matched = False
                 for p in patterns_to_check:
-                    # In a real scanner this would be robust regex or AST parsing.
-                    # For this MVP, we do simple string subset matching.
-                    # Be careful with multi-line patterns.
-                    # If it's a simple string, we just check if it's in content.
                     if p.strip() and p.strip() in content:
                         findings.append(f"{file_path} [{rule.get('severity', 'UNKNOWN')}]: {rule['message'].strip()}")
+                        matched = True
                         break # Prevent duplicate findings for the same rule in a single file
+
+                if not matched:
+                    for regex_str in regexes_to_check:
+                        try:
+                            # Precompile the regex for matching
+                            pattern = re.compile(regex_str)
+                            if pattern.search(content):
+                                findings.append(f"{file_path} [{rule.get('severity', 'UNKNOWN')}]: {rule['message'].strip()}")
+                                break # Prevent duplicate findings for the same rule in a single file
+                        except re.error as e:
+                            print(f"Warning: Invalid regex '{regex_str}' in rule {rule.get('id', 'unknown')}: {e}")
 
     if findings:
         print("\n[!] Vulnerabilities found:")

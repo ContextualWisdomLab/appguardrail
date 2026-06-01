@@ -17,3 +17,6 @@ dependencies = [
 
 [project.scripts]
 vibesec = "scanner.cli.vibesec:main"
+
+[tool.setuptools.package-data]
+"scanner" = ["rules/*.yml"]

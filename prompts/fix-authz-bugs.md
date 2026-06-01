@@ -1,70 +1,17 @@
-# Fix Authorization Bugs Prompt
+# VibeSec: Fix Authorization Bugs Prompt
 
-Use this prompt when you have identified authorization or ownership verification gaps in your codebase. Paste it into Claude Code or Cursor along with the relevant file(s).
+Use this prompt when you suspect or have identified authorization bypass issues (BOLA/IDOR) in your AI-generated app.
 
 ---
 
-## Authorization Fix Prompt
+**Prompt:**
 
-```
-This codebase has authorization vulnerabilities — specifically, missing or insufficient
-ownership verification on API routes. Please fix all authorization issues following
-these rules:
+Act as an application security engineer. I need you to review all data fetching and mutation endpoints (API routes, server actions, etc.) in this codebase.
 
-## Rules to Apply
+Your goal is to enforce strict **Resource Ownership Authorization**.
 
-1. For every API endpoint that returns user-owned resources, add this check immediately
-   after authentication:
-   ```
-   const resource = await db.find({ where: { id: params.id } });
-   if (!resource || resource.userId !== session.user.id) {
-     return Response.json({ error: 'Forbidden' }, { status: 403 });
-   }
-   ```
+1.  Identify every endpoint that receives an ID (e.g., `project_id`, `user_id`, `document_id`) from the client.
+2.  Check if the endpoint verifies that the currently authenticated user actually *owns* or has permission to access that specific resource ID.
+3.  If an endpoint blindly queries the database using the provided ID without an ownership check, it is vulnerable.
 
-2. The ownership check must happen server-side, in the API handler — not in middleware
-   only, not in the frontend.
-
-3. Return HTTP 403 (not 404, not 200 with null) for ownership violations.
-
-4. For list endpoints, filter by the authenticated user's ID:
-   ```
-   const records = await db.findMany({ where: { userId: session.user.id } });
-   ```
-   Do NOT fetch all records and then filter in JavaScript.
-
-5. For Supabase, ensure RLS policies enforce ownership using auth.uid():
-   ```sql
-   CREATE POLICY "Users can only view own records"
-     ON table_name FOR SELECT
-     USING (auth.uid() = user_id);
-   ```
-
-## For Each Fixed Route, Also Add These Tests:
-
-```typescript
-describe('[endpoint] authorization', () => {
-  it('returns 401 when unauthenticated', async () => {
-    const res = await fetch('/api/resource/some-id');
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 403 when authenticated user does not own the resource', async () => {
-    const res = await fetch('/api/resource/other-users-id', {
-      headers: { Authorization: 'Bearer ' + userBToken },
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 200 when authenticated user owns the resource', async () => {
-    const res = await fetch('/api/resource/user-a-own-id', {
-      headers: { Authorization: 'Bearer ' + userAToken },
-    });
-    expect(res.status).toBe(200);
-  });
-});
-```
-
-Please review every API route, server action, and database query in this codebase and
-apply these fixes consistently. List all the changes you make.
-```
+Please rewrite the vulnerable endpoints to include ownership checks (e.g., `where owner_id = current_user_id`). Ensure the endpoint returns an HTTP 403 Forbidden status if the check fails.
