@@ -7,3 +7,8 @@
 **Vulnerability:** File-system-based Denial of Service (DoS) and Out-Of-Memory (OOM) risks during static analysis. The scanner could hang on special system files (like `/dev/zero` or FIFOs) or consume excessive memory.
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
+
+## 2025-06-01 - Prevent path traversal and arbitrary file reads via symlinks
+**Vulnerability:** The CLI scanner followed symlinks during file traversal when using `os.walk`, potentially allowing an attacker to place a malicious symlink (e.g., `link -> /etc/shadow` or outside the repo) and trick the scanner into reading or leaking sensitive file contents.
+**Learning:** During static analysis file collection, it is crucial to avoid traversing symbolic links to prevent Arbitrary File Read and Path Traversal.
+**Prevention:** Use `os.scandir()` instead of `os.walk()` to explicitly skip symlinks (`if entry.is_symlink(): continue`). This also significantly improves performance by reducing `stat()` system calls.
