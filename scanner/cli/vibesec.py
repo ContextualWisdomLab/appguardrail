@@ -391,20 +391,33 @@ def cmd_scan(args):
 
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
-    for root, dirs, files in os.walk(base_path):
-        # Prune directories in-place
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
-        for filename in files:
-            file_path = Path(root) / filename
-            if not file_path.is_file():
-                continue
-            if file_path.suffix.lower() not in SKIP_EXTENSIONS:
-                yield file_path
+    def _scan(directory: Path):
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    # SECURITY: Prevent Arbitrary File Read and Path Traversal via symlinks
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                            yield from _scan(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        file_path = Path(entry.path)
+                        if file_path.suffix.lower() not in SKIP_EXTENSIONS:
+                            yield file_path
+        except (OSError, PermissionError):
+            pass
+
+    yield from _scan(base_path)
 
 
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
+
+    # SECURITY: Prevent Arbitrary File Read by skipping symlinks
+    if file_path.is_symlink():
+        return findings
 
     # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
     if not file_path.is_file():
