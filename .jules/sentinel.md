@@ -7,3 +7,8 @@
 **Vulnerability:** File-system-based Denial of Service (DoS) and Out-Of-Memory (OOM) risks during static analysis. The scanner could hang on special system files (like `/dev/zero` or FIFOs) or consume excessive memory.
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
+
+## 2025-06-03 - [Symlink Path Traversal and Arbitrary File Read Prevention]
+**Vulnerability:** The static scanner previously collected files using `os.walk`, which could unintentionally traverse into unauthorized, deeply nested, or cyclical directories if symbolic links were present, leading to Path Traversal, Arbitrary File Read, or infinite loops.
+**Learning:** Standard recursive directory parsing routines (`os.walk` or naive `Path.iterdir`) do not always cleanly distinguish between true files/directories and symlinks, potentially causing the scanner to process unintended target files. Utilizing `os.scandir` allows us to cache directory entries and explicitly skip symlinks.
+**Prevention:** In any file collection or parsing logic, employ `os.scandir()`. Always check `entry.is_symlink()` and `continue` to avoid following dangerous links. Pass `follow_symlinks=False` to `is_dir()` and `is_file()` methods to further enforce this boundary.
