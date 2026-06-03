@@ -391,15 +391,25 @@ def cmd_scan(args):
 
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
-    for root, dirs, files in os.walk(base_path):
-        # Prune directories in-place
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
-        for filename in files:
-            file_path = Path(root) / filename
-            if not file_path.is_file():
-                continue
-            if file_path.suffix.lower() not in SKIP_EXTENSIONS:
-                yield file_path
+    # PERFORMANCE OPTIMIZATION:
+    # Use os.scandir instead of os.walk to cache directory attributes and avoid expensive stat() calls.
+    dirs_to_process = [base_path]
+    while dirs_to_process:
+        current_dir = dirs_to_process.pop()
+        try:
+            with os.scandir(current_dir) as it:
+                for entry in it:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                            dirs_to_process.append(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        ext = os.path.splitext(entry.name)[1].lower()
+                        if ext not in SKIP_EXTENSIONS:
+                            yield Path(entry.path)
+        except (OSError, PermissionError):
+            pass
 
 
 def _scan_file(file_path: Path, base_path: Path):
