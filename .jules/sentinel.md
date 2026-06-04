@@ -7,3 +7,8 @@
 **Vulnerability:** File-system-based Denial of Service (DoS) and Out-Of-Memory (OOM) risks during static analysis. The scanner could hang on special system files (like `/dev/zero` or FIFOs) or consume excessive memory.
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
+
+## 2025-06-01 - Arbitrary File Read and Path Traversal Prevention
+**Vulnerability:** The CLI file scanner `vibesec scan` iterated through files using `os.walk` without explicitly avoiding symbolic links. This allowed the scanner to traverse symlinks and potentially scan files outside the intended project directory.
+**Learning:** Symlinks can be used to perform Arbitrary File Read and Path Traversal attacks by linking outside the workspace directory.
+**Prevention:** Replaced `os.walk` with `os.scandir` to prevent traversal vulnerabilities. Explicitly skip symlinks using `if entry.is_symlink(): continue` and rely on `follow_symlinks=False` in directory and file type checks.
