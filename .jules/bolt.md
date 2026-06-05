@@ -1,0 +1,3 @@
+## 2026-06-05 - Optimize file traversal with os.scandir
+**Learning:** `os.walk` with `Path` creation and `is_file()` checks is too slow because it creates many expensive `stat()` system calls. By using `os.scandir()`, directory attributes are cached, which avoids these calls. Also, checking file extensions with `os.path.splitext` and deferring `Path` creation until needed yields further performance improvements. At the same time, we must maintain security constraints by explicitly checking `if entry.is_symlink(): continue`.
+**Action:** Always prefer `os.scandir()` over `os.walk()` combined with `Path` operations for codebase scanning when performance matters, keeping symlink checks in place.
