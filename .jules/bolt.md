@@ -1,0 +1,3 @@
+## 2024-05-18 - Optimize File System Traversal in Python
+**Learning:** Using `os.scandir` is significantly faster than combining `os.walk` with `Path` instantiations in Python for collecting specific files. `os.scandir` caches directory entry attributes (such as `is_dir()` and `is_file()`), which helps avoid expensive multiple `stat()` system calls. Deferring the creation of `Path` objects until absolutely necessary (e.g., using `os.path.splitext` for quick extension checking) also avoids unnecessary memory allocation overhead.
+**Action:** When implementing or optimizing file traversal logic, prefer a depth-first search using `os.scandir` to filter files efficiently before wrapping them in higher-level objects like `Path`.
