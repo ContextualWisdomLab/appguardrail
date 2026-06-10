@@ -402,10 +402,12 @@ def _collect_files(base_path: Path):
             with os.scandir(current_dir) as it:
                 dirs = []
                 for entry in it:
+                    if entry.is_symlink():
+                        continue
                     if entry.is_dir(follow_symlinks=False):
                         if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
                             dirs.append(entry.path)
-                    elif entry.is_file():
+                    elif entry.is_file(follow_symlinks=False):
                         _, ext = os.path.splitext(entry.name)
                         if ext.lower() not in SKIP_EXTENSIONS:
                             yield Path(entry.path)
