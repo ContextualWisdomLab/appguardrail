@@ -414,6 +414,9 @@ def _collect_files(base_path: Path):
             pass
 
 
+_RULE_CACHE = {}
+_LAST_SCAN_RULES_ID = None
+
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
@@ -429,13 +432,25 @@ def _scan_file(file_path: Path, base_path: Path):
     except (OSError, PermissionError):
         return findings
 
+    global _LAST_SCAN_RULES_ID, _RULE_CACHE
+
     ext = file_path.suffix.lower()
     rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
 
-    applicable_rules = [
-        rule for rule in SCAN_RULES
-        if not rule["extensions"] or ext in rule["extensions"]
-    ]
+    # In tests, SCAN_RULES might be mocked, so check if id has changed
+    current_rules_id = id(SCAN_RULES)
+    if _LAST_SCAN_RULES_ID != current_rules_id:
+        _RULE_CACHE = {}
+        _LAST_SCAN_RULES_ID = current_rules_id
+
+    if ext not in _RULE_CACHE:
+        _RULE_CACHE[ext] = [
+            (rule["pattern"].search, rule)
+            for rule in SCAN_RULES
+            if not rule["extensions"] or ext in rule["extensions"]
+        ]
+
+    applicable_rules = _RULE_CACHE[ext]
 
     if not applicable_rules:
         return findings
@@ -443,8 +458,8 @@ def _scan_file(file_path: Path, base_path: Path):
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as f:
             for line_num, line in enumerate(f, start=1):
-                for rule in applicable_rules:
-                    match = rule["pattern"].search(line)
+                for search_method, rule in applicable_rules:
+                    match = search_method(line)
                     if match:
                         findings.append({
                             "rule_id": rule["id"],
