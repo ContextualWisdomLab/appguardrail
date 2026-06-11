@@ -8,7 +8,7 @@
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
 
-## 2025-06-01 - Prevent path traversal and arbitrary file reads via symlinks
-**Vulnerability:** The CLI scanner followed symlinks during file traversal when using `os.walk`, potentially allowing an attacker to place a malicious symlink (e.g., `link -> /etc/shadow` or outside the repo) and trick the scanner into reading or leaking sensitive file contents.
-**Learning:** During static analysis file collection, it is crucial to avoid traversing symbolic links to prevent Arbitrary File Read and Path Traversal.
-**Prevention:** Use `os.scandir()` instead of `os.walk()` to explicitly skip symlinks (`if entry.is_symlink(): continue`). This also significantly improves performance by reducing `stat()` system calls.
+## 2026-06-09 - Fix Path Traversal/Arbitrary File Read in scanner via symlinks
+**Vulnerability:** The `_collect_files` function in `scanner/cli/vibesec.py` used `os.scandir` without explicitly checking if entries were symbolic links before processing them as directories or files. This could allow for arbitrary file read or path traversal vulnerabilities by processing symlinks that point outside the expected directories.
+**Learning:** During static analysis, directory and file collection methods must be robust against maliciously crafted directory structures, specifically symbolic links pointing to sensitive system files.
+**Prevention:** Explicitly use `entry.is_symlink()` and check `follow_symlinks=False` on `is_file()` to prevent traversing external links or including them during scan operations.
