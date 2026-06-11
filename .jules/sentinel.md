@@ -8,7 +8,7 @@
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
 
-## 2025-06-05 - Fix Arbitrary File Read and Path Traversal in file scanner
-**Vulnerability:** The CLI file scanner `vibesec scan` iterated through files using `os.walk` combined with `Path` operations, which could implicitly follow symbolic links. This allowed arbitrary file read or path traversal vulnerabilities.
-**Learning:** Naive file traversal methods like `os.walk` or `Path.is_file()` without explicit symlink checks might expose the application to path traversal or read operations on unauthorized files outside the expected directory tree if a malicious symlink is created.
-**Prevention:** Use `os.scandir` instead of `os.walk` for file discovery. Explicitly call `entry.is_symlink()` and skip the file if it is a symlink, and use `follow_symlinks=False` in `is_dir()` and `is_file()` checks to enforce strict path boundaries.
+## 2026-06-09 - Fix Path Traversal/Arbitrary File Read in scanner via symlinks
+**Vulnerability:** The `_collect_files` function in `scanner/cli/vibesec.py` used `os.scandir` without explicitly checking if entries were symbolic links before processing them as directories or files. This could allow for arbitrary file read or path traversal vulnerabilities by processing symlinks that point outside the expected directories.
+**Learning:** During static analysis, directory and file collection methods must be robust against maliciously crafted directory structures, specifically symbolic links pointing to sensitive system files.
+**Prevention:** Explicitly use `entry.is_symlink()` and check `follow_symlinks=False` on `is_file()` to prevent traversing external links or including them during scan operations.
