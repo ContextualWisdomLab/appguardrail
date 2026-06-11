@@ -1,3 +1,3 @@
-## 2024-05-15 - Rejected file buffering, moved to OS-level traversal optimization
-**Learning:** An attempt to optimize file iteration by replacing `for line in f:` with `f.read().splitlines()` was rejected because it causes O(N) memory regression (buffering the whole file as a list of strings) and drops trailing newlines, potentially breaking regex anchors. Also, the actual bottleneck for single file processing is the regex `search()` itself, meaning `splitlines()` provided minimal measurable CPU improvement.
-**Action:** When optimizing file/directory operations in Python, prioritize reducing syscalls (like `stat()`). Replacing `os.walk` + `Path` parsing with `os.scandir` is a safer optimization pattern that provides a measurable CPU speedup without increasing memory overhead or changing file-level behavior.
+## 2024-05-24 - File traversal performance
+**Learning:** When optimizing os.walk combined with Path objects, replacing them with os.scandir and os.path.splitext reduces stat() calls drastically, but requires careful matching of symlink behavior (os.walk matches directory symlinks depending on arguments, Path.is_file() follows symlinks by default).
+**Action:** Use entry.is_dir(follow_symlinks=False) to match os.walk and entry.is_file() to match Path.is_file() default.
