@@ -364,11 +364,16 @@ def _print_supabase_reminder():
 
 def cmd_scan(args):
     """Run a lightweight security scan."""
-    scan_path = Path(getattr(args, "path", ".") or ".").resolve()
+    scan_arg = Path(getattr(args, "path", ".") or ".")
+    scan_path = scan_arg.resolve()
 
-    if not scan_path.exists():
+    if not scan_arg.exists():
         print(f"Error: Path does not exist: {scan_path}")
         sys.exit(1)
+
+    if scan_arg.is_symlink():
+        print(f"Skipping symlink path: {scan_arg}")
+        return 0
 
     print(f"\n🔍 VibeSec scanning: {scan_path}\n")
 
@@ -391,24 +396,30 @@ def cmd_scan(args):
 
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
+    # ⚡ Bolt: Optimize file traversal using os.scandir and os.path.splitext
+    # This avoids expensive stat() calls by using cached directory attributes
+    # and defers Path object creation until a valid file is found.
+    # Impact: Significantly faster file discovery in large codebases.
     stack = [str(base_path)]
     while stack:
         current_dir = stack.pop()
         try:
-            with os.scandir(current_dir) as entries:
-                for entry in entries:
-                    # Explicitly skip symlinks to prevent path traversal
-                    if entry.is_symlink():
+            with os.scandir(current_dir) as it:
+                dirs = []
+                for entry in it:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                                dirs.append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            _, ext = os.path.splitext(entry.name)
+                            if ext.lower() not in SKIP_EXTENSIONS:
+                                yield Path(entry.path)
+                    except (OSError, PermissionError):
                         continue
-                    if entry.is_dir(follow_symlinks=False):
-                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
-                            stack.append(entry.path)
-                    elif entry.is_file(follow_symlinks=False):
-                        # ⚡ Bolt Optimization: Use os.path.splitext for fast extension checking
-                        # and defer Path creation to avoid unnecessary stat() calls
-                        _, ext = os.path.splitext(entry.name)
-                        if ext.lower() not in SKIP_EXTENSIONS:
-                            yield Path(entry.path)
+                stack.extend(reversed(dirs))
         except (OSError, PermissionError):
             pass
 
@@ -418,7 +429,7 @@ def _scan_file(file_path: Path, base_path: Path):
     findings = []
 
     # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
-    if not file_path.is_file():
+    if file_path.is_symlink() or not file_path.is_file():
         return findings
 
     try:
