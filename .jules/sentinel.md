@@ -8,7 +8,7 @@
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
 
-## 2025-06-08 - Fix Path Traversal and Arbitrary File Read via Symlinks
-**Vulnerability:** The CLI file scanner `vibesec scan` used `os.walk` to traverse directories. While `os.walk` does not follow directory symlinks by default, `Path.is_file()` follows file symlinks. This could allow an attacker to read arbitrary files via symlinks (Arbitrary File Read) or traverse out of the intended directory context (Path Traversal).
-**Learning:** Even if directory traversal does not follow symlinks by default (`os.walk`), individual file checks like `Path.is_file()` still follow symlinks and can result in reading arbitrary files.
-**Prevention:** Replace `os.walk` with `os.scandir` to provide explicit control over symlink traversal. Check `entry.is_symlink()` and skip it, and use `follow_symlinks=False` in `is_dir()` and `is_file()` checks to ensure symlinks are completely ignored during file scanning.
+## 2026-06-09 - Fix Path Traversal/Arbitrary File Read in scanner via symlinks
+**Vulnerability:** The `_collect_files` function in `scanner/cli/vibesec.py` used `os.scandir` without explicitly checking if entries were symbolic links before processing them as directories or files. This could allow for arbitrary file read or path traversal vulnerabilities by processing symlinks that point outside the expected directories.
+**Learning:** During static analysis, directory and file collection methods must be robust against maliciously crafted directory structures, specifically symbolic links pointing to sensitive system files.
+**Prevention:** Explicitly use `entry.is_symlink()` and check `follow_symlinks=False` on `is_file()` to prevent traversing external links or including them during scan operations.
