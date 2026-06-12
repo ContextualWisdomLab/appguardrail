@@ -8,7 +8,7 @@
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
 
-## 2026-06-09 - Fix Path Traversal/Arbitrary File Read in scanner via symlinks
-**Vulnerability:** The `_collect_files` function in `scanner/cli/vibesec.py` used `os.scandir` without explicitly checking if entries were symbolic links before processing them as directories or files. This could allow for arbitrary file read or path traversal vulnerabilities by processing symlinks that point outside the expected directories.
-**Learning:** During static analysis, directory and file collection methods must be robust against maliciously crafted directory structures, specifically symbolic links pointing to sensitive system files.
-**Prevention:** Explicitly use `entry.is_symlink()` and check `follow_symlinks=False` on `is_file()` to prevent traversing external links or including them during scan operations.
+## 2024-10-24 - [Path Traversal via Symlink Following in File Collector]
+**Vulnerability:** Arbitrary File Read and Path Traversal. The static analyzer's file collection method (`_collect_files`) used `os.walk()` combined with `Path` creation without restricting symbolic link traversal.
+**Learning:** `os.walk()` and standard `Path` traversals can inadvertently follow symbolic links. An attacker could craft a symlink pointing to sensitive system files (e.g., `/etc/passwd`) or files outside the target directory, causing the scanner to read and report contents from unauthorized locations.
+**Prevention:** Avoid `os.walk()` when scanning untrusted directories. Use `os.scandir()` and explicitly check `entry.is_symlink()` to ignore symbolic links. Also pass `follow_symlinks=False` to `is_dir()` and `is_file()` checks to ensure symlink targets are not evaluated.
