@@ -210,6 +210,20 @@ SCAN_RULES = [
         "message": "Hardcoded mock session/user in what may be a production handler. Verify this is test-only code.",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
     },
+    {
+        "id": "dangerous-eval",
+        "pattern": re.compile(r'\beval\s*\('),
+        "severity": "CRITICAL",
+        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks.",
+        "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
+    },
+    {
+        "id": "react-dangerously-set-inner-html",
+        "pattern": re.compile(r'dangerouslySetInnerHTML\s*='),
+        "severity": "HIGH",
+        "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized.",
+        "extensions": [".jsx", ".tsx"],
+    },
 ]
 
 SKIP_DIRS = {
