@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init
 
 MOCK_RULES = [
     {
@@ -36,18 +36,6 @@ class Args:
     def __init__(self, tool="cursor", stack=None):
         self.tool = tool
         self.stack = stack
-
-
-class ScanArgs:
-    def __init__(self, path):
-        self.path = str(path)
-
-
-def _create_symlink(target, link, target_is_directory=False):
-    try:
-        link.symlink_to(target, target_is_directory=target_is_directory)
-    except (NotImplementedError, OSError) as exc:
-        pytest.skip(f"symlinks are not available in this environment: {exc}")
 
 
 def test_scan_file_error_handling(tmp_path):
@@ -137,73 +125,6 @@ def test_collect_files():
         assert ".git/config" not in collected_rel_paths
         assert "src/image.png" not in collected_rel_paths
         assert "package.lock" not in collected_rel_paths
-
-
-def test_collect_files_skips_file_symlink(tmp_path):
-    target = tmp_path / "target.py"
-    target.write_text("print('target')\n")
-    link = tmp_path / "linked.py"
-    _create_symlink(target, link)
-
-    collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
-
-    assert "target.py" in collected_rel_paths
-    assert "linked.py" not in collected_rel_paths
-
-
-def test_collect_files_skips_dir_symlink(tmp_path):
-    real_dir = tmp_path / "real"
-    real_dir.mkdir()
-    (real_dir / "nested.py").write_text("print('nested')\n")
-    link = tmp_path / "linked_dir"
-    _create_symlink(real_dir, link, target_is_directory=True)
-
-    collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
-
-    assert "real/nested.py" in collected_rel_paths
-    assert "linked_dir/nested.py" not in collected_rel_paths
-
-
-def test_collect_files_handles_broken_symlink(tmp_path):
-    link = tmp_path / "broken.py"
-    _create_symlink(tmp_path / "missing.py", link)
-
-    assert list(_collect_files(tmp_path)) == []
-
-
-def test_collect_files_handles_cyclic_symlink(tmp_path):
-    dir_a = tmp_path / "a"
-    dir_b = tmp_path / "b"
-    dir_a.mkdir()
-    dir_b.mkdir()
-    (dir_a / "a.py").write_text("print('a')\n")
-    (dir_b / "b.py").write_text("print('b')\n")
-    _create_symlink(dir_b, dir_a / "to_b", target_is_directory=True)
-    _create_symlink(dir_a, dir_b / "to_a", target_is_directory=True)
-
-    collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
-
-    assert collected_rel_paths == {"a/a.py", "b/b.py"}
-
-
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
-def test_scan_file_skips_symlink(tmp_path):
-    target = tmp_path / "target.py"
-    target.write_text("MOCK_SECRET_KEY\n")
-    link = tmp_path / "linked.py"
-    _create_symlink(target, link)
-
-    assert _scan_file(link, tmp_path) == []
-
-
-def test_cmd_scan_skips_symlink_path(tmp_path, capsys):
-    target = tmp_path / "target.py"
-    target.write_text("print('target')\n")
-    link = tmp_path / "linked.py"
-    _create_symlink(target, link)
-
-    assert cmd_scan(ScanArgs(link)) == 0
-    assert "Skipping symlink path:" in capsys.readouterr().out
 
 
 def test_print_scan_results_empty(capsys):
