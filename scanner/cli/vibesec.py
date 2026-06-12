@@ -313,6 +313,12 @@ def cmd_init(args):
     config = tool_configs[tool]
     if not config.get("shared_only"):
         target_file = project_root / config["path"]
+
+        # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+        if not target_file.resolve().is_relative_to(project_root):
+            print(f"Error: Target path {target_file} escapes the project root. Aborting.", file=sys.stderr)
+            sys.exit(1)
+
         target_file.parent.mkdir(parents=True, exist_ok=True)
         if target_file.is_symlink():
             target_file.unlink()
@@ -333,6 +339,12 @@ def cmd_init(args):
             installed.append(str(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "VIBESEC_CHECKLIST.md"
+
+    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+    if not checklist_file.resolve().is_relative_to(project_root):
+        print(f"Error: Checklist path {checklist_file} escapes the project root. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
     if checklist_file.is_symlink():
         checklist_file.unlink()
     if not checklist_file.exists():
