@@ -26,6 +26,7 @@ Options:
 import argparse
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 
@@ -467,13 +468,15 @@ def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
 
-    # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
-    if file_path.is_symlink() or not file_path.is_file():
-        return findings
-
+    # ⚡ Bolt: Optimize stat calls by using os.lstat instead of Path objects
+    # Impact: Combines symlink, file type, and size checks into a single stat call
     try:
+        st = os.lstat(file_path)
+        # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            return findings
         # SECURITY: Prevent OOM by skipping extremely large files
-        if file_path.stat().st_size > 10 * 1024 * 1024:
+        if st.st_size > 10 * 1024 * 1024:
             return findings
     except (OSError, PermissionError):
         return findings
