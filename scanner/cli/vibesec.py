@@ -364,16 +364,11 @@ def _print_supabase_reminder():
 
 def cmd_scan(args):
     """Run a lightweight security scan."""
-    scan_arg = Path(getattr(args, "path", ".") or ".")
-    scan_path = scan_arg.resolve()
+    scan_path = Path(getattr(args, "path", ".") or ".").resolve()
 
-    if not scan_arg.exists():
+    if not scan_path.exists():
         print(f"Error: Path does not exist: {scan_path}")
         sys.exit(1)
-
-    if scan_arg.is_symlink():
-        print(f"Skipping symlink path: {scan_arg}")
-        return 0
 
     print(f"\n🔍 VibeSec scanning: {scan_path}\n")
 
@@ -407,18 +402,15 @@ def _collect_files(base_path: Path):
             with os.scandir(current_dir) as it:
                 dirs = []
                 for entry in it:
-                    try:
-                        if entry.is_symlink():
-                            continue
-                        if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
-                                dirs.append(entry.path)
-                        elif entry.is_file(follow_symlinks=False):
-                            _, ext = os.path.splitext(entry.name)
-                            if ext.lower() not in SKIP_EXTENSIONS:
-                                yield Path(entry.path)
-                    except (OSError, PermissionError):
+                    if entry.is_symlink():
                         continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                            dirs.append(entry.path)
+                    elif entry.is_file(follow_symlinks=False):
+                        _, ext = os.path.splitext(entry.name)
+                        if ext.lower() not in SKIP_EXTENSIONS:
+                            yield Path(entry.path)
                 stack.extend(reversed(dirs))
         except (OSError, PermissionError):
             pass
@@ -429,7 +421,7 @@ def _scan_file(file_path: Path, base_path: Path):
     findings = []
 
     # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
-    if file_path.is_symlink() or not file_path.is_file():
+    if not file_path.is_file():
         return findings
 
     try:
