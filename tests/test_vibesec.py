@@ -115,6 +115,32 @@ def test_scan_file_extensions_filter(tmp_path):
     assert "mock-rules-ext" in rule_ids
 
 
+def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
+    test_file = tmp_path / "unsafe.py"
+    test_file.write_text("FIRST_TOKEN\nSECOND_TOKEN\n")
+
+    first_rules = [{
+        "id": "first",
+        "pattern": re.compile(r"FIRST_TOKEN"),
+        "severity": "HIGH",
+        "message": "first token",
+        "extensions": [".py"],
+    }]
+    second_rules = [{
+        "id": "second",
+        "pattern": re.compile(r"SECOND_TOKEN"),
+        "severity": "HIGH",
+        "message": "second token",
+        "extensions": [".py"],
+    }]
+
+    with patch("scanner.cli.vibesec.SCAN_RULES", first_rules):
+        assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == ["first"]
+
+    with patch("scanner.cli.vibesec.SCAN_RULES", second_rules):
+        assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == ["second"]
+
+
 def test_collect_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         base_path = Path(tmpdir)
