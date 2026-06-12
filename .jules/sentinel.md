@@ -8,7 +8,12 @@
 **Learning:** The CLI tool lacked robust checks for file types before processing them. The reviewer pointed out that changing `for line in f` to `read_text().splitlines()` actually increased memory usage unnecessarily and degraded performance, and that `re.search` operates efficiently line-by-line without multiline vulnerabilities if iterating on the file object itself.
 **Prevention:** Always verify `file_path.is_file()` to skip special files. Retain the memory-efficient line iterator (`for line in f`) while utilizing size limits (`st_size > 10MB`).
 
-## 2024-06-07 - Symlink Path Traversal via os.walk
-**Vulnerability:** The CLI file scanner `_collect_files` used `os.walk` and `Path.is_file()` without explicitly checking for or ignoring symbolic links, potentially causing Arbitrary File Read and Path Traversal if executed in repositories with malicious symlinks.
-**Learning:** `os.walk` combined with `Path.is_file()` follows symlinks by default unless strict checks are employed. Python's `os.scandir` caches file attributes, improving performance while allowing explicit `is_symlink()` skipping and `follow_symlinks=False` enforcement.
-**Prevention:** In static analysis and file parsing tools, explicitly avoid traversing symbolic links by using `os.scandir()` with `if entry.is_symlink(): continue` and passing `follow_symlinks=False` to `is_dir()` and `is_file()`.
+## 2026-06-09 - Fix Path Traversal/Arbitrary File Read in scanner via symlinks
+**Vulnerability:** The `_collect_files` function in `scanner/cli/vibesec.py` used `os.scandir` without explicitly checking if entries were symbolic links before processing them as directories or files. This could allow for arbitrary file read or path traversal vulnerabilities by processing symlinks that point outside the expected directories.
+**Learning:** During static analysis, directory and file collection methods must be robust against maliciously crafted directory structures, specifically symbolic links pointing to sensitive system files.
+**Prevention:** Explicitly use `entry.is_symlink()` and check `follow_symlinks=False` on `is_file()` to prevent traversing external links or including them during scan operations.
+
+## 2026-06-12 - Direct symlink scan paths
+**Vulnerability:** A direct `vibesec scan <symlink>` target can bypass directory traversal filters if only collected entries are checked.
+**Learning:** Symlink defenses need to cover both file discovery and explicit scan roots.
+**Prevention:** Reject symlink scan roots before resolving them and skip symlink file paths inside `_scan_file`.
