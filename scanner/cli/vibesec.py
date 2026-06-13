@@ -27,6 +27,7 @@ import argparse
 import os
 import re
 import sys
+import stat
 from pathlib import Path
 
 __version__ = "0.1.0"
@@ -467,13 +468,19 @@ def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
 
-    # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
-    if file_path.is_symlink() or not file_path.is_file():
-        return findings
-
     try:
+        # ⚡ Bolt: Optimize metadata checks using a single os.lstat() call.
+        # This replaces multiple pathlib checks (is_symlink, is_file, stat)
+        # reducing 3 system calls down to 1.
+        # Impact: Reduces stat system calls by 66% in the scanning loop.
+        st = os.lstat(file_path)
+
+        # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices) and symlinks
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            return findings
+
         # SECURITY: Prevent OOM by skipping extremely large files
-        if file_path.stat().st_size > 10 * 1024 * 1024:
+        if st.st_size > 10 * 1024 * 1024:
             return findings
     except (OSError, PermissionError):
         return findings
