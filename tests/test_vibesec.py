@@ -399,3 +399,20 @@ def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "Supabase stack detected. Quick reminders:" in captured.out
     assert "Enable RLS on every user-data table" in captured.out
+
+
+def test_sanitize_terminal_output():
+    from scanner.cli.vibesec import _sanitize_terminal_output
+    # Test normal strings
+    assert _sanitize_terminal_output("normal string") == "normal string"
+    assert _sanitize_terminal_output("tabs\tare\tallowed") == "tabs\tare\tallowed"
+
+    # Test ANSI escape sequences (e.g. \033[2K clears line)
+    assert _sanitize_terminal_output("malicious\033[2K") == "malicious\\x1b[2K"
+
+    # Test carriage return and newline
+    assert _sanitize_terminal_output("hidden\rmessage") == "hidden\\rmessage"
+    assert _sanitize_terminal_output("line1\nline2") == "line1\\nline2"
+
+    # Test non-strings
+    assert _sanitize_terminal_output(None) is None
