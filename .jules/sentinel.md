@@ -18,7 +18,12 @@
 **Learning:** Even simple CLI file operations (like initializing project configurations) are susceptible to Path Traversal via symlinks. When dealing with directory structures that could be maliciously crafted, we cannot trust that `Path(".").resolve() / ".cursor"` stays within the bounds of `Path(".").resolve()`.
 **Prevention:** Before performing any filesystem mutation operations (e.g. `mkdir` or `write_text`), ensure the fully resolved path resides strictly within the expected parent boundary. Use `target_file.resolve().is_relative_to(project_root)` as a security check to detect and abort if the path escapes the intended directory.
 
-## 2026-10-24 - Fix Terminal Output Injection in scanner output
+## 2026-06-13 - Fix Terminal Output Injection in scanner output
 **Vulnerability:** The CLI scanner `vibesec scan` printed findings directly to standard output, incorporating untrusted data like file paths (`rel_path`) and file content snippets (`line.strip()[:120]`) without sanitization.
 **Learning:** If a malicious user intentionally places ANSI terminal escape sequences (like `\033[2K` or `\r`) in file names or codebase content, they can execute "Terminal Output Injection" to alter or clear standard output. This allows them to effectively hide critical security findings from developers reviewing the scanner results.
 **Prevention:** Whenever printing untrusted data to a terminal, explicitly sanitize the text to remove or escape non-printable control characters. Implementing a simple sanitization function like `"".join(c if c.isprintable() or c == '\t' else repr(c)[1:-1] for c in text)` completely diffuses the payload into safely viewable raw text.
+
+## 2026-06-12 - Expand Scanner Rules for Critical Exploits
+**Vulnerability:** The CLI file scanner `vibesec scan` lacked detection rules for fundamental security vulnerabilities in JavaScript/TypeScript ecosystems, specifically arbitrary code execution via `eval()` and Cross-Site Scripting (XSS) via React's `dangerouslySetInnerHTML`.
+**Learning:** Even specialized "vibe-coding" static analysis tools must include detection for standard, catastrophic security anti-patterns (like eval and XSS injection vectors) to provide complete coverage.
+**Prevention:** Two new rules, `dangerous-eval` and `react-dangerously-set-inner-html`, were added to `SCAN_RULES` to flag these patterns.

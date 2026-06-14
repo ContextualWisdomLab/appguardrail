@@ -26,6 +26,7 @@ Options:
 import argparse
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 
@@ -209,6 +210,20 @@ SCAN_RULES = [
         "severity": "HIGH",
         "message": "Hardcoded mock session/user in what may be a production handler. Verify this is test-only code.",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "dangerous-eval",
+        "pattern": re.compile(r'\beval\s*\('),
+        "severity": "CRITICAL",
+        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks.",
+        "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
+    },
+    {
+        "id": "react-dangerously-set-inner-html",
+        "pattern": re.compile(r'dangerouslySetInnerHTML\s*='),
+        "severity": "HIGH",
+        "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized.",
+        "extensions": [".jsx", ".tsx"],
     },
 ]
 
@@ -472,17 +487,20 @@ def _sanitize_terminal_output(text: str) -> str:
         return text
     return "".join(c if c.isprintable() or c == '\t' else repr(c)[1:-1] for c in text)
 
+
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
 
-    # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
-    if file_path.is_symlink() or not file_path.is_file():
-        return findings
-
+    # ⚡ Bolt: Optimize stat calls by using os.lstat instead of Path objects
+    # Impact: Combines symlink, file type, and size checks into a single stat call
     try:
+        st = os.lstat(file_path)
+        # SECURITY: Prevent DoS by skipping special system files (e.g. FIFOs, devices)
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            return findings
         # SECURITY: Prevent OOM by skipping extremely large files
-        if file_path.stat().st_size > 10 * 1024 * 1024:
+        if st.st_size > 10 * 1024 * 1024:
             return findings
     except (OSError, PermissionError):
         return findings
