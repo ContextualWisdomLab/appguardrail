@@ -225,6 +225,15 @@ SCAN_RULES = [
         "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized.",
         "extensions": [".jsx", ".tsx"],
     },
+    {
+        "id": "sql-injection-risk",
+        "pattern": re.compile(
+            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)'
+        ),
+        "severity": "CRITICAL",
+        "message": "Potential SQL injection detected: string concatenation or template literal in database query.",
+        "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
+    },
 ]
 
 SKIP_DIRS = {
