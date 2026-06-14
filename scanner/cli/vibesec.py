@@ -478,6 +478,16 @@ def _collect_files(base_path: Path):
             pass
 
 
+def _sanitize_terminal_output(text: str) -> str:
+    """
+    SECURITY: Prevent Terminal Output Injection / ANSI escape sequence injection
+    that could hide scanner findings by removing or escaping non-printable characters.
+    """
+    if not isinstance(text, str):
+        return text
+    return "".join(c if c.isprintable() or c == '\t' else repr(c)[1:-1] for c in text)
+
+
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
@@ -513,9 +523,10 @@ def _scan_file(file_path: Path, base_path: Path):
                             "rule_id": rule["id"],
                             "severity": rule["severity"],
                             "message": rule["message"],
-                            "file": str(rel_path),
+                            # SECURITY: Sanitize output to prevent Terminal Output Injection
+                            "file": _sanitize_terminal_output(str(rel_path)),
                             "line": line_num,
-                            "snippet": line.strip()[:120],
+                            "snippet": _sanitize_terminal_output(line.strip()[:120]),
                         })
     except (OSError, PermissionError):
         pass
