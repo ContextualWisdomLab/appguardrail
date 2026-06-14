@@ -240,10 +240,12 @@ def inspect_pr(
         return Decision(number, "block", "current-head OpenCode review requested changes")
 
     if has_current_head_approval(pr):
-        if enable_auto_merge_flag and not pr.get("autoMergeRequest"):
-            enable_auto_merge(repo, pr, dry_run=dry_run)
-            return Decision(number, "auto_merge", "current head is approved; auto-merge enabled")
-        return Decision(number, "wait", "current head is approved; auto-merge already enabled or disabled")
+        if pr.get("autoMergeRequest"):
+            return Decision(number, "wait", "current head is approved; auto-merge already enabled")
+        if not enable_auto_merge_flag:
+            return Decision(number, "wait", "current head is approved; auto-merge disabled by scheduler inputs")
+        enable_auto_merge(repo, pr, dry_run=dry_run)
+        return Decision(number, "auto_merge", "current head is approved; auto-merge enabled")
 
     if opencode_in_progress(pr):
         return Decision(number, "wait", "OpenCode review is already in progress")
