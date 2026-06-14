@@ -506,12 +506,15 @@ def _scan_file(file_path: Path, base_path: Path):
         return findings
 
     ext = file_path.suffix.lower()
-    rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
-
     applicable_rules = _get_applicable_rules(ext)
 
     if not applicable_rules:
         return findings
+
+    # ⚡ Bolt: Defer expensive Pathlib operations (like relative_to) and string
+    # sanitization until a match is actually found. This avoids significant overhead
+    # for the vast majority of files that have no vulnerabilities.
+    rel_path_str = None
 
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as f:
@@ -519,12 +522,16 @@ def _scan_file(file_path: Path, base_path: Path):
                 for rule in applicable_rules:
                     match = rule["search"](line)
                     if match:
+                        if rel_path_str is None:
+                            rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
+                            rel_path_str = _sanitize_terminal_output(str(rel_path))
+
                         findings.append({
                             "rule_id": rule["id"],
                             "severity": rule["severity"],
                             "message": rule["message"],
                             # SECURITY: Sanitize output to prevent Terminal Output Injection
-                            "file": _sanitize_terminal_output(str(rel_path)),
+                            "file": rel_path_str,
                             "line": line_num,
                             "snippet": _sanitize_terminal_output(line.strip()[:120]),
                         })
