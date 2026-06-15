@@ -27,3 +27,7 @@
 **Vulnerability:** The CLI file scanner `vibesec scan` lacked detection rules for fundamental security vulnerabilities in JavaScript/TypeScript ecosystems, specifically arbitrary code execution via `eval()` and Cross-Site Scripting (XSS) via React's `dangerouslySetInnerHTML`.
 **Learning:** Even specialized "vibe-coding" static analysis tools must include detection for standard, catastrophic security anti-patterns (like eval and XSS injection vectors) to provide complete coverage.
 **Prevention:** Two new rules, `dangerous-eval` and `react-dangerously-set-inner-html`, were added to `SCAN_RULES` to flag these patterns.
+## 2025-02-12 - Prevent ReDoS by avoiding capturing groups in scanner rules
+**Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability caused by tracking capturing group matches `(...)` during line-by-line file scanning in `SCAN_RULES`.
+**Learning:** In a highly repetitive inner loop (line-by-line file scanning), tracking backreferences and capturing group matches incurs unnecessary regex engine overhead. While unbounded quantifiers are the primary ReDoS cause, capturing groups exacerbate the tracking state, increasing scan time significantly on long lines or adversarial payloads.
+**Prevention:** Always use non-capturing groups `(?:...)` instead of capturing groups `(...)` when adding or modifying regular expressions in `SCAN_RULES` to prevent unnecessary performance overhead and ReDoS vulnerabilities.
