@@ -116,7 +116,7 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "hardcoded-stripe-secret",
-        "pattern": re.compile(r'sk_(live|test)_[A-Za-z0-9]{24,}'),
+        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}'),
         "severity": "CRITICAL",
         "message": "Hardcoded Stripe secret key detected. Rotate this key immediately.",
         "extensions": None,
@@ -150,7 +150,7 @@ SCAN_RULES = [
     },
     {
         "id": "firebase-allow-all",
-        "pattern": re.compile(r'allow\s+(read|write|read,\s*write)\s*:\s*if\s+true'),
+        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true'),
         "severity": "CRITICAL",
         "message": (
             "Firebase/Firestore rule allows unrestricted read/write access. "
@@ -161,7 +161,7 @@ SCAN_RULES = [
     {
         "id": "todo-skip-auth",
         "pattern": re.compile(
-            r'(?i)(todo|fixme|hack|temp)[^\n]{0,50}(auth|security|permission|check|protect)',
+            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)',
         ),
         "severity": "HIGH",
         "message": (
@@ -180,7 +180,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-database-url",
         "pattern": re.compile(
-            r'(?i)(DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](postgres|postgresql|mysql)://\S+',
+            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+',
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded database connection string detected.",
@@ -189,7 +189,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-jwt-secret",
         "pattern": re.compile(
-            r'(?i)(JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
+            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded JWT/NextAuth secret detected.",
