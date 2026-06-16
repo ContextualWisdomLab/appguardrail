@@ -13,3 +13,8 @@
 ## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
 **Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
+## 2024-05-16 - Module-level Constants for Performance
+
+**Learning:** Recreating static dictionaries (like severity mappings and icons) inside frequently called functions causes unnecessary memory allocations and slight performance overhead on every call.
+
+**Action:** Extract static dictionaries to module-level constants to ensure they are instantiated only once when the module is loaded.
