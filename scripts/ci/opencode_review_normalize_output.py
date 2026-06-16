@@ -9,6 +9,14 @@ from pathlib import Path
 from typing import Any
 
 
+def _project_root() -> Path:
+    script_path = Path(__file__).resolve()
+    for candidate in script_path.parents:
+        if (candidate / ".git").exists():
+            return candidate
+    return script_path.parents[2]
+
+
 def valid_control(
     value: Any,
     *,
@@ -106,7 +114,7 @@ def main(argv: list[str]) -> int:
 
     expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
-    project_root = Path(__file__).resolve().parents[2]
+    project_root = _project_root()
 
     if not output_file.resolve().is_relative_to(project_root):
         print(f"error: output file path {output_file_arg!r} is outside the project root", file=sys.stderr)
