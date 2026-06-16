@@ -9,41 +9,39 @@ from pathlib import Path
 from typing import Any
 
 
-def _validate_metadata(
-    value: dict[str, Any],
+def valid_control(
+    value: Any,
+    *,
     expected_head_sha: str,
     expected_run_id: str,
     expected_run_attempt: str,
-) -> bool:
+) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+
     if value.get("head_sha") != expected_head_sha:
-        return False
+        return None
     if value.get("run_id") != expected_run_id:
-        return False
+        return None
     if value.get("run_attempt") != expected_run_attempt:
-        return False
-    return True
+        return None
 
-
-def _validate_result_and_reason(value: dict[str, Any]) -> bool:
     result = value.get("result")
     if result not in {"APPROVE", "REQUEST_CHANGES"}:
-        return False
+        return None
+
     if not isinstance(value.get("reason"), str) or not value["reason"].strip():
-        return False
+        return None
     if not isinstance(value.get("summary"), str) or not value["summary"].strip():
-        return False
-    return True
+        return None
 
-
-def _validate_findings(value: dict[str, Any]) -> bool:
-    result = value.get("result")
     findings = value.get("findings")
     if not isinstance(findings, list):
-        return False
+        return None
     if result == "APPROVE" and findings:
-        return False
+        return None
     if result == "REQUEST_CHANGES" and not findings:
-        return False
+        return None
 
     required_finding_fields = (
         "path",
@@ -57,47 +55,21 @@ def _validate_findings(value: dict[str, Any]) -> bool:
     )
     for finding in findings:
         if not isinstance(finding, dict):
-            return False
+            return None
         if not isinstance(finding.get("line"), int) or finding["line"] <= 0:
-            return False
+            return None
         for field in required_finding_fields:
             if not isinstance(finding.get(field), str) or not finding[field].strip():
-                return False
-    return True
-
-
-def valid_control(
-    value: Any,
-    *,
-    expected_head_sha: str,
-    expected_run_id: str,
-    expected_run_attempt: str,
-) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
-        return None
-
-    if not _validate_metadata(
-        value,
-        expected_head_sha,
-        expected_run_id,
-        expected_run_attempt,
-    ):
-        return None
-
-    if not _validate_result_and_reason(value):
-        return None
-
-    if not _validate_findings(value):
-        return None
+                return None
 
     return {
         "head_sha": value["head_sha"],
         "run_id": value["run_id"],
         "run_attempt": value["run_attempt"],
-        "result": value["result"],
+        "result": result,
         "reason": value["reason"],
         "summary": value["summary"],
-        "findings": value["findings"],
+        "findings": findings,
     }
 
 
