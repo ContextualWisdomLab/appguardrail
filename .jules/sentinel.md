@@ -31,3 +31,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability caused by tracking capturing group matches `(...)` during line-by-line file scanning in `SCAN_RULES`.
 **Learning:** In a highly repetitive inner loop (line-by-line file scanning), tracking backreferences and capturing group matches incurs unnecessary regex engine overhead. While unbounded quantifiers are the primary ReDoS cause, capturing groups exacerbate the tracking state, increasing scan time significantly on long lines or adversarial payloads.
 **Prevention:** Always use non-capturing groups `(?:...)` instead of capturing groups `(...)` when adding or modifying regular expressions in `SCAN_RULES` to prevent unnecessary performance overhead and ReDoS vulnerabilities.
+
+## 2026-06-16 - Add OWASP mapping and pre-commit hook integration
+**Vulnerability:** The VibeSec scanner lacked explicit mapping to standard vulnerability frameworks (like OWASP Top 10) and relied on manual invocation, meaning vulnerabilities could easily bypass detection and be committed by developers or AI agents (like Claude Code or Codex).
+**Learning:** To enforce security guardrails effectively, static analysis tools should intercept the workflow at commit time. Mapping findings to OWASP categories improves the clarity and actionability of the scanner output.
+**Prevention:** Updated `SCAN_RULES` messages to include relevant OWASP classifications (e.g., A01, A03). Added a `vibesec hook` command that automatically installs a `pre-commit` script to block commits if critical or high vulnerabilities are detected.
