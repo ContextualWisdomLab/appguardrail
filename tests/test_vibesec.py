@@ -1,5 +1,5 @@
-import re
 import os
+import re
 import tempfile
 from argparse import Namespace
 from pathlib import Path
@@ -19,9 +19,9 @@ MOCK_RULES = [
     },
     {
         "id": "mock-todo",
-        "pattern": re.compile(r"TODO: fix auth"),
+        "pattern": re.compile(r"TODO: fix issue"),
         "severity": "HIGH",
-        "message": "Found auth todo",
+        "message": "Found issue todo",
         "extensions": None,
     },
     {
@@ -83,7 +83,7 @@ def test_scan_file_with_findings(tmp_path):
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_multiple_findings(tmp_path):
     test_file = tmp_path / "unsafe_multiple.js"
-    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n")
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix issue here\n")
 
     findings = _scan_file(test_file, tmp_path)
     rule_ids = [f["rule_id"] for f in findings]
@@ -212,6 +212,45 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
 
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
+
+
+def test_collect_files_handles_oserror_in_scandir(tmp_path):
+    (tmp_path / "a.py").touch()
+    with patch("os.scandir", side_effect=PermissionError):
+        assert list(_collect_files(tmp_path)) == []
+
+
+def test_collect_files_handles_oserror_in_entry(tmp_path):
+    (tmp_path / "a.py").touch()
+    (tmp_path / "b.py").touch()
+
+    original_scandir = os.scandir
+
+    def mock_scandir(path):
+        iterator = original_scandir(path)
+        class MockIterator:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                iterator.close()
+            def __iter__(self):
+                return self
+            def __next__(self):
+                entry = next(iterator)
+                if entry.name == "a.py":
+                    class MockEntry:
+                        name = entry.name
+                        path = entry.path
+                        def is_symlink(self):
+                            raise PermissionError("Access denied")
+                    return MockEntry()
+                return entry
+        return MockIterator()
+
+    with patch("os.scandir", side_effect=mock_scandir):
+        collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
+        assert collected_rel_paths == {"b.py"}
+
 
 
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
@@ -419,17 +458,19 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
+
 def test_scan_file_stat_error(tmp_path):
     test_file = tmp_path / "stat_error.ts"
     test_file.write_text("const key = 'x';\n")
 
-    with patch("scanner.cli.vibesec.os.lstat", side_effect=PermissionError("Permission denied")) as mock1:
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=PermissionError("Permission denied")) as mock_permission:
         assert _scan_file(test_file, tmp_path) == []
-        mock1.assert_called_once()
+        mock_permission.assert_called_once()
 
-    with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock2:
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock_oserror:
         assert _scan_file(test_file, tmp_path) == []
-        mock2.assert_called_once()
+        mock_oserror.assert_called_once()
+
 
 def test_collect_files_oserror_on_scandir(tmp_path):
     (tmp_path / "dir1").mkdir()
@@ -545,17 +586,30 @@ def test_cmd_review_all_options(capsys):
     assert REVIEW_PROMPT_STRIPE in captured.out
     assert REVIEW_PROMPT_FOOTER in captured.out
 
+
 def test_scan_file_large_file(tmp_path):
     test_file = tmp_path / "large_file.ts"
     test_file.write_text("const key = 'x';\n")
 
-    # Mock os.lstat to return a stat object with a large size
     original_lstat = os.lstat
+
     def mock_lstat(path):
         st = original_lstat(path)
-        # Create a new stat_result-like object by replacing st_size
-        return os.stat_result((st.st_mode, st.st_ino, st.st_dev, st.st_nlink, st.st_uid, st.st_gid, 10 * 1024 * 1024 + 1, st.st_atime, st.st_mtime, st.st_ctime))
+        return os.stat_result(
+            (
+                st.st_mode,
+                st.st_ino,
+                st.st_dev,
+                st.st_nlink,
+                st.st_uid,
+                st.st_gid,
+                10 * 1024 * 1024 + 1,
+                st.st_atime,
+                st.st_mtime,
+                st.st_ctime,
+            )
+        )
 
-    with patch("scanner.cli.vibesec.os.lstat", side_effect=mock_lstat) as mock3:
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=mock_lstat) as mock_large:
         assert _scan_file(test_file, tmp_path) == []
-        mock3.assert_called_once()
+        mock_large.assert_called_once()
