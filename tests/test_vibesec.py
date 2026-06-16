@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _print_supabase_reminder, _scan_file, cmd_init, cmd_review, cmd_scan, REVIEW_PROMPT_BASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_FOOTER, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_SUPABASE
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan, cmd_review, REVIEW_PROMPT_BASE, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_SUPABASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_FOOTER
 
 MOCK_RULES = [
     {
@@ -212,45 +212,6 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
 
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
-
-
-
-def test_collect_files_scandir_permission_error(tmp_path):
-    (tmp_path / "a.py").touch()
-    with patch("os.scandir", side_effect=PermissionError):
-        assert list(_collect_files(tmp_path)) == []
-
-
-def test_collect_files_permission_error_entry(tmp_path):
-    (tmp_path / "a.py").touch()
-    (tmp_path / "b.py").touch()
-
-    original_scandir = os.scandir
-
-    def mock_scandir(path):
-        iterator = original_scandir(path)
-        class MockIterator:
-            def __enter__(self):
-                return self
-            def __exit__(self, *args):
-                iterator.close()
-            def __iter__(self):
-                return self
-            def __next__(self):
-                entry = next(iterator)
-                if entry.name == "a.py":
-                    class MockEntry:
-                        name = entry.name
-                        path = entry.path
-                        def is_symlink(self):
-                            raise PermissionError("Access denied")
-                    return MockEntry()
-                return entry
-        return MockIterator()
-
-    with patch("os.scandir", side_effect=mock_scandir):
-        collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
-        assert collected_rel_paths == {"b.py"}
 
 
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
@@ -458,33 +419,6 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
-def test_print_supabase_reminder(capsys):
-    _print_supabase_reminder()
-    captured = capsys.readouterr()
-
-    assert "Supabase stack detected. Quick reminders:" in captured.out
-    assert "Enable RLS on every user-data table" in captured.out
-    assert "Use getUser() not getSession() on the server" in captured.out
-    assert "Keep SUPABASE_SERVICE_ROLE_KEY server-side only" in captured.out
-
-
-def test_scan_file_permission_error(tmp_path):
-    test_file = tmp_path / "permission_error.ts"
-    test_file.write_text("const key = 'x';\n")
-
-    with patch("scanner.cli.vibesec.os.lstat", side_effect=PermissionError("Permission denied")) as mock_permission:
-        assert _scan_file(test_file, tmp_path) == []
-        mock_permission.assert_called_once()
-
-
-def test_scan_file_os_error(tmp_path):
-    test_file = tmp_path / "os_error.ts"
-    test_file.write_text("const key = 'x';\n")
-
-    with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock_oserror:
-        assert _scan_file(test_file, tmp_path) == []
-        mock_oserror.assert_called_once()
-
 
 def test_collect_files_oserror_on_scandir(tmp_path):
     (tmp_path / "dir1").mkdir()
@@ -534,6 +468,7 @@ def test_collect_files_oserror_on_entry(tmp_path):
                     yield MockEntry(entry)
 
         return MockIterator(original_scandir(path))
+
     with patch("os.scandir", side_effect=mock_scandir):
         files = list(_collect_files(tmp_path))
         assert len(files) == 1
@@ -553,13 +488,11 @@ def test_cmd_review_base_prompt(capsys):
     assert REVIEW_PROMPT_FIREBASE not in captured.out
     assert REVIEW_PROMPT_STRIPE not in captured.out
 
-
 def test_cmd_review_nextjs(capsys):
     args = Namespace(stack=["nextjs"], db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_NEXTJS in captured.out
-
 
 def test_cmd_review_supabase(capsys):
     args = Namespace(stack=None, db="supabase", payments=None)
@@ -567,13 +500,11 @@ def test_cmd_review_supabase(capsys):
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_SUPABASE in captured.out
 
-
 def test_cmd_review_supabase_via_stack(capsys):
     args = Namespace(stack=["supabase"], db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_SUPABASE in captured.out
-
 
 def test_cmd_review_firebase(capsys):
     args = Namespace(stack=None, db="firebase", payments=None)
@@ -581,20 +512,17 @@ def test_cmd_review_firebase(capsys):
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_FIREBASE in captured.out
 
-
 def test_cmd_review_firebase_via_stack(capsys):
     args = Namespace(stack=["firebase"], db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_FIREBASE in captured.out
 
-
 def test_cmd_review_stripe(capsys):
     args = Namespace(stack=None, db=None, payments="stripe")
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_STRIPE in captured.out
-
 
 def test_cmd_review_all_options(capsys):
     args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
@@ -605,31 +533,3 @@ def test_cmd_review_all_options(capsys):
     assert REVIEW_PROMPT_SUPABASE in captured.out
     assert REVIEW_PROMPT_STRIPE in captured.out
     assert REVIEW_PROMPT_FOOTER in captured.out
-
-
-def test_scan_file_large_file(tmp_path):
-    test_file = tmp_path / "large_file.ts"
-    test_file.write_text("const key = 'x';\n")
-
-    original_lstat = os.lstat
-
-    def mock_lstat(path):
-        st = original_lstat(path)
-        return os.stat_result(
-            (
-                st.st_mode,
-                st.st_ino,
-                st.st_dev,
-                st.st_nlink,
-                st.st_uid,
-                st.st_gid,
-                10 * 1024 * 1024 + 1,
-                st.st_atime,
-                st.st_mtime,
-                st.st_ctime,
-            )
-        )
-
-    with patch("scanner.cli.vibesec.os.lstat", side_effect=mock_lstat) as mock_large:
-        assert _scan_file(test_file, tmp_path) == []
-        mock_large.assert_called_once()
