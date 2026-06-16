@@ -16,4 +16,4 @@
 
 ## 2024-06-16 - Optimizing tight loops with pre-extracted tuples
 **Learning:** In python tight loops, checking `rule["search"](line)` on a list of dictionaries requires a dictionary lookup (`__getitem__`) on every iteration which introduces unnecessary overhead. While `tuple(applicable_rules)` is fast to iterate, we can extract the function and avoid dict lookup.
-**Action:** In `_scan_file`, cache `applicable_rules` as a tuple of `(search_function, rule_dict)` tuples and use tuple indexing (`tup[0](line)`) to invoke the function. Also, `open(file_path)` is marginally faster than `file_path.open()`.
+**Action:** In `_scan_file`, cache `applicable_rules` as a tuple of `(search_fn, rule_meta)` tuples and use tuple unpacking (`for search_fn, rule in applicable_rules:`) to invoke the function. Avoid `tup[0]`/`tup[1]` index access — named unpacking is both cleaner and avoids repeated indexing overhead. Always use `file_path.open()` (not builtin `open(file_path, ...)`) so that `patch.object(Path, "open", ...)` in tests continues to work correctly.
