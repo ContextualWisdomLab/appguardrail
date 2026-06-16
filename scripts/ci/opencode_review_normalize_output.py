@@ -109,16 +109,28 @@ def iter_json_objects(text: str) -> list[Any]:
         # OpenCode exports may contain prose around the JSON control object.
         pass
 
-    for index, character in enumerate(text):
-        if character != "{":
-            continue
+    # Optimization: Use a while loop with text.find() and decoder.raw_decode(text, index)
+    # to avoid O(N^2) behavior from redundant string slicing (text[index:]) and overlapping extractions.
+    index = 0
+    length = len(text)
+    while index < length:
+        next_brace = text.find("{", index)
+        if next_brace == -1:
+            break
+        index = next_brace
+
         try:
-            value, _ = decoder.raw_decode(text[index:])
+            value, end = decoder.raw_decode(text, index)
+            values.append(value)
+            index = end
         except json.JSONDecodeError:
-            continue
-        values.append(value)
+            index += 1
 
     return values
+
+
+def project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
 
 def main(argv: list[str]) -> int:
@@ -132,9 +144,9 @@ def main(argv: list[str]) -> int:
 
     expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
-    project_root = Path.cwd().resolve()
+    root = project_root()
 
-    if not output_file.resolve().is_relative_to(project_root):
+    if not output_file.resolve().is_relative_to(root):
         print(f"error: output file path {output_file_arg!r} is outside the project root", file=sys.stderr)
         return 65
 
