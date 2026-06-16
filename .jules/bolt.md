@@ -13,7 +13,3 @@
 ## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
 **Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
-
-## 2024-05-30 - Optimize regex scanning using re.finditer
-**Learning:** For file scanning, reading the file entirely (if within size limits) and using `re.finditer` over the full content uses native C implementations for searching, and calculates matches dramatically faster (over 2x) than reading and looping line-by-line via Python's interpreter.
-**Action:** Always favor `re.finditer` or full-string string matching where large text files are involved, provided strict memory and file size limits are verified and enforced.
