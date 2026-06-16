@@ -180,14 +180,27 @@ def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
     return current_head_review_state(pr, "CHANGES_REQUESTED")
 
 
+def _parse_pr_number(raw: Any) -> str:
+    """Return the PR number as a safe decimal string.
+
+    Raises ValueError if the value is a boolean, a float, a non-digit string,
+    or is not a positive integer.
+    """
+    if isinstance(raw, bool) or not isinstance(raw, (int, str)):
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    if isinstance(raw, str):
+        if not raw.isdigit():
+            raise ValueError(f"Invalid PR number: {raw!r}")
+        value = int(raw)
+    else:
+        value = raw
+    if value <= 0:
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    return str(value)
+
+
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    try:
-        number_int = int(pr["number"])
-        if number_int <= 0:
-            raise ValueError
-        number = str(number_int)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+    number = _parse_pr_number(pr["number"])
 
     head = str(pr["headRefOid"])
     if dry_run:
@@ -196,13 +209,7 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    try:
-        number_int = int(pr["number"])
-        if number_int <= 0:
-            raise ValueError
-        number = str(number_int)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+    number = _parse_pr_number(pr["number"])
 
     if dry_run:
         return
@@ -239,12 +246,7 @@ def inspect_pr(
     enable_auto_merge_flag: bool,
     workflow: str,
 ) -> Decision:
-    try:
-        number = int(pr["number"])
-        if number <= 0:
-            raise ValueError
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+    number = int(_parse_pr_number(pr["number"]))
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
 
     if pr.get("isDraft"):
