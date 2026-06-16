@@ -468,6 +468,59 @@ def test_print_supabase_reminder(capsys):
     assert "Keep SUPABASE_SERVICE_ROLE_KEY server-side only" in captured.out
 
 
+def test_collect_files_oserror_on_scandir(tmp_path):
+    (tmp_path / "dir1").mkdir()
+    (tmp_path / "dir1" / "file1.py").touch()
+    (tmp_path / "file2.py").touch()
+
+    original_scandir = os.scandir
+    def mock_scandir(path):
+        if Path(path).name == "dir1":
+            raise PermissionError("Access denied")
+        return original_scandir(path)
+
+    with patch("os.scandir", side_effect=mock_scandir):
+        files = list(_collect_files(tmp_path))
+        assert len(files) == 1
+        assert files[0].name == "file2.py"
+
+def test_collect_files_oserror_on_entry(tmp_path):
+    (tmp_path / "file1.py").touch()
+    (tmp_path / "file2.py").touch()
+
+    original_scandir = os.scandir
+    def mock_scandir(path):
+        class MockEntry:
+            def __init__(self, entry):
+                self._entry = entry
+                self.name = entry.name
+                self.path = entry.path
+            def is_symlink(self):
+                return self._entry.is_symlink()
+            def is_dir(self, follow_symlinks=False):
+                if self.name == "file1.py":
+                    raise PermissionError("Access denied")
+                return self._entry.is_dir(follow_symlinks=follow_symlinks)
+            def is_file(self, follow_symlinks=False):
+                return self._entry.is_file(follow_symlinks=follow_symlinks)
+
+        class MockIterator:
+            def __init__(self, it):
+                self.it = it
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                self.it.close()
+            def __iter__(self):
+                for entry in self.it:
+                    yield MockEntry(entry)
+
+        return MockIterator(original_scandir(path))
+    with patch("os.scandir", side_effect=mock_scandir):
+        files = list(_collect_files(tmp_path))
+        assert len(files) == 1
+        assert files[0].name == "file2.py"
+        assert files[0].name == "file2.py"
 # ---------------------------------------------------------------------------
 # cmd_review tests
 # ---------------------------------------------------------------------------
