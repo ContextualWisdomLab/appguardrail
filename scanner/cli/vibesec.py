@@ -49,6 +49,7 @@ RULES_CURSOR = """\
 - File uploads must validate type, size, and filename server-side.
 - Never set CORS to allow all origins on authenticated endpoints.
 - Add tests for cross-user access denial on every resource endpoint.
+- When dealing with OWASP rules or security vulnerabilities, automatically run `vibesec scan .` as a hook or use tools like `semgrep` to verify the codebase.
 
 See https://github.com/Seongho-Bae/VibeSec for full rules and checklists.
 """
@@ -66,6 +67,7 @@ Apply the following security rules to all code you generate:
 6. **Supabase**: Use getUser() (not getSession()) server-side; RLS on all tables.
 7. **Files**: Validate type, size, and generate server-side filenames for uploads.
 8. **CORS**: Restrict to known origins on authenticated endpoints.
+9. **Automated Scanning**: When dealing with OWASP rules or security vulnerabilities, automatically run `vibesec scan .` as a hook or use tools like `semgrep` to verify the codebase.
 
 Return 401 for unauthenticated requests, 403 for ownership violations.
 
@@ -585,21 +587,24 @@ def _scan_file(file_path: Path, base_path: Path):
 
     return findings
 
-def _print_scan_results(findings, files_scanned):
-    severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
-    findings.sort(key=lambda f: severity_order.get(f["severity"], 99))
 
-    severity_icons = {
-        "CRITICAL": "🔴 CRITICAL",
-        "HIGH": "🟠 HIGH",
-        "WARNING": "🟡 WARNING",
-        "INFO": "🔵 INFO",
-    }
+# ⚡ Bolt: Move severity mappings to module level to avoid redundant
+# dictionary allocations on every call to print scan results.
+SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
+SEVERITY_ICONS = {
+    "CRITICAL": "🔴 CRITICAL",
+    "HIGH": "🟠 HIGH",
+    "WARNING": "🟡 WARNING",
+    "INFO": "🔵 INFO",
+}
+
+def _print_scan_results(findings, files_scanned):
+    findings.sort(key=lambda f: SEVERITY_ORDER.get(f["severity"], 99))
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     for f in findings:
         counts[f["severity"]] += 1
-        icon = severity_icons.get(f["severity"], f["severity"])
+        icon = SEVERITY_ICONS.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
         print(f"  {f['message']}")
