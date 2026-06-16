@@ -602,24 +602,21 @@ def _scan_file(file_path: Path, base_path: Path):
 
     return findings
 
-
-# ⚡ Bolt: Move severity mappings to module level to avoid redundant
-# dictionary allocations on every call to print scan results.
-SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
-SEVERITY_ICONS = {
-    "CRITICAL": "🔴 CRITICAL",
-    "HIGH": "🟠 HIGH",
-    "WARNING": "🟡 WARNING",
-    "INFO": "🔵 INFO",
-}
-
 def _print_scan_results(findings, files_scanned):
-    findings.sort(key=lambda f: SEVERITY_ORDER.get(f["severity"], 99))
+    severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
+    findings.sort(key=lambda f: severity_order.get(f["severity"], 99))
+
+    severity_icons = {
+        "CRITICAL": "🔴 CRITICAL",
+        "HIGH": "🟠 HIGH",
+        "WARNING": "🟡 WARNING",
+        "INFO": "🔵 INFO",
+    }
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     for f in findings:
         counts[f["severity"]] += 1
-        icon = SEVERITY_ICONS.get(f["severity"], f["severity"])
+        icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
         print(f"  {f['message']}")
