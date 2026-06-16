@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Normalize OpenCode review output into the strict approval-gate contract."""
 
-from __future__ import annotations
-
 import json
 import sys
 from pathlib import Path
