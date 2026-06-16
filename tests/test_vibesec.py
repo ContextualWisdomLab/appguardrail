@@ -520,7 +520,6 @@ def test_collect_files_oserror_on_entry(tmp_path):
         files = list(_collect_files(tmp_path))
         assert len(files) == 1
         assert files[0].name == "file2.py"
-        assert files[0].name == "file2.py"
 # ---------------------------------------------------------------------------
 # cmd_review tests
 # ---------------------------------------------------------------------------
