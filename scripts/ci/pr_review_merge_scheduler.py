@@ -198,7 +198,7 @@ def _parse_pr_number(raw: Any) -> int:
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = str(_parse_pr_number(pr.get("number")))
+    number = str(_parse_pr_number(pr["number"]))
 
     head = str(pr["headRefOid"])
     if dry_run:
@@ -207,7 +207,7 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = str(_parse_pr_number(pr.get("number")))
+    number = str(_parse_pr_number(pr["number"]))
 
     if dry_run:
         return
@@ -244,7 +244,7 @@ def inspect_pr(
     enable_auto_merge_flag: bool,
     workflow: str,
 ) -> Decision:
-    number = _parse_pr_number(pr.get("number"))
+    number = _parse_pr_number(pr["number"])
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
 
     if pr.get("isDraft"):
