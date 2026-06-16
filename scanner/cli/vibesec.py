@@ -429,7 +429,7 @@ def cmd_scan(args):
         findings.extend(file_findings)
 
     _print_scan_results(findings, files_scanned)
-    return 1 if any(f["severity"] in ("CRITICAL", "HIGH") for f in findings) else 0
+    return 1 if any(f["severity"] in {"CRITICAL", "HIGH"} for f in findings) else 0
 
 
 def cmd_hook(args):
