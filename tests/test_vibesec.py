@@ -1,3 +1,4 @@
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -210,6 +211,45 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
 
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
+
+
+def test_collect_files_handles_oserror_in_scandir(tmp_path):
+    (tmp_path / "a.py").touch()
+    with patch("os.scandir", side_effect=PermissionError):
+        assert list(_collect_files(tmp_path)) == []
+
+
+def test_collect_files_handles_oserror_in_entry(tmp_path):
+    (tmp_path / "a.py").touch()
+    (tmp_path / "b.py").touch()
+
+    original_scandir = os.scandir
+
+    def mock_scandir(path):
+        iterator = original_scandir(path)
+        class MockIterator:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                iterator.close()
+            def __iter__(self):
+                return self
+            def __next__(self):
+                entry = next(iterator)
+                if entry.name == "a.py":
+                    class MockEntry:
+                        name = entry.name
+                        path = entry.path
+                        def is_symlink(self):
+                            raise PermissionError("Access denied")
+                    return MockEntry()
+                return entry
+        return MockIterator()
+
+    with patch("os.scandir", side_effect=mock_scandir):
+        collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
+        assert collected_rel_paths == {"b.py"}
+
 
 
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
