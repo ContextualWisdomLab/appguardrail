@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _print_supabase_reminder, _scan_file, cmd_init, cmd_review, cmd_scan, REVIEW_PROMPT_BASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_FOOTER, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_SUPABASE
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan, cmd_review, REVIEW_PROMPT_BASE, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_SUPABASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_FOOTER
 
 MOCK_RULES = [
     {
@@ -458,16 +458,6 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
-def test_print_supabase_reminder(capsys):
-    _print_supabase_reminder()
-    captured = capsys.readouterr()
-
-    assert "Supabase stack detected. Quick reminders:" in captured.out
-    assert "Enable RLS on every user-data table" in captured.out
-    assert "Use getUser() not getSession() on the server" in captured.out
-    assert "Keep SUPABASE_SERVICE_ROLE_KEY server-side only" in captured.out
-
-
 def test_collect_files_oserror_on_scandir(tmp_path):
     (tmp_path / "dir1").mkdir()
     (tmp_path / "dir1" / "file1.py").touch()
@@ -516,6 +506,7 @@ def test_collect_files_oserror_on_entry(tmp_path):
                     yield MockEntry(entry)
 
         return MockIterator(original_scandir(path))
+
     with patch("os.scandir", side_effect=mock_scandir):
         files = list(_collect_files(tmp_path))
         assert len(files) == 1
@@ -535,13 +526,11 @@ def test_cmd_review_base_prompt(capsys):
     assert REVIEW_PROMPT_FIREBASE not in captured.out
     assert REVIEW_PROMPT_STRIPE not in captured.out
 
-
 def test_cmd_review_nextjs(capsys):
     args = Namespace(stack=["nextjs"], db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_NEXTJS in captured.out
-
 
 def test_cmd_review_supabase(capsys):
     args = Namespace(stack=None, db="supabase", payments=None)
@@ -549,13 +538,11 @@ def test_cmd_review_supabase(capsys):
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_SUPABASE in captured.out
 
-
 def test_cmd_review_supabase_via_stack(capsys):
     args = Namespace(stack=["supabase"], db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_SUPABASE in captured.out
-
 
 def test_cmd_review_firebase(capsys):
     args = Namespace(stack=None, db="firebase", payments=None)
@@ -563,20 +550,17 @@ def test_cmd_review_firebase(capsys):
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_FIREBASE in captured.out
 
-
 def test_cmd_review_firebase_via_stack(capsys):
     args = Namespace(stack=["firebase"], db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_FIREBASE in captured.out
 
-
 def test_cmd_review_stripe(capsys):
     args = Namespace(stack=None, db=None, payments="stripe")
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_STRIPE in captured.out
-
 
 def test_cmd_review_all_options(capsys):
     args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
