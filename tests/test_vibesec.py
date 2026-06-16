@@ -1,4 +1,5 @@
 import re
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -416,3 +417,30 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
+
+def test_scan_file_stat_error(tmp_path):
+    test_file = tmp_path / "stat_error.ts"
+    test_file.write_text("const key = 'x';\n")
+
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=PermissionError("Permission denied")) as mock1:
+        assert _scan_file(test_file, tmp_path) == []
+        mock1.assert_called_once()
+
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock2:
+        assert _scan_file(test_file, tmp_path) == []
+        mock2.assert_called_once()
+
+def test_scan_file_large_file(tmp_path):
+    test_file = tmp_path / "large_file.ts"
+    test_file.write_text("const key = 'x';\n")
+
+    # Mock os.lstat to return a stat object with a large size
+    original_lstat = os.lstat
+    def mock_lstat(path):
+        st = original_lstat(path)
+        # Create a new stat_result-like object by replacing st_size
+        return os.stat_result((st.st_mode, st.st_ino, st.st_dev, st.st_nlink, st.st_uid, st.st_gid, 10 * 1024 * 1024 + 1, st.st_atime, st.st_mtime, st.st_ctime))
+
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=mock_lstat) as mock3:
+        assert _scan_file(test_file, tmp_path) == []
+        mock3.assert_called_once()
