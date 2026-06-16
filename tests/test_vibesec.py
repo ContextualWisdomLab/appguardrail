@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan, cmd_review, REVIEW_PROMPT_BASE, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_SUPABASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_FOOTER
 
 MOCK_RULES = [
     {
@@ -416,3 +416,66 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
+
+# ---------------------------------------------------------------------------
+# cmd_review tests
+# ---------------------------------------------------------------------------
+
+from argparse import Namespace
+
+def test_cmd_review_base_prompt(capsys):
+    args = Namespace(stack=None, db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_BASE in captured.out
+    assert REVIEW_PROMPT_FOOTER in captured.out
+    assert REVIEW_PROMPT_NEXTJS not in captured.out
+    assert REVIEW_PROMPT_SUPABASE not in captured.out
+    assert REVIEW_PROMPT_FIREBASE not in captured.out
+    assert REVIEW_PROMPT_STRIPE not in captured.out
+
+def test_cmd_review_nextjs(capsys):
+    args = Namespace(stack=["nextjs"], db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_NEXTJS in captured.out
+
+def test_cmd_review_supabase(capsys):
+    args = Namespace(stack=None, db="supabase", payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_SUPABASE in captured.out
+
+def test_cmd_review_supabase_via_stack(capsys):
+    args = Namespace(stack=["supabase"], db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_SUPABASE in captured.out
+
+def test_cmd_review_firebase(capsys):
+    args = Namespace(stack=None, db="firebase", payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_FIREBASE in captured.out
+
+def test_cmd_review_firebase_via_stack(capsys):
+    args = Namespace(stack=["firebase"], db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_FIREBASE in captured.out
+
+def test_cmd_review_stripe(capsys):
+    args = Namespace(stack=None, db=None, payments="stripe")
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_STRIPE in captured.out
+
+def test_cmd_review_all_options(capsys):
+    args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_BASE in captured.out
+    assert REVIEW_PROMPT_NEXTJS in captured.out
+    assert REVIEW_PROMPT_SUPABASE in captured.out
+    assert REVIEW_PROMPT_STRIPE in captured.out
+    assert REVIEW_PROMPT_FOOTER in captured.out
