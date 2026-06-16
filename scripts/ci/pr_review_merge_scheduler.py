@@ -82,26 +82,6 @@ def run(args: list[str], *, stdin: str | None = None) -> str:
     return process.stdout
 
 
-def _parse_pr_number(raw: Any) -> int:
-    """Strictly validate and return a positive PR number.
-
-    Accepts only a plain ``int`` (not ``bool``) or a digit-only ``str``.
-    Rejects booleans, floats, and any other type to prevent silent truncation
-    or flag-subversion when the value is later passed to the ``gh`` CLI.
-    """
-    if isinstance(raw, bool) or not isinstance(raw, (int, str)):
-        raise ValueError(f"Invalid PR number: {raw!r}")
-    if isinstance(raw, str):
-        if not raw.isdigit():
-            raise ValueError(f"Invalid PR number: {raw!r}")
-        value = int(raw)
-    else:
-        value = raw
-    if value <= 0:
-        raise ValueError(f"Invalid PR number: {raw!r}")
-    return value
-
-
 def split_repo(repo: str) -> tuple[str, str]:
     try:
         owner, name = repo.split("/", 1)
@@ -201,16 +181,29 @@ def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = _parse_pr_number(pr["number"])
-    number_str = str(number)
+    try:
+        number_int = int(pr["number"])
+        if number_int <= 0:
+            raise ValueError
+        number = str(number_int)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+
     head = str(pr["headRefOid"])
     if dry_run:
         return
-    run(["gh", "pr", "merge", number_str, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
+    run(["gh", "pr", "merge", number, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number_str = str(_parse_pr_number(pr["number"]))
+    try:
+        number_int = int(pr["number"])
+        if number_int <= 0:
+            raise ValueError
+        number = str(number_int)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+
     if dry_run:
         return
     run(
@@ -224,7 +217,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--ref",
             pr["baseRefName"],
             "-f",
-            f"pr_number={number_str}",
+            f"pr_number={number}",
             "-f",
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
@@ -246,7 +239,12 @@ def inspect_pr(
     enable_auto_merge_flag: bool,
     workflow: str,
 ) -> Decision:
-    number = _parse_pr_number(pr["number"])
+    try:
+        number = int(pr["number"])
+        if number <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid PR number: {pr.get('number')}")
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
 
     if pr.get("isDraft"):
