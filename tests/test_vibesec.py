@@ -251,8 +251,6 @@ def test_collect_files_handles_permission_error_in_entry(tmp_path):
         collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
         assert collected_rel_paths == {"b.py"}
 
-
-
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_skips_symlink(tmp_path):
     target = tmp_path / "target.py"
@@ -458,7 +456,6 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
-
 def test_scan_file_stat_error(tmp_path):
     test_file = tmp_path / "stat_error.ts"
     test_file.write_text("const key = 'x';\n")
@@ -470,7 +467,6 @@ def test_scan_file_stat_error(tmp_path):
     with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock_oserror:
         assert _scan_file(test_file, tmp_path) == []
         mock_oserror.assert_called_once()
-
 
 def test_collect_files_oserror_on_scandir(tmp_path):
     (tmp_path / "dir1").mkdir()
@@ -585,7 +581,6 @@ def test_cmd_review_all_options(capsys):
     assert REVIEW_PROMPT_SUPABASE in captured.out
     assert REVIEW_PROMPT_STRIPE in captured.out
     assert REVIEW_PROMPT_FOOTER in captured.out
-
 
 def test_scan_file_large_file(tmp_path):
     test_file = tmp_path / "large_file.ts"
