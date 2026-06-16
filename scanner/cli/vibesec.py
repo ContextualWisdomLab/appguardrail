@@ -430,6 +430,50 @@ def cmd_scan(args):
     return 1 if any(f["severity"] in ("CRITICAL", "HIGH") for f in findings) else 0
 
 
+def cmd_hook(args):
+    """Install a pre-commit hook to block commits with vulnerabilities."""
+    project_root = Path(".").resolve()
+    git_dir = project_root / ".git"
+
+    if not git_dir.is_dir():
+        print("Error: Not a git repository. Run 'git init' first.", file=sys.stderr)
+        return 1
+
+    hooks_dir = git_dir / "hooks"
+    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+    if not hooks_dir.resolve().is_relative_to(project_root):
+        print(f"Error: Target path {hooks_dir} escapes the project root. Aborting.", file=sys.stderr)
+        return 1
+
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    pre_commit_file = hooks_dir / "pre-commit"
+
+    if pre_commit_file.is_symlink():
+        pre_commit_file.unlink()
+
+    hook_content = """#!/bin/sh
+# VibeSec Pre-Commit Hook
+
+echo "\\n🔍 Running VibeSec scan..."
+vibesec scan .
+
+if [ $? -ne 0 ]; then
+    echo "\\n❌ VibeSec scan failed! Critical or high vulnerabilities found."
+    echo "Please fix the issues or use '--no-verify' to bypass (not recommended)."
+    exit 1
+fi
+
+echo "✅ VibeSec scan passed."
+"""
+
+    pre_commit_file.write_text(hook_content)
+    pre_commit_file.chmod(pre_commit_file.stat().st_mode | stat.S_IEXEC)
+
+    print("\n✅ VibeSec pre-commit hook installed successfully at .git/hooks/pre-commit!\n")
+    print("This will run 'vibesec scan .' before every commit and block commits if vulnerabilities are found.")
+    return 0
+
+
 # ⚡ Bolt: Cache applicable rules per file extension to avoid redundant list
 # comprehensions and pre-extract the search method to avoid dictionary and
 # attribute lookups in the tight scanning loop.
@@ -444,9 +488,9 @@ def _get_applicable_rules(ext: str):
         _LAST_SCAN_RULES_ID = current_id
 
     if ext not in _RULES_CACHE:
-        # ⚡ Bolt: Cache as a tuple of tuples to avoid list iteration overhead
-        # and pre-extract the search method as the first element (tup[0])
-        # to avoid dictionary lookups on every line during the tight scan loop.
+        # ⚡ Bolt: Cache as a tuple of (search_fn, rule_meta) pairs.
+        # Pre-extracting the .search method avoids a dictionary key lookup
+        # on every line during the tight scan loop.
         _RULES_CACHE[ext] = tuple(
             (
                 rule["pattern"].search,
@@ -531,15 +575,12 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_str = None
 
     try:
-        # ⚡ Bolt: Use builtin open() instead of Path.open() to avoid
-        # method resolution overhead on the Path object.
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
             for line_num, line in enumerate(f, start=1):
-                # ⚡ Bolt: Iterate over cached tuples. tup[0] is the pre-extracted
-                # search method, avoiding dictionary lookups on every line.
-                for tup in applicable_rules:
-                    if tup[0](line):
-                        rule = tup[1]
+                # ⚡ Bolt: Unpack each (search_fn, rule) tuple; search_fn is the
+                # pre-extracted regex .search method, avoiding a dict lookup per line.
+                for search_fn, rule in applicable_rules:
+                    if search_fn(line):
                         if rel_path_str is None:
                             rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                             rel_path_str = _sanitize_terminal_output(str(rel_path))
