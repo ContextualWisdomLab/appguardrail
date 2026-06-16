@@ -1,7 +1,7 @@
 import re
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -416,3 +416,32 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
+
+def test_collect_files_oserror_scandir(tmp_path):
+    with patch("os.scandir", side_effect=PermissionError):
+        files = list(_collect_files(tmp_path))
+    assert files == []
+
+def test_collect_files_oserror_entry(tmp_path):
+    # Mock os.scandir to yield an entry that raises PermissionError on is_symlink
+    mock_entry1 = MagicMock()
+    mock_entry1.is_symlink.side_effect = PermissionError
+
+    mock_entry2 = MagicMock()
+    mock_entry2.is_symlink.return_value = False
+    mock_entry2.is_dir.return_value = False
+    mock_entry2.is_file.return_value = True
+    mock_entry2.name = "test.py"
+    mock_entry2.path = str(tmp_path / "test.py")
+
+    class MockScandirContextManager:
+        def __enter__(self):
+            return iter([mock_entry1, mock_entry2])
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    with patch("os.scandir", return_value=MockScandirContextManager()):
+        files = list(_collect_files(tmp_path))
+
+    assert len(files) == 1
+    assert files[0].name == "test.py"
