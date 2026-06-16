@@ -159,10 +159,35 @@ def review_author_login(review: dict[str, Any]) -> str:
     return ((review.get("author") or {}).get("login") or "").lower()
 
 
-def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
+def _parse_pr_number(raw: Any) -> str:
+    """Strictly validate and convert a PR number to a positive-integer string.
+
+    Accepts only a plain ``int`` (excluding ``bool``) or a digit-only ``str``.
+    Raises ``ValueError`` for booleans, floats, non-digit strings, zero, and
+    negative values so that the validated string is safe to pass to the ``gh``
+    CLI without risk of option/argument injection.
+    """
+    if isinstance(raw, bool):
+        raise ValueError(f"Invalid PR number (bool not accepted): {raw!r}")
+    if isinstance(raw, int):
+        if raw <= 0:
+            raise ValueError(f"Invalid PR number (must be > 0): {raw!r}")
+        return str(raw)
+    if isinstance(raw, str):
+        if not raw.isdigit():
+            raise ValueError(f"Invalid PR number (non-digit string): {raw!r}")
+        value = int(raw)
+        if value <= 0:
+            raise ValueError(f"Invalid PR number (must be > 0): {raw!r}")
+        return str(value)
+    raise ValueError(f"Invalid PR number (unexpected type {type(raw).__name__}): {raw!r}")
+
+
+def current_head_review_state(pr: dict[str, Any], state: str, *, extra_authors: tuple[str, ...] = ()) -> bool:
     head = pr.get("headRefOid")
     for review in reversed((pr.get("reviews") or {}).get("nodes") or []):
-        if not review_author_login(review).startswith("opencode-agent"):
+        login = review_author_login(review)
+        if not (login.startswith("opencode-agent") or login in extra_authors):
             continue
         if (review.get("state") or "").upper() != state:
             continue
@@ -177,18 +202,11 @@ def has_current_head_approval(pr: dict[str, Any]) -> bool:
 
 
 def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
-    return current_head_review_state(pr, "CHANGES_REQUESTED")
+    return current_head_review_state(pr, "CHANGES_REQUESTED", extra_authors=("github-actions[bot]",))
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    try:
-        number_int = int(pr["number"])
-        if number_int <= 0:
-            raise ValueError
-        number = str(number_int)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
-
+    number = _parse_pr_number(pr["number"])
     head = str(pr["headRefOid"])
     if dry_run:
         return
@@ -196,14 +214,7 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    try:
-        number_int = int(pr["number"])
-        if number_int <= 0:
-            raise ValueError
-        number = str(number_int)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
-
+    number = _parse_pr_number(pr["number"])
     if dry_run:
         return
     run(
@@ -239,12 +250,7 @@ def inspect_pr(
     enable_auto_merge_flag: bool,
     workflow: str,
 ) -> Decision:
-    try:
-        number = int(pr["number"])
-        if number <= 0:
-            raise ValueError
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+    number = int(_parse_pr_number(pr["number"]))
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
 
     if pr.get("isDraft"):
