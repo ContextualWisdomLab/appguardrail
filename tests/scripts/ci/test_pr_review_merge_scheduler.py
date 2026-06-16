@@ -27,11 +27,12 @@ def test_is_opencode_context_checkrun_name():
     assert is_opencode_context(node) is True
 
 
-def test_is_opencode_context_checkrun_workflow_name():
+@pytest.mark.parametrize("workflow_name", ["OpenCode Review", "OpenCode PR Review"])
+def test_is_opencode_context_checkrun_workflow_name(workflow_name):
     node = {
         "__typename": "CheckRun",
         "name": "other-check",
-        "checkSuite": {"workflowRun": {"workflow": {"name": "OpenCode Review"}}},
+        "checkSuite": {"workflowRun": {"workflow": {"name": workflow_name}}},
     }
     assert is_opencode_context(node) is True
 

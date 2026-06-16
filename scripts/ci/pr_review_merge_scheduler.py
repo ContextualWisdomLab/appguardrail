@@ -65,6 +65,7 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
   }
 }
 """
+OPENCODE_WORKFLOW_NAMES = {"OpenCode Review", "OpenCode PR Review"}
 
 
 @dataclass
@@ -137,7 +138,7 @@ def is_opencode_context(node: dict[str, Any]) -> bool:
             ((node.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow")
             or {}
         )
-        return node.get("name") == "opencode-review" or workflow.get("name") == "OpenCode Review"
+        return node.get("name") == "opencode-review" or workflow.get("name") in OPENCODE_WORKFLOW_NAMES
     return node.get("context") == "opencode-review"
 
 
@@ -340,7 +341,8 @@ def main(argv: list[str]) -> int:
         enable_auto_merge_flag=args.enable_auto_merge,
         workflow=args.review_workflow,
     )
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    max_workers = min(8, max(1, len(prs)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         decisions = list(executor.map(inspect_func, prs))
 
     print_summary(decisions, dry_run=args.dry_run)

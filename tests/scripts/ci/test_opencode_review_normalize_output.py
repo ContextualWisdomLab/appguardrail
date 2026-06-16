@@ -151,6 +151,8 @@ def test_valid_control_invalid_findings():
     assert valid_control(val, expected_head_sha="sha", expected_run_id="id", expected_run_attempt="1") is None
     val = dict(base, findings=[dict(valid_finding, line="1")])
     assert valid_control(val, expected_head_sha="sha", expected_run_id="id", expected_run_attempt="1") is None
+    val = dict(base, findings=[dict(valid_finding, line=True)])
+    assert valid_control(val, expected_head_sha="sha", expected_run_id="id", expected_run_attempt="1") is None
 
     # Missing required field
     for field in ["path", "severity", "title", "problem", "root_cause", "fix_direction", "regression_test_direction", "suggested_diff"]:

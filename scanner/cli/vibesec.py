@@ -360,7 +360,7 @@ def cmd_init(args):
         "claude-code": {
             "path": Path("CLAUDE.md"),
             "content": RULES_CLAUDE,
-            "append_marker": "VibeSec",
+            "append_marker": "## VibeSec Security Guardrails",
         },
         "windsurf": {
             "path": Path(".windsurf") / "rules" / "vibesec.md",

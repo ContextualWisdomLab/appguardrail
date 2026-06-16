@@ -395,12 +395,12 @@ def test_cmd_init_claude_code_append(tmp_path, monkeypatch, capsys):
 def test_cmd_init_claude_code_skip(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     claude_file = tmp_path / "CLAUDE.md"
-    claude_file.write_text("VibeSec existing rules\n")
+    claude_file.write_text("## VibeSec Security Guardrails\nexisting rules\n")
 
     cmd_init(Args(tool="claude-code"))
 
-    assert claude_file.read_text() == "VibeSec existing rules\n"
-    assert "CLAUDE.md already contains VibeSec rules — skipping." in capsys.readouterr().out
+    assert claude_file.read_text() == "## VibeSec Security Guardrails\nexisting rules\n"
+    assert "CLAUDE.md already contains ## VibeSec Security Guardrails rules — skipping." in capsys.readouterr().out
 
 
 def test_cmd_init_windsurf(tmp_path, monkeypatch, capsys):
@@ -527,7 +527,7 @@ def test_cmd_review_base_prompt(capsys):
     assert REVIEW_PROMPT_STRIPE not in captured.out
 
 def test_cmd_review_nextjs(capsys):
-    args = Namespace(stack=["nextjs"], db=None, payments=None)
+    args = Namespace(stack="nextjs", db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_NEXTJS in captured.out
@@ -539,7 +539,7 @@ def test_cmd_review_supabase(capsys):
     assert REVIEW_PROMPT_SUPABASE in captured.out
 
 def test_cmd_review_supabase_via_stack(capsys):
-    args = Namespace(stack=["supabase"], db=None, payments=None)
+    args = Namespace(stack="nextjs-supabase", db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_SUPABASE in captured.out
@@ -551,7 +551,7 @@ def test_cmd_review_firebase(capsys):
     assert REVIEW_PROMPT_FIREBASE in captured.out
 
 def test_cmd_review_firebase_via_stack(capsys):
-    args = Namespace(stack=["firebase"], db=None, payments=None)
+    args = Namespace(stack="nextjs-firebase", db=None, payments=None)
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_FIREBASE in captured.out
@@ -563,7 +563,7 @@ def test_cmd_review_stripe(capsys):
     assert REVIEW_PROMPT_STRIPE in captured.out
 
 def test_cmd_review_all_options(capsys):
-    args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
+    args = Namespace(stack="nextjs", db="supabase", payments="stripe")
     cmd_review(args)
     captured = capsys.readouterr()
     assert REVIEW_PROMPT_BASE in captured.out
