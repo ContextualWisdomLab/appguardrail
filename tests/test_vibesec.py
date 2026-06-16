@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, _print_supabase_reminder, cmd_init, cmd_scan
 
 MOCK_RULES = [
     {
@@ -416,3 +416,13 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
+
+
+def test_print_supabase_reminder(capsys):
+    _print_supabase_reminder()
+    captured = capsys.readouterr()
+
+    assert "Supabase stack detected. Quick reminders:" in captured.out
+    assert "Enable RLS on every user-data table" in captured.out
+    assert "Use getUser() not getSession() on the server" in captured.out
+    assert "Keep SUPABASE_SERVICE_ROLE_KEY server-side only" in captured.out
