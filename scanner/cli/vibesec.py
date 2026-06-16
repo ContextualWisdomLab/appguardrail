@@ -13,6 +13,7 @@ Commands:
   init      Install security rules into your project
   scan      Run a lightweight security scan on a directory
   review    Generate an AI review prompt for your stack
+  hook      Install a pre-commit hook to block vulnerabilities
 
 Options:
   --tool    AI coding tool: cursor, claude-code, windsurf, lovable (default: cursor)
@@ -48,6 +49,7 @@ RULES_CURSOR = """\
 - File uploads must validate type, size, and filename server-side.
 - Never set CORS to allow all origins on authenticated endpoints.
 - Add tests for cross-user access denial on every resource endpoint.
+- When dealing with OWASP rules or security vulnerabilities, automatically run `vibesec scan .` as a hook or use tools like `semgrep` to verify the codebase.
 
 See https://github.com/Seongho-Bae/VibeSec for full rules and checklists.
 """
@@ -65,6 +67,7 @@ Apply the following security rules to all code you generate:
 6. **Supabase**: Use getUser() (not getSession()) server-side; RLS on all tables.
 7. **Files**: Validate type, size, and generate server-side filenames for uploads.
 8. **CORS**: Restrict to known origins on authenticated endpoints.
+9. **Automated Scanning**: When dealing with OWASP rules or security vulnerabilities, automatically run `vibesec scan .` as a hook or use tools like `semgrep` to verify the codebase.
 
 Return 401 for unauthenticated requests, 403 for ownership violations.
 
@@ -116,16 +119,16 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "hardcoded-stripe-secret",
-        "pattern": re.compile(r'sk_(live|test)_[A-Za-z0-9]{24,}'),
+        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}'),
         "severity": "CRITICAL",
-        "message": "Hardcoded Stripe secret key detected. Rotate this key immediately.",
+        "message": "Hardcoded Stripe secret key detected. Rotate this key immediately. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-openai-key",
         "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}'),
         "severity": "CRITICAL",
-        "message": "Possible hardcoded OpenAI API key detected.",
+        "message": "Possible hardcoded OpenAI API key detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
@@ -135,71 +138,62 @@ SCAN_RULES = [
             re.IGNORECASE,
         ),
         "severity": "CRITICAL",
-        "message": (
-            "Secret environment variable uses NEXT_PUBLIC_ prefix — "
-            "this exposes it to the browser bundle."
-        ),
+        "message": "Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": None,
     },
     {
         "id": "supabase-service-role-client",
         "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE),
         "severity": "CRITICAL",
-        "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix.",
+        "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".env", ".env.local", ".env.production"],
     },
     {
         "id": "firebase-allow-all",
-        "pattern": re.compile(r'allow\s+(read|write|read,\s*write)\s*:\s*if\s+true'),
+        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true'),
         "severity": "CRITICAL",
-        "message": (
-            "Firebase/Firestore rule allows unrestricted read/write access. "
-            "Add authentication and ownership checks."
-        ),
+        "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".rules"],
     },
     {
         "id": "todo-skip-auth",
         "pattern": re.compile(
-            r'(?i)(todo|fixme|hack|temp)[^\n]{0,50}(auth|security|permission|check|protect)',
+            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)',
         ),
         "severity": "HIGH",
-        "message": (
-            "Comment suggests auth/security check was deferred. "
-            "Verify this is not deployed to production."
-        ),
+        "message": "Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
         "id": "dangerous-cors",
         "pattern": re.compile(r"Access-Control-Allow-Origin['\",\s]*[*]"),
         "severity": "HIGH",
-        "message": "CORS set to allow all origins (*). Restrict to known domains.",
+        "message": "CORS set to allow all origins (*). Restrict to known domains. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
         "id": "hardcoded-database-url",
         "pattern": re.compile(
-            r'(?i)(DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](postgres|postgresql|mysql)://\S+',
+            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+',
         ),
         "severity": "CRITICAL",
-        "message": "Hardcoded database connection string detected.",
+        "message": "Hardcoded database connection string detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-jwt-secret",
         "pattern": re.compile(
-            r'(?i)(JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
+            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
         ),
         "severity": "CRITICAL",
-        "message": "Hardcoded JWT/NextAuth secret detected.",
+        "message": "Hardcoded JWT/NextAuth secret detected. [OWASP A02:2021 - Cryptographic Failures]",
         "extensions": None,
     },
     {
         "id": "stripe-webhook-no-verify",
         "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)'),
         "severity": "CRITICAL",
-        "message": "Stripe constructEvent called with empty/undefined webhook secret.",
+        "message": "Stripe constructEvent called with empty/undefined webhook secret. [OWASP A08:2021 - Software and Data Integrity Failures]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
     },
     {
@@ -208,21 +202,21 @@ SCAN_RULES = [
             r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]',
         ),
         "severity": "HIGH",
-        "message": "Hardcoded mock session/user in what may be a production handler. Verify this is test-only code.",
+        "message": "Mock or hardcoded session/user object detected in route handler. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
     },
     {
         "id": "dangerous-eval",
         "pattern": re.compile(r'\beval\s*\('),
         "severity": "CRITICAL",
-        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks.",
+        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
         "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
     },
     {
         "id": "react-dangerously-set-inner-html",
         "pattern": re.compile(r'dangerouslySetInnerHTML\s*='),
         "severity": "HIGH",
-        "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized.",
+        "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized. [OWASP A03:2021 - Injection]",
         "extensions": [".jsx", ".tsx"],
     },
     {
@@ -231,7 +225,7 @@ SCAN_RULES = [
             r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)'
         ),
         "severity": "CRITICAL",
-        "message": "Potential SQL injection detected: string concatenation or template literal in database query.",
+        "message": "Potential SQL injection detected: string concatenation or template literal in database query. [OWASP A03:2021 - Injection]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
 ]
@@ -302,6 +296,54 @@ For each issue found, provide:
 # Command implementations
 # ---------------------------------------------------------------------------
 
+
+def _install_tool_rules(config: dict, project_root, installed: list):
+    """Install the specific rules file based on tool configuration."""
+    if config.get("shared_only"):
+        return
+
+    target_file = project_root / config['path']
+
+    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+    if not target_file.resolve().is_relative_to(project_root):
+        print(f"Error: Target path {target_file} escapes the project root. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    if target_file.is_symlink():
+        target_file.unlink()
+
+    if "append_marker" in config:
+        if target_file.exists():
+            existing = target_file.read_text()
+            if config['append_marker'] not in existing:
+                target_file.write_text(existing + "\n\n" + config["content"])
+                installed.append(f"{config['path']} (appended)")
+            else:
+                print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
+        else:
+            target_file.write_text(config["content"])
+            installed.append(str(config['path']))
+    else:
+        target_file.write_text(config["content"])
+        installed.append(str(config['path']))
+
+
+def _install_checklist(project_root, installed: list):
+    """Install the VIBESEC_CHECKLIST.md file."""
+    checklist_file = project_root / "VIBESEC_CHECKLIST.md"
+
+    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+    if not checklist_file.resolve().is_relative_to(project_root):
+        print(f"Error: Checklist path {checklist_file} escapes the project root. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
+    if checklist_file.is_symlink():
+        checklist_file.unlink()
+    if not checklist_file.exists():
+        checklist_file.write_text(CHECKLIST_TEMPLATE)
+        installed.append("VIBESEC_CHECKLIST.md")
+
 def cmd_init(args):
     """Install security rules into the project."""
     tool = getattr(args, "tool", "cursor") or "cursor"
@@ -335,46 +377,8 @@ def cmd_init(args):
         sys.exit(1)
 
     config = tool_configs[tool]
-    if not config.get("shared_only"):
-        target_file = project_root / config["path"]
-
-        # SECURITY: Prevent Arbitrary File Write via symlink path traversal
-        if not target_file.resolve().is_relative_to(project_root):
-            print(f"Error: Target path {target_file} escapes the project root. Aborting.", file=sys.stderr)
-            sys.exit(1)
-
-        target_file.parent.mkdir(parents=True, exist_ok=True)
-        if target_file.is_symlink():
-            target_file.unlink()
-
-        if "append_marker" in config:
-            if target_file.exists():
-                existing = target_file.read_text()
-                if config["append_marker"] not in existing:
-                    target_file.write_text(existing + "\n\n" + config["content"])
-                    installed.append(f"{config['path']} (appended)")
-                else:
-                    print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
-            else:
-                target_file.write_text(config["content"])
-                installed.append(str(config["path"]))
-        else:
-            target_file.write_text(config["content"])
-            installed.append(str(config["path"]))
-    # Always create the checklist
-    checklist_file = project_root / "VIBESEC_CHECKLIST.md"
-
-    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
-    if not checklist_file.resolve().is_relative_to(project_root):
-        print(f"Error: Checklist path {checklist_file} escapes the project root. Aborting.", file=sys.stderr)
-        sys.exit(1)
-
-    if checklist_file.is_symlink():
-        checklist_file.unlink()
-    if not checklist_file.exists():
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
-        installed.append("VIBESEC_CHECKLIST.md")
-
+    _install_tool_rules(config, project_root, installed)
+    _install_checklist(project_root, installed)
     if stack and "supabase" in stack:
         _print_supabase_reminder()
 
@@ -427,7 +431,51 @@ def cmd_scan(args):
         findings.extend(file_findings)
 
     _print_scan_results(findings, files_scanned)
-    return 1 if any(f["severity"] in ("CRITICAL", "HIGH") for f in findings) else 0
+    return 1 if any(f["severity"] in {"CRITICAL", "HIGH"} for f in findings) else 0
+
+
+def cmd_hook(args):
+    """Install a pre-commit hook to block commits with vulnerabilities."""
+    project_root = Path(".").resolve()
+    git_dir = project_root / ".git"
+
+    if not git_dir.is_dir():
+        print("Error: Not a git repository. Run 'git init' first.", file=sys.stderr)
+        return 1
+
+    hooks_dir = git_dir / "hooks"
+    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+    if not hooks_dir.resolve().is_relative_to(project_root):
+        print(f"Error: Target path {hooks_dir} escapes the project root. Aborting.", file=sys.stderr)
+        return 1
+
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    pre_commit_file = hooks_dir / "pre-commit"
+
+    if pre_commit_file.is_symlink():
+        pre_commit_file.unlink()
+
+    hook_content = """#!/bin/sh
+# VibeSec Pre-Commit Hook
+
+echo "\\n🔍 Running VibeSec scan..."
+vibesec scan .
+
+if [ $? -ne 0 ]; then
+    echo "\\n❌ VibeSec scan failed! Critical or high vulnerabilities found."
+    echo "Please fix the issues or use '--no-verify' to bypass (not recommended)."
+    exit 1
+fi
+
+echo "✅ VibeSec scan passed."
+"""
+
+    pre_commit_file.write_text(hook_content)
+    pre_commit_file.chmod(pre_commit_file.stat().st_mode | stat.S_IEXEC)
+
+    print("\n✅ VibeSec pre-commit hook installed successfully at .git/hooks/pre-commit!\n")
+    print("This will run 'vibesec scan .' before every commit and block commits if vulnerabilities are found.")
+    return 0
 
 
 # ⚡ Bolt: Cache applicable rules per file extension to avoid redundant list
@@ -462,6 +510,28 @@ def _get_applicable_rules(ext: str):
     return _RULES_CACHE[ext]
 
 
+def _process_dir_entries(dir_path: str):
+    """Process entries in a directory, yielding files and returning subdirectories."""
+    dirs = []
+    try:
+        with os.scandir(dir_path) as it:
+            for entry in it:
+                try:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                            dirs.append(entry.path)
+                    elif entry.is_file(follow_symlinks=False):
+                        _, ext = os.path.splitext(entry.name)
+                        if ext.lower() not in SKIP_EXTENSIONS:
+                            yield Path(entry.path)
+                except (OSError, PermissionError):
+                    continue
+    except (OSError, PermissionError):
+        pass
+    return dirs
+
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
     # ⚡ Bolt: Optimize file traversal using os.scandir and os.path.splitext
@@ -471,25 +541,8 @@ def _collect_files(base_path: Path):
     stack = [str(base_path)]
     while stack:
         current_dir = stack.pop()
-        try:
-            with os.scandir(current_dir) as it:
-                dirs = []
-                for entry in it:
-                    try:
-                        if entry.is_symlink():
-                            continue
-                        if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
-                                dirs.append(entry.path)
-                        elif entry.is_file(follow_symlinks=False):
-                            _, ext = os.path.splitext(entry.name)
-                            if ext.lower() not in SKIP_EXTENSIONS:
-                                yield Path(entry.path)
-                    except (OSError, PermissionError):
-                        continue
-                stack.extend(reversed(dirs))
-        except (OSError, PermissionError):
-            pass
+        dirs = yield from _process_dir_entries(current_dir)
+        stack.extend(reversed(dirs))
 
 
 def _sanitize_terminal_output(text: str) -> str:
@@ -674,6 +727,10 @@ def main():
     review_parser.add_argument("--db", help="Database/backend (e.g. supabase, firebase)")
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
+    # hook
+    hook_parser = subparsers.add_parser("hook", help="Install a pre-commit hook to block commits with vulnerabilities")
+
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -682,6 +739,8 @@ def main():
         sys.exit(cmd_scan(args))
     elif args.command == "review":
         cmd_review(args)
+    elif args.command == "hook":
+        sys.exit(cmd_hook(args))
     else:
         parser.print_help()
         sys.exit(0)
