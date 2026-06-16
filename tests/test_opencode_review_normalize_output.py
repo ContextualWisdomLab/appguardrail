@@ -38,8 +38,6 @@ def test_iter_json_objects_partial():
     text = '{"a": '
     result = iter_json_objects(text)
     assert result == []
-
-
 def test_iter_json_objects_decode_error():
     """Test that iter_json_objects handles JSONDecodeError when decoding."""
     text = "prefix { valid looking json } suffix"
