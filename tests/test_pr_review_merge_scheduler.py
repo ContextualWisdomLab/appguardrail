@@ -1,39 +1,146 @@
-import os
+import runpy
 import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock
 
-# Add scripts/ci to path so we can import the module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../scripts/ci')))
-from pr_review_merge_scheduler import split_repo
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "ci"))
+import pr_review_merge_scheduler
 
-def test_split_repo_valid():
-    """Test happy path where repo splits correctly into owner and name."""
-    assert split_repo("owner/name") == ("owner", "name")
 
-def test_split_repo_invalid_format():
-    """Test edge cases where splitting doesn't yield two parts without raising ValueError on split."""
-    # split_repo("abc") would actually raise ValueError on split, but the code explicitly catches it.
-    with pytest.raises(ValueError, match="repo must be owner/name, got 'abc'"):
-        split_repo("abc")
+def test_split_repo_success():
+    assert pr_review_merge_scheduler.split_repo("owner/repo") == ("owner", "repo")
 
-def test_split_repo_missing_owner_or_name():
-    """Test when split returns empty strings for owner or name."""
-    with pytest.raises(ValueError, match="repo must be owner/name, got '/name'"):
-        split_repo("/name")
+
+def test_split_repo_success_multiple_slashes():
+    assert pr_review_merge_scheduler.split_repo("owner/repo/extra") == ("owner", "repo/extra")
+
+
+def test_split_repo_invalid():
+    with pytest.raises(ValueError, match="repo must be owner/name, got 'invalid'"):
+        pr_review_merge_scheduler.split_repo("invalid")
+
+
+def test_split_repo_empty_owner():
+    with pytest.raises(ValueError, match="repo must be owner/name, got '/repo'"):
+        pr_review_merge_scheduler.split_repo("/repo")
+
+
+def test_split_repo_empty_repo():
     with pytest.raises(ValueError, match="repo must be owner/name, got 'owner/'"):
-        split_repo("owner/")
+        pr_review_merge_scheduler.split_repo("owner/")
 
-def test_split_repo_mock_exception():
-    """
-    Test the error path where the split operation itself raises a ValueError.
-    Rationale: Requires mocking the operation that throws the exception to hit this code path.
-    """
-    mock_repo = MagicMock()
-    # Force the split method on the mock to raise a ValueError
-    mock_repo.split.side_effect = ValueError("mocked split error")
 
-    with pytest.raises(ValueError) as excinfo:
-        split_repo(mock_repo)
+def test_split_repo_wraps_split_value_error():
+    repo = MagicMock()
+    repo.split.side_effect = ValueError("mocked split error")
 
-    assert "repo must be owner/name" in str(excinfo.value)
+    with pytest.raises(ValueError, match=r"repo must be owner/name, got <MagicMock"):
+        pr_review_merge_scheduler.split_repo(repo)
+
+
+def test_error_path(capsys, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["pr_review_merge_scheduler.py", "--repo", "owner/repo"])
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.returncode = 1
+        mock_process.stderr = "fake error message"
+        mock_run.return_value = mock_process
+
+        with pytest.raises(SystemExit, match="1") as excinfo:
+            runpy.run_path(
+                str(Path(__file__).parent.parent / "scripts" / "ci" / "pr_review_merge_scheduler.py"),
+                run_name="__main__",
+            )
+
+        assert excinfo.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "Command failed" in captured.err
+    assert "fake error message" in captured.err
+
+
+def test_has_current_head_approval_true_from_review_state():
+    pr = {
+        "headRefOid": "commit123",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "reviews": {
+            "nodes": [
+                {
+                    "state": "APPROVED",
+                    "author": {"login": "opencode-agent"},
+                    "commit": {"oid": "commit123"},
+                }
+            ]
+        }
+    }
+    assert pr_review_merge_scheduler.has_current_head_approval(pr) is True
+
+
+def test_has_current_head_approval_true_from_review_decision():
+    pr = {
+        "headRefOid": "commit123",
+        "reviewDecision": "APPROVED",
+        "reviews": {
+            "nodes": []
+        }
+    }
+    assert pr_review_merge_scheduler.has_current_head_approval(pr) is True
+
+
+def test_has_current_head_approval_false():
+    pr = {
+        "headRefOid": "commit123",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "reviews": {
+            "nodes": [
+                {
+                    "state": "CHANGES_REQUESTED",
+                    "author": {"login": "opencode-agent"},
+                    "commit": {"oid": "commit123"},
+                }
+            ]
+        }
+    }
+    assert pr_review_merge_scheduler.has_current_head_approval(pr) is False
+
+
+def test_has_current_head_approval_wrong_commit():
+    pr = {
+        "headRefOid": "commit123",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "reviews": {
+            "nodes": [
+                {
+                    "state": "APPROVED",
+                    "author": {"login": "opencode-agent"},
+                    "commit": {"oid": "oldcommit456"},
+                }
+            ]
+        }
+    }
+    assert pr_review_merge_scheduler.has_current_head_approval(pr) is False
+
+
+def test_has_current_head_approval_wrong_author():
+    pr = {
+        "headRefOid": "commit123",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "reviews": {
+            "nodes": [
+                {
+                    "state": "APPROVED",
+                    "author": {"login": "some-other-user"},
+                    "commit": {"oid": "commit123"},
+                }
+            ]
+        }
+    }
+    assert pr_review_merge_scheduler.has_current_head_approval(pr) is False
+
+
+def test_has_current_head_approval_missing_keys():
+    pr = {}
+    assert pr_review_merge_scheduler.has_current_head_approval(pr) is False
