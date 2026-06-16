@@ -531,15 +531,12 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_str = None
 
     try:
-        # ⚡ Bolt: Use builtin open() instead of Path.open() to avoid
-        # method resolution overhead on the Path object.
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
             for line_num, line in enumerate(f, start=1):
-                # ⚡ Bolt: Iterate over cached tuples. tup[0] is the pre-extracted
-                # search method, avoiding dictionary lookups on every line.
-                for tup in applicable_rules:
-                    if tup[0](line):
-                        rule = tup[1]
+                # ⚡ Bolt: Iterate over cached tuples of (search_fn, rule_dict)
+                # to avoid dictionary key lookups on every line.
+                for search_fn, rule in applicable_rules:
+                    if search_fn(line):
                         if rel_path_str is None:
                             rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                             rel_path_str = _sanitize_terminal_output(str(rel_path))
