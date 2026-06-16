@@ -102,21 +102,18 @@ def valid_control(
 def iter_json_objects(text: str) -> list[Any]:
     decoder = json.JSONDecoder()
     values: list[Any] = []
-
-    try:
-        values.append(json.loads(text))
-    except json.JSONDecodeError:
-        # OpenCode exports may contain prose around the JSON control object.
-        pass
-
-    for index, character in enumerate(text):
-        if character != "{":
+    index = 0
+    while index < len(text):
+        if text[index] != "{":
+            index += 1
             continue
         try:
-            value, _ = decoder.raw_decode(text[index:])
+            value, end = decoder.raw_decode(text, index)
         except json.JSONDecodeError:
+            index += 1
             continue
         values.append(value)
+        index = end
 
     return values
 
