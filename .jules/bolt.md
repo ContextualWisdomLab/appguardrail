@@ -22,3 +22,7 @@
 ## 2024-06-16 - Parallelize Subprocess CLI Calls
 **Learning:** Sequential, synchronous execution of `subprocess.run` (like calling the GitHub CLI) across multiple items (like PRs) is a significant I/O bottleneck.
 **Action:** Use `concurrent.futures.ThreadPoolExecutor` with `functools.partial` and `executor.map` to safely parallelize I/O-bound subprocess executions, significantly reducing overall script runtime.
+
+## 2024-05-16 - Module-level Constants for Performance
+**Learning:** Recreating static dictionaries (like severity mappings and icons) inside frequently called functions causes unnecessary memory allocations and slight performance overhead on every call.
+**Action:** Extract static dictionaries to module-level constants to ensure they are instantiated only once when the module is loaded.
