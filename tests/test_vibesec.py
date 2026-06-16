@@ -1,11 +1,13 @@
+import os
 import re
 import tempfile
+from argparse import Namespace
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan, cmd_review, REVIEW_PROMPT_BASE, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_SUPABASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_FOOTER
 
 MOCK_RULES = [
     {
@@ -17,9 +19,9 @@ MOCK_RULES = [
     },
     {
         "id": "mock-todo",
-        "pattern": re.compile(r"TODO: fix auth"),
+        "pattern": re.compile(r"TODO: fix issue"),
         "severity": "HIGH",
-        "message": "Found auth todo",
+        "message": "Found issue todo",
         "extensions": None,
     },
     {
@@ -81,7 +83,7 @@ def test_scan_file_with_findings(tmp_path):
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_multiple_findings(tmp_path):
     test_file = tmp_path / "unsafe_multiple.js"
-    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n")
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix issue here\n")
 
     findings = _scan_file(test_file, tmp_path)
     rule_ids = [f["rule_id"] for f in findings]
@@ -210,6 +212,45 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
 
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
+
+
+def test_collect_files_handles_oserror_in_scandir(tmp_path):
+    (tmp_path / "a.py").touch()
+    with patch("os.scandir", side_effect=PermissionError):
+        assert list(_collect_files(tmp_path)) == []
+
+
+def test_collect_files_handles_oserror_in_entry(tmp_path):
+    (tmp_path / "a.py").touch()
+    (tmp_path / "b.py").touch()
+
+    original_scandir = os.scandir
+
+    def mock_scandir(path):
+        iterator = original_scandir(path)
+        class MockIterator:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                iterator.close()
+            def __iter__(self):
+                return self
+            def __next__(self):
+                entry = next(iterator)
+                if entry.name == "a.py":
+                    class MockEntry:
+                        name = entry.name
+                        path = entry.path
+                        def is_symlink(self):
+                            raise PermissionError("Access denied")
+                    return MockEntry()
+                return entry
+        return MockIterator()
+
+    with patch("os.scandir", side_effect=mock_scandir):
+        collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
+        assert collected_rel_paths == {"b.py"}
+
 
 
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
@@ -417,31 +458,116 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
-def test_collect_files_oserror_scandir(tmp_path):
-    with patch("os.scandir", side_effect=PermissionError):
+def test_collect_files_oserror_on_scandir(tmp_path):
+    (tmp_path / "dir1").mkdir()
+    (tmp_path / "dir1" / "file1.py").touch()
+    (tmp_path / "file2.py").touch()
+
+    original_scandir = os.scandir
+    def mock_scandir(path):
+        if Path(path).name == "dir1":
+            raise PermissionError("Access denied")
+        return original_scandir(path)
+
+    with patch("os.scandir", side_effect=mock_scandir):
         files = list(_collect_files(tmp_path))
-    assert files == []
+        assert len(files) == 1
+        assert files[0].name == "file2.py"
 
-def test_collect_files_oserror_entry(tmp_path):
-    # Mock os.scandir to yield an entry that raises PermissionError on is_symlink
-    mock_entry1 = MagicMock()
-    mock_entry1.is_symlink.side_effect = PermissionError
+def test_collect_files_oserror_on_entry(tmp_path):
+    (tmp_path / "file1.py").touch()
+    (tmp_path / "file2.py").touch()
 
-    mock_entry2 = MagicMock()
-    mock_entry2.is_symlink.return_value = False
-    mock_entry2.is_dir.return_value = False
-    mock_entry2.is_file.return_value = True
-    mock_entry2.name = "test.py"
-    mock_entry2.path = str(tmp_path / "test.py")
+    original_scandir = os.scandir
+    def mock_scandir(path):
+        class MockEntry:
+            def __init__(self, entry):
+                self._entry = entry
+                self.name = entry.name
+                self.path = entry.path
+            def is_symlink(self):
+                return self._entry.is_symlink()
+            def is_dir(self, follow_symlinks=False):
+                if self.name == "file1.py":
+                    raise PermissionError("Access denied")
+                return self._entry.is_dir(follow_symlinks=follow_symlinks)
+            def is_file(self, follow_symlinks=False):
+                return self._entry.is_file(follow_symlinks=follow_symlinks)
 
-    class MockScandirContextManager:
-        def __enter__(self):
-            return iter([mock_entry1, mock_entry2])
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
+        class MockIterator:
+            def __init__(self, it):
+                self.it = it
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                self.it.close()
+            def __iter__(self):
+                for entry in self.it:
+                    yield MockEntry(entry)
 
-    with patch("os.scandir", return_value=MockScandirContextManager()):
+        return MockIterator(original_scandir(path))
+
+    with patch("os.scandir", side_effect=mock_scandir):
         files = list(_collect_files(tmp_path))
+        assert len(files) == 1
+        assert files[0].name == "file2.py"
+# ---------------------------------------------------------------------------
+# cmd_review tests
+# ---------------------------------------------------------------------------
 
-    assert len(files) == 1
-    assert files[0].name == "test.py"
+def test_cmd_review_base_prompt(capsys):
+    args = Namespace(stack=None, db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_BASE in captured.out
+    assert REVIEW_PROMPT_FOOTER in captured.out
+    assert REVIEW_PROMPT_NEXTJS not in captured.out
+    assert REVIEW_PROMPT_SUPABASE not in captured.out
+    assert REVIEW_PROMPT_FIREBASE not in captured.out
+    assert REVIEW_PROMPT_STRIPE not in captured.out
+
+def test_cmd_review_nextjs(capsys):
+    args = Namespace(stack=["nextjs"], db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_NEXTJS in captured.out
+
+def test_cmd_review_supabase(capsys):
+    args = Namespace(stack=None, db="supabase", payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_SUPABASE in captured.out
+
+def test_cmd_review_supabase_via_stack(capsys):
+    args = Namespace(stack=["supabase"], db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_SUPABASE in captured.out
+
+def test_cmd_review_firebase(capsys):
+    args = Namespace(stack=None, db="firebase", payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_FIREBASE in captured.out
+
+def test_cmd_review_firebase_via_stack(capsys):
+    args = Namespace(stack=["firebase"], db=None, payments=None)
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_FIREBASE in captured.out
+
+def test_cmd_review_stripe(capsys):
+    args = Namespace(stack=None, db=None, payments="stripe")
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_STRIPE in captured.out
+
+def test_cmd_review_all_options(capsys):
+    args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
+    cmd_review(args)
+    captured = capsys.readouterr()
+    assert REVIEW_PROMPT_BASE in captured.out
+    assert REVIEW_PROMPT_NEXTJS in captured.out
+    assert REVIEW_PROMPT_SUPABASE in captured.out
+    assert REVIEW_PROMPT_STRIPE in captured.out
+    assert REVIEW_PROMPT_FOOTER in captured.out
