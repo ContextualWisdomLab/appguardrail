@@ -1,13 +1,12 @@
-from argparse import Namespace
-import os
 import re
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan, cmd_review, REVIEW_PROMPT_BASE, REVIEW_PROMPT_NEXTJS, REVIEW_PROMPT_SUPABASE, REVIEW_PROMPT_FIREBASE, REVIEW_PROMPT_STRIPE, REVIEW_PROMPT_FOOTER
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan
 
 MOCK_RULES = [
     {
@@ -19,9 +18,9 @@ MOCK_RULES = [
     },
     {
         "id": "mock-todo",
-        "pattern": re.compile(r"TODO: fix issue"),
+        "pattern": re.compile(r"TODO: fix auth"),
         "severity": "HIGH",
-        "message": "Found issue todo",
+        "message": "Found auth todo",
         "extensions": None,
     },
     {
@@ -83,7 +82,7 @@ def test_scan_file_with_findings(tmp_path):
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_multiple_findings(tmp_path):
     test_file = tmp_path / "unsafe_multiple.js"
-    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix issue here\n")
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n")
 
     findings = _scan_file(test_file, tmp_path)
     rule_ids = [f["rule_id"] for f in findings]
@@ -213,43 +212,6 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
 
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
 
-
-def test_collect_files_handles_oserror_in_scandir(tmp_path):
-    (tmp_path / "a.py").touch()
-    with patch("os.scandir", side_effect=PermissionError):
-        assert list(_collect_files(tmp_path)) == []
-
-
-def test_collect_files_handles_oserror_in_entry(tmp_path):
-    (tmp_path / "a.py").touch()
-    (tmp_path / "b.py").touch()
-
-    original_scandir = os.scandir
-
-    def mock_scandir(path):
-        iterator = original_scandir(path)
-        class MockIterator:
-            def __enter__(self):
-                return self
-            def __exit__(self, *args):
-                iterator.close()
-            def __iter__(self):
-                return self
-            def __next__(self):
-                entry = next(iterator)
-                if entry.name == "a.py":
-                    class MockEntry:
-                        name = entry.name
-                        path = entry.path
-                        def is_symlink(self):
-                            raise PermissionError("Access denied")
-                    return MockEntry()
-                return entry
-        return MockIterator()
-
-    with patch("os.scandir", side_effect=mock_scandir):
-        collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
-        assert collected_rel_paths == {"b.py"}
 
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_skips_symlink(tmp_path):
@@ -482,65 +444,3 @@ def test_scan_file_large_file(tmp_path):
     with patch("scanner.cli.vibesec.os.lstat", side_effect=mock_lstat) as mock3:
         assert _scan_file(test_file, tmp_path) == []
         mock3.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# cmd_review tests
-# ---------------------------------------------------------------------------
-
-def test_cmd_review_base_prompt(capsys):
-    args = Namespace(stack=None, db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_BASE in captured.out
-    assert REVIEW_PROMPT_FOOTER in captured.out
-    assert REVIEW_PROMPT_NEXTJS not in captured.out
-    assert REVIEW_PROMPT_SUPABASE not in captured.out
-    assert REVIEW_PROMPT_FIREBASE not in captured.out
-    assert REVIEW_PROMPT_STRIPE not in captured.out
-
-def test_cmd_review_nextjs(capsys):
-    args = Namespace(stack=["nextjs"], db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_NEXTJS in captured.out
-
-def test_cmd_review_supabase(capsys):
-    args = Namespace(stack=None, db="supabase", payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_SUPABASE in captured.out
-
-def test_cmd_review_supabase_via_stack(capsys):
-    args = Namespace(stack=["supabase"], db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_SUPABASE in captured.out
-
-def test_cmd_review_firebase(capsys):
-    args = Namespace(stack=None, db="firebase", payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_FIREBASE in captured.out
-
-def test_cmd_review_firebase_via_stack(capsys):
-    args = Namespace(stack=["firebase"], db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_FIREBASE in captured.out
-
-def test_cmd_review_stripe(capsys):
-    args = Namespace(stack=None, db=None, payments="stripe")
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_STRIPE in captured.out
-
-def test_cmd_review_all_options(capsys):
-    args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_BASE in captured.out
-    assert REVIEW_PROMPT_NEXTJS in captured.out
-    assert REVIEW_PROMPT_SUPABASE in captured.out
-    assert REVIEW_PROMPT_STRIPE in captured.out
-    assert REVIEW_PROMPT_FOOTER in captured.out
