@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Normalize OpenCode review output into the strict approval-gate contract."""
 
-from __future__ import annotations
-
 import json
 import sys
 from pathlib import Path
@@ -106,6 +104,12 @@ def main(argv: list[str]) -> int:
 
     expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
+    project_root = Path.cwd().resolve()
+
+    if not output_file.resolve().is_relative_to(project_root):
+        print(f"error: output file path {output_file_arg!r} is outside the project root", file=sys.stderr)
+        return 65
+
     try:
         output_text = output_file.read_text(encoding="utf-8")
     except OSError as exc:
