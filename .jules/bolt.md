@@ -13,3 +13,6 @@
 ## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
 **Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
+## 2024-06-16 - Parallelize Subprocess CLI Calls
+**Learning:** Sequential, synchronous execution of `subprocess.run` (like calling the GitHub CLI) across multiple items (like PRs) is a significant I/O bottleneck.
+**Action:** Use `concurrent.futures.ThreadPoolExecutor` with `functools.partial` and `executor.map` to safely parallelize I/O-bound subprocess executions, significantly reducing overall script runtime.
