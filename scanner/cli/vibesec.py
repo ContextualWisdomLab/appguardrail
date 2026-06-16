@@ -531,12 +531,15 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_str = None
 
     try:
-        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+        # ⚡ Bolt: Use builtin open() instead of Path.open() to avoid
+        # method resolution overhead on the Path object.
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line_num, line in enumerate(f, start=1):
-                # ⚡ Bolt: Iterate over cached tuples of (search_fn, rule_dict)
-                # to avoid dictionary key lookups on every line.
-                for search_fn, rule in applicable_rules:
-                    if search_fn(line):
+                # ⚡ Bolt: Iterate over cached tuples. tup[0] is the pre-extracted
+                # search method, avoiding dictionary lookups on every line.
+                for tup in applicable_rules:
+                    if tup[0](line):
+                        rule = tup[1]
                         if rel_path_str is None:
                             rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                             rel_path_str = _sanitize_terminal_output(str(rel_path))
@@ -555,24 +558,21 @@ def _scan_file(file_path: Path, base_path: Path):
 
     return findings
 
-
-# ⚡ Bolt: Move severity mappings to module level to avoid redundant
-# dictionary allocations on every call to print scan results.
-SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
-SEVERITY_ICONS = {
-    "CRITICAL": "🔴 CRITICAL",
-    "HIGH": "🟠 HIGH",
-    "WARNING": "🟡 WARNING",
-    "INFO": "🔵 INFO",
-}
-
 def _print_scan_results(findings, files_scanned):
-    findings.sort(key=lambda f: SEVERITY_ORDER.get(f["severity"], 99))
+    severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
+    findings.sort(key=lambda f: severity_order.get(f["severity"], 99))
+
+    severity_icons = {
+        "CRITICAL": "🔴 CRITICAL",
+        "HIGH": "🟠 HIGH",
+        "WARNING": "🟡 WARNING",
+        "INFO": "🔵 INFO",
+    }
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     for f in findings:
         counts[f["severity"]] += 1
-        icon = SEVERITY_ICONS.get(f["severity"], f["severity"])
+        icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
         print(f"  {f['message']}")
