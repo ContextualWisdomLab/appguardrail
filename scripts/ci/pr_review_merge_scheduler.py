@@ -180,25 +180,14 @@ def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
     return current_head_review_state(pr, "CHANGES_REQUESTED")
 
 
-def _parse_pr_number(raw: Any) -> int:
-    """Return a positive integer PR number from *raw*.
-
-    Accepts only a plain ``int`` (not ``bool``) or a digit-only ``str``.
-    Raises ``ValueError`` for anything else, including floats and booleans,
-    to prevent silent truncation or type confusion from a tampered payload.
-    """
-    if isinstance(raw, bool) or not isinstance(raw, (int, str)):
-        raise ValueError(f"Invalid PR number: {raw!r}")
-    if isinstance(raw, str) and not raw.isdigit():
-        raise ValueError(f"Invalid PR number: {raw!r}")
-    number = int(raw)
-    if number <= 0:
-        raise ValueError(f"Invalid PR number: {raw!r}")
-    return number
-
-
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = str(_parse_pr_number(pr["number"]))
+    try:
+        number_int = int(pr["number"])
+        if number_int <= 0:
+            raise ValueError
+        number = str(number_int)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid PR number: {pr.get('number')}")
 
     head = str(pr["headRefOid"])
     if dry_run:
@@ -207,7 +196,13 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = str(_parse_pr_number(pr["number"]))
+    try:
+        number_int = int(pr["number"])
+        if number_int <= 0:
+            raise ValueError
+        number = str(number_int)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid PR number: {pr.get('number')}")
 
     if dry_run:
         return
@@ -244,7 +239,12 @@ def inspect_pr(
     enable_auto_merge_flag: bool,
     workflow: str,
 ) -> Decision:
-    number = _parse_pr_number(pr["number"])
+    try:
+        number = int(pr["number"])
+        if number <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid PR number: {pr.get('number')}")
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
 
     if pr.get("isDraft"):
