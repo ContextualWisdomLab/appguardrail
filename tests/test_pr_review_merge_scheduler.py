@@ -259,3 +259,56 @@ def test_has_current_head_approval_wrong_author():
 
 def test_has_current_head_approval_missing_keys():
     assert pr_review_merge_scheduler.has_current_head_approval({}) is False
+
+
+def test_parse_pr_number_valid_int():
+    assert pr_review_merge_scheduler._parse_pr_number(1) == 1
+    assert pr_review_merge_scheduler._parse_pr_number(42) == 42
+
+
+def test_parse_pr_number_valid_str():
+    assert pr_review_merge_scheduler._parse_pr_number("1") == 1
+    assert pr_review_merge_scheduler._parse_pr_number("42") == 42
+
+
+def test_parse_pr_number_rejects_bool():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(True)
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(False)
+
+
+def test_parse_pr_number_rejects_float():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(1.9)
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(1.0)
+
+
+def test_parse_pr_number_rejects_non_digit_str():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number("abc")
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number("1.9")
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number("-1")
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number("")
+
+
+def test_parse_pr_number_rejects_zero_or_negative():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(0)
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(-1)
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number("0")
+
+
+def test_parse_pr_number_rejects_none_and_other_types():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number(None)
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number([1])
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        pr_review_merge_scheduler._parse_pr_number({"number": 1})
