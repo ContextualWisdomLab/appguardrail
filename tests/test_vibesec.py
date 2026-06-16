@@ -214,7 +214,7 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
 
 
-def test_collect_files_permission_error_scandir(tmp_path):
+def test_collect_files_scandir_permission_error(tmp_path):
     (tmp_path / "a.py").touch()
     with patch("os.scandir", side_effect=PermissionError):
         assert list(_collect_files(tmp_path)) == []
@@ -465,7 +465,7 @@ def test_scan_file_permission_error(tmp_path):
         mock_permission.assert_called_once()
 
 
-def test_scan_file_oserror(tmp_path):
+def test_scan_file_os_error(tmp_path):
     test_file = tmp_path / "os_error.ts"
     test_file.write_text("const key = 'x';\n")
 
