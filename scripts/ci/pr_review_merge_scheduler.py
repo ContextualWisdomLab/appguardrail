@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 import argparse
 import json
 import os
 import subprocess
 import sys
+import concurrent.futures
+from functools import partial
 from dataclasses import dataclass
 from typing import Any
 
@@ -350,17 +351,18 @@ def main(argv: list[str]) -> int:
     if not args.repo:
         raise SystemExit("--repo is required")
     prs = fetch_open_prs(args.repo, args.max_prs)
-    decisions = [
-        inspect_pr(
-            args.repo,
-            pr,
-            dry_run=args.dry_run,
-            trigger_reviews=args.trigger_reviews,
-            enable_auto_merge_flag=args.enable_auto_merge,
-            workflow=args.review_workflow,
-        )
-        for pr in prs
-    ]
+
+    inspect_func = partial(
+        inspect_pr,
+        args.repo,
+        dry_run=args.dry_run,
+        trigger_reviews=args.trigger_reviews,
+        enable_auto_merge_flag=args.enable_auto_merge,
+        workflow=args.review_workflow,
+    )
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        decisions = list(executor.map(inspect_func, prs))
+
     print_summary(decisions, dry_run=args.dry_run)
     return 0
 
