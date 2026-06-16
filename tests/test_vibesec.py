@@ -214,13 +214,13 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
 
 
-def test_collect_files_handles_oserror_in_scandir(tmp_path):
+def test_collect_files_scandir_permission_error(tmp_path):
     (tmp_path / "a.py").touch()
     with patch("os.scandir", side_effect=PermissionError):
         assert list(_collect_files(tmp_path)) == []
 
 
-def test_collect_files_handles_oserror_in_entry(tmp_path):
+def test_collect_files_permission_error_entry(tmp_path):
     (tmp_path / "a.py").touch()
     (tmp_path / "b.py").touch()
 
@@ -250,8 +250,6 @@ def test_collect_files_handles_oserror_in_entry(tmp_path):
     with patch("os.scandir", side_effect=mock_scandir):
         collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
         assert collected_rel_paths == {"b.py"}
-
-
 
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_skips_symlink(tmp_path):
@@ -468,6 +466,24 @@ def test_print_supabase_reminder(capsys):
     assert "Keep SUPABASE_SERVICE_ROLE_KEY server-side only" in captured.out
 
 
+def test_scan_file_permission_error(tmp_path):
+    test_file = tmp_path / "permission_error.ts"
+    test_file.write_text("const key = 'x';\n")
+
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=PermissionError("Permission denied")) as mock_permission:
+        assert _scan_file(test_file, tmp_path) == []
+        mock_permission.assert_called_once()
+
+
+def test_scan_file_os_error(tmp_path):
+    test_file = tmp_path / "os_error.ts"
+    test_file.write_text("const key = 'x';\n")
+
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock_oserror:
+        assert _scan_file(test_file, tmp_path) == []
+        mock_oserror.assert_called_once()
+
+
 def test_collect_files_oserror_on_scandir(tmp_path):
     (tmp_path / "dir1").mkdir()
     (tmp_path / "dir1" / "file1.py").touch()
@@ -587,3 +603,31 @@ def test_cmd_review_all_options(capsys):
     assert REVIEW_PROMPT_SUPABASE in captured.out
     assert REVIEW_PROMPT_STRIPE in captured.out
     assert REVIEW_PROMPT_FOOTER in captured.out
+
+
+def test_scan_file_large_file(tmp_path):
+    test_file = tmp_path / "large_file.ts"
+    test_file.write_text("const key = 'x';\n")
+
+    original_lstat = os.lstat
+
+    def mock_lstat(path):
+        st = original_lstat(path)
+        return os.stat_result(
+            (
+                st.st_mode,
+                st.st_ino,
+                st.st_dev,
+                st.st_nlink,
+                st.st_uid,
+                st.st_gid,
+                10 * 1024 * 1024 + 1,
+                st.st_atime,
+                st.st_mtime,
+                st.st_ctime,
+            )
+        )
+
+    with patch("scanner.cli.vibesec.os.lstat", side_effect=mock_lstat) as mock_large:
+        assert _scan_file(test_file, tmp_path) == []
+        mock_large.assert_called_once()
