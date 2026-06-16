@@ -13,3 +13,7 @@
 ## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
 **Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
+
+## 2025-03-09 - O(N^2) JSON parsing due to string slicing
+**Learning:** Extracting JSON objects from a large string by iterating with `for index, char in enumerate(text)` and doing `decoder.raw_decode(text[index:])` results in O(N^2) complexity because of string slicing operations and overlapping extraction attempts on failure.
+**Action:** Use a `while` loop combined with `text.find('{', index)` to find the next object, and `decoder.raw_decode(text, index)` to decode it directly without slicing. Then, advance `index` to the returned `end` position.
