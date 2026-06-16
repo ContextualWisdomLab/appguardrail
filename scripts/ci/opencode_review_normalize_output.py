@@ -83,22 +83,14 @@ def iter_json_objects(text: str) -> list[Any]:
         # OpenCode exports may contain prose around the JSON control object.
         pass
 
-    # Optimization: Use a while loop with text.find() and decoder.raw_decode(text, index)
-    # to avoid O(N^2) behavior from redundant string slicing (text[index:]) and overlapping extractions.
-    index = 0
-    length = len(text)
-    while index < length:
-        next_brace = text.find("{", index)
-        if next_brace == -1:
-            break
-        index = next_brace
-
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
         try:
-            value, end = decoder.raw_decode(text, index)
-            values.append(value)
-            index = end
+            value, _ = decoder.raw_decode(text[index:])
         except json.JSONDecodeError:
-            index += 1
+            continue
+        values.append(value)
 
     return values
 
