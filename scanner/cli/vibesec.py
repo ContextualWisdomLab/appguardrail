@@ -493,6 +493,28 @@ def _get_applicable_rules(ext: str):
     return _RULES_CACHE[ext]
 
 
+def _process_dir_entries(dir_path: str):
+    """Process entries in a directory, yielding files and returning subdirectories."""
+    dirs = []
+    try:
+        with os.scandir(dir_path) as it:
+            for entry in it:
+                try:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                            dirs.append(entry.path)
+                    elif entry.is_file(follow_symlinks=False):
+                        _, ext = os.path.splitext(entry.name)
+                        if ext.lower() not in SKIP_EXTENSIONS:
+                            yield Path(entry.path)
+                except (OSError, PermissionError):
+                    continue
+    except (OSError, PermissionError):
+        pass
+    return dirs
+
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
     # ⚡ Bolt: Optimize file traversal using os.scandir and os.path.splitext
@@ -502,25 +524,8 @@ def _collect_files(base_path: Path):
     stack = [str(base_path)]
     while stack:
         current_dir = stack.pop()
-        try:
-            with os.scandir(current_dir) as it:
-                dirs = []
-                for entry in it:
-                    try:
-                        if entry.is_symlink():
-                            continue
-                        if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
-                                dirs.append(entry.path)
-                        elif entry.is_file(follow_symlinks=False):
-                            _, ext = os.path.splitext(entry.name)
-                            if ext.lower() not in SKIP_EXTENSIONS:
-                                yield Path(entry.path)
-                    except (OSError, PermissionError):
-                        continue
-                stack.extend(reversed(dirs))
-        except (OSError, PermissionError):
-            pass
+        dirs = yield from _process_dir_entries(current_dir)
+        stack.extend(reversed(dirs))
 
 
 def _sanitize_terminal_output(text: str) -> str:
