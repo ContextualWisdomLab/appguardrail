@@ -294,54 +294,6 @@ For each issue found, provide:
 # Command implementations
 # ---------------------------------------------------------------------------
 
-
-def _install_tool_rules(config: dict, project_root, installed: list):
-    """Install the specific rules file based on tool configuration."""
-    if config.get("shared_only"):
-        return
-
-    target_file = project_root / config['path']
-
-    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
-    if not target_file.resolve().is_relative_to(project_root):
-        print(f"Error: Target path {target_file} escapes the project root. Aborting.", file=sys.stderr)
-        sys.exit(1)
-
-    target_file.parent.mkdir(parents=True, exist_ok=True)
-    if target_file.is_symlink():
-        target_file.unlink()
-
-    if "append_marker" in config:
-        if target_file.exists():
-            existing = target_file.read_text()
-            if config['append_marker'] not in existing:
-                target_file.write_text(existing + "\n\n" + config["content"])
-                installed.append(f"{config['path']} (appended)")
-            else:
-                print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
-        else:
-            target_file.write_text(config["content"])
-            installed.append(str(config['path']))
-    else:
-        target_file.write_text(config["content"])
-        installed.append(str(config['path']))
-
-
-def _install_checklist(project_root, installed: list):
-    """Install the VIBESEC_CHECKLIST.md file."""
-    checklist_file = project_root / "VIBESEC_CHECKLIST.md"
-
-    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
-    if not checklist_file.resolve().is_relative_to(project_root):
-        print(f"Error: Checklist path {checklist_file} escapes the project root. Aborting.", file=sys.stderr)
-        sys.exit(1)
-
-    if checklist_file.is_symlink():
-        checklist_file.unlink()
-    if not checklist_file.exists():
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
-        installed.append("VIBESEC_CHECKLIST.md")
-
 def cmd_init(args):
     """Install security rules into the project."""
     tool = getattr(args, "tool", "cursor") or "cursor"
@@ -375,8 +327,46 @@ def cmd_init(args):
         sys.exit(1)
 
     config = tool_configs[tool]
-    _install_tool_rules(config, project_root, installed)
-    _install_checklist(project_root, installed)
+    if not config.get("shared_only"):
+        target_file = project_root / config["path"]
+
+        # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+        if not target_file.resolve().is_relative_to(project_root):
+            print(f"Error: Target path {target_file} escapes the project root. Aborting.", file=sys.stderr)
+            sys.exit(1)
+
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        if target_file.is_symlink():
+            target_file.unlink()
+
+        if "append_marker" in config:
+            if target_file.exists():
+                existing = target_file.read_text()
+                if config["append_marker"] not in existing:
+                    target_file.write_text(existing + "\n\n" + config["content"])
+                    installed.append(f"{config['path']} (appended)")
+                else:
+                    print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
+            else:
+                target_file.write_text(config["content"])
+                installed.append(str(config["path"]))
+        else:
+            target_file.write_text(config["content"])
+            installed.append(str(config["path"]))
+    # Always create the checklist
+    checklist_file = project_root / "VIBESEC_CHECKLIST.md"
+
+    # SECURITY: Prevent Arbitrary File Write via symlink path traversal
+    if not checklist_file.resolve().is_relative_to(project_root):
+        print(f"Error: Checklist path {checklist_file} escapes the project root. Aborting.", file=sys.stderr)
+        sys.exit(1)
+
+    if checklist_file.is_symlink():
+        checklist_file.unlink()
+    if not checklist_file.exists():
+        checklist_file.write_text(CHECKLIST_TEMPLATE)
+        installed.append("VIBESEC_CHECKLIST.md")
+
     if stack and "supabase" in stack:
         _print_supabase_reminder()
 
@@ -429,7 +419,7 @@ def cmd_scan(args):
         findings.extend(file_findings)
 
     _print_scan_results(findings, files_scanned)
-    return 1 if any(f["severity"] in {"CRITICAL", "HIGH"} for f in findings) else 0
+    return 1 if any(f["severity"] in ("CRITICAL", "HIGH") for f in findings) else 0
 
 
 def cmd_hook(args):
@@ -503,28 +493,6 @@ def _get_applicable_rules(ext: str):
     return _RULES_CACHE[ext]
 
 
-def _process_dir_entries(dir_path: str):
-    """Process entries in a directory, yielding files and returning subdirectories."""
-    dirs = []
-    try:
-        with os.scandir(dir_path) as it:
-            for entry in it:
-                try:
-                    if entry.is_symlink():
-                        continue
-                    if entry.is_dir(follow_symlinks=False):
-                        if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
-                            dirs.append(entry.path)
-                    elif entry.is_file(follow_symlinks=False):
-                        _, ext = os.path.splitext(entry.name)
-                        if ext.lower() not in SKIP_EXTENSIONS:
-                            yield Path(entry.path)
-                except (OSError, PermissionError):
-                    continue
-    except (OSError, PermissionError):
-        pass
-    return dirs
-
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
     # ⚡ Bolt: Optimize file traversal using os.scandir and os.path.splitext
@@ -534,8 +502,25 @@ def _collect_files(base_path: Path):
     stack = [str(base_path)]
     while stack:
         current_dir = stack.pop()
-        dirs = yield from _process_dir_entries(current_dir)
-        stack.extend(reversed(dirs))
+        try:
+            with os.scandir(current_dir) as it:
+                dirs = []
+                for entry in it:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                                dirs.append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            _, ext = os.path.splitext(entry.name)
+                            if ext.lower() not in SKIP_EXTENSIONS:
+                                yield Path(entry.path)
+                    except (OSError, PermissionError):
+                        continue
+                stack.extend(reversed(dirs))
+        except (OSError, PermissionError):
+            pass
 
 
 def _sanitize_terminal_output(text: str) -> str:
