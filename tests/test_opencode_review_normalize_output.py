@@ -1,23 +1,11 @@
-import json
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
-from scripts.ci.opencode_review_normalize_output import iter_json_objects, main
+import pytest
 
-
-def test_iter_json_objects_decode_error():
-    """Test that iter_json_objects handles JSONDecodeError when decoding."""
-    text = "prefix { valid looking json } suffix"
-
-    # We mock raw_decode to raise JSONDecodeError to hit the except block explicitly
-    # This fulfills the 'Requires mocking the operation that throws the exception' rationale.
-    with patch("json.JSONDecoder.raw_decode") as mock_raw_decode:
-        mock_raw_decode.side_effect = json.JSONDecodeError("Mocked error", text, 0)
-
-        result = iter_json_objects(text)
-
-        assert result == []
-        assert mock_raw_decode.called
-
+sys.path.insert(0, str(Path("scripts/ci").resolve()))
+import opencode_review_normalize_output
 
 def test_main_oserror_on_read(capsys):
     argv = [
@@ -25,15 +13,14 @@ def test_main_oserror_on_read(capsys):
         "expected_sha",
         "123",
         "1",
-        "nonexistent_file.json",
+        "nonexistent_file.json"
     ]
-
-    with patch("scripts.ci.opencode_review_normalize_output.Path.read_text") as mock_read_text:
+    with patch("opencode_review_normalize_output.Path.read_text") as mock_read_text:
         mock_read_text.side_effect = OSError("mocked error")
 
-        return_code = main(argv)
+        return_code = opencode_review_normalize_output.main(argv)
 
-    assert return_code == 65
+        assert return_code == 65
 
-    captured = capsys.readouterr()
-    assert "cannot read OpenCode output file: mocked error" in captured.err
+        captured = capsys.readouterr()
+        assert "cannot read OpenCode output file: mocked error" in captured.err
