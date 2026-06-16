@@ -481,8 +481,6 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
-
-
 def test_collect_files_scandir_error(tmp_path):
     test_dir = tmp_path / "testdir"
     test_dir.mkdir()
