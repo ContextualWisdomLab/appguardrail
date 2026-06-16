@@ -1,6 +1,6 @@
 import pytest
 
-from scripts.ci.opencode_review_normalize_output import valid_control
+from scripts.ci.opencode_review_normalize_output import main, valid_control
 
 def test_valid_control_approve():
     value = {
@@ -164,3 +164,14 @@ def test_valid_control_invalid_findings():
         finding[field] = "   "
         val = dict(base, findings=[finding])
         assert valid_control(val, expected_head_sha="sha", expected_run_id="id", expected_run_attempt="1") is None
+
+
+def test_main_rejects_output_file_outside_repo(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    output_file = tmp_path / "review.json"
+    output_file.write_text("{}", encoding="utf-8")
+
+    exit_code = main(["prog", "sha123", "run123", "1", str(output_file)])
+
+    assert exit_code == 65
+    assert "outside the project root" in capsys.readouterr().err
