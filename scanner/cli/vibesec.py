@@ -444,16 +444,21 @@ def _get_applicable_rules(ext: str):
         _LAST_SCAN_RULES_ID = current_id
 
     if ext not in _RULES_CACHE:
-        _RULES_CACHE[ext] = [
-            {
-                "id": rule["id"],
-                "severity": rule["severity"],
-                "message": rule["message"],
-                "search": rule["pattern"].search
-            }
+        # ⚡ Bolt: Cache as a tuple of tuples to avoid list iteration overhead
+        # and pre-extract the search method as the first element (tup[0])
+        # to avoid dictionary lookups on every line during the tight scan loop.
+        _RULES_CACHE[ext] = tuple(
+            (
+                rule["pattern"].search,
+                {
+                    "id": rule["id"],
+                    "severity": rule["severity"],
+                    "message": rule["message"],
+                }
+            )
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
-        ]
+        )
     return _RULES_CACHE[ext]
 
 
@@ -526,11 +531,15 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_str = None
 
     try:
-        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+        # ⚡ Bolt: Use builtin open() instead of Path.open() to avoid
+        # method resolution overhead on the Path object.
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line_num, line in enumerate(f, start=1):
-                for rule in applicable_rules:
-                    match = rule["search"](line)
-                    if match:
+                # ⚡ Bolt: Iterate over cached tuples. tup[0] is the pre-extracted
+                # search method, avoiding dictionary lookups on every line.
+                for tup in applicable_rules:
+                    if tup[0](line):
+                        rule = tup[1]
                         if rel_path_str is None:
                             rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                             rel_path_str = _sanitize_terminal_output(str(rel_path))
