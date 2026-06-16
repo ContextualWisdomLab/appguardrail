@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 import argparse
 import json
 import os
 import subprocess
 import sys
+import concurrent.futures
+from functools import partial
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,6 +34,7 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
         reviews(last: 50) {
           nodes {
             state
+            body
             submittedAt
             author { login }
             commit { oid }
@@ -159,7 +161,7 @@ def review_author_login(review: dict[str, Any]) -> str:
     return ((review.get("author") or {}).get("login") or "").lower()
 
 
-def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
+def current_head_review(pr: dict[str, Any], state: str) -> dict[str, Any] | None:
     head = pr.get("headRefOid")
     for review in reversed((pr.get("reviews") or {}).get("nodes") or []):
         if not review_author_login(review).startswith("opencode-agent"):
@@ -168,8 +170,17 @@ def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
             continue
         commit = (review.get("commit") or {}).get("oid")
         if commit == head:
-            return True
-    return False
+            return review
+    return None
+
+
+def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
+    return current_head_review(pr, state) is not None
+
+
+def is_retryable_opencode_failure_review(review: dict[str, Any]) -> bool:
+    body = (review.get("body") or "").strip()
+    return "OpenCode Agent review evidence was missing or invalid." in body
 
 
 def has_current_head_approval(pr: dict[str, Any]) -> bool:
@@ -177,7 +188,13 @@ def has_current_head_approval(pr: dict[str, Any]) -> bool:
 
 
 def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
-    return current_head_review_state(pr, "CHANGES_REQUESTED")
+    review = current_head_review(pr, "CHANGES_REQUESTED")
+    return review is not None and not is_retryable_opencode_failure_review(review)
+
+
+def has_retryable_current_head_failure(pr: dict[str, Any]) -> bool:
+    review = current_head_review(pr, "CHANGES_REQUESTED")
+    return review is not None and is_retryable_opencode_failure_review(review)
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
@@ -236,6 +253,7 @@ def inspect_pr(
     if unresolved:
         return Decision(number, "block", f"{unresolved} unresolved review thread(s)")
 
+    retryable_failure = has_retryable_current_head_failure(pr)
     if has_current_head_changes_requested(pr):
         return Decision(number, "block", "current-head OpenCode review requested changes")
 
@@ -252,8 +270,12 @@ def inspect_pr(
 
     if trigger_reviews:
         dispatch_opencode_review(repo, workflow, pr, dry_run=dry_run)
+        if retryable_failure:
+            return Decision(number, "review_dispatch", "retrying OpenCode review after agent failure")
         return Decision(number, "review_dispatch", "current head has no OpenCode approval")
 
+    if retryable_failure:
+        return Decision(number, "block", "current head has no valid OpenCode approval after agent failure")
     return Decision(number, "block", "current head has no OpenCode approval")
 
 
@@ -330,17 +352,18 @@ def main(argv: list[str]) -> int:
     if not args.repo:
         raise SystemExit("--repo is required")
     prs = fetch_open_prs(args.repo, args.max_prs)
-    decisions = [
-        inspect_pr(
-            args.repo,
-            pr,
-            dry_run=args.dry_run,
-            trigger_reviews=args.trigger_reviews,
-            enable_auto_merge_flag=args.enable_auto_merge,
-            workflow=args.review_workflow,
-        )
-        for pr in prs
-    ]
+
+    inspect_func = partial(
+        inspect_pr,
+        args.repo,
+        dry_run=args.dry_run,
+        trigger_reviews=args.trigger_reviews,
+        enable_auto_merge_flag=args.enable_auto_merge,
+        workflow=args.review_workflow,
+    )
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        decisions = list(executor.map(inspect_func, prs))
+
     print_summary(decisions, dry_run=args.dry_run)
     return 0
 
