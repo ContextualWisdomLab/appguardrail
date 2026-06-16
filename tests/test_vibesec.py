@@ -1,3 +1,4 @@
+import os
 import re
 import tempfile
 from argparse import Namespace
@@ -506,8 +507,6 @@ def test_collect_files_entry_error(tmp_path):
     test_dir.mkdir()
     (test_dir / "file.py").touch()
 
-    import os
-
     original_scandir = os.scandir
 
     def mocked_scandir(path):
@@ -563,8 +562,6 @@ def test_scan_file_lstat_error(tmp_path):
 def test_scan_file_large_file_skip(tmp_path):
     test_file = tmp_path / "unsafe.ts"
     test_file.write_text("const key = 'x';\n")
-
-    import os
 
     original_lstat = os.lstat
 
