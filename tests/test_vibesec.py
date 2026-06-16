@@ -17,9 +17,9 @@ MOCK_RULES = [
     },
     {
         "id": "mock-todo",
-        "pattern": re.compile(r"TODO: fix auth"),
+        "pattern": re.compile(r"TODO: fix issue"),
         "severity": "HIGH",
-        "message": "Found auth todo",
+        "message": "Found issue todo",
         "extensions": None,
     },
     {
@@ -81,7 +81,7 @@ def test_scan_file_with_findings(tmp_path):
 @patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_multiple_findings(tmp_path):
     test_file = tmp_path / "unsafe_multiple.js"
-    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n")
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix issue here\n")
 
     findings = _scan_file(test_file, tmp_path)
     rule_ids = [f["rule_id"] for f in findings]
