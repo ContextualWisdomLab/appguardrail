@@ -448,8 +448,20 @@ def cmd_hook(args):
     hooks_dir.mkdir(parents=True, exist_ok=True)
     pre_commit_file = hooks_dir / "pre-commit"
 
+    # SECURITY: Prevent Arbitrary File Write via symlink — reject if the
+    # pre-commit path is a symlink pointing outside the project root.
     if pre_commit_file.is_symlink():
+        symlink_target = pre_commit_file.resolve()
+        if not symlink_target.is_relative_to(project_root):
+            print(f"Error: {pre_commit_file} is a symlink pointing outside the project root. Aborting.", file=sys.stderr)
+            return 1
         pre_commit_file.unlink()
+
+    # SECURITY: Validate the resolved path of the hook file itself is within
+    # the project root before writing, guarding against any TOCTOU races.
+    if pre_commit_file.exists() and not pre_commit_file.resolve().is_relative_to(project_root):
+        print(f"Error: Target path {pre_commit_file} escapes the project root. Aborting.", file=sys.stderr)
+        return 1
 
     hook_content = """#!/bin/sh
 # VibeSec Pre-Commit Hook
