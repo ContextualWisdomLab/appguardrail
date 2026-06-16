@@ -419,7 +419,7 @@ def cmd_scan(args):
         findings.extend(file_findings)
 
     _print_scan_results(findings, files_scanned)
-    return 1 if any(f["severity"] in ("CRITICAL", "HIGH") for f in findings) else 0
+    return 1 if any(f["severity"] in {"CRITICAL", "HIGH"} for f in findings) else 0
 
 
 def cmd_hook(args):
@@ -480,13 +480,15 @@ def _get_applicable_rules(ext: str):
         _LAST_SCAN_RULES_ID = current_id
 
     if ext not in _RULES_CACHE:
+        # ⚡ Bolt: Cache rules as tuples instead of dictionaries. This allows tuple
+        # unpacking in the hot scanning loop, bypassing dictionary lookup overhead.
         _RULES_CACHE[ext] = [
-            {
-                "id": rule["id"],
-                "severity": rule["severity"],
-                "message": rule["message"],
-                "search": rule["pattern"].search
-            }
+            (
+                rule["id"],
+                rule["severity"],
+                rule["message"],
+                rule["pattern"].search
+            )
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
         ]
@@ -564,17 +566,19 @@ def _scan_file(file_path: Path, base_path: Path):
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as f:
             for line_num, line in enumerate(f, start=1):
-                for rule in applicable_rules:
-                    match = rule["search"](line)
+                # ⚡ Bolt: Use tuple unpacking instead of dict access for maximum speed
+                # in the tightest inner loop.
+                for rule_id, severity, message, search_func in applicable_rules:
+                    match = search_func(line)
                     if match:
                         if rel_path_str is None:
                             rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                             rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                         findings.append({
-                            "rule_id": rule["id"],
-                            "severity": rule["severity"],
-                            "message": rule["message"],
+                            "rule_id": rule_id,
+                            "severity": severity,
+                            "message": message,
                             # SECURITY: Sanitize output to prevent Terminal Output Injection
                             "file": rel_path_str,
                             "line": line_num,
