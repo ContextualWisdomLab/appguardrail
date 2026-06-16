@@ -456,13 +456,18 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
-def test_scan_file_stat_error(tmp_path):
-    test_file = tmp_path / "stat_error.ts"
+def test_scan_file_permission_error(tmp_path):
+    test_file = tmp_path / "permission_error.ts"
     test_file.write_text("const key = 'x';\n")
 
     with patch("scanner.cli.vibesec.os.lstat", side_effect=PermissionError("Permission denied")) as mock_permission:
         assert _scan_file(test_file, tmp_path) == []
         mock_permission.assert_called_once()
+
+
+def test_scan_file_oserror(tmp_path):
+    test_file = tmp_path / "os_error.ts"
+    test_file.write_text("const key = 'x';\n")
 
     with patch("scanner.cli.vibesec.os.lstat", side_effect=OSError("OS error")) as mock_oserror:
         assert _scan_file(test_file, tmp_path) == []
