@@ -1,24 +1,15 @@
-import os
 import re
 import tempfile
-from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from scanner.cli.vibesec import (
-    REVIEW_PROMPT_BASE,
-    REVIEW_PROMPT_FIREBASE,
-    REVIEW_PROMPT_FOOTER,
-    REVIEW_PROMPT_NEXTJS,
-    REVIEW_PROMPT_STRIPE,
-    REVIEW_PROMPT_SUPABASE,
     _collect_files,
     _print_scan_results,
     _scan_file,
     cmd_init,
-    cmd_review,
     cmd_scan,
 )
 
@@ -491,6 +482,7 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
+
 def test_collect_files_scandir_error(tmp_path):
     test_dir = tmp_path / "testdir"
     test_dir.mkdir()
@@ -506,6 +498,8 @@ def test_collect_files_entry_error(tmp_path):
     test_dir = tmp_path / "testdir"
     test_dir.mkdir()
     (test_dir / "file.py").touch()
+
+    import os
 
     original_scandir = os.scandir
 
@@ -563,6 +557,8 @@ def test_scan_file_large_file_skip(tmp_path):
     test_file = tmp_path / "unsafe.ts"
     test_file.write_text("const key = 'x';\n")
 
+    import os
+
     original_lstat = os.lstat
 
     def mocked_lstat(path):
@@ -614,73 +610,3 @@ def test_scan_file_no_applicable_rules(tmp_path):
 
     with patch("scanner.cli.vibesec._get_applicable_rules", return_value=[]):
         assert _scan_file(test_file, tmp_path) == []
-
-
-# ---------------------------------------------------------------------------
-# cmd_review tests
-# ---------------------------------------------------------------------------
-
-
-def test_cmd_review_base_prompt(capsys):
-    args = Namespace(stack=None, db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_BASE in captured.out
-    assert REVIEW_PROMPT_FOOTER in captured.out
-    assert REVIEW_PROMPT_NEXTJS not in captured.out
-    assert REVIEW_PROMPT_SUPABASE not in captured.out
-    assert REVIEW_PROMPT_FIREBASE not in captured.out
-    assert REVIEW_PROMPT_STRIPE not in captured.out
-
-
-def test_cmd_review_nextjs(capsys):
-    args = Namespace(stack=["nextjs"], db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_NEXTJS in captured.out
-
-
-def test_cmd_review_supabase(capsys):
-    args = Namespace(stack=None, db="supabase", payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_SUPABASE in captured.out
-
-
-def test_cmd_review_supabase_via_stack(capsys):
-    args = Namespace(stack=["supabase"], db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_SUPABASE in captured.out
-
-
-def test_cmd_review_firebase(capsys):
-    args = Namespace(stack=None, db="firebase", payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_FIREBASE in captured.out
-
-
-def test_cmd_review_firebase_via_stack(capsys):
-    args = Namespace(stack=["firebase"], db=None, payments=None)
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_FIREBASE in captured.out
-
-
-def test_cmd_review_stripe(capsys):
-    args = Namespace(stack=None, db=None, payments="stripe")
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_STRIPE in captured.out
-
-
-def test_cmd_review_all_options(capsys):
-    args = Namespace(stack=["nextjs"], db="supabase", payments="stripe")
-    cmd_review(args)
-    captured = capsys.readouterr()
-    assert REVIEW_PROMPT_BASE in captured.out
-    assert REVIEW_PROMPT_NEXTJS in captured.out
-    assert REVIEW_PROMPT_SUPABASE in captured.out
-    assert REVIEW_PROMPT_STRIPE in captured.out
-    assert REVIEW_PROMPT_FOOTER in captured.out
