@@ -82,6 +82,26 @@ def run(args: list[str], *, stdin: str | None = None) -> str:
     return process.stdout
 
 
+def _parse_pr_number(raw: Any) -> int:
+    """Strictly validate and return a positive PR number.
+
+    Accepts only a plain ``int`` (not ``bool``) or a digit-only ``str``.
+    Rejects booleans, floats, and any other type to prevent silent truncation
+    or flag-subversion when the value is later passed to the ``gh`` CLI.
+    """
+    if isinstance(raw, bool) or not isinstance(raw, (int, str)):
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    if isinstance(raw, str):
+        if not raw.isdigit():
+            raise ValueError(f"Invalid PR number: {raw!r}")
+        value = int(raw)
+    else:
+        value = raw
+    if value <= 0:
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    return value
+
+
 def split_repo(repo: str) -> tuple[str, str]:
     try:
         owner, name = repo.split("/", 1)
@@ -177,33 +197,37 @@ def has_current_head_approval(pr: dict[str, Any]) -> bool:
 
 
 def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
-    return current_head_review_state(pr, "CHANGES_REQUESTED")
+    """Return True if the current head has a REQUEST_CHANGES review from the OpenCode agent.
+
+    Also recognises reviews posted by ``github-actions[bot]``, which is used as a
+    fallback author when the OpenCode OIDC app-token exchange fails and all OpenCode
+    agents fail to produce a valid review.  Without this, the scheduler would keep
+    re-dispatching OpenCode runs indefinitely whenever the agent or Strix CI check
+    fails and the gate posts REQUEST_CHANGES via the GITHUB_TOKEN fallback.
+    """
+    head = pr.get("headRefOid")
+    for review in reversed((pr.get("reviews") or {}).get("nodes") or []):
+        login = review_author_login(review)
+        if not (login.startswith("opencode-agent") or login == "github-actions[bot]"):
+            continue
+        if (review.get("state") or "").upper() != "CHANGES_REQUESTED":
+            continue
+        commit = (review.get("commit") or {}).get("oid")
+        if commit == head:
+            return True
+    return False
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    try:
-        number_int = int(pr["number"])
-        if number_int <= 0:
-            raise ValueError
-        number = str(number_int)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
-
+    number_str = str(_parse_pr_number(pr["number"]))
     head = str(pr["headRefOid"])
     if dry_run:
         return
-    run(["gh", "pr", "merge", number, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
+    run(["gh", "pr", "merge", number_str, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    try:
-        number_int = int(pr["number"])
-        if number_int <= 0:
-            raise ValueError
-        number = str(number_int)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
-
+    number_str = str(_parse_pr_number(pr["number"]))
     if dry_run:
         return
     run(
@@ -217,7 +241,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--ref",
             pr["baseRefName"],
             "-f",
-            f"pr_number={number}",
+            f"pr_number={number_str}",
             "-f",
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
@@ -239,12 +263,7 @@ def inspect_pr(
     enable_auto_merge_flag: bool,
     workflow: str,
 ) -> Decision:
-    try:
-        number = int(pr["number"])
-        if number <= 0:
-            raise ValueError
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid PR number: {pr.get('number')}")
+    number = _parse_pr_number(pr["number"])
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
 
     if pr.get("isDraft"):
