@@ -485,7 +485,8 @@ def _get_applicable_rules(ext: str):
                 "id": rule["id"],
                 "severity": rule["severity"],
                 "message": rule["message"],
-                "search": rule["pattern"].search
+                "search": rule["pattern"].search,
+                "finditer": rule["pattern"].finditer
             }
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
@@ -563,23 +564,34 @@ def _scan_file(file_path: Path, base_path: Path):
 
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as f:
-            for line_num, line in enumerate(f, start=1):
-                for rule in applicable_rules:
-                    match = rule["search"](line)
-                    if match:
-                        if rel_path_str is None:
-                            rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
-                            rel_path_str = _sanitize_terminal_output(str(rel_path))
+            content = f.read()
 
-                        findings.append({
-                            "rule_id": rule["id"],
-                            "severity": rule["severity"],
-                            "message": rule["message"],
-                            # SECURITY: Sanitize output to prevent Terminal Output Injection
-                            "file": rel_path_str,
-                            "line": line_num,
-                            "snippet": _sanitize_terminal_output(line.strip()[:120]),
-                        })
+        for rule in applicable_rules:
+            for match in rule["finditer"](content):
+                if rel_path_str is None:
+                    rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
+                    rel_path_str = _sanitize_terminal_output(str(rel_path))
+
+                start = match.start()
+                line_num = content.count("\n", 0, start) + 1
+
+                line_start = content.rfind("\n", 0, start)
+                line_start = 0 if line_start == -1 else line_start + 1
+
+                line_end = content.find("\n", start)
+                line_end = len(content) if line_end == -1 else line_end
+
+                line = content[line_start:line_end]
+
+                findings.append({
+                    "rule_id": rule["id"],
+                    "severity": rule["severity"],
+                    "message": rule["message"],
+                    # SECURITY: Sanitize output to prevent Terminal Output Injection
+                    "file": rel_path_str,
+                    "line": line_num,
+                    "snippet": _sanitize_terminal_output(line.strip()[:120]),
+                })
     except (OSError, PermissionError):
         pass
 
