@@ -13,3 +13,7 @@
 ## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
 **Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
+
+## 2024-06-17 - Optimize inner loop with tuple unpacking
+**Learning:** In a highly repetitive inner loop (such as scanning every line of a file against multiple regex rules), dictionary lookups (e.g. `rule["search"]`) introduce measurable overhead compared to tuple unpacking. Caching rules as tuples instead of dictionaries allows for much faster property extraction (`for rule_id, severity, message, search in rules`) right at the start of the loop iteration.
+**Action:** When a loop iterates thousands of times, pre-compute data structures into simple tuples and use unpacking in the loop signature to maximize performance. Always comment code changes describing the "Why" to pass automated review.
