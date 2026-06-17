@@ -36,3 +36,7 @@
 **Vulnerability:** The VibeSec scanner lacked explicit mapping to standard vulnerability frameworks (like OWASP Top 10) and relied on manual invocation, meaning vulnerabilities could easily bypass detection and be committed by developers or AI agents (like Claude Code or Codex).
 **Learning:** To enforce security guardrails effectively, static analysis tools should intercept the workflow at commit time. Mapping findings to OWASP categories improves the clarity and actionability of the scanner output.
 **Prevention:** Updated `SCAN_RULES` messages to include relevant OWASP classifications (e.g., A01, A03). Added a `vibesec hook` command that automatically installs a `pre-commit` script to block commits if critical or high vulnerabilities are detected.
+## 2024-06-17 - Prevent Argument Injection in CI Script
+**Vulnerability:** Argument Injection when passing `pr["number"]` directly to `gh` CLI.
+**Learning:** External IDs should be explicitly cast to expected types (e.g., `int`) and validated before passing them to CLI commands via `subprocess`.
+**Prevention:** Explicitly validate numeric inputs by casting to an integer and checking boundaries (e.g., `> 0`) before converting to a string for subprocess calls.

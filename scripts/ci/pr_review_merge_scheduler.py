@@ -180,8 +180,15 @@ def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
     return current_head_review_state(pr, "CHANGES_REQUESTED")
 
 
+def _validate_pr_number(number: Any) -> str:
+    number_int = int(number)
+    if number_int <= 0:
+        raise ValueError("PR number must be positive")
+    return str(number_int)
+
+
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = str(pr["number"])
+    number = _validate_pr_number(pr["number"])
     head = pr["headRefOid"]
     if dry_run:
         return
@@ -202,7 +209,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--ref",
             pr["baseRefName"],
             "-f",
-            f"pr_number={pr['number']}",
+            f"pr_number={_validate_pr_number(pr['number'])}",
             "-f",
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
