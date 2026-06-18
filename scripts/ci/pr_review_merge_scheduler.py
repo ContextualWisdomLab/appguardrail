@@ -181,7 +181,10 @@ def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = str(pr["number"])
+    pr_num = int(pr["number"])
+    if pr_num <= 0:
+        raise ValueError(f"Invalid PR number: {pr_num}")
+    number = str(pr_num)
     head = pr["headRefOid"]
     if dry_run:
         return
@@ -191,6 +194,9 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     if dry_run:
         return
+    pr_num = int(pr["number"])
+    if pr_num <= 0:
+        raise ValueError(f"Invalid PR number: {pr_num}")
     run(
         [
             "gh",
@@ -202,7 +208,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--ref",
             pr["baseRefName"],
             "-f",
-            f"pr_number={pr['number']}",
+            f"pr_number={pr_num}",
             "-f",
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
