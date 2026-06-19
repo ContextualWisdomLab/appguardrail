@@ -13,3 +13,11 @@
 ## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
 **Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
+
+## 2024-06-19 - Regex matching file scanning performance
+**Learning:** For static analysis tools iterating over files and applying regexes, iterating line-by-line and applying regexes is slow due to the Python interpreter loop overhead. Reading the entire file into a string (provided it's not excessively large, which is protected by file size checks) and calling `rule.search()` to fast-fail, then using `rule.finditer()` to extract matches, is significantly faster because it pushes the heavy lifting down to C-level regex code.
+**Action:** Always prefer `finditer` on the entire file content over line-by-line enumeration for regex matching in static analysis scanners.
+
+## 2024-06-20 - Multi-line regex scanning pitfalls
+**Learning:** When transitioning from line-by-line regex scanning to full-file scanning with `finditer`, removing line boundaries breaks any regex that depends on start (`^`) or end (`$`) line anchors. In addition, iterating over `finditer` is fast enough, and an explicit `search` check beforehand is an anti-pattern as it does redundant work if a match exists.
+**Action:** Always add `re.MULTILINE` to regex patterns when switching to full-file scanning, and rely directly on `finditer` without a redundant `search` check.
