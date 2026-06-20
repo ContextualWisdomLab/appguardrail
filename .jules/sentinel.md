@@ -41,3 +41,8 @@
 **Vulnerability:** The VibeSec static analysis scanner lacked explicit detection for command injection patterns (such as `child_process.exec` with untrusted input in Node, or `subprocess.run(..., shell=True)` in Python).
 **Learning:** Command Injection is a critical OWASP Top 10 vulnerability (A03:2021) that must be flagged in both JavaScript/TypeScript and Python codebases, especially in AI-assisted development where dynamic shell execution is often carelessly generated.
 **Prevention:** Two new rules were added to `SCAN_RULES`: `node-command-injection` and `python-command-injection`. In addition, a `hardcoded-password` rule was added to capture generic password misconfigurations.
+
+## 2026-06-25 - Expand Scanner Rules for Path Traversal
+**Vulnerability:** The VibeSec static analysis scanner lacked explicit detection for path traversal risks caused by dynamically constructing file paths using untrusted inputs (e.g., Python `open(f"...{var}...")` or Node `fs.readFile(\`...\${var}...\`)`).
+**Learning:** Path Traversal is a critical OWASP Top 10 vulnerability (A01:2021) that must be flagged. Constructing dynamic paths without validation or sanitization is a very common failure mode when AI generates file-system related code.
+**Prevention:** A new rule `path-traversal-risk` was added to `SCAN_RULES` to flag unsafe usage of `fs.readFile`, `fs.readFileSync`, `fs.writeFile`, `fs.writeFileSync`, `fs.createReadStream`, and Python's `open()` when used with string concatenation, f-strings, or template literals.
