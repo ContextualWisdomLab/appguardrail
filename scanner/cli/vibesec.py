@@ -245,6 +245,15 @@ SCAN_RULES = [
         "extensions": [".py"],
     },
     {
+        "id": "path-traversal-risk",
+        "pattern": re.compile(
+            r'(?i)\b(?:fs\.(?:readFile|readFileSync|createReadStream|writeFile|writeFileSync)|open)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+|f["\'][^"\']*\{[^}]+\}[^"\']*["\'])'
+        ),
+        "severity": "CRITICAL",
+        "message": "Potential Path Traversal detected: dynamic path constructed using template literals, f-strings, or concatenation in file operations. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
+    },
+    {
         "id": "hardcoded-password",
         "pattern": re.compile(
             r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
