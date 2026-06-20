@@ -226,6 +226,33 @@ SCAN_RULES = [
         "message": "Potential SQL injection detected: string concatenation or template literal in database query. [OWASP A03:2021 - Injection]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
+    {
+        "id": "node-command-injection",
+        "pattern": re.compile(
+            r'(?i)\b(?:exec|execSync|spawn|spawnSync)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)'
+        ),
+        "severity": "CRITICAL",
+        "message": "Potential Command Injection detected: string concatenation or template literal in child_process execution. [OWASP A03:2021 - Injection]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "python-command-injection",
+        "pattern": re.compile(
+            r'(?i)(?:os\.system|subprocess\.(?:Popen|run|call|check_call|check_output))\s*\([^)]*shell\s*=\s*True'
+        ),
+        "severity": "CRITICAL",
+        "message": "Potential Command Injection detected: shell=True used in Python subprocess/os command. [OWASP A03:2021 - Injection]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "hardcoded-password",
+        "pattern": re.compile(
+            r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
+        ),
+        "severity": "HIGH",
+        "message": "Possible hardcoded password detected. [OWASP A07:2021 - Identification and Authentication Failures]",
+        "extensions": None,
+    },
 ]
 
 SKIP_DIRS = {

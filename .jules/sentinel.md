@@ -36,3 +36,8 @@
 **Vulnerability:** The VibeSec scanner lacked explicit mapping to standard vulnerability frameworks (like OWASP Top 10) and relied on manual invocation, meaning vulnerabilities could easily bypass detection and be committed by developers or AI agents (like Claude Code or Codex).
 **Learning:** To enforce security guardrails effectively, static analysis tools should intercept the workflow at commit time. Mapping findings to OWASP categories improves the clarity and actionability of the scanner output.
 **Prevention:** Updated `SCAN_RULES` messages to include relevant OWASP classifications (e.g., A01, A03). Added a `vibesec hook` command that automatically installs a `pre-commit` script to block commits if critical or high vulnerabilities are detected.
+
+## 2025-06-25 - Expand Scanner Rules for Command Injection
+**Vulnerability:** The VibeSec static analysis scanner lacked explicit detection for command injection patterns (such as `child_process.exec` with untrusted input in Node, or `subprocess.run(..., shell=True)` in Python).
+**Learning:** Command Injection is a critical OWASP Top 10 vulnerability (A03:2021) that must be flagged in both JavaScript/TypeScript and Python codebases, especially in AI-assisted development where dynamic shell execution is often carelessly generated.
+**Prevention:** Two new rules were added to `SCAN_RULES`: `node-command-injection` and `python-command-injection`. In addition, a `hardcoded-password` rule was added to capture generic password misconfigurations.
