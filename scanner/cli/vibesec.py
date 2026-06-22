@@ -121,14 +121,14 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "hardcoded-stripe-secret",
-        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}'),
+        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}', re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Hardcoded Stripe secret key detected. Rotate this key immediately. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-openai-key",
-        "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}'),
+        "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}', re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Possible hardcoded OpenAI API key detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
@@ -137,7 +137,7 @@ SCAN_RULES = [
         "id": "next-public-secret",
         "pattern": re.compile(
             r'NEXT_PUBLIC_(?:STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|API_SECRET)',
-            re.IGNORECASE,
+            re.IGNORECASE | re.MULTILINE,
         ),
         "severity": "CRITICAL",
         "message": "Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]",
@@ -145,14 +145,14 @@ SCAN_RULES = [
     },
     {
         "id": "supabase-service-role-client",
-        "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE),
+        "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE | re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".env", ".env.local", ".env.production"],
     },
     {
         "id": "firebase-allow-all",
-        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true'),
+        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true', re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".rules"],
@@ -160,7 +160,7 @@ SCAN_RULES = [
     {
         "id": "todo-skip-auth",
         "pattern": re.compile(
-            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)',
+            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)', re.MULTILINE
         ),
         "severity": "HIGH",
         "message": "Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]",
@@ -168,7 +168,7 @@ SCAN_RULES = [
     },
     {
         "id": "dangerous-cors",
-        "pattern": re.compile(r"Access-Control-Allow-Origin['\",\s]*[*]"),
+        "pattern": re.compile(r"Access-Control-Allow-Origin['\",\s]*[*]", re.MULTILINE),
         "severity": "HIGH",
         "message": "CORS set to allow all origins (*). Restrict to known domains. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
@@ -176,7 +176,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-database-url",
         "pattern": re.compile(
-            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+',
+            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+', re.MULTILINE
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded database connection string detected. [OWASP A07:2021 - Identification and Authentication Failures]",
@@ -185,7 +185,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-jwt-secret",
         "pattern": re.compile(
-            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
+            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]', re.MULTILINE
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded JWT/NextAuth secret detected. [OWASP A02:2021 - Cryptographic Failures]",
@@ -193,7 +193,7 @@ SCAN_RULES = [
     },
     {
         "id": "stripe-webhook-no-verify",
-        "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)'),
+        "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)', re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Stripe constructEvent called with empty/undefined webhook secret. [OWASP A08:2021 - Software and Data Integrity Failures]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
@@ -201,7 +201,7 @@ SCAN_RULES = [
     {
         "id": "mock-session-in-handler",
         "pattern": re.compile(
-            r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]',
+            r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]', re.MULTILINE
         ),
         "severity": "HIGH",
         "message": "Mock or hardcoded session/user object detected in route handler. [OWASP A01:2021 - Broken Access Control]",
@@ -209,14 +209,14 @@ SCAN_RULES = [
     },
     {
         "id": "dangerous-eval",
-        "pattern": re.compile(r'\beval\s*\('),
+        "pattern": re.compile(r'\beval\s*\(', re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
         "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
     },
     {
         "id": "react-dangerously-set-inner-html",
-        "pattern": re.compile(r'dangerouslySetInnerHTML\s*='),
+        "pattern": re.compile(r'dangerouslySetInnerHTML\s*=', re.MULTILINE),
         "severity": "HIGH",
         "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized. [OWASP A03:2021 - Injection]",
         "extensions": [".jsx", ".tsx"],
@@ -224,7 +224,7 @@ SCAN_RULES = [
     {
         "id": "sql-injection-risk",
         "pattern": re.compile(
-            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)'
+            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)', re.MULTILINE
         ),
         "severity": "CRITICAL",
         "message": "Potential SQL injection detected: string concatenation or template literal in database query. [OWASP A03:2021 - Injection]",
