@@ -187,11 +187,22 @@ def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
     return current_head_review_state(pr, "CHANGES_REQUESTED")
 
 
+def _parse_pr_number(raw: Any) -> str:
+    if isinstance(raw, bool):
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    if isinstance(raw, int):
+        number = raw
+    elif isinstance(raw, str) and raw.isascii() and raw.isdecimal():
+        number = int(raw)
+    else:
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    if number <= 0:
+        raise ValueError(f"Invalid PR number: {raw!r}")
+    return str(number)
+
+
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    pr_num = int(pr["number"])
-    if pr_num <= 0:
-        raise ValueError(f"Invalid PR number: {pr_num}")
-    number = str(pr_num)
+    number = _parse_pr_number(pr["number"])
     head = pr["headRefOid"]
     if dry_run:
         return
@@ -199,11 +210,9 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
+    number = _parse_pr_number(pr["number"])
     if dry_run:
         return
-    pr_num = int(pr["number"])
-    if pr_num <= 0:
-        raise ValueError(f"Invalid PR number: {pr_num}")
     run(
         [
             "gh",
@@ -215,7 +224,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--ref",
             pr["baseRefName"],
             "-f",
-            f"pr_number={pr_num}",
+            f"pr_number={number}",
             "-f",
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
@@ -238,7 +247,7 @@ def inspect_pr(
     workflow: str,
     base_branch: str,
 ) -> Decision:
-    number = pr["number"]
+    number = int(_parse_pr_number(pr["number"]))
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
     base_ref = pr.get("baseRefName")
 
