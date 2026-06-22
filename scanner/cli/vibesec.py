@@ -273,9 +273,12 @@ SKIP_DIRS = {
     "__pycache__", ".venv", "venv", "env", ".env", "coverage",
 }
 
+# ⚡ Bolt: Added .map and .log to skip large, non-source artifact extensions.
+# Bypasses regex overhead on generated files, avoiding brittle substring pre-filters.
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2",
     ".ttf", ".eot", ".mp4", ".mp3", ".zip", ".tar", ".gz", ".lock",
+    ".map", ".log",
 }
 
 NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}

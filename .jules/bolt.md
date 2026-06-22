@@ -16,3 +16,7 @@
 ## 2024-06-20 - Regex File Scanning Optimization
 **Learning:** Python's `for line in f:` combined with running multiple regex checks per line introduces huge interpreter overhead for file scanning utilities.
 **Action:** Use `.read()` and `.finditer(content)` for the whole file, which pushes the tight iteration loops down to the C-compiled regex engine. Recover line numbers with string `.count('\n')` only when a match is found to achieve massive performance gains (~20-30% reduction in scan time on large text corpuses).
+
+## 2026-06-22 - Avoiding redundant regex scans for non-source files
+**Learning:** Static substring pre-filters before regex evaluation can result in false negatives if security rules change, but regex overhead is significant for large, generated artifact files like `.map` and `.log`.
+**Action:** Skip large, non-source artifact extensions like `.map` and `.log` during file traversal to safely bypass regex processing overhead.
