@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import subprocess
 import sys
-import concurrent.futures
-from functools import partial
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,7 +65,6 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
   }
 }
 """
-OPENCODE_WORKFLOW_NAMES = {"OpenCode Review", "OpenCode PR Review"}
 
 
 @dataclass
@@ -139,7 +137,7 @@ def is_opencode_context(node: dict[str, Any]) -> bool:
             ((node.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow")
             or {}
         )
-        return node.get("name") == "opencode-review" or workflow.get("name") in OPENCODE_WORKFLOW_NAMES
+        return node.get("name") == "opencode-review" or workflow.get("name") == "OpenCode Review"
     return node.get("context") == "opencode-review"
 
 

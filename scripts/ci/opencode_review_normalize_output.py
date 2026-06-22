@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Normalize OpenCode review output into the strict approval-gate contract."""
 
+from __future__ import annotations
+
 import json
 import re
 import sys
@@ -130,35 +132,30 @@ def valid_control(
         return None
 
     if value.get("head_sha") != expected_head_sha:
-        return False
+        return None
     if value.get("run_id") != expected_run_id:
-        return False
+        return None
     if value.get("run_attempt") != expected_run_attempt:
-        return False
-    return True
+        return None
 
-
-def _validate_result_and_reason(value: dict[str, Any]) -> bool:
     result = value.get("result")
     if result not in {"APPROVE", "REQUEST_CHANGES"}:
-        return False
+        return None
+
     if not isinstance(value.get("reason"), str) or not value["reason"].strip():
-        return False
+        return None
     if not isinstance(value.get("summary"), str) or not value["summary"].strip():
         return None
     reason = value["reason"].strip()
     summary = value["summary"].strip()
 
-
-def _validate_findings(value: dict[str, Any]) -> bool:
-    result = value.get("result")
     findings = value.get("findings")
     if findings is None and result == "APPROVE":
         findings = []
     if not isinstance(findings, list):
-        return False
+        return None
     if result == "APPROVE" and findings:
-        return False
+        return None
     if result == "REQUEST_CHANGES" and not findings:
         return None
     if result == "APPROVE" and admits_missing_structural_review(reason, summary):
@@ -184,33 +181,7 @@ def _validate_findings(value: dict[str, Any]) -> bool:
             return None
         for field in required_finding_fields:
             if not isinstance(finding.get(field), str) or not finding[field].strip():
-                return False
-    return True
-
-
-def valid_control(
-    value: Any,
-    *,
-    expected_head_sha: str,
-    expected_run_id: str,
-    expected_run_attempt: str,
-) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
-        return None
-
-    if not _validate_metadata(
-        value,
-        expected_head_sha,
-        expected_run_id,
-        expected_run_attempt,
-    ):
-        return None
-
-    if not _validate_result_and_reason(value):
-        return None
-
-    if not _validate_findings(value):
-        return None
+                return None
 
     return {
         "head_sha": value["head_sha"],
@@ -227,6 +198,7 @@ def iter_json_objects(text: str) -> list[Any]:
     """Extract JSON objects from raw OpenCode output that may include prose."""
     decoder = json.JSONDecoder()
     values: list[Any] = []
+
     index = 0
     while index < len(text):
         if text[index] != "{":
@@ -260,7 +232,6 @@ def main(argv: list[str]) -> int:
     expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
     project_root = Path.cwd().resolve()
-
     if not output_file.resolve().is_relative_to(project_root):
         print(f"error: output file path {output_file_arg!r} is outside the project root", file=sys.stderr)
         return 65
