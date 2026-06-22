@@ -1,3 +1,5 @@
+import argparse
+
 import pytest
 from scripts.ci.pr_review_merge_scheduler import (
     _parse_pr_number,

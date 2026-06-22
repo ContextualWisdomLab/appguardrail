@@ -345,12 +345,22 @@ def self_test() -> None:
     print("self-test passed")
 
 
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--base-branch", default=os.environ.get("DEFAULT_BRANCH", ""))
     parser.add_argument("--project-flow", default=os.environ.get("PROJECT_FLOW", ""))
-    parser.add_argument("--max-prs", type=int, default=100)
+    parser.add_argument("--max-prs", type=positive_int, default=100)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--trigger-reviews", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--enable-auto-merge", action=argparse.BooleanOptionalAction, default=True)
