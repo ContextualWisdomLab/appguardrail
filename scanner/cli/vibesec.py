@@ -272,6 +272,7 @@ SKIP_DIRS = {
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2",
     ".ttf", ".eot", ".mp4", ".mp3", ".zip", ".tar", ".gz", ".lock",
+    ".map", ".log",
 }
 
 # ---------------------------------------------------------------------------
