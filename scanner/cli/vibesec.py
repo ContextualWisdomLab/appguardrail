@@ -13,6 +13,7 @@ Commands:
   init      Install security rules into your project
   scan      Run a lightweight security scan on a directory
   review    Generate an AI review prompt for your stack
+  hook      Install a pre-commit hook to block vulnerabilities
 
 Options:
   --tool    AI coding tool: cursor, claude-code, windsurf, lovable (default: cursor)
@@ -120,16 +121,16 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "hardcoded-stripe-secret",
-        "pattern": re.compile(r'sk_(live|test)_[A-Za-z0-9]{24,}'),
+        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}'),
         "severity": "CRITICAL",
-        "message": "Hardcoded Stripe secret key detected. Rotate this key immediately.",
+        "message": "Hardcoded Stripe secret key detected. Rotate this key immediately. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-openai-key",
         "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}'),
         "severity": "CRITICAL",
-        "message": "Possible hardcoded OpenAI API key detected.",
+        "message": "Possible hardcoded OpenAI API key detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
@@ -139,71 +140,62 @@ SCAN_RULES = [
             re.IGNORECASE,
         ),
         "severity": "CRITICAL",
-        "message": (
-            "Secret environment variable uses NEXT_PUBLIC_ prefix — "
-            "this exposes it to the browser bundle."
-        ),
+        "message": "Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": None,
     },
     {
         "id": "supabase-service-role-client",
         "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE),
         "severity": "CRITICAL",
-        "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix.",
+        "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".env", ".env.local", ".env.production"],
     },
     {
         "id": "firebase-allow-all",
-        "pattern": re.compile(r'allow\s+(read|write|read,\s*write)\s*:\s*if\s+true'),
+        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true'),
         "severity": "CRITICAL",
-        "message": (
-            "Firebase/Firestore rule allows unrestricted read/write access. "
-            "Add authentication and ownership checks."
-        ),
+        "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".rules"],
     },
     {
         "id": "todo-skip-auth",
         "pattern": re.compile(
-            r'(?i)(todo|fixme|hack|temp)[^\n]{0,50}(auth|security|permission|check|protect)',
+            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)',
         ),
         "severity": "HIGH",
-        "message": (
-            "Comment suggests auth/security check was deferred. "
-            "Verify this is not deployed to production."
-        ),
+        "message": "Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
         "id": "dangerous-cors",
         "pattern": re.compile(r"Access-Control-Allow-Origin['\",\s]*[*]"),
         "severity": "HIGH",
-        "message": "CORS set to allow all origins (*). Restrict to known domains.",
+        "message": "CORS set to allow all origins (*). Restrict to known domains. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
         "id": "hardcoded-database-url",
         "pattern": re.compile(
-            r'(?i)(DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](postgres|postgresql|mysql)://\S+',
+            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+',
         ),
         "severity": "CRITICAL",
-        "message": "Hardcoded database connection string detected.",
+        "message": "Hardcoded database connection string detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-jwt-secret",
         "pattern": re.compile(
-            r'(?i)(JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
+            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
         ),
         "severity": "CRITICAL",
-        "message": "Hardcoded JWT/NextAuth secret detected.",
+        "message": "Hardcoded JWT/NextAuth secret detected. [OWASP A02:2021 - Cryptographic Failures]",
         "extensions": None,
     },
     {
         "id": "stripe-webhook-no-verify",
         "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)'),
         "severity": "CRITICAL",
-        "message": "Stripe constructEvent called with empty/undefined webhook secret.",
+        "message": "Stripe constructEvent called with empty/undefined webhook secret. [OWASP A08:2021 - Software and Data Integrity Failures]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
     },
     {
@@ -212,21 +204,21 @@ SCAN_RULES = [
             r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]',
         ),
         "severity": "HIGH",
-        "message": "Hardcoded mock session/user in what may be a production handler. Verify this is test-only code.",
+        "message": "Mock or hardcoded session/user object detected in route handler. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
     },
     {
         "id": "dangerous-eval",
         "pattern": re.compile(r'\beval\s*\('),
         "severity": "CRITICAL",
-        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks.",
+        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
         "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
     },
     {
         "id": "react-dangerously-set-inner-html",
         "pattern": re.compile(r'dangerouslySetInnerHTML\s*='),
         "severity": "HIGH",
-        "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized.",
+        "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized. [OWASP A03:2021 - Injection]",
         "extensions": [".jsx", ".tsx"],
     },
     {
@@ -235,7 +227,7 @@ SCAN_RULES = [
             r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)'
         ),
         "severity": "CRITICAL",
-        "message": "Potential SQL injection detected: string concatenation or template literal in database query.",
+        "message": "Potential SQL injection detected: string concatenation or template literal in database query. [OWASP A03:2021 - Injection]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
@@ -499,20 +491,8 @@ def cmd_hook(args):
     hooks_dir.mkdir(parents=True, exist_ok=True)
     pre_commit_file = hooks_dir / "pre-commit"
 
-    # SECURITY: Prevent Arbitrary File Write via symlink — reject if the
-    # pre-commit path is a symlink pointing outside the project root.
     if pre_commit_file.is_symlink():
-        symlink_target = pre_commit_file.resolve()
-        if not symlink_target.is_relative_to(project_root):
-            print(f"Error: {pre_commit_file} is a symlink pointing outside the project root. Aborting.", file=sys.stderr)
-            return 1
         pre_commit_file.unlink()
-
-    # SECURITY: Validate the resolved path of the hook file itself is within
-    # the project root before writing, guarding against any TOCTOU races.
-    if pre_commit_file.exists() and not pre_commit_file.resolve().is_relative_to(project_root):
-        print(f"Error: Target path {pre_commit_file} escapes the project root. Aborting.", file=sys.stderr)
-        return 1
 
     hook_content = """#!/bin/sh
 # VibeSec Pre-Commit Hook
@@ -560,7 +540,7 @@ def _get_applicable_rules(ext: str):
             }
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
-        )
+        ]
     return _RULES_CACHE[ext]
 
 
@@ -812,6 +792,9 @@ def _scan_file(file_path: Path, base_path: Path):
             content = f.read()
             if not content:
                 return findings
+            count_newlines = content.count
+            find_newline = content.find
+            rfind_newline = content.rfind
 
             for rule in applicable_rules:
                 for match in rule["finditer"](content):
@@ -820,10 +803,10 @@ def _scan_file(file_path: Path, base_path: Path):
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
-                    line_num = content.count('\n', 0, start_idx) + 1
+                    line_num = count_newlines('\n', 0, start_idx) + 1
 
-                    snippet_start = content.rfind('\n', 0, start_idx) + 1
-                    snippet_end = content.find('\n', start_idx)
+                    snippet_start = rfind_newline('\n', 0, start_idx) + 1
+                    snippet_end = find_newline('\n', start_idx)
                     if snippet_end == -1:
                         snippet_end = len(content)
                     snippet = content[snippet_start:snippet_end].strip()[:120]
@@ -972,6 +955,10 @@ def main():
     review_parser.add_argument("--db", help="Database/backend (e.g. supabase, firebase)")
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
+    # hook
+    hook_parser = subparsers.add_parser("hook", help="Install a pre-commit hook to block commits with vulnerabilities")
+
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -980,6 +967,8 @@ def main():
         sys.exit(cmd_scan(args))
     elif args.command == "review":
         cmd_review(args)
+    elif args.command == "hook":
+        sys.exit(cmd_hook(args))
     else:
         parser.print_help()
         sys.exit(0)
