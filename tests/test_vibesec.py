@@ -234,6 +234,16 @@ def test_cmd_scan_skips_symlink_path(tmp_path, capsys):
     assert "Skipping symlink path:" in capsys.readouterr().out
 
 
+def test_cmd_scan_returns_failure_when_no_files_scanned(tmp_path, capsys):
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "index.js").write_text("console.log('ignored')\n")
+
+    assert cmd_scan(ScanArgs(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "No files were scanned. Are you in the right directory?" in out
+    assert "Scanned 0 files" in out
+
+
 def test_run_trivy_fs_maps_json_findings(tmp_path):
     report = {
         "Results": [{
