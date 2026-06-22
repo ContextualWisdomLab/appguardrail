@@ -51,3 +51,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) potential in scanner rules.
 **Learning:** Capturing groups `(...)` in heavily used regex rules (like in `scanner/rules/*.yml`) increase backtracking overhead and memory usage, making the scanner vulnerable to ReDoS attacks with crafted input files.
 **Prevention:** Always use non-capturing groups `(?:...)` when the captured value is not needed for backreferences or extraction. This improves scanner performance and prevents ReDoS.
+
+## 2026-06-22 - Expand Scanner Rules for Insecure Deserialization
+**Vulnerability:** The VibeSec static analysis scanner lacked explicit detection for insecure deserialization vulnerabilities in Python (such as `pickle.load`, `pickle.loads`, `pickle.Unpickler`, and `yaml.load`).
+**Learning:** Insecure Deserialization is a critical OWASP Top 10 vulnerability (A08:2021) that can lead to remote code execution. Because AI assistants may suggest these standard library functions without understanding their security implications, it is crucial to detect their usage.
+**Prevention:** A new rule `insecure-deserialization` was added to `SCAN_RULES` to flag unsafe usage of `pickle.load()`, `pickle.loads()`, `pickle.Unpickler()`, and `yaml.load()` in Python files.

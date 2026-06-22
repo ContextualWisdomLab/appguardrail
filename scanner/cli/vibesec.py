@@ -258,6 +258,15 @@ SCAN_RULES = [
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
+        "id": "insecure-deserialization",
+        "pattern": re.compile(
+            r'(?i)\b(?:pickle\.(?:loads?|Unpickler)\s*\(|yaml\.load\s*\()'
+        ),
+        "severity": "CRITICAL",
+        "message": "Potential Insecure Deserialization detected: use of pickle or yaml.load without safety boundaries. [OWASP A08:2021 - Software and Data Integrity Failures]",
+        "extensions": [".py"],
+    },
+    {
         "id": "hardcoded-password",
         "pattern": re.compile(
             r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
