@@ -395,6 +395,6 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from exc
