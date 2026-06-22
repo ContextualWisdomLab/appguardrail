@@ -520,8 +520,7 @@ echo "✅ VibeSec scan passed."
 
 
 # ⚡ Bolt: Cache applicable rules per file extension to avoid redundant list
-# comprehensions and pre-extract the search method to avoid dictionary and
-# attribute lookups in the tight scanning loop.
+# comprehensions and pre-extract the finditer method used in the tight loop.
 _RULES_CACHE = {}
 _LAST_SCAN_RULES_ID = None
 
@@ -534,12 +533,12 @@ def _get_applicable_rules(ext: str):
 
     if ext not in _RULES_CACHE:
         _RULES_CACHE[ext] = [
-            {
-                "id": rule["id"],
-                "severity": rule["severity"],
-                "message": rule["message"],
-                "finditer": rule["pattern"].finditer
-            }
+            (
+                rule["id"],
+                rule["severity"],
+                rule["message"],
+                rule["pattern"].finditer,
+            )
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
         ]
@@ -799,8 +798,8 @@ def _scan_file(file_path: Path, base_path: Path):
             find_newline = content.find
             rfind_newline = content.rfind
 
-            for rule in applicable_rules:
-                for match in rule["finditer"](content):
+            for rule_id, severity, message, finditer in applicable_rules:
+                for match in finditer(content):
                     if rel_path_str is None:
                         rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
@@ -816,9 +815,9 @@ def _scan_file(file_path: Path, base_path: Path):
 
                     findings.append(build_finding(
                         "vibesec-rule",
-                        rule["id"],
-                        rule["severity"],
-                        rule["message"],
+                        rule_id,
+                        severity,
+                        message,
                         rel_path_str,
                         line_num,
                         snippet,
