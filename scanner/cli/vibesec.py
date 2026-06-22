@@ -470,6 +470,8 @@ def cmd_scan(args):
             return 1
 
     _print_scan_results(findings, files_scanned)
+    if files_scanned == 0:
+        return 1
     return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
 
 
@@ -859,7 +861,9 @@ def _print_scan_results(findings, files_scanned):
     if non_blocking:
         print(f"Non-blocking findings in docs/tests/examples/fixtures: {non_blocking}")
 
-    if counts["CRITICAL"] > 0:
+    if files_scanned == 0:
+        print("\n⚠️  No files were scanned. Are you in the right directory?")
+    elif counts["CRITICAL"] > 0:
         print("\n❌ Critical issues found. Fix before deploying.")
     elif counts["HIGH"] > 0:
         print("\n⚠️  High-severity issues found. Review before deploying.")
