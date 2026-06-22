@@ -59,10 +59,14 @@ This creates:
 
 ```bash
 vibesec scan .
+
+# Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
+vibesec scan --trivy .
 ```
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
+- Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Dangerous Supabase/Firebase usage patterns
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
@@ -70,6 +74,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+
+Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
+and scanner fixtures stay visible but do not fail the deploy gate by default.
 
 ### Generate a security review prompt
 
