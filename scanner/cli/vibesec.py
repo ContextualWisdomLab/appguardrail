@@ -279,6 +279,7 @@ SKIP_EXTENSIONS = {
 }
 
 NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
+DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
 
 # ---------------------------------------------------------------------------
 # Review prompt templates
@@ -646,7 +647,7 @@ def _build_finding(source, rule_id, severity, message, file, line, snippet, cate
 
 def _is_deploy_blocking(finding: dict) -> bool:
     return (
-        finding.get("severity") in ("CRITICAL", "HIGH")
+        finding.get("severity") in DEPLOY_BLOCKING_SEVERITIES
         and finding.get("context", "app-code") not in NON_BLOCKING_CONTEXTS
     )
 
