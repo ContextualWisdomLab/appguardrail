@@ -33,6 +33,7 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
         reviews(last: 50) {
           nodes {
             state
+            body
             submittedAt
             author { login }
             commit { oid }
@@ -159,10 +160,16 @@ def review_author_login(review: dict[str, Any]) -> str:
     return ((review.get("author") or {}).get("login") or "").lower()
 
 
+def is_opencode_review(review: dict[str, Any]) -> bool:
+    login = review_author_login(review)
+    body = review.get("body") or ""
+    return login.startswith("opencode-agent") or "opencode" in login or "OpenCode Agent" in body
+
+
 def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
     head = pr.get("headRefOid")
     for review in reversed((pr.get("reviews") or {}).get("nodes") or []):
-        if not review_author_login(review).startswith("opencode-agent"):
+        if not is_opencode_review(review):
             continue
         if (review.get("state") or "").upper() != state:
             continue
@@ -173,7 +180,7 @@ def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
 
 
 def has_current_head_approval(pr: dict[str, Any]) -> bool:
-    return current_head_review_state(pr, "APPROVED") or pr.get("reviewDecision") == "APPROVED"
+    return current_head_review_state(pr, "APPROVED")
 
 
 def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
@@ -230,12 +237,16 @@ def inspect_pr(
     trigger_reviews: bool,
     enable_auto_merge_flag: bool,
     workflow: str,
+    base_branch: str,
 ) -> Decision:
     number = pr["number"]
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
+    base_ref = pr.get("baseRefName")
 
     if pr.get("isDraft"):
         return Decision(number, "skip", "draft PR")
+    if base_ref != base_branch:
+        return Decision(number, "skip", f"base branch is {base_ref}; expected {base_branch}")
     if head_repo != repo:
         return Decision(number, "skip", f"fork or external head repo: {head_repo}")
 
@@ -264,7 +275,13 @@ def inspect_pr(
     return Decision(number, "block", "current head has no OpenCode approval")
 
 
-def print_summary(decisions: list[Decision], *, dry_run: bool) -> None:
+def print_summary(
+    decisions: list[Decision],
+    *,
+    dry_run: bool,
+    base_branch: str,
+    project_flow: str,
+) -> None:
     counts: dict[str, int] = {}
     for decision in decisions:
         counts[decision.action] = counts.get(decision.action, 0) + 1
@@ -272,9 +289,11 @@ def print_summary(decisions: list[Decision], *, dry_run: bool) -> None:
     print(
         json.dumps(
             {
+                "base_branch": base_branch,
                 "dry_run": dry_run,
                 "inspected": len(decisions),
                 "counts": counts,
+                "project_flow": project_flow,
             },
             sort_keys=True,
         )
@@ -294,6 +313,7 @@ def self_test() -> None:
                 {
                     "state": "APPROVED",
                     "author": {"login": "opencode-agent"},
+                    "body": "OpenCode Agent approved this head.",
                     "commit": {"oid": "abc"},
                 }
             ]
@@ -320,6 +340,8 @@ def self_test() -> None:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
+    parser.add_argument("--base-branch", default=os.environ.get("DEFAULT_BRANCH", ""))
+    parser.add_argument("--project-flow", default=os.environ.get("PROJECT_FLOW", ""))
     parser.add_argument("--max-prs", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--trigger-reviews", action=argparse.BooleanOptionalAction, default=True)
@@ -336,6 +358,10 @@ def main(argv: list[str]) -> int:
         return 0
     if not args.repo:
         raise SystemExit("--repo is required")
+    if not args.base_branch:
+        raise SystemExit("--base-branch is required")
+    if not args.project_flow:
+        raise SystemExit("--project-flow is required")
     prs = fetch_open_prs(args.repo, args.max_prs)
     decisions = [
         inspect_pr(
@@ -345,10 +371,16 @@ def main(argv: list[str]) -> int:
             trigger_reviews=args.trigger_reviews,
             enable_auto_merge_flag=args.enable_auto_merge,
             workflow=args.review_workflow,
+            base_branch=args.base_branch,
         )
         for pr in prs
     ]
-    print_summary(decisions, dry_run=args.dry_run)
+    print_summary(
+        decisions,
+        dry_run=args.dry_run,
+        base_branch=args.base_branch,
+        project_flow=args.project_flow,
+    )
     return 0
 
 

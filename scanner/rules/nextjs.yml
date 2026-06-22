@@ -60,7 +60,7 @@ rules:
 
   - id: nextjs-env-secret-client-prefix
     patterns:
-      - pattern-regex: 'NEXT_PUBLIC_(STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|OPENAI_API_KEY|API_SECRET)'
+      - pattern-regex: 'NEXT_PUBLIC_(?:STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|OPENAI_API_KEY|API_SECRET)'
     message: |
       Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
       in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
