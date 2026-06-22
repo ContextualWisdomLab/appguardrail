@@ -199,20 +199,18 @@ def iter_json_objects(text: str) -> list[Any]:
     decoder = json.JSONDecoder()
     values: list[Any] = []
 
-    try:
-        values.append(json.loads(text))
-    except json.JSONDecodeError:
-        # OpenCode exports may contain prose around the JSON control object.
-        pass
-
-    for index, character in enumerate(text):
-        if character != "{":
+    index = 0
+    while index < len(text):
+        if text[index] != "{":
+            index += 1
             continue
         try:
-            value, _ = decoder.raw_decode(text[index:])
+            value, end = decoder.raw_decode(text, index)
         except json.JSONDecodeError:
+            index += 1
             continue
         values.append(value)
+        index = end
 
     return values
 
@@ -233,6 +231,11 @@ def main(argv: list[str]) -> int:
 
     expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
+    project_root = Path.cwd().resolve()
+    if not output_file.resolve().is_relative_to(project_root):
+        print(f"error: output file path {output_file_arg!r} is outside the project root", file=sys.stderr)
+        return 65
+
     try:
         output_text = output_file.read_text(encoding="utf-8")
     except OSError as exc:
