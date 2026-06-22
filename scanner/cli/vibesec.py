@@ -788,6 +788,7 @@ def _scan_file(file_path: Path, base_path: Path):
     # sanitization until a match is actually found. This avoids significant overhead
     # for the vast majority of files that have no vulnerabilities.
     rel_path_str = None
+    build_finding = _build_finding
 
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as f:
@@ -810,7 +811,7 @@ def _scan_file(file_path: Path, base_path: Path):
                         snippet_end = len(content)
                     snippet = content[snippet_start:snippet_end].strip()[:120]
 
-                    findings.append(_build_finding(
+                    findings.append(build_finding(
                         "vibesec-rule",
                         rule["id"],
                         rule["severity"],
