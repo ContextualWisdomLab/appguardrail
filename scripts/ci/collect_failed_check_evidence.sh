@@ -37,6 +37,48 @@ emit_bounded_file() {
 	tail -n "$tail_lines" "$file_path"
 }
 
+emit_failure_signal_summary() {
+	local log_file="$1"
+	local summary_tmp
+
+	summary_tmp="$(mktemp)"
+	tmp_files+=("$summary_tmp")
+
+	awk '
+		/FAIL:/ ||
+		/::error::/ ||
+		/##\[error\]/ ||
+		/Process completed with exit code/ ||
+		/LLM CONNECTION FAILED/ ||
+		/RateLimitError/ ||
+		/Too many requests/ ||
+		/HTTPStatusError/ ||
+		/401 Unauthorized/ ||
+		/api\.deepseek\.com/ ||
+		/Authentication Fails/ ||
+		/budget limit/ ||
+		/Configured model and fallback models were unavailable/ ||
+		/provider infrastructure/ ||
+		/[Ff]atal/ ||
+		/[Dd]enied/ ||
+		/[Tt]imeout/ ||
+		/[Ww]arn/ {
+			if (!seen[$0]++) {
+				print
+			}
+		}
+	' "$log_file" >"$summary_tmp"
+
+	if [ ! -s "$summary_tmp" ]; then
+		return 1
+	fi
+
+	printf '### Failed log signal summary\n\n'
+	printf '```text\n'
+	emit_bounded_file "$summary_tmp" 120
+	printf '\n```\n\n'
+}
+
 emit_strix_vulnerability_evidence() {
 	local log_file="$1"
 	local summary_tmp
@@ -55,6 +97,15 @@ emit_strix_vulnerability_evidence() {
 		/Strix run failed for model/ ||
 		/Primary model unavailable; retrying with fallback/ ||
 		/Strix fallback model/ ||
+		/LLM CONNECTION FAILED/ ||
+		/RateLimitError/ ||
+		/Too many requests/ ||
+		/HTTPStatusError/ ||
+		/401 Unauthorized/ ||
+		/api\.deepseek\.com/ ||
+		/Authentication Fails/ ||
+		/budget limit/ ||
+		/Configured model and fallback models were unavailable/ ||
 		/Below-threshold findings detected/ ||
 		/Unable to map Strix findings/ ||
 		/Model [[:alnum:]_.\/-]+/ ||
@@ -132,11 +183,39 @@ emit_strix_vulnerability_evidence() {
 owner="${GH_REPOSITORY%%/*}"
 repo="${GH_REPOSITORY#*/}"
 failed_contexts="$(mktemp)"
-tmp_files=("$failed_contexts")
+workflow_run_contexts="$(mktemp)"
+active_failed_contexts="$(mktemp)"
+manual_success_contexts="$(mktemp)"
+superseded_failed_contexts="$(mktemp)"
+tmp_files=(
+	"$failed_contexts"
+	"$workflow_run_contexts"
+	"$active_failed_contexts"
+	"$manual_success_contexts"
+	"$superseded_failed_contexts"
+)
 cleanup() {
 	rm -f "${tmp_files[@]}"
 }
 trap cleanup EXIT
+
+manual_success_for_label() {
+	local label="$1"
+	local key
+
+	key="${label##*/}"
+	key="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
+	awk -F '\t' -v key="$key" '
+		tolower($1) == key {
+			print
+			found = 1
+			exit
+		}
+		END {
+			exit found ? 0 : 1
+		}
+	' "$manual_success_contexts"
+}
 
 # shellcheck disable=SC2016
 gh api graphql \
@@ -208,7 +287,85 @@ gh api graphql \
 		)
 		| .[]
 		| @tsv
-	' >"$failed_contexts"
+		' >"$failed_contexts"
+
+	env HEAD_SHA="$HEAD_SHA" gh run list \
+		--repo "$GH_REPOSITORY" \
+		--commit "$HEAD_SHA" \
+		--limit 100 \
+		--json databaseId,workflowName,status,conclusion,url,event,headSha \
+		--jq '
+			.[]
+			| select((.event // "") == "pull_request_target" or (.event // "") == "workflow_dispatch")
+			| select((.headSha // "") == env.HEAD_SHA)
+			| select((.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix")
+			| select((.status // "") == "completed")
+			| select((.conclusion // "" | ascii_downcase) as $c | ["failure","timed_out","action_required","cancelled","startup_failure"] | index($c))
+			| select(((.event // "") == "workflow_dispatch" and (.conclusion // "" | ascii_downcase) == "cancelled") | not)
+			| [
+			"workflow_run",
+			(if (.workflowName // "") != "" then .workflowName else "workflow run" end),
+			(.conclusion // "unknown"),
+			(.url // ""),
+			((.databaseId // "") | tostring),
+			""
+		]
+		| @tsv
+	' >"$workflow_run_contexts"
+
+if ! gh api -X GET "repos/${GH_REPOSITORY}/commits/${HEAD_SHA}/status" \
+	--jq '
+		(.statuses // [])
+		| map(
+			select((.context // "") != "")
+			| . + {__context_key: (.context // "" | ascii_downcase)}
+		)
+		| sort_by(.__context_key, (.created_at // ""))
+		| group_by(.__context_key)
+		| map(last)
+		| map(
+			select((.state // "" | ascii_downcase) == "success")
+			| select((.description // "") | contains("Manual workflow_dispatch Strix evidence passed"))
+			| select((.target_url // "") | test("/actions/runs/[0-9]+"))
+			| [
+				(.__context_key // ""),
+				(.target_url // ""),
+				(.description // "")
+			]
+		)
+		| .[]
+		| @tsv
+	' >"$manual_success_contexts"; then
+	: >"$manual_success_contexts"
+fi
+
+while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
+	if [ -z "$run_id" ]; then
+		continue
+	fi
+	if awk -F '\t' -v run_id="$run_id" '$5 == run_id { found = 1 } END { exit found ? 0 : 1 }' "$failed_contexts"; then
+		continue
+	fi
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" "$label" "$conclusion" "$details_url" "$run_id" "$check_run_id" >>"$failed_contexts"
+done <"$workflow_run_contexts"
+
+while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
+	if success_line="$(manual_success_for_label "$label")"; then
+		IFS=$'\t' read -r success_context success_url success_description <<<"$success_line"
+		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+			"$kind" \
+			"$label" \
+			"$conclusion" \
+			"$details_url" \
+			"$run_id" \
+			"$check_run_id" \
+			"$success_context" \
+			"$success_url" \
+			"$success_description" >>"$superseded_failed_contexts"
+		continue
+	fi
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" "$label" "$conclusion" "$details_url" "$run_id" "$check_run_id" >>"$active_failed_contexts"
+done <"$failed_contexts"
 
 {
 	printf '# Failed GitHub Check Evidence\n\n'
@@ -220,10 +377,30 @@ gh api graphql \
 	printf -- '- For each actionable failed check, inspect the local source or diff and identify the exact file line that must change.\n'
 	printf -- '- OpenCode `REQUEST_CHANGES` findings must include `path`, `line`, `root_cause`, `fix_direction`, `regression_test_direction`, and `suggested_diff`.\n'
 	printf -- '- Do not request changes with only a GitHub Actions URL or a generic check name.\n\n'
-	printf -- '- When Strix logs contain multiple `Vulnerability Report` or `Model ... Vulnerabilities ...` sections, include every model-reported vulnerability in the review evidence and findings.\n\n'
+	printf -- '- When Strix logs contain multiple `Vulnerability Report` or `Model ... Vulnerabilities ...` sections, include every model-reported vulnerability in the review evidence and findings, including model name, title, severity, endpoint, and Code Locations/path:line evidence when present.\n'
+	printf -- '- Create one OpenCode finding per Strix model vulnerability report; do not satisfy two model reports with one combined finding, even when titles or locations match.\n\n'
 
-	if [ ! -s "$failed_contexts" ]; then
-		printf 'No completed failed GitHub Checks were present when evidence was collected.\n'
+	if [ -s "$superseded_failed_contexts" ]; then
+		printf '## Superseded failed checks\n\n'
+		while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id success_context success_url success_description; do
+			printf -- '- `%s` `%s` was superseded by current-head manual workflow_dispatch status `%s`.' "$label" "$conclusion" "$success_context"
+			if [ -n "$success_url" ]; then
+				printf ' Evidence: %s.' "$success_url"
+			fi
+			if [ -n "$success_description" ]; then
+				printf ' Description: %s.' "$success_description"
+			fi
+			printf '\n'
+		done <"$superseded_failed_contexts"
+		printf '\n'
+	fi
+
+	if [ ! -s "$active_failed_contexts" ]; then
+		if [ -s "$superseded_failed_contexts" ]; then
+			printf 'No active failed GitHub Checks remained after superseded checks were classified.\n'
+		else
+			printf 'No completed failed GitHub Checks were present when evidence was collected.\n'
+		fi
 		exit 0
 	fi
 
@@ -241,6 +418,37 @@ gh api graphql \
 			printf -- '- Check run id: `%s`\n' "$check_run_id"
 		fi
 		printf '\n'
+
+			if [ "$kind" = "workflow_run" ] && [ -n "$run_id" ]; then
+				log_file="$(mktemp)"
+				stripped_log_file="$(mktemp)"
+				tmp_files+=("$log_file" "$stripped_log_file")
+				if gh run view "$run_id" --repo "$GH_REPOSITORY" --log-failed >"$log_file" 2>&1; then
+					strip_ansi <"$log_file" >"$stripped_log_file"
+					if [ -s "$stripped_log_file" ]; then
+						emit_failure_signal_summary "$stripped_log_file" || true
+						printf '### Failed workflow run log excerpt\n\n'
+						printf '```text\n'
+						emit_bounded_file "$stripped_log_file" "$FAILED_CHECK_LOG_LINES"
+						printf '\n```\n\n'
+						if [[ "$label" == *Strix* ]]; then
+							emit_strix_vulnerability_evidence "$stripped_log_file" || true
+						fi
+					else
+						printf 'No GitHub Actions job log is available for this failed workflow run.\n\n'
+						if [ "$conclusion" = "cancelled" ]; then
+							printf 'The workflow run completed as cancelled before GitHub emitted a failed job log. Treat this as missing current-head security evidence, not as a source-code vulnerability report.\n\n'
+						fi
+					fi
+				else
+				strip_ansi <"$log_file" >"$stripped_log_file"
+				printf 'No GitHub Actions job log is available for this failed workflow run.\n\n'
+				printf '```text\n'
+				emit_bounded_file "$stripped_log_file" 60
+				printf '\n```\n\n'
+			fi
+			continue
+		fi
 
 		if [ "$kind" != "check_run" ] || [ -z "$check_run_id" ]; then
 			printf 'No GitHub Actions job log is available for this status context.\n\n'
@@ -287,6 +495,7 @@ gh api graphql \
 			--log-failed >"$log_raw" 2>&1; then
 			strip_ansi <"$log_raw" >"$log_clean"
 			if [ -s "$log_clean" ]; then
+				emit_failure_signal_summary "$log_clean" || true
 				if emit_strix_vulnerability_evidence "$log_clean"; then
 					printf '\n'
 				fi
@@ -304,5 +513,5 @@ gh api graphql \
 				printf '\n```\n\n'
 			fi
 		fi
-	done <"$failed_contexts"
+	done <"$active_failed_contexts"
 } >"$OUTPUT_FILE"
