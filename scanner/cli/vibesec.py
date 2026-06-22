@@ -470,6 +470,8 @@ def cmd_scan(args):
             return 1
 
     _print_scan_results(findings, files_scanned)
+    if files_scanned == 0:
+        return 1
     return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
 
 
