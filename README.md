@@ -33,6 +33,8 @@ VibeSec is a **persistent security layer for vibe coders** — not a one-time pe
 
 ### Install the CLI
 
+Requires Python 3.9 or newer.
+
 ```bash
 pip install vibesec
 ```

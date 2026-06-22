@@ -45,11 +45,6 @@ jobs:
           persist-credentials: true
           ref: ${{ github.event.pull_request.head.sha || inputs.pr_head_sha || github.sha }}
 
-      - name: Set up Python 3.14
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
       - name: Fetch PR base branch for OpenCode context
         env:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || inputs.pr_base_ref }}

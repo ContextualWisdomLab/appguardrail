@@ -184,19 +184,18 @@ def has_current_head_approval(pr: dict[str, Any]) -> bool:
 
 
 def has_current_head_changes_requested(pr: dict[str, Any]) -> bool:
-    return current_head_review_state(pr, "CHANGES_REQUESTED", extra_authors=("github-actions[bot]",))
+    return current_head_review_state(pr, "CHANGES_REQUESTED")
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = _parse_pr_number(pr["number"])
-    head = str(pr["headRefOid"])
+    number = str(pr["number"])
+    head = pr["headRefOid"]
     if dry_run:
         return
     run(["gh", "pr", "merge", number, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
-    number = _parse_pr_number(pr["number"])
     if dry_run:
         return
     run(
@@ -210,7 +209,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--ref",
             pr["baseRefName"],
             "-f",
-            f"pr_number={number}",
+            f"pr_number={pr['number']}",
             "-f",
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
@@ -233,7 +232,7 @@ def inspect_pr(
     workflow: str,
     base_branch: str,
 ) -> Decision:
-    number = int(_parse_pr_number(pr["number"]))
+    number = pr["number"]
     head_repo = (pr.get("headRepository") or {}).get("nameWithOwner")
     base_ref = pr.get("baseRefName")
 
