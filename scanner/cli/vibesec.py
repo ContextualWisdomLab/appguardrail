@@ -120,6 +120,13 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 
 SCAN_RULES = [
     {
+        "id": "python-insecure-deserialization",
+        "pattern": re.compile(r'\b(?:pickle|yaml|marshal)\.(?:load|loads|Unpickler)\s*\(', re.MULTILINE),
+        "severity": "CRITICAL",
+        "message": "Insecure deserialization detected. Loading untrusted data with pickle/yaml can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]",
+        "extensions": [".py"],
+    },
+    {
         "id": "hardcoded-stripe-secret",
         "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}', re.MULTILINE),
         "severity": "CRITICAL",

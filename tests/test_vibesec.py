@@ -528,3 +528,10 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
+
+def test_scan_file_insecure_deserialization(tmp_path):
+    test_file = tmp_path / "unsafe.py"
+    test_file.write_text("import pickle\npickle.loads(data)\n")
+    findings = _scan_file(test_file, tmp_path)
+    assert len(findings) == 1
+    assert findings[0]["rule_id"] == "python-insecure-deserialization"
