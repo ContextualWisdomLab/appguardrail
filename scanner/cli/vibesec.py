@@ -795,6 +795,9 @@ def _scan_file(file_path: Path, base_path: Path):
             content = f.read()
             if not content:
                 return findings
+            count_newlines = content.count
+            find_newline = content.find
+            rfind_newline = content.rfind
 
             for rule in applicable_rules:
                 for match in rule["finditer"](content):
@@ -803,10 +806,10 @@ def _scan_file(file_path: Path, base_path: Path):
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
-                    line_num = content.count('\n', 0, start_idx) + 1
+                    line_num = count_newlines('\n', 0, start_idx) + 1
 
-                    snippet_start = content.rfind('\n', 0, start_idx) + 1
-                    snippet_end = content.find('\n', start_idx)
+                    snippet_start = rfind_newline('\n', 0, start_idx) + 1
+                    snippet_end = find_newline('\n', start_idx)
                     if snippet_end == -1:
                         snippet_end = len(content)
                     snippet = content[snippet_start:snippet_end].strip()[:120]
