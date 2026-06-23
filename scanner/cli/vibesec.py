@@ -4,7 +4,7 @@ vibesec - Security guardrails for vibe-coded apps
 
 Usage:
   vibesec init [--tool <tool>] [--stack <stack>]
-  vibesec scan [--trivy] [<path>]
+  vibesec scan [<path>]
   vibesec review [--stack <stack>] [--db <db>] [--payments <payments>]
   vibesec --help
   vibesec --version
@@ -20,18 +20,14 @@ Options:
   --stack   Tech stack: nextjs, nextjs-supabase, nextjs-firebase, remix, sveltekit
   --db      Database/backend: supabase, firebase, prisma, drizzle
   --payments  Payment provider: stripe
-  --trivy  Also run Trivy filesystem scan
   --help    Show this help message
   --version Show version
 """
 
 import argparse
-import json
 import os
 import re
-import shutil
 import stat
-import subprocess
 import sys
 from pathlib import Path
 
@@ -121,14 +117,14 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "hardcoded-stripe-secret",
-        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}', re.MULTILINE),
+        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}'),
         "severity": "CRITICAL",
         "message": "Hardcoded Stripe secret key detected. Rotate this key immediately. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-openai-key",
-        "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}', re.MULTILINE),
+        "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}'),
         "severity": "CRITICAL",
         "message": "Possible hardcoded OpenAI API key detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
@@ -137,7 +133,7 @@ SCAN_RULES = [
         "id": "next-public-secret",
         "pattern": re.compile(
             r'NEXT_PUBLIC_(?:STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|API_SECRET)',
-            re.IGNORECASE | re.MULTILINE,
+            re.IGNORECASE,
         ),
         "severity": "CRITICAL",
         "message": "Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]",
@@ -145,14 +141,14 @@ SCAN_RULES = [
     },
     {
         "id": "supabase-service-role-client",
-        "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE | re.MULTILINE),
+        "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE),
         "severity": "CRITICAL",
         "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".env", ".env.local", ".env.production"],
     },
     {
         "id": "firebase-allow-all",
-        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true', re.MULTILINE),
+        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true'),
         "severity": "CRITICAL",
         "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".rules"],
@@ -160,7 +156,7 @@ SCAN_RULES = [
     {
         "id": "todo-skip-auth",
         "pattern": re.compile(
-            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)', re.MULTILINE
+            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)',
         ),
         "severity": "HIGH",
         "message": "Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]",
@@ -168,7 +164,7 @@ SCAN_RULES = [
     },
     {
         "id": "dangerous-cors",
-        "pattern": re.compile(r"Access-Control-Allow-Origin['\",\s]*[*]", re.MULTILINE),
+        "pattern": re.compile(r"Access-Control-Allow-Origin['\",\s]*[*]"),
         "severity": "HIGH",
         "message": "CORS set to allow all origins (*). Restrict to known domains. [OWASP A05:2021 - Security Misconfiguration]",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
@@ -176,7 +172,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-database-url",
         "pattern": re.compile(
-            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+', re.MULTILINE
+            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+',
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded database connection string detected. [OWASP A07:2021 - Identification and Authentication Failures]",
@@ -185,7 +181,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-jwt-secret",
         "pattern": re.compile(
-            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]', re.MULTILINE
+            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded JWT/NextAuth secret detected. [OWASP A02:2021 - Cryptographic Failures]",
@@ -193,7 +189,7 @@ SCAN_RULES = [
     },
     {
         "id": "stripe-webhook-no-verify",
-        "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)', re.MULTILINE),
+        "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)'),
         "severity": "CRITICAL",
         "message": "Stripe constructEvent called with empty/undefined webhook secret. [OWASP A08:2021 - Software and Data Integrity Failures]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
@@ -201,7 +197,7 @@ SCAN_RULES = [
     {
         "id": "mock-session-in-handler",
         "pattern": re.compile(
-            r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]', re.MULTILINE
+            r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]',
         ),
         "severity": "HIGH",
         "message": "Mock or hardcoded session/user object detected in route handler. [OWASP A01:2021 - Broken Access Control]",
@@ -209,14 +205,14 @@ SCAN_RULES = [
     },
     {
         "id": "dangerous-eval",
-        "pattern": re.compile(r'\beval\s*\(', re.MULTILINE),
+        "pattern": re.compile(r'\beval\s*\('),
         "severity": "CRITICAL",
         "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
         "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
     },
     {
         "id": "react-dangerously-set-inner-html",
-        "pattern": re.compile(r'dangerouslySetInnerHTML\s*=', re.MULTILINE),
+        "pattern": re.compile(r'dangerouslySetInnerHTML\s*='),
         "severity": "HIGH",
         "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized. [OWASP A03:2021 - Injection]",
         "extensions": [".jsx", ".tsx"],
@@ -224,7 +220,7 @@ SCAN_RULES = [
     {
         "id": "sql-injection-risk",
         "pattern": re.compile(
-            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)', re.MULTILINE
+            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)'
         ),
         "severity": "CRITICAL",
         "message": "Potential SQL injection detected: string concatenation or template literal in database query. [OWASP A03:2021 - Injection]",
@@ -277,9 +273,6 @@ SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2",
     ".ttf", ".eot", ".mp4", ".mp3", ".zip", ".tar", ".gz", ".lock",
 }
-
-NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
-DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
 
 # ---------------------------------------------------------------------------
 # Review prompt templates
@@ -437,7 +430,6 @@ def cmd_scan(args):
     """Run a lightweight security scan."""
     scan_arg = Path(getattr(args, "path", ".") or ".")
     scan_path = scan_arg.resolve()
-    run_trivy = getattr(args, "trivy", False)
 
     if not scan_arg.exists():
         print(f"Error: Path does not exist: {scan_path}")
@@ -462,18 +454,8 @@ def cmd_scan(args):
         file_findings = _scan_file(file_path, scan_path)
         findings.extend(file_findings)
 
-    if run_trivy:
-        print("🔎 Trivy FS enabled: vuln, secret, misconfig\n")
-        try:
-            findings.extend(_run_trivy_fs(scan_path))
-        except RuntimeError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            return 1
-
     _print_scan_results(findings, files_scanned)
-    if files_scanned == 0:
-        return 1
-    return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
+    return 1 if any(f["severity"] in ("CRITICAL", "HIGH") for f in findings) else 0
 
 
 def cmd_hook(args):
@@ -521,7 +503,8 @@ echo "✅ VibeSec scan passed."
 
 
 # ⚡ Bolt: Cache applicable rules per file extension to avoid redundant list
-# comprehensions and pre-extract the finditer method used in the tight loop.
+# comprehensions and pre-extract the search method to avoid dictionary and
+# attribute lookups in the tight scanning loop.
 _RULES_CACHE = {}
 _LAST_SCAN_RULES_ID = None
 
@@ -534,12 +517,12 @@ def _get_applicable_rules(ext: str):
 
     if ext not in _RULES_CACHE:
         _RULES_CACHE[ext] = [
-            (
-                rule["id"],
-                rule["severity"],
-                rule["message"],
-                rule["pattern"].finditer,
-            )
+            {
+                "id": rule["id"],
+                "severity": rule["severity"],
+                "message": rule["message"],
+                "finditer": rule["pattern"].finditer
+            }
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
         ]
@@ -586,181 +569,6 @@ def _sanitize_terminal_output(text: str) -> str:
     return "".join(c if c.isprintable() or c == '\t' else repr(c)[1:-1] for c in text)
 
 
-def _finding_context(file_path: str, snippet: str = "") -> str:
-    path = (file_path or "").replace("\\", "/").lstrip("./")
-    snippet = (snippet or "").strip()
-    if path == "README.md" or path.startswith(("docs/", "checklists/", "prompts/")):
-        return "doc"
-    if path.startswith("tests/") or "/tests/" in path:
-        return "test"
-    if path.startswith("examples/"):
-        return "example"
-    if path.startswith("scanner/rules/"):
-        return "scanner-fixture"
-    if path == "scanner/cli/vibesec.py" and (
-        snippet.startswith(('"id":', '"message":', '"pattern":', "r'", 'r"'))
-        or "TODO comments that defer" in snippet
-    ):
-        return "scanner-fixture"
-    return "app-code"
-
-
-def _finding_category(rule_id: str) -> str:
-    rule = (rule_id or "").lower()
-    if "cve-" in rule or "vulnerability" in rule:
-        return "dependency"
-    if any(token in rule for token in ("secret", "jwt", "password", "database-url", "openai")):
-        return "secrets"
-    if "stripe" in rule or "webhook" in rule:
-        return "payment"
-    if "firebase" in rule or "supabase" in rule or "storage" in rule:
-        return "storage"
-    if any(token in rule for token in ("auth", "session", "admin")):
-        return "authz"
-    if any(token in rule for token in ("eval", "sql", "command", "path-traversal")):
-        return "injection"
-    return "misconfig"
-
-
-def _confidence(rule_id: str) -> str:
-    return "medium" if "todo" in (rule_id or "").lower() else "high"
-
-
-def _build_finding(source, rule_id, severity, message, file, line, snippet, category=None):
-    context = _finding_context(file, snippet)
-    category = category or _finding_category(rule_id)
-    return {
-        "rule_id": rule_id,
-        "severity": severity,
-        "message": message,
-        "file": file,
-        "line": line,
-        "snippet": _sanitize_terminal_output(snippet),
-        "source": source,
-        "category": category,
-        "confidence": _confidence(rule_id),
-        "context": context,
-        "fix_prompt": f"Fix {rule_id}: {message}",
-        "verification": f"Re-run `vibesec scan` and verify {file}:{line} no longer reports this finding.",
-    }
-
-
-def _is_deploy_blocking(finding: dict) -> bool:
-    return (
-        finding.get("severity") in DEPLOY_BLOCKING_SEVERITIES
-        and finding.get("context", "app-code") not in NON_BLOCKING_CONTEXTS
-    )
-
-
-def _trivy_severity(severity: str) -> str:
-    return {
-        "CRITICAL": "CRITICAL",
-        "HIGH": "HIGH",
-        "MEDIUM": "WARNING",
-        "LOW": "INFO",
-        "UNKNOWN": "INFO",
-    }.get((severity or "UNKNOWN").upper(), "INFO")
-
-
-def _trivy_line(item: dict) -> int:
-    metadata = item.get("CauseMetadata") or {}
-    return item.get("StartLine") or metadata.get("StartLine") or 1
-
-
-def _trivy_target(target: str, base_path: Path) -> str:
-    if not target:
-        return str(base_path)
-    try:
-        path = Path(target)
-        if path.is_absolute():
-            root = base_path if base_path.is_dir() else base_path.parent
-            return str(path.relative_to(root))
-    except ValueError:
-        pass
-    return target
-
-
-def _trivy_findings(report: dict, base_path: Path):
-    findings = []
-    for result in report.get("Results") or []:
-        target = _sanitize_terminal_output(_trivy_target(result.get("Target", ""), base_path))
-
-        for vuln in result.get("Vulnerabilities") or []:
-            fixed = vuln.get("FixedVersion") or "no fixed version reported"
-            findings.append(_build_finding(
-                "trivy",
-                f"trivy:{vuln.get('VulnerabilityID', 'vulnerability')}",
-                _trivy_severity(vuln.get("Severity")),
-                f"Trivy vulnerability in {vuln.get('PkgName', 'package')}: {vuln.get('Title') or vuln.get('VulnerabilityID', 'unknown vulnerability')}",
-                target,
-                1,
-                f"{vuln.get('PkgName', 'package')} {vuln.get('InstalledVersion', '')} -> {fixed}".strip(),
-                category="dependency",
-            ))
-
-        for misconfig in result.get("Misconfigurations") or []:
-            findings.append(_build_finding(
-                "trivy",
-                f"trivy:{misconfig.get('ID', 'misconfiguration')}",
-                _trivy_severity(misconfig.get("Severity")),
-                f"Trivy misconfiguration: {misconfig.get('Title') or misconfig.get('Message') or misconfig.get('ID', 'misconfiguration')}",
-                target,
-                _trivy_line(misconfig),
-                misconfig.get("Message") or misconfig.get("Description") or "",
-                category="misconfig",
-            ))
-
-        for secret in result.get("Secrets") or []:
-            findings.append(_build_finding(
-                "trivy",
-                f"trivy:{secret.get('RuleID', 'secret')}",
-                _trivy_severity(secret.get("Severity")),
-                f"Trivy secret finding: {secret.get('Title') or secret.get('Category') or secret.get('RuleID', 'secret')}",
-                target,
-                _trivy_line(secret),
-                "Trivy secret scanner matched this line; value suppressed.",
-                category="secrets",
-            ))
-
-    return findings
-
-
-def _run_trivy_fs(scan_path: Path):
-    trivy = shutil.which("trivy")
-    if not trivy:
-        raise RuntimeError("trivy executable not found. Install Trivy or run without --trivy.")
-
-    process = subprocess.run(
-        [
-            trivy,
-            "fs",
-            "--quiet",
-            "--format",
-            "json",
-            "--scanners",
-            "vuln,secret,misconfig",
-            "--exit-code",
-            "0",
-            "--no-progress",
-            "--skip-version-check",
-            str(scan_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if process.returncode != 0:
-        detail = (process.stderr or process.stdout).strip().splitlines()
-        raise RuntimeError("Trivy scan failed" + (f": {detail[-1]}" if detail else "."))
-
-    try:
-        report = json.loads(process.stdout or "{}")
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Trivy returned invalid JSON: {exc}") from exc
-
-    return _trivy_findings(report, scan_path)
-
-
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
@@ -788,41 +596,37 @@ def _scan_file(file_path: Path, base_path: Path):
     # sanitization until a match is actually found. This avoids significant overhead
     # for the vast majority of files that have no vulnerabilities.
     rel_path_str = None
-    build_finding = _build_finding
 
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
             if not content:
                 return findings
-            count_newlines = content.count
-            find_newline = content.find
-            rfind_newline = content.rfind
 
-            for rule_id, severity, message, finditer in applicable_rules:
-                for match in finditer(content):
+            for rule in applicable_rules:
+                for match in rule["finditer"](content):
                     if rel_path_str is None:
                         rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
-                    line_num = count_newlines('\n', 0, start_idx) + 1
+                    line_num = content.count('\n', 0, start_idx) + 1
 
-                    snippet_start = rfind_newline('\n', 0, start_idx) + 1
-                    snippet_end = find_newline('\n', start_idx)
+                    snippet_start = content.rfind('\n', 0, start_idx) + 1
+                    snippet_end = content.find('\n', start_idx)
                     if snippet_end == -1:
                         snippet_end = len(content)
                     snippet = content[snippet_start:snippet_end].strip()[:120]
 
-                    findings.append(build_finding(
-                        "vibesec-rule",
-                        rule_id,
-                        severity,
-                        message,
-                        rel_path_str,
-                        line_num,
-                        snippet,
-                    ))
+                    findings.append({
+                        "rule_id": rule["id"],
+                        "severity": rule["severity"],
+                        "message": rule["message"],
+                        # SECURITY: Sanitize output to prevent Terminal Output Injection
+                        "file": rel_path_str,
+                        "line": line_num,
+                        "snippet": _sanitize_terminal_output(snippet),
+                    })
     except (OSError, PermissionError):
         pass
 
@@ -840,41 +644,30 @@ def _print_scan_results(findings, files_scanned):
     }
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
-    non_blocking = 0
     for f in findings:
-        if f.get("context", "app-code") not in NON_BLOCKING_CONTEXTS:
-            counts[f["severity"]] += 1
-        elif f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
-            non_blocking += 1
+        counts[f["severity"]] += 1
         icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule: {f['rule_id']}")
-        print(f"  Source: {f.get('source', 'vibesec-rule')} | Category: {f.get('category', 'misconfig')} | Context: {f.get('context', 'app-code')}")
         print(f"  {f['message']}")
         print(f"  Code: {f['snippet']}")
-        if f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
-            print("  Deploy gate: non-blocking context")
         print()
 
     print("─" * 60)
-    print(f"Scanned {files_scanned} files  |  Deploy blockers: "
+    print(f"Scanned {files_scanned} files  |  "
           f"🔴 {counts['CRITICAL']} critical  "
           f"🟠 {counts['HIGH']} high  "
           f"🟡 {counts['WARNING']} warnings  "
           f"🔵 {counts['INFO']} info")
-    if non_blocking:
-        print(f"Non-blocking findings in docs/tests/examples/fixtures: {non_blocking}")
 
-    if files_scanned == 0:
-        print("\n⚠️  No files were scanned. Are you in the right directory?")
-    elif counts["CRITICAL"] > 0:
+    if counts["CRITICAL"] > 0:
         print("\n❌ Critical issues found. Fix before deploying.")
     elif counts["HIGH"] > 0:
         print("\n⚠️  High-severity issues found. Review before deploying.")
     elif not findings:
         print("\n✅ No issues found in this scan.")
     else:
-        print("\n✅ No deploy-blocking critical or high issues found.")
+        print("\n✅ No critical or high-severity issues found.")
 
     if findings:
         print("\n💡 Run 'vibesec review' to get an AI prompt for fixing these issues.")
@@ -945,11 +738,6 @@ def main():
         nargs="?",
         default=".",
         help="Directory or file to scan (default: current directory)",
-    )
-    scan_parser.add_argument(
-        "--trivy",
-        action="store_true",
-        help="Also run Trivy filesystem scan for dependency, secret, and misconfiguration findings",
     )
 
     # review
