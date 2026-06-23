@@ -47,6 +47,7 @@ REPO_NAME="${REPO_ROOT##*/}"
 # from masking scan incompleteness — a successful strix run (exit 0) ignores
 # this flag because the scan itself produced a complete result set.
 INFRA_ERROR_DETECTED=0
+LAST_ATTEMPT_INFRA_ERROR=0
 ZERO_FINDINGS_REPORTED=0
 PR_FINDINGS_DECISION="not_applicable"
 CHANGED_FILES=()
@@ -1299,6 +1300,13 @@ frontend/postcss.config.mjs
 docker-compose.yml
 render.yaml
 VERSION
+scanner/cli/vibesec.py
+scanner/rules/authz.yml
+scanner/rules/firebase.yml
+scanner/rules/nextjs.yml
+scanner/rules/secrets.yml
+scanner/rules/stripe.yml
+scanner/rules/supabase.yml
 EOF
 	fi
 }
@@ -2172,6 +2180,7 @@ run_strix_once() {
 	if ! resolved_target_path="$(resolve_current_target_path "$TARGET_PATH")"; then
 		return 1
 	fi
+	LAST_ATTEMPT_INFRA_ERROR=0
 	local start_epoch
 	start_epoch="$(date +%s)"
 	local child_llm_api_key=""
@@ -2336,6 +2345,7 @@ PY
 	fi
 
 	if [ "$report_failure_signal" -eq 1 ] || has_detected_infrastructure_error; then
+		LAST_ATTEMPT_INFRA_ERROR=1
 		INFRA_ERROR_DETECTED=1
 		if [ "$rc" -eq 0 ] && provider_signal_fail_closed_enabled; then
 			echo "Strix run emitted provider infrastructure or failure-signal output; failing closed." >&2
@@ -3182,7 +3192,7 @@ run_current_target_scan() {
 	fi
 
 	local strict_primary_provider_fallback=0
-	if [ "$INFRA_ERROR_DETECTED" -eq 1 ] && provider_signal_fail_closed_enabled; then
+	if [ "$LAST_ATTEMPT_INFRA_ERROR" -eq 1 ] && provider_signal_fail_closed_enabled; then
 		if is_model_retryable_error "$PRIMARY_MODEL" && has_distinct_fallback_model_for_model "$PRIMARY_MODEL"; then
 			strict_primary_provider_fallback=1
 		else
@@ -3222,7 +3232,24 @@ run_current_target_scan() {
 	read -r -a FALLBACK_MODELS <<<"$FALLBACK_MODELS_RAW"
 
 	fallback_tried=0
-	for candidate_raw in "${FALLBACK_MODELS[@]}"; do
+	later_distinct_fallback_model_exists() {
+		local current_index="$1"
+		local current_model="$2"
+		local later_raw later_model
+
+		for later_raw in "${FALLBACK_MODELS[@]:$((current_index + 1))}"; do
+			later_model="$(normalize_model "$later_raw")"
+			if [ -z "$later_model" ] || [ "$later_model" = "$PRIMARY_MODEL" ] || [ "$later_model" = "$current_model" ]; then
+				continue
+			fi
+			return 0
+		done
+		return 1
+	}
+
+	local candidate_index
+	for candidate_index in "${!FALLBACK_MODELS[@]}"; do
+		candidate_raw="${FALLBACK_MODELS[$candidate_index]}"
 		candidate="$(normalize_model "$candidate_raw")"
 		if [ -z "$candidate" ] || [ "$candidate" = "$PRIMARY_MODEL" ]; then
 			if [ -n "$candidate" ]; then
@@ -3254,7 +3281,7 @@ run_current_target_scan() {
 		fi
 
 		local strict_fallback_provider_signal=0
-		if [ "$INFRA_ERROR_DETECTED" -eq 1 ] && provider_signal_fail_closed_enabled; then
+		if [ "$LAST_ATTEMPT_INFRA_ERROR" -eq 1 ] && provider_signal_fail_closed_enabled; then
 			strict_fallback_provider_signal=1
 		fi
 
@@ -3264,6 +3291,11 @@ run_current_target_scan() {
 
 		if evaluate_pull_request_findings; then
 			if [ "$strict_fallback_provider_signal" -eq 0 ]; then
+				if later_distinct_fallback_model_exists "$candidate_index" "$candidate"; then
+					if fail_reported_vulnerabilities_before_fallback_success; then
+						return 1
+					fi
+				fi
 				return 0
 			fi
 		fi

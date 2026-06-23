@@ -103,3 +103,50 @@ But its meaning should become "local security snapshot", not "regex scan plus Tr
 5. Deferred: add `--json <path>` only after the normalized object shape is stable.
 
 Skipped for now: sandbox scanning, HTML reports, cloud upload, custom CVE database, and live endpoint probing. Add them only after the local snapshot produces trustworthy deploy decisions.
+
+## Product Reframe: 2026-06-23
+
+VibeSec should become the smallest useful security operating loop for AI-built apps, not another scanner catalog. The product has to answer one question for a builder or reviewer: "Can this change ship, and what exact fix should I ask my AI coding tool to make if it cannot?"
+
+### Current Signals
+
+- The CLI now has a local deploy gate and Trivy-backed evidence, but the README still needs stronger trust signals for contributors.
+- The repository now has AI-assisted review and Strix security workflows, so the missing layer is a cheap baseline process that always runs without model credentials.
+- Existing findings show why context classification matters: docs, tests, examples, and scanner fixtures can contain intentionally vulnerable text and should stay visible without blocking deploys.
+- Sandbox scanning remains premature until the product has a runnable app contract.
+
+### Revised User Stories
+
+#### US5: Contributor Trust Signal
+
+As a contributor, I want one README badge path to the project knowledge base and one visible security-process badge so I can understand the project and see whether baseline security checks are healthy.
+
+Acceptance:
+- README links to DeepWiki for repository understanding.
+- README links to the baseline security workflow result.
+- The badge target is the canonical `ContextualWisdomLab/VibeSec` repository.
+
+#### US6: Baseline Security Process
+
+As a maintainer, I want a security workflow that does not depend on LLM credentials so every PR and protected-branch push gets a deterministic baseline check.
+
+Acceptance:
+- The workflow runs `vibesec scan .`.
+- The workflow runs Trivy FS for critical/high vulnerabilities, secrets, and misconfigurations.
+- Trivy SARIF is uploaded to code scanning when GitHub permissions allow it.
+- Scan outputs are retained briefly as artifacts for review.
+
+#### US7: Product Learning Loop
+
+As the product owner, I want each security-process failure to teach the next product primitive instead of becoming a one-off CI fix.
+
+Acceptance:
+- Failures are classified as local rule, Trivy evidence, Strix/AI evidence, or workflow infrastructure.
+- The next feature is chosen only after a failure repeats or blocks a real deploy decision.
+- Sandbox scanning waits for a documented runtime contract.
+
+### Product Decision
+
+Add a baseline `Security Process` workflow now. Keep Strix and OpenCode as higher-signal review layers, but do not make them the only security process because they can depend on model availability, credentials, and longer review cycles.
+
+Do not build a dashboard, sandbox runner, or new report format in this step. The next code feature should still be JSON output for `vibesec scan` because CI and product learning both need a stable machine-readable artifact.
