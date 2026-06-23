@@ -30,6 +30,16 @@ assert_equals() {
 	fi
 }
 
+assert_last_line_equals() {
+	local expected="$1"
+	local actual="$2"
+	local message="$3"
+	local last_line
+
+	last_line="$(printf '%s\n' "$actual" | tail -n 1)"
+	assert_equals "$expected" "$last_line" "$message"
+}
+
 assert_file_contains() {
 	local file_path="$1"
 	local needle="$2"
@@ -1049,7 +1059,10 @@ EOF
 	set -e
 
 	assert_equals "4" "$rc" "opencode approval gate rejects non-source-backed findings"
-	assert_equals "NO_CONCLUSION" "$gate_result" "non-source-backed finding rejection gate result"
+	assert_last_line_equals "NO_CONCLUSION" "$gate_result" "non-source-backed finding rejection gate result"
+	if ! printf '%s\n' "$gate_result" | grep -Fq "it will not approve without source-backed current-head review evidence"; then
+		record_failure "non-source-backed finding rejection explains missing source-backed evidence"
+	fi
 
 	rm -rf "$tmp_dir"
 }
