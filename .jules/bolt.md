@@ -16,3 +16,7 @@
 ## 2024-06-20 - Regex File Scanning Optimization
 **Learning:** Python's `for line in f:` combined with running multiple regex checks per line introduces huge interpreter overhead for file scanning utilities.
 **Action:** Use `.read()` and `.finditer(content)` for the whole file, which pushes the tight iteration loops down to the C-compiled regex engine. Recover line numbers with string `.count('\n')` only when a match is found to achieve massive performance gains (~20-30% reduction in scan time on large text corpuses).
+
+## 2024-06-22 - Optimizing JSON extraction from large text
+**Learning:** When extracting multiple JSON objects from a large text string in Python, avoid repeated string slicing (e.g., `text[index:]`) or manual byte-by-byte iteration (`index += 1`) within loops to prevent O(N^2) performance degradation.
+**Action:** Instead, use a `while` loop with `text.find('{', index)` and `json.JSONDecoder().raw_decode(text, index)`, advancing the index to the returned end position on success.
