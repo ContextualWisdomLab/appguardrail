@@ -1841,8 +1841,11 @@ if scan_target_root is not None:
     if candidate is not None:
         emit_repo_relative(candidate, candidate.relative_to(scan_target_root))
 
+candidate = try_normalize_within(repo_root, raw_location)
+if candidate is not None:
+    emit_repo_relative(candidate)
+
 emit_unique_repo_basename(raw_location)
-emit_repo_relative(normalize_within(repo_root, raw_location))
 PY
 		})" || return 1
 		if [ -z "$raw_location" ]; then
