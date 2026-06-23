@@ -304,7 +304,7 @@ gh api graphql \
 			| select(((.event // "") == "workflow_dispatch" and (.conclusion // "" | ascii_downcase) == "cancelled") | not)
 			| [
 			"workflow_run",
-			(if (.workflowName // "") != "" then .workflowName else "workflow run" end),
+			(if (.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix" then "Strix Security Scan/strix" elif (.workflowName // "") != "" then .workflowName else "workflow run" end),
 			(.conclusion // "unknown"),
 			(.url // ""),
 			((.databaseId // "") | tostring),
@@ -392,13 +392,21 @@ done <"$workflow_run_contexts"
 while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
 	if success_line="$(manual_success_for_label "$label")"; then
 		IFS=$'\t' read -r success_context success_url success_description <<<"$success_line"
+		if [[ "$success_context" == http://* || "$success_context" == https://* ]]; then
+			success_description="$success_url"
+			success_url="$success_context"
+			success_context="${label##*/}"
+		fi
+		superseded_details_url="${details_url:-"-"}"
+		superseded_run_id="${run_id:-"-"}"
+		superseded_check_run_id="${check_run_id:-"-"}"
 		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 			"$kind" \
 			"$label" \
 			"$conclusion" \
-			"$details_url" \
-			"$run_id" \
-			"$check_run_id" \
+			"$superseded_details_url" \
+			"$superseded_run_id" \
+			"$superseded_check_run_id" \
 			"$success_context" \
 			"$success_url" \
 			"$success_description" >>"$superseded_failed_contexts"
