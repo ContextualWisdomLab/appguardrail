@@ -121,14 +121,14 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "hardcoded-stripe-secret",
-        "pattern": re.compile(r'sk_(?:live|test)_[A-Za-z0-9]{24,}', re.MULTILINE),
+        "pattern": re.compile(r"sk_(?:live|test)_[A-Za-z0-9]{24,}", re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Hardcoded Stripe secret key detected. Rotate this key immediately. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
     },
     {
         "id": "hardcoded-openai-key",
-        "pattern": re.compile(r'sk-[A-Za-z0-9]{32,}', re.MULTILINE),
+        "pattern": re.compile(r"sk-[A-Za-z0-9]{32,}", re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Possible hardcoded OpenAI API key detected. [OWASP A07:2021 - Identification and Authentication Failures]",
         "extensions": None,
@@ -136,7 +136,7 @@ SCAN_RULES = [
     {
         "id": "next-public-secret",
         "pattern": re.compile(
-            r'NEXT_PUBLIC_(?:STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|API_SECRET)',
+            r"NEXT_PUBLIC_(?:STRIPE_SECRET|SUPABASE_SERVICE_ROLE|DATABASE|JWT_SECRET|NEXTAUTH_SECRET|API_SECRET)",
             re.IGNORECASE | re.MULTILINE,
         ),
         "severity": "CRITICAL",
@@ -145,14 +145,26 @@ SCAN_RULES = [
     },
     {
         "id": "supabase-service-role-client",
-        "pattern": re.compile(r'NEXT_PUBLIC_.*SERVICE_ROLE', re.IGNORECASE | re.MULTILINE),
+        "pattern": re.compile(
+            r"NEXT_PUBLIC_.*SERVICE_ROLE", re.IGNORECASE | re.MULTILINE
+        ),
         "severity": "CRITICAL",
         "message": "Supabase service role key exposed to the client via NEXT_PUBLIC_ prefix. [OWASP A05:2021 - Security Misconfiguration]",
-        "extensions": [".ts", ".tsx", ".js", ".jsx", ".env", ".env.local", ".env.production"],
+        "extensions": [
+            ".ts",
+            ".tsx",
+            ".js",
+            ".jsx",
+            ".env",
+            ".env.local",
+            ".env.production",
+        ],
     },
     {
         "id": "firebase-allow-all",
-        "pattern": re.compile(r'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true', re.MULTILINE),
+        "pattern": re.compile(
+            r"allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true", re.MULTILINE
+        ),
         "severity": "CRITICAL",
         "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".rules"],
@@ -160,7 +172,8 @@ SCAN_RULES = [
     {
         "id": "todo-skip-auth",
         "pattern": re.compile(
-            r'(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)', re.MULTILINE
+            r"(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)",
+            re.MULTILINE,
         ),
         "severity": "HIGH",
         "message": "Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]",
@@ -176,7 +189,8 @@ SCAN_RULES = [
     {
         "id": "hardcoded-database-url",
         "pattern": re.compile(
-            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+', re.MULTILINE
+            r'(?i)(?:DATABASE_URL|POSTGRES_URL)\s*[=:]\s*["\x27](?:postgres|postgresql|mysql)://\S+',
+            re.MULTILINE,
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded database connection string detected. [OWASP A07:2021 - Identification and Authentication Failures]",
@@ -185,7 +199,8 @@ SCAN_RULES = [
     {
         "id": "hardcoded-jwt-secret",
         "pattern": re.compile(
-            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]', re.MULTILINE
+            r'(?i)(?:JWT_SECRET|NEXTAUTH_SECRET)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
+            re.MULTILINE,
         ),
         "severity": "CRITICAL",
         "message": "Hardcoded JWT/NextAuth secret detected. [OWASP A02:2021 - Cryptographic Failures]",
@@ -193,7 +208,9 @@ SCAN_RULES = [
     },
     {
         "id": "stripe-webhook-no-verify",
-        "pattern": re.compile(r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)', re.MULTILINE),
+        "pattern": re.compile(
+            r'constructEvent\s*\([^)]*(?:undefined|""|\'\')\s*\)', re.MULTILINE
+        ),
         "severity": "CRITICAL",
         "message": "Stripe constructEvent called with empty/undefined webhook secret. [OWASP A08:2021 - Software and Data Integrity Failures]",
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
@@ -201,7 +218,8 @@ SCAN_RULES = [
     {
         "id": "mock-session-in-handler",
         "pattern": re.compile(
-            r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]', re.MULTILINE
+            r'const\s+(?:session|user)\s*=\s*\{\s*(?:user\s*:\s*)?\{\s*id\s*:\s*["\x27]',
+            re.MULTILINE,
         ),
         "severity": "HIGH",
         "message": "Mock or hardcoded session/user object detected in route handler. [OWASP A01:2021 - Broken Access Control]",
@@ -209,14 +227,14 @@ SCAN_RULES = [
     },
     {
         "id": "dangerous-eval",
-        "pattern": re.compile(r'\beval\s*\(', re.MULTILINE),
+        "pattern": re.compile(r"\beval\s*\(", re.MULTILINE),
         "severity": "CRITICAL",
         "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
         "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
     },
     {
         "id": "react-dangerously-set-inner-html",
-        "pattern": re.compile(r'dangerouslySetInnerHTML\s*=', re.MULTILINE),
+        "pattern": re.compile(r"dangerouslySetInnerHTML\s*=", re.MULTILINE),
         "severity": "HIGH",
         "message": "Use of dangerouslySetInnerHTML detected. This can lead to Cross-Site Scripting (XSS) if input is not sanitized. [OWASP A03:2021 - Injection]",
         "extensions": [".jsx", ".tsx"],
@@ -224,7 +242,8 @@ SCAN_RULES = [
     {
         "id": "sql-injection-risk",
         "pattern": re.compile(
-            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)', re.MULTILINE
+            r'(?i)(?:query|execute|raw)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|["\'].*?["\']\s*\+\s*[a-zA-Z0-9_]+)',
+            re.MULTILINE,
         ),
         "severity": "CRITICAL",
         "message": "Potential SQL injection detected: string concatenation or template literal in database query. [OWASP A03:2021 - Injection]",
@@ -242,7 +261,7 @@ SCAN_RULES = [
     {
         "id": "python-command-injection",
         "pattern": re.compile(
-            r'(?i)(?:os\.system|subprocess\.(?:Popen|run|call|check_call|check_output))\s*\([^)]*shell\s*=\s*True'
+            r"(?i)(?:os\.system|subprocess\.(?:Popen|run|call|check_call|check_output))\s*\([^)]*shell\s*=\s*True"
         ),
         "severity": "CRITICAL",
         "message": "Potential Command Injection detected: shell=True used in Python subprocess/os command. [OWASP A03:2021 - Injection]",
@@ -269,14 +288,39 @@ SCAN_RULES = [
 ]
 
 SKIP_DIRS = {
-    ".git", "node_modules", ".next", "dist", "build", ".cache",
-    "__pycache__", ".venv", "venv", "env", ".env", "coverage",
+    ".git",
+    "node_modules",
+    ".next",
+    "dist",
+    "build",
+    ".cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "coverage",
 }
 
 SKIP_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2",
-    ".ttf", ".eot", ".mp4", ".mp3", ".zip", ".tar", ".gz", ".lock",
-    ".map", ".log",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".mp4",
+    ".mp3",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".lock",
+    ".map",
+    ".log",
 }
 
 NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
@@ -338,6 +382,7 @@ For each issue found, provide:
 # Command implementations
 # ---------------------------------------------------------------------------
 
+
 def cmd_init(args):
     """Install security rules into the project."""
     tool = getattr(args, "tool", "cursor") or "cursor"
@@ -366,8 +411,11 @@ def cmd_init(args):
     }
 
     if tool not in tool_configs:
-        print(f"Unknown tool: {tool}")
-        print(f"Supported tools: {', '.join(tool_configs.keys())}")
+        print(f"❌ Error: Unknown tool '{tool}'", file=sys.stderr)
+        print(
+            f"💡 Hint: Supported tools are {', '.join(tool_configs.keys())}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     config = tool_configs[tool]
@@ -376,7 +424,10 @@ def cmd_init(args):
 
         # SECURITY: Prevent Arbitrary File Write via symlink path traversal
         if not target_file.resolve().is_relative_to(project_root):
-            print(f"Error: Target path {target_file} escapes the project root. Aborting.", file=sys.stderr)
+            print(
+                f"❌ Error: Target path {target_file} escapes the project root. Aborting.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -390,7 +441,9 @@ def cmd_init(args):
                     target_file.write_text(existing + "\n\n" + config["content"])
                     installed.append(f"{config['path']} (appended)")
                 else:
-                    print(f"{config['path']} already contains {config['append_marker']} rules — skipping.")
+                    print(
+                        f"{config['path']} already contains {config['append_marker']} rules — skipping."
+                    )
             else:
                 target_file.write_text(config["content"])
                 installed.append(str(config["path"]))
@@ -402,7 +455,10 @@ def cmd_init(args):
 
     # SECURITY: Prevent Arbitrary File Write via symlink path traversal
     if not checklist_file.resolve().is_relative_to(project_root):
-        print(f"Error: Checklist path {checklist_file} escapes the project root. Aborting.", file=sys.stderr)
+        print(
+            f"❌ Error: Checklist path {checklist_file} escapes the project root. Aborting.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if checklist_file.is_symlink():
@@ -441,7 +497,11 @@ def cmd_scan(args):
     run_trivy = getattr(args, "trivy", False)
 
     if not scan_arg.exists():
-        print(f"Error: Path does not exist: {scan_path}")
+        print(f"❌ Error: Path does not exist: {scan_path}", file=sys.stderr)
+        print(
+            "💡 Hint: Check if the path is correct or if you are in the right directory.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if scan_arg.is_symlink():
@@ -468,7 +528,7 @@ def cmd_scan(args):
         try:
             findings.extend(_run_trivy_fs(scan_path))
         except RuntimeError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
+            print(f"❌ Error: {exc}", file=sys.stderr)
             return 1
 
     _print_scan_results(findings, files_scanned)
@@ -483,13 +543,20 @@ def cmd_hook(args):
     git_dir = project_root / ".git"
 
     if not git_dir.is_dir():
-        print("Error: Not a git repository. Run 'git init' first.", file=sys.stderr)
+        print("❌ Error: Not a git repository.", file=sys.stderr)
+        print(
+            "💡 Hint: Run 'git init' first to initialize a git repository.",
+            file=sys.stderr,
+        )
         return 1
 
     hooks_dir = git_dir / "hooks"
     # SECURITY: Prevent Arbitrary File Write via symlink path traversal
     if not hooks_dir.resolve().is_relative_to(project_root):
-        print(f"Error: Target path {hooks_dir} escapes the project root. Aborting.", file=sys.stderr)
+        print(
+            f"❌ Error: Target path {hooks_dir} escapes the project root. Aborting.",
+            file=sys.stderr,
+        )
         return 1
 
     hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -516,8 +583,12 @@ echo "✅ VibeSec scan passed."
     pre_commit_file.write_text(hook_content)
     pre_commit_file.chmod(pre_commit_file.stat().st_mode | stat.S_IEXEC)
 
-    print("\n✅ VibeSec pre-commit hook installed successfully at .git/hooks/pre-commit!\n")
-    print("This will run 'vibesec scan .' before every commit and block commits if vulnerabilities are found.")
+    print(
+        "\n✅ VibeSec pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
+    )
+    print(
+        "This will run 'vibesec scan .' before every commit and block commits if vulnerabilities are found."
+    )
     return 0
 
 
@@ -525,6 +596,7 @@ echo "✅ VibeSec scan passed."
 # comprehensions and pre-extract the finditer method used in the tight loop.
 _RULES_CACHE = {}
 _LAST_SCAN_RULES_ID = None
+
 
 def _get_applicable_rules(ext: str):
     global _LAST_SCAN_RULES_ID, _RULES_CACHE
@@ -564,7 +636,10 @@ def _collect_files(base_path: Path):
                         if entry.is_symlink():
                             continue
                         if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                            if (
+                                entry.name not in SKIP_DIRS
+                                and not entry.name.startswith(".")
+                            ):
                                 dirs.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             _, ext = os.path.splitext(entry.name)
@@ -584,7 +659,7 @@ def _sanitize_terminal_output(text: str) -> str:
     """
     if not isinstance(text, str):
         return text
-    return "".join(c if c.isprintable() or c == '\t' else repr(c)[1:-1] for c in text)
+    return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
 def _finding_context(file_path: str, snippet: str = "") -> str:
@@ -610,7 +685,10 @@ def _finding_category(rule_id: str) -> str:
     rule = (rule_id or "").lower()
     if "cve-" in rule or "vulnerability" in rule:
         return "dependency"
-    if any(token in rule for token in ("secret", "jwt", "password", "database-url", "openai")):
+    if any(
+        token in rule
+        for token in ("secret", "jwt", "password", "database-url", "openai")
+    ):
         return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
@@ -627,7 +705,9 @@ def _confidence(rule_id: str) -> str:
     return "medium" if "todo" in (rule_id or "").lower() else "high"
 
 
-def _build_finding(source, rule_id, severity, message, file, line, snippet, category=None):
+def _build_finding(
+    source, rule_id, severity, message, file, line, snippet, category=None
+):
     context = _finding_context(file, snippet)
     category = category or _finding_category(rule_id)
     return {
@@ -684,44 +764,52 @@ def _trivy_target(target: str, base_path: Path) -> str:
 def _trivy_findings(report: dict, base_path: Path):
     findings = []
     for result in report.get("Results") or []:
-        target = _sanitize_terminal_output(_trivy_target(result.get("Target", ""), base_path))
+        target = _sanitize_terminal_output(
+            _trivy_target(result.get("Target", ""), base_path)
+        )
 
         for vuln in result.get("Vulnerabilities") or []:
             fixed = vuln.get("FixedVersion") or "no fixed version reported"
-            findings.append(_build_finding(
-                "trivy",
-                f"trivy:{vuln.get('VulnerabilityID', 'vulnerability')}",
-                _trivy_severity(vuln.get("Severity")),
-                f"Trivy vulnerability in {vuln.get('PkgName', 'package')}: {vuln.get('Title') or vuln.get('VulnerabilityID', 'unknown vulnerability')}",
-                target,
-                1,
-                f"{vuln.get('PkgName', 'package')} {vuln.get('InstalledVersion', '')} -> {fixed}".strip(),
-                category="dependency",
-            ))
+            findings.append(
+                _build_finding(
+                    "trivy",
+                    f"trivy:{vuln.get('VulnerabilityID', 'vulnerability')}",
+                    _trivy_severity(vuln.get("Severity")),
+                    f"Trivy vulnerability in {vuln.get('PkgName', 'package')}: {vuln.get('Title') or vuln.get('VulnerabilityID', 'unknown vulnerability')}",
+                    target,
+                    1,
+                    f"{vuln.get('PkgName', 'package')} {vuln.get('InstalledVersion', '')} -> {fixed}".strip(),
+                    category="dependency",
+                )
+            )
 
         for misconfig in result.get("Misconfigurations") or []:
-            findings.append(_build_finding(
-                "trivy",
-                f"trivy:{misconfig.get('ID', 'misconfiguration')}",
-                _trivy_severity(misconfig.get("Severity")),
-                f"Trivy misconfiguration: {misconfig.get('Title') or misconfig.get('Message') or misconfig.get('ID', 'misconfiguration')}",
-                target,
-                _trivy_line(misconfig),
-                misconfig.get("Message") or misconfig.get("Description") or "",
-                category="misconfig",
-            ))
+            findings.append(
+                _build_finding(
+                    "trivy",
+                    f"trivy:{misconfig.get('ID', 'misconfiguration')}",
+                    _trivy_severity(misconfig.get("Severity")),
+                    f"Trivy misconfiguration: {misconfig.get('Title') or misconfig.get('Message') or misconfig.get('ID', 'misconfiguration')}",
+                    target,
+                    _trivy_line(misconfig),
+                    misconfig.get("Message") or misconfig.get("Description") or "",
+                    category="misconfig",
+                )
+            )
 
         for secret in result.get("Secrets") or []:
-            findings.append(_build_finding(
-                "trivy",
-                f"trivy:{secret.get('RuleID', 'secret')}",
-                _trivy_severity(secret.get("Severity")),
-                f"Trivy secret finding: {secret.get('Title') or secret.get('Category') or secret.get('RuleID', 'secret')}",
-                target,
-                _trivy_line(secret),
-                "Trivy secret scanner matched this line; value suppressed.",
-                category="secrets",
-            ))
+            findings.append(
+                _build_finding(
+                    "trivy",
+                    f"trivy:{secret.get('RuleID', 'secret')}",
+                    _trivy_severity(secret.get("Severity")),
+                    f"Trivy secret finding: {secret.get('Title') or secret.get('Category') or secret.get('RuleID', 'secret')}",
+                    target,
+                    _trivy_line(secret),
+                    "Trivy secret scanner matched this line; value suppressed.",
+                    category="secrets",
+                )
+            )
 
     return findings
 
@@ -729,7 +817,9 @@ def _trivy_findings(report: dict, base_path: Path):
 def _run_trivy_fs(scan_path: Path):
     trivy = shutil.which("trivy")
     if not trivy:
-        raise RuntimeError("trivy executable not found. Install Trivy or run without --trivy.")
+        raise RuntimeError(
+            "trivy executable not found. Install Trivy or run without --trivy."
+        )
 
     process = subprocess.run(
         [
@@ -803,31 +893,38 @@ def _scan_file(file_path: Path, base_path: Path):
             for rule_id, severity, message, finditer in applicable_rules:
                 for match in finditer(content):
                     if rel_path_str is None:
-                        rel_path = file_path.relative_to(base_path) if base_path.is_dir() else file_path
+                        rel_path = (
+                            file_path.relative_to(base_path)
+                            if base_path.is_dir()
+                            else file_path
+                        )
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
-                    line_num = count_newlines('\n', 0, start_idx) + 1
+                    line_num = count_newlines("\n", 0, start_idx) + 1
 
-                    snippet_start = rfind_newline('\n', 0, start_idx) + 1
-                    snippet_end = find_newline('\n', start_idx)
+                    snippet_start = rfind_newline("\n", 0, start_idx) + 1
+                    snippet_end = find_newline("\n", start_idx)
                     if snippet_end == -1:
                         snippet_end = len(content)
                     snippet = content[snippet_start:snippet_end].strip()[:120]
 
-                    findings.append(build_finding(
-                        "vibesec-rule",
-                        rule_id,
-                        severity,
-                        message,
-                        rel_path_str,
-                        line_num,
-                        snippet,
-                    ))
+                    findings.append(
+                        build_finding(
+                            "vibesec-rule",
+                            rule_id,
+                            severity,
+                            message,
+                            rel_path_str,
+                            line_num,
+                            snippet,
+                        )
+                    )
     except (OSError, PermissionError):
         pass
 
     return findings
+
 
 def _print_scan_results(findings, files_scanned):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
@@ -850,7 +947,9 @@ def _print_scan_results(findings, files_scanned):
         icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule:    {f['rule_id']}")
-        print(f"  Details: {f.get('source', 'vibesec-rule')} | {f.get('category', 'misconfig')} | {f.get('context', 'app-code')}")
+        print(
+            f"  Details: {f.get('source', 'vibesec-rule')} | {f.get('category', 'misconfig')} | {f.get('context', 'app-code')}"
+        )
         print(f"  Message: {f['message']}")
         print(f"  Code:    {f['snippet']}")
         if f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
@@ -864,11 +963,13 @@ def _print_scan_results(findings, files_scanned):
     warnings_word = "warning" if counts["WARNING"] == 1 else "warnings"
     info_word = "info"
 
-    print(f"Scanned {files_scanned} {files_word}  |  Deploy blockers: "
-          f"🔴 {counts['CRITICAL']} {critical_word}  "
-          f"🟠 {counts['HIGH']} {high_word}  "
-          f"🟡 {counts['WARNING']} {warnings_word}  "
-          f"🔵 {counts['INFO']} {info_word}")
+    print(
+        f"Scanned {files_scanned} {files_word}  |  Deploy blockers: "
+        f"🔴 {counts['CRITICAL']} {critical_word}  "
+        f"🟠 {counts['HIGH']} {high_word}  "
+        f"🟡 {counts['WARNING']} {warnings_word}  "
+        f"🔵 {counts['INFO']} {info_word}"
+    )
     if non_blocking:
         print(f"Non-blocking findings in docs/tests/examples/fixtures: {non_blocking}")
 
@@ -923,17 +1024,22 @@ def cmd_review(args):
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         prog="vibesec",
         description="Security guardrails for vibe-coded apps",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
 
     subparsers = parser.add_subparsers(dest="command")
 
     # init
-    init_parser = subparsers.add_parser("init", help="Install security rules into your project")
+    init_parser = subparsers.add_parser(
+        "init", help="Install security rules into your project"
+    )
     init_parser.add_argument(
         "--tool",
         choices=["cursor", "claude-code", "windsurf", "lovable"],
@@ -946,7 +1052,9 @@ def main():
     )
 
     # scan
-    scan_parser = subparsers.add_parser("scan", help="Scan a directory for security issues")
+    scan_parser = subparsers.add_parser(
+        "scan", help="Scan a directory for security issues"
+    )
     scan_parser.add_argument(
         "path",
         nargs="?",
@@ -964,12 +1072,15 @@ def main():
         "review", help="Generate an AI security review prompt"
     )
     review_parser.add_argument("--stack", help="Tech stack (e.g. nextjs)")
-    review_parser.add_argument("--db", help="Database/backend (e.g. supabase, firebase)")
+    review_parser.add_argument(
+        "--db", help="Database/backend (e.g. supabase, firebase)"
+    )
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # hook
-    hook_parser = subparsers.add_parser("hook", help="Install a pre-commit hook to block commits with vulnerabilities")
-
+    hook_parser = subparsers.add_parser(
+        "hook", help="Install a pre-commit hook to block commits with vulnerabilities"
+    )
 
     args = parser.parse_args()
 
