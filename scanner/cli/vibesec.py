@@ -283,6 +283,7 @@ SKIP_DIRS = {
 SKIP_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2",
     ".ttf", ".eot", ".mp4", ".mp3", ".zip", ".tar", ".gz", ".lock",
+    ".map", ".log",
 }
 
 NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
@@ -865,11 +866,17 @@ def _print_scan_results(findings, files_scanned):
         print()
 
     print("─" * 60)
-    print(f"Scanned {files_scanned} files  |  Deploy blockers: "
-          f"🔴 {counts['CRITICAL']} critical  "
-          f"🟠 {counts['HIGH']} high  "
-          f"🟡 {counts['WARNING']} warnings  "
-          f"🔵 {counts['INFO']} info")
+    files_word = "file" if files_scanned == 1 else "files"
+    critical_word = "critical"
+    high_word = "high"
+    warnings_word = "warning" if counts["WARNING"] == 1 else "warnings"
+    info_word = "info"
+
+    print(f"Scanned {files_scanned} {files_word}  |  Deploy blockers: "
+          f"🔴 {counts['CRITICAL']} {critical_word}  "
+          f"🟠 {counts['HIGH']} {high_word}  "
+          f"🟡 {counts['WARNING']} {warnings_word}  "
+          f"🔵 {counts['INFO']} {info_word}")
     if non_blocking:
         print(f"Non-blocking findings in docs/tests/examples/fixtures: {non_blocking}")
 

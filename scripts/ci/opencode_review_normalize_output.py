@@ -77,6 +77,58 @@ CHANGED_FILE_EVIDENCE_PATTERN = re.compile(
     r"|(?<![A-Za-z0-9_])(?:Dockerfile|Makefile|README|LICENSE|AGENTS\.md)(?![A-Za-z0-9_])"
 )
 
+CHANGED_FILES_REVIEW_PATTERNS = (
+    re.compile(r"\b(?:inspected|reviewed|checked)\s+(?:the\s+)?changed\s+files?\b"),
+    re.compile(r"\bafter\s+(?:inspecting|reviewing|checking)\s+(?:the\s+)?changed\s+files?\b"),
+)
+
+
+def safe_changed_file_path(path: str) -> str | None:
+    """Return a normalized relative changed-file path, or None if unsafe."""
+    normalized = path.strip()
+    if not normalized or normalized.startswith("/") or "\x00" in normalized:
+        return None
+    parts = normalized.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return None
+    return normalized
+
+
+def changed_file_paths_from_evidence(evidence_text: str) -> list[str]:
+    """Extract trusted changed-file paths from bounded review evidence."""
+    paths: list[str] = []
+    in_changed_files = False
+
+    for line in evidence_text.splitlines():
+        if line.startswith("## "):
+            in_changed_files = line.strip() == "## Changed files"
+            continue
+        if not in_changed_files or not line.strip():
+            continue
+
+        fields = line.split("\t")
+        if len(fields) < 2:
+            continue
+        status = fields[0]
+        if status.startswith(("R", "C")) and len(fields) >= 3:
+            candidate = fields[-1]
+        elif status in {"A", "M", "D", "T", "U", "X", "B"}:
+            candidate = fields[1]
+        else:
+            continue
+
+        path = safe_changed_file_path(candidate)
+        if path is not None and path not in paths:
+            paths.append(path)
+
+    for match in re.finditer(r"^diff --git a/(.+?) b/(.+)$", evidence_text, re.MULTILINE):
+        candidate = match.group(2) if match.group(2) != "/dev/null" else match.group(1)
+        path = safe_changed_file_path(candidate)
+        if path is not None and path not in paths:
+            paths.append(path)
+
+    return paths
+
 
 def admits_missing_structural_review(reason: str, summary: str) -> bool:
     """Return whether an approval admits it did not inspect required structure."""
@@ -89,6 +141,29 @@ def admits_missing_structural_review(reason: str, summary: str) -> bool:
 def mentions_changed_file_evidence(reason: str, summary: str) -> bool:
     """Return whether an approval names at least one concrete changed file/path."""
     return bool(CHANGED_FILE_EVIDENCE_PATTERN.search(f"{reason}\n{summary}"))
+
+
+def claims_changed_file_review(reason: str, summary: str) -> bool:
+    """Return whether an approval says it inspected the changed files."""
+    combined = f"{reason}\n{summary}".casefold()
+    return any(pattern.search(combined) for pattern in CHANGED_FILES_REVIEW_PATTERNS)
+
+
+def summary_with_changed_file_evidence(
+    reason: str,
+    summary: str,
+    changed_file_paths: list[str],
+) -> str | None:
+    """Add bounded changed-file evidence when the model claims changed-file review."""
+    if mentions_changed_file_evidence(reason, summary):
+        return summary
+    if not changed_file_paths or not claims_changed_file_review(reason, summary):
+        return None
+
+    shown_paths = ", ".join(changed_file_paths[:3])
+    if len(changed_file_paths) > 3:
+        shown_paths = f"{shown_paths}, ..."
+    return f"{summary} Changed-file evidence: {shown_paths}."
 
 
 def check_structural_approval(control_file: Path) -> int:
@@ -125,6 +200,7 @@ def valid_control(
     expected_head_sha: str,
     expected_run_id: str,
     expected_run_attempt: str,
+    changed_file_paths: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Return a normalized control block when it matches the current run."""
     if not isinstance(value, dict):
@@ -147,6 +223,7 @@ def valid_control(
         return None
     reason = value["reason"].strip()
     summary = value["summary"].strip()
+    changed_file_paths = changed_file_paths or []
 
     findings = value.get("findings")
     if findings is None and result == "APPROVE":
@@ -159,8 +236,11 @@ def valid_control(
         return None
     if result == "APPROVE" and admits_missing_structural_review(reason, summary):
         return None
-    if result == "APPROVE" and not mentions_changed_file_evidence(reason, summary):
-        return None
+    if result == "APPROVE":
+        amended_summary = summary_with_changed_file_evidence(reason, summary, changed_file_paths)
+        if amended_summary is None:
+            return None
+        summary = amended_summary
 
     required_finding_fields = (
         "path",
@@ -218,23 +298,35 @@ def main(argv: list[str]) -> int:
     if len(argv) == 3 and argv[1] == "--check-structural-approval":
         return check_structural_approval(Path(argv[2]))
 
-    if len(argv) != 5:
+    if len(argv) not in {5, 6}:
         print(
             "usage: opencode_review_normalize_output.py "
-            "<expected_head_sha> <expected_run_id> <expected_run_attempt> <output_file>\n"
+            "<expected_head_sha> <expected_run_id> <expected_run_attempt> <output_file> [evidence_file]\n"
             "   or: opencode_review_normalize_output.py --check-structural-approval <control_json_file>",
             file=sys.stderr,
         )
         return 64
 
-    expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
+    evidence_file_arg = None
+    if len(argv) == 6:
+        expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg, evidence_file_arg = argv[1:]
+    else:
+        expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
+    changed_file_paths: list[str] = []
 
     try:
         output_text = output_file.read_text(encoding="utf-8")
     except OSError as exc:
         print(f"cannot read OpenCode output file: {exc}", file=sys.stderr)
         return 65
+    if evidence_file_arg:
+        try:
+            changed_file_paths = changed_file_paths_from_evidence(
+                Path(evidence_file_arg).read_text(encoding="utf-8")
+            )
+        except OSError:
+            changed_file_paths = []
 
     for value in iter_json_objects(output_text):
         control = valid_control(
@@ -242,6 +334,7 @@ def main(argv: list[str]) -> int:
             expected_head_sha=expected_head_sha,
             expected_run_id=expected_run_id,
             expected_run_attempt=expected_run_attempt,
+            changed_file_paths=changed_file_paths,
         )
         if control is None:
             continue

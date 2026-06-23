@@ -419,7 +419,7 @@ def test_print_scan_results_warnings_only(capsys):
     captured = capsys.readouterr()
 
     assert "[🟡 WARNING] utils.ts:1" in captured.out
-    assert "🟡 1 warnings" in captured.out
+    assert "🟡 1 warning" in captured.out
     assert "✅ No deploy-blocking critical or high issues found." in captured.out
 
 
