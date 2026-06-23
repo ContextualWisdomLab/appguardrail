@@ -1,3 +1,5 @@
+import argparse
+
 import pytest
 import sys
 import os
@@ -5,6 +7,7 @@ import json
 from unittest.mock import patch, MagicMock
 
 from scripts.ci.pr_review_merge_scheduler import (
+    _parse_pr_number,
     split_repo,
     run,
     gh_graphql,
@@ -283,3 +286,58 @@ def test_inspect_pr_auto_merge_already_enabled():
     pr_base = {"number": 1, "headRepository": {"nameWithOwner": "owner/repo"}, "baseRefName": "main", "headRefOid": "abc"}
     pr = {**pr_base, "reviews": {"nodes": [{"author": {"login": "opencode"}, "state": "APPROVED", "commit": {"oid": "abc"}}]}, "autoMergeRequest": {"enabledBy": "someone"}}
     assert inspect_pr("owner/repo", pr, dry_run=True, trigger_reviews=False, enable_auto_merge_flag=True, workflow="w", base_branch="main").action == "wait"
+
+
+def test_parse_pr_number_accepts_int_and_ascii_digits():
+    assert _parse_pr_number(17) == "17"
+    assert _parse_pr_number("98") == "98"
+    assert _parse_pr_number("001") == "1"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        True,
+        False,
+        0,
+        -1,
+        1.5,
+        "0",
+        "-1",
+        "1.5",
+        "--help",
+        "１２",
+        None,
+    ],
+)
+def test_parse_pr_number_rejects_unsafe_values(raw):
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        _parse_pr_number(raw)
+
+
+def test_enable_auto_merge_validates_pr_number_before_dry_run():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        enable_auto_merge("owner/repo", {"number": "--help", "headRefOid": "abc"}, dry_run=True)
+
+
+def test_dispatch_review_validates_pr_number_before_dry_run():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        dispatch_opencode_review(
+            "owner/repo",
+            "OpenCode Review",
+            {"number": "--help"},
+            dry_run=True,
+        )
+
+
+def test_inspect_pr_validates_pr_number_before_decision():
+    with pytest.raises(ValueError, match="Invalid PR number"):
+        inspect_pr(
+            "owner/repo",
+            {"number": "--help"},
+            dry_run=True,
+            trigger_reviews=False,
+            enable_auto_merge_flag=False,
+            workflow="OpenCode Review",
+            base_branch="develop",
+        )
