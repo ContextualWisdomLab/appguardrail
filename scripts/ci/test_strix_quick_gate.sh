@@ -88,6 +88,8 @@ assert_strix_pr_scope_includes_deployment_context() {
 	assert_file_contains "$GATE_SCRIPT" "frontend/package-lock.json" "strix gate includes frontend dependency lock context"
 	assert_file_contains "$GATE_SCRIPT" "frontend/postcss.config.mjs" "strix gate includes frontend build config context"
 	assert_file_contains "$GATE_SCRIPT" "VERSION" "strix gate includes release version context for workflow scans"
+	assert_file_contains "$GATE_SCRIPT" "scanner/cli/vibesec.py" "strix gate includes the local VibeSec scanner CLI for security-process workflow scans"
+	assert_file_contains "$GATE_SCRIPT" "scanner/rules/secrets.yml" "strix gate includes VibeSec scanner rule context for security-process workflow scans"
 	assert_file_contains "$GATE_SCRIPT" "scripts/ci/test_*.sh" "strix gate excludes large CI self-test harnesses from PR scan targets"
 }
 
@@ -355,8 +357,8 @@ assert_opencode_review_uses_codegraph_and_gpt5_fallback() {
 	assert_file_contains "$workflow_file" 'cd "$OPENCODE_REVIEW_WORKDIR"' "opencode review runs from the isolated OpenCode workspace"
 	assert_file_contains "$workflow_file" "failed-check-evidence.md" "opencode review copies full failed-check evidence into the isolated workspace"
 	assert_file_contains "$workflow_file" "Checkout trusted review workflow" "opencode review executes trusted workflow scripts from the base checkout"
-	assert_file_contains "$workflow_file" "Checkout trusted review workflow for manual PR review" "opencode review checks out explicit base SHA for manual PR review reruns"
-	assert_file_contains "$workflow_file" 'ref: ${{ github.event.inputs.pr_base_sha }}' "opencode manual review checks out the trusted base workflow instead of the PR head"
+	assert_file_contains "$workflow_file" "Checkout trusted review workflow for manual PR review" "opencode review checks out the dispatched workflow SHA for manual PR review reruns"
+	assert_file_contains "$workflow_file" 'ref: ${{ github.sha }}' "opencode manual review reruns use the dispatched workflow SHA while preserving base SHA for diff evidence"
 	assert_file_contains "$workflow_file" "Materialize pull request head for OpenCode review data" "opencode review materializes PR-head source as read-only review data"
 	assert_file_contains "$workflow_file" 'git worktree add --detach "$OPENCODE_SOURCE_WORKDIR" "$PR_HEAD_SHA"' "opencode review materializes the PR head without actions/checkout credentials"
 	assert_file_contains "$workflow_file" 'cd "$OPENCODE_SOURCE_WORKDIR"' "opencode CodeGraph indexing runs against the PR-head source worktree"
@@ -490,6 +492,9 @@ assert_opencode_review_uses_codegraph_and_gpt5_fallback() {
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" 'select((.event // "") == "pull_request_target" or (.event // "") == "workflow_dispatch")' "failed-check evidence appends PR Strix workflow runs and manual PR evidence reruns"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" 'select((.headSha // "") == env.HEAD_SHA)' "failed-check evidence only appends current-head workflow runs"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" 'select((.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix")' "failed-check evidence only appends Strix workflow runs"
+	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" '"Strix Security Scan/strix"' "failed-check evidence normalizes supplemental Strix workflow-run labels to the Strix check context"
+	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Manual workflow_dispatch Strix evidence passed via run" "failed-check evidence treats successful same-head manual Strix workflow runs as superseding stale failed Strix checks"
+	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Manual workflow_dispatch OpenCode evidence passed via run" "failed-check evidence treats successful same-head manual OpenCode workflow runs as superseding stale failed OpenCode bridge checks"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" 'group_by(.__context_key)' "failed-check evidence groups manual Strix statuses by context before accepting superseding success"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" 'map(last)' "failed-check evidence accepts only the latest status per context"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" 'awk -F '"'"'\t'"'"' -v run_id="$run_id"' "failed-check evidence avoids duplicate workflow-run evidence when statusCheckRollup already includes the run"
@@ -551,14 +556,24 @@ assert_opencode_review_uses_codegraph_and_gpt5_fallback() {
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Create one OpenCode finding per Strix model vulnerability report" "failed-check evidence contract requires one finding per Strix model report"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "model name, title, severity, endpoint, and Code Locations/path:line evidence" "failed-check evidence collector names required Strix report fields"
 	assert_file_contains "$workflow_file" "If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed." "opencode review prompt forces active failed-check diagnosis"
-	assert_file_contains "$workflow_file" "A successful same-head manual workflow_dispatch Strix run may supersede a stale failed PR statusCheckRollup Strix context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL" "opencode review prompt allows only explicit same-head manual Strix evidence to supersede stale rollup failures"
+	assert_file_contains "$workflow_file" "A successful same-head manual workflow_dispatch Strix run, a successful same-head manual workflow_dispatch OpenCode run, or the current same-head manual OpenCode workflow_dispatch review run may supersede a stale failed PR statusCheckRollup context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL" "opencode review prompt allows only explicit same-head manual evidence to supersede stale rollup failures"
+	assert_file_contains "$workflow_file" "current same-head manual OpenCode workflow_dispatch review run may supersede a stale failed PR statusCheckRollup context" "opencode review prompt allows the current manual OpenCode run to supersede stale bridge failures"
+	assert_file_contains "$workflow_file" 'If failed-check evidence says "No active failed GitHub Checks remained after superseded checks were classified", do not request changes solely from stale failed statusCheckRollup contexts' "opencode review prompt treats superseded-only failed checks as non-blocking"
+	assert_file_contains "$workflow_file" "successful same-head manual workflow_dispatch OpenCode run" "opencode review prompt covers completed OpenCode manual superseding evidence"
+	assert_file_contains "$workflow_file" "CURRENT_MANUAL_OPENCODE_RUN_ID" "opencode review workflow passes the current manual run id into failed-check evidence collection"
+	assert_file_contains "$workflow_file" "CURRENT_MANUAL_OPENCODE_RUN_URL" "opencode review workflow passes the current manual run URL into failed-check evidence collection"
+	assert_equals "3" "$(grep -Fc "CURRENT_MANUAL_OPENCODE_RUN_ID" "$workflow_file")" "opencode review workflow passes current manual run id to evidence, publication, and approval steps"
+	assert_equals "3" "$(grep -Fc "CURRENT_MANUAL_OPENCODE_RUN_URL" "$workflow_file")" "opencode review workflow passes current manual run URL to evidence, publication, and approval steps"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Superseded failed checks" "failed-check evidence lists stale failed contexts superseded by current-head manual Strix evidence"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "manual_success_contexts" "failed-check evidence compares explicit manual success statuses before active failures"
+	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Current manual workflow_dispatch OpenCode review evidence in progress via run" "failed-check evidence treats the current manual OpenCode review run as superseding stale bridge failures"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "No active failed GitHub Checks remained after superseded checks were classified" "failed-check evidence reports no active failures after stale contexts are superseded"
+	assert_file_contains "$workflow_file" "failed_check_evidence_only_superseded_failures" "opencode approval recognizes stale failed rollup contexts superseded by current-head manual evidence"
+	assert_file_contains "$workflow_file" "failed-check evidence showed only superseded failures; continuing approval validation." "opencode approval continues after failed-check evidence shows only superseded failures"
+	assert_file_contains "$workflow_file" "failed-check evidence showed only superseded failures after model output failure; continuing deterministic fallback validation." "opencode model-failure fallback does not publish stale failed-check reviews for superseded-only evidence"
+	assert_file_contains "$workflow_file" "failed-check evidence showed only superseded failures; publishing source-backed model REQUEST_CHANGES without failed-check fallback." "opencode request-changes path skips failed-check fallback when only stale failed rollup contexts remain"
 	assert_file_contains "$REPO_ROOT/scripts/ci/emit_opencode_failed_check_fallback_findings.sh" "Strix vulnerability report window([[:space:]]|$)" "failed-check fallback detects numbered Strix vulnerability report windows with a POSIX ERE boundary"
 	assert_file_not_contains "$REPO_ROOT/scripts/ci/emit_opencode_failed_check_fallback_findings.sh" "Strix vulnerability report window\\\\b" "failed-check fallback must not rely on non-portable grep -E word boundaries"
-	assert_file_not_contains "$workflow_file" "failed_check_evidence_has_active_failures" "opencode approval must treat collected failed rollup contexts as blockers"
-	assert_file_not_contains "$workflow_file" "failed-check evidence showed only superseded failures" "opencode approval must not continue approval after failed PR rollup contexts"
 	assert_file_not_contains "$workflow_file" "preserving model REQUEST_CHANGES" "opencode request-changes path must validate failed-check findings when failed rollup contexts exist"
 	assert_file_contains "$workflow_file" "include every model-reported vulnerability as a separate evidence-backed finding" "opencode review prompt requires all Strix model findings"
 	assert_file_contains "$workflow_file" "Multiple Strix model reports must not be collapsed" "opencode review prompt prevents collapsing multiple Strix model reports"
@@ -2865,6 +2880,29 @@ sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/syst
 EOS
 		echo "Penetration test failed: baseline critical finding"
 		exit 1
+		;;
+	pr-baseline-critical-after-primary-ratelimit)
+		case "${STRIX_LLM:-}" in
+		openai/gpt-5)
+			echo "openai.RateLimitError: Too many requests from GitHub Models"
+			echo "LLM CONNECTION FAILED"
+			exit 1
+			;;
+		github_models/deepseek/deepseek-v3-0324)
+			mkdir -p "$STRIX_REPORTS_DIR/fake-pr-baseline-after-provider/vulnerabilities"
+			cat >"$STRIX_REPORTS_DIR/fake-pr-baseline-after-provider/vulnerabilities/vuln-0001.md" <<'EOS'
+Severity: CRITICAL
+Location 1:
+sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/service/impl/SysUserServiceImpl.java:5
+EOS
+			echo "Penetration test failed: fallback baseline critical finding"
+			exit 1
+			;;
+		*)
+			echo "Error: pr-baseline-critical-after-primary-ratelimit unexpected model (${STRIX_LLM:-})" >&2
+			exit 36
+			;;
+		esac
 		;;
 	pr-critical-changed)
 		mkdir -p "$STRIX_REPORTS_DIR/fake-pr-changed/vulnerabilities"
@@ -7855,6 +7893,35 @@ run_gate_case "pr-baseline-critical-unchanged" \
 	"0" \
 	"pull_request" \
 	"sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/controller/SysPositionController.java"
+
+run_gate_case "pr-baseline-critical-after-primary-ratelimit" \
+	"openai/gpt-5" \
+	"" \
+	"0" \
+	"Strix findings are limited to unchanged files in this pull request; allowing pipeline continuation." \
+	"2" \
+	"openai/gpt-5|github_models/deepseek/deepseek-v3-0324" \
+	"https://example.invalid|https://example.invalid" \
+	"github_models" \
+	"https://example.invalid" \
+	"" \
+	"0" \
+	"CRITICAL" \
+	"0" \
+	"" \
+	"" \
+	"1200" \
+	"0" \
+	"pull_request" \
+	"sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/controller/SysPositionController.java" \
+	"" \
+	"" \
+	"0" \
+	"" \
+	"" \
+	"" \
+	"__UNSET__" \
+	"github_models/deepseek/deepseek-v3-0324"
 
 run_gate_case "pr-baseline-critical-absolute-target" \
 	"openai/gpt-4o-mini" \

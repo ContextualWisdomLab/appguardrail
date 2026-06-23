@@ -207,11 +207,13 @@ manual_success_for_label() {
 	key="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
 	awk -F '\t' -v key="$key" '
 		tolower($1) == key {
-			print
+			line = $0
 			found = 1
-			exit
 		}
 		END {
+			if (found) {
+				print line
+			}
 			exit found ? 0 : 1
 		}
 	' "$manual_success_contexts"
@@ -304,7 +306,7 @@ gh api graphql \
 			| select(((.event // "") == "workflow_dispatch" and (.conclusion // "" | ascii_downcase) == "cancelled") | not)
 			| [
 			"workflow_run",
-			(if (.workflowName // "") != "" then .workflowName else "workflow run" end),
+			(if (.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix" then "Strix Security Scan/strix" elif (.workflowName // "") != "" then .workflowName else "workflow run" end),
 			(.conclusion // "unknown"),
 			(.url // ""),
 			((.databaseId // "") | tostring),
@@ -339,6 +341,58 @@ if ! gh api -X GET "repos/${GH_REPOSITORY}/commits/${HEAD_SHA}/status" \
 	: >"$manual_success_contexts"
 fi
 
+env HEAD_SHA="$HEAD_SHA" gh run list \
+	--repo "$GH_REPOSITORY" \
+	--commit "$HEAD_SHA" \
+	--limit 100 \
+	--json databaseId,workflowName,status,conclusion,url,event,headSha \
+	--jq '
+		.[]
+		| select((.event // "") == "workflow_dispatch")
+		| select((.headSha // "") == env.HEAD_SHA)
+		| select((.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix")
+		| select((.status // "") == "completed")
+		| select((.conclusion // "" | ascii_downcase) == "success")
+		| [
+			"strix",
+			(.url // ""),
+			("Manual workflow_dispatch Strix evidence passed via run " + ((.databaseId // "") | tostring))
+		]
+		| @tsv
+	' >>"$manual_success_contexts" || true
+
+env HEAD_SHA="$HEAD_SHA" gh run list \
+	--repo "$GH_REPOSITORY" \
+	--commit "$HEAD_SHA" \
+	--limit 100 \
+	--json databaseId,workflowName,status,conclusion,url,event,headSha \
+	--jq '
+		.[]
+		| select((.event // "") == "workflow_dispatch")
+		| select((.headSha // "") == env.HEAD_SHA)
+		| select((.workflowName // "") == "OpenCode Review")
+		| select((.status // "") == "completed")
+		| select((.conclusion // "" | ascii_downcase) == "success")
+		| [
+			"opencode-review",
+			(.url // ""),
+			("Manual workflow_dispatch OpenCode evidence passed via run " + ((.databaseId // "") | tostring))
+		]
+		| @tsv
+	' >>"$manual_success_contexts" || true
+
+if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] &&
+	[ -n "${CURRENT_MANUAL_OPENCODE_RUN_ID:-}" ]; then
+	current_manual_opencode_run_url="${CURRENT_MANUAL_OPENCODE_RUN_URL:-}"
+	if [ -z "$current_manual_opencode_run_url" ] && [ -n "${GITHUB_SERVER_URL:-}" ]; then
+		current_manual_opencode_run_url="${GITHUB_SERVER_URL%/}/${GH_REPOSITORY}/actions/runs/${CURRENT_MANUAL_OPENCODE_RUN_ID}"
+	fi
+	printf '%s\t%s\t%s\n' \
+		"opencode-review" \
+		"$current_manual_opencode_run_url" \
+		"Current manual workflow_dispatch OpenCode review evidence in progress via run ${CURRENT_MANUAL_OPENCODE_RUN_ID}" >>"$manual_success_contexts"
+fi
+
 while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
 	if [ -z "$run_id" ]; then
 		continue
@@ -352,13 +406,21 @@ done <"$workflow_run_contexts"
 while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
 	if success_line="$(manual_success_for_label "$label")"; then
 		IFS=$'\t' read -r success_context success_url success_description <<<"$success_line"
+		if [[ "$success_context" == http://* || "$success_context" == https://* ]]; then
+			success_description="$success_url"
+			success_url="$success_context"
+			success_context="${label##*/}"
+		fi
+		superseded_details_url="${details_url:-"-"}"
+		superseded_run_id="${run_id:-"-"}"
+		superseded_check_run_id="${check_run_id:-"-"}"
 		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 			"$kind" \
 			"$label" \
 			"$conclusion" \
-			"$details_url" \
-			"$run_id" \
-			"$check_run_id" \
+			"$superseded_details_url" \
+			"$superseded_run_id" \
+			"$superseded_check_run_id" \
 			"$success_context" \
 			"$success_url" \
 			"$success_description" >>"$superseded_failed_contexts"
