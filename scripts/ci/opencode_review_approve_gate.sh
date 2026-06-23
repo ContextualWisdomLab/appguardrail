@@ -266,6 +266,7 @@ if not all(finding_is_source_backed(finding) for finding in control.get("finding
     raise SystemExit(1)
 PY
 then
+  echo "it will not approve without source-backed current-head review evidence"
   echo "NO_CONCLUSION"
   exit 4
 fi
