@@ -2977,6 +2977,16 @@ EOS
 		echo "Penetration test failed: baseline critical narrative service finding"
 		exit 1
 		;;
+	pr-baseline-critical-bare-rule-filenames)
+		mkdir -p "$STRIX_REPORTS_DIR/fake-pr-baseline-bare-rule-filenames/vulnerabilities"
+		cat >"$STRIX_REPORTS_DIR/fake-pr-baseline-bare-rule-filenames/vulnerabilities/vuln-0001.md" <<'EOS'
+Severity: CRITICAL
+Technical Analysis
+The security scanner's rule definitions include dangerous credential exposure patterns in nextjs.yml and secrets.yml.
+EOS
+		echo "Penetration test failed: baseline critical bare rule filename finding"
+		exit 1
+		;;
 	pr-critical-unmapped-arbitrary-backticked-service-file)
 		mkdir -p "$STRIX_REPORTS_DIR/fake-pr-unmapped-arbitrary-backtick/vulnerabilities"
 		cat >"$STRIX_REPORTS_DIR/fake-pr-unmapped-arbitrary-backtick/vulnerabilities/vuln-0001.md" <<'EOS'
@@ -3402,6 +3412,9 @@ EOF
 		mkdir -p "$repo_root_dir/backend/services"
 		echo 'async def send_email(*args, **kwargs): return None' >"$repo_root_dir/backend/services/email_client.py"
 		echo 'def parse_eml(*args): return {}' >"$repo_root_dir/backend/services/email_parser.py"
+		mkdir -p "$repo_root_dir/scanner/rules"
+		echo 'rules: []' >"$repo_root_dir/scanner/rules/nextjs.yml"
+		echo 'rules: []' >"$repo_root_dir/scanner/rules/secrets.yml"
 		if [ -n "$current_pr_number" ]; then
 			cat >"$event_payload_file" <<EOF
 {
@@ -8207,6 +8220,27 @@ run_gate_case "pr-critical-changed-xml-file-location-space" \
 	"src/unsafe name.py"
 
 run_gate_case "pr-baseline-critical-narrative-backticked-service-file" \
+	"openai/gpt-4o-mini" \
+	"" \
+	"0" \
+	"Strix findings are limited to unchanged files in this pull request; allowing pipeline continuation." \
+	"1" \
+	"openai/gpt-4o-mini" \
+	"https://example.invalid" \
+	"vertex_ai" \
+	"__DEFAULT__" \
+	"" \
+	"0" \
+	"CRITICAL" \
+	"0" \
+	"" \
+	"" \
+	"1200" \
+	"0" \
+	"pull_request" \
+	"backend/services/email_client.py"
+
+run_gate_case "pr-baseline-critical-bare-rule-filenames" \
 	"openai/gpt-4o-mini" \
 	"" \
 	"0" \

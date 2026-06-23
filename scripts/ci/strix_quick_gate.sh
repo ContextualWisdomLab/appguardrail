@@ -1722,10 +1722,17 @@ patterns = [
     re.compile(r'`(?P<path>(?:\.\.?/)?[A-Za-z0-9_./ \[\]-]+\.[A-Za-z0-9_]+)`\s+file\b', flags=re.IGNORECASE),
     re.compile(r'(?<![A-Za-z0-9_./-])(?P<path>Dockerfile|Containerfile|Makefile)(?![A-Za-z0-9_./-])'),
 ]
+bare_file_list_intro = re.compile(r'\b(?:including|include|includes|in)\b(?P<list>[^\r\n]{0,200})', flags=re.IGNORECASE)
+bare_file_name = re.compile(r'(?<![A-Za-z0-9_./-])(?P<path>[A-Za-z0-9_-]+\.(?:ya?ml|json|py|sh|js|jsx|ts|tsx|toml|txt|md))(?![A-Za-z0-9_./-])')
 seen = set()
 for pattern in patterns:
     for match in pattern.finditer(text):
         value = match.group('path').strip()
+        if value and value not in seen:
+            seen.add(value)
+for list_match in bare_file_list_intro.finditer(text):
+    for file_match in bare_file_name.finditer(list_match.group('list')):
+        value = file_match.group('path').strip()
         if value and value not in seen:
             seen.add(value)
 for value in sorted(seen):
@@ -1783,6 +1790,34 @@ def emit_repo_relative(candidate: Path, fallback_relative: Path | None = None) -
     print(relative.as_posix())
     raise SystemExit(0)
 
+def emit_unique_repo_basename(location: str) -> None:
+    if "/" in location or "\\" in location or location in {".", ".."}:
+        raise SystemExit(1)
+    ignored_dirs = {
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+    }
+    matches = []
+    for candidate in repo_root.rglob(location):
+        if not candidate.is_file() or candidate.is_symlink():
+            continue
+        if any(part in ignored_dirs for part in candidate.relative_to(repo_root).parts[:-1]):
+            continue
+        matches.append(candidate)
+        if len(matches) > 1:
+            raise SystemExit(1)
+    if len(matches) != 1:
+        raise SystemExit(1)
+    emit_repo_relative(matches[0])
+
 if scan_target_root and scan_target_workspace_prefix and raw_location.startswith(scan_target_workspace_prefix):
     suffix = raw_location[len(scan_target_workspace_prefix):]
     if not suffix:
@@ -1806,6 +1841,7 @@ if scan_target_root is not None:
     if candidate is not None:
         emit_repo_relative(candidate, candidate.relative_to(scan_target_root))
 
+emit_unique_repo_basename(raw_location)
 emit_repo_relative(normalize_within(repo_root, raw_location))
 PY
 		})" || return 1
