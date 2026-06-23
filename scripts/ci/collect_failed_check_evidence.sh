@@ -339,6 +339,46 @@ if ! gh api -X GET "repos/${GH_REPOSITORY}/commits/${HEAD_SHA}/status" \
 	: >"$manual_success_contexts"
 fi
 
+env HEAD_SHA="$HEAD_SHA" gh run list \
+	--repo "$GH_REPOSITORY" \
+	--commit "$HEAD_SHA" \
+	--limit 100 \
+	--json databaseId,workflowName,status,conclusion,url,event,headSha \
+	--jq '
+		.[]
+		| select((.event // "") == "workflow_dispatch")
+		| select((.headSha // "") == env.HEAD_SHA)
+		| select((.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix")
+		| select((.status // "") == "completed")
+		| select((.conclusion // "" | ascii_downcase) == "success")
+		| [
+			"strix",
+			(.url // ""),
+			("Manual workflow_dispatch Strix evidence passed via run " + ((.databaseId // "") | tostring))
+		]
+		| @tsv
+	' >>"$manual_success_contexts" || true
+
+env HEAD_SHA="$HEAD_SHA" gh run list \
+	--repo "$GH_REPOSITORY" \
+	--commit "$HEAD_SHA" \
+	--limit 100 \
+	--json databaseId,workflowName,status,conclusion,url,event,headSha \
+	--jq '
+		.[]
+		| select((.event // "") == "workflow_dispatch")
+		| select((.headSha // "") == env.HEAD_SHA)
+		| select((.workflowName // "") == "OpenCode Review")
+		| select((.status // "") == "completed")
+		| select((.conclusion // "" | ascii_downcase) == "success")
+		| [
+			"opencode-review",
+			(.url // ""),
+			("Manual workflow_dispatch OpenCode evidence passed via run " + ((.databaseId // "") | tostring))
+		]
+		| @tsv
+	' >>"$manual_success_contexts" || true
+
 while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
 	if [ -z "$run_id" ]; then
 		continue
