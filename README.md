@@ -1,8 +1,5 @@
 # VibeSec
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/VibeSec)
-[![Security Process](https://github.com/ContextualWisdomLab/VibeSec/actions/workflows/security-process.yml/badge.svg)](https://github.com/ContextualWisdomLab/VibeSec/actions/workflows/security-process.yml)
-
 **Security guardrails for vibe-coded apps.**
 
 VibeSec helps builders using Cursor, Claude Code, Lovable, Replit, Bolt, Supabase, Firebase, Vercel, and Netlify find and fix security issues introduced during AI-assisted development.

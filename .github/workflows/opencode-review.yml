@@ -155,7 +155,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.inputs.pr_base_sha }}
 
       - name: Materialize pull request head for OpenCode review data
         env:
@@ -217,8 +217,6 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.inputs.pr_base_sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
-          CURRENT_MANUAL_OPENCODE_RUN_ID: ${{ github.run_id }}
-          CURRENT_MANUAL_OPENCODE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OPENCODE_SOURCE_WORKDIR: ${{ runner.temp }}/opencode-pr-head
           OPENCODE_EVIDENCE_FILE: ${{ runner.temp }}/opencode-review-evidence.md
           OPENCODE_FAILED_CHECK_EVIDENCE_FILE: ${{ runner.temp }}/opencode-failed-check-evidence.md
@@ -757,7 +755,7 @@ jobs:
           Use CodeGraph for blast-radius, call graph, and test-coverage questions before broad local reads. Prefer deletion, stdlib/native platform features, and already-installed dependencies before proposing new code or packages, but do not simplify away trust-boundary validation, data-loss handling, security, accessibility, or required tests. For Korean prose, preserve facts, identifiers, numbers, and quotes while removing only formulaic filler or translationese.
           Cover security/privacy boundaries, tenant isolation, workflow contracts, user-facing behavior, tests, and regression risk. Do not narrow the review to one subsystem unless the diff is truly limited to that subsystem.
           Lead with findings ordered by severity. Distinguish blocking findings from important suggestions and nits. Request changes only for actionable blockers with clear problem, root cause, observable impact, trigger condition, minimal fix direction, and exact regression test or verification command when the repository already provides one. For Greptile-style specificity, include a P1/P2/P3 priority in each actionable finding, cite the evidence type behind the claim (nearby implementation, matching existing example, cross-file counterpart, current official docs, or failed check/log evidence), flag unrelated PR scope drift, make suggested diffs GitHub suggestion-ready minimal diffs when possible, and include one compact Mermaid graph mapping the changed surface to the main risk, fix, and verification path. Use an OpenCode-owned human-readable review structure compatible with Copilot Review's concise pull request overview followed by CodeRabbitAI's severity-ordered actionable finding format; put brief summary context after findings and do not depend on Copilot Review, CodeRabbitAI, or any human reviewer being present.
-          If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed. If every active failed-check block says the job was not started because the GitHub account is locked due to a billing issue, classify it as an external CI/account blocker with no repository source fix; do not invent source-backed REQUEST_CHANGES findings for it. If the evidence says no completed failed GitHub Checks were present, do not request changes solely from that section. If failed-check evidence says "No active failed GitHub Checks remained after superseded checks were classified", do not request changes solely from stale failed statusCheckRollup contexts; treat the superseded contexts as non-blocking and inspect the normal PR changes instead. A successful same-head manual workflow_dispatch Strix run, a successful same-head manual workflow_dispatch OpenCode run, or the current same-head manual OpenCode workflow_dispatch review run may supersede a stale failed PR statusCheckRollup context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL; otherwise treat failed rollup contexts as blockers. For Strix or other GitHub Checks, use the failed log excerpt and annotations to identify the exact local file line that must change, then provide a concrete from/to fix and suggested diff. When Strix evidence contains multiple model vulnerability reports, include every model-reported vulnerability as a separate evidence-backed finding, preserving each report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present. When evidence supports it, name the concrete CWE/KISA-style class such as injection, auth/authz, secrets, crypto, path traversal/file upload, XSS/CSRF/SSRF, error disclosure, or debug/deployment config; do not invent a category without evidence. One Strix model vulnerability report requires one distinct finding; do not combine duplicate titles or matching locations from different models into one finding. Do not request changes with only a check URL, workflow name, or generic failure summary.
+          If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed. If every active failed-check block says the job was not started because the GitHub account is locked due to a billing issue, classify it as an external CI/account blocker with no repository source fix; do not invent source-backed REQUEST_CHANGES findings for it. If the evidence says no completed failed GitHub Checks were present, do not request changes solely from that section. A successful same-head manual workflow_dispatch Strix run may supersede a stale failed PR statusCheckRollup Strix context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL; otherwise treat failed rollup contexts as blockers. For Strix or other GitHub Checks, use the failed log excerpt and annotations to identify the exact local file line that must change, then provide a concrete from/to fix and suggested diff. When Strix evidence contains multiple model vulnerability reports, include every model-reported vulnerability as a separate evidence-backed finding, preserving each report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present. When evidence supports it, name the concrete CWE/KISA-style class such as injection, auth/authz, secrets, crypto, path traversal/file upload, XSS/CSRF/SSRF, error disclosure, or debug/deployment config; do not invent a category without evidence. One Strix model vulnerability report requires one distinct finding; do not combine duplicate titles or matching locations from different models into one finding. Do not request changes with only a check URL, workflow name, or generic failure summary.
           If direct file reads fail but focused changed hunks are present in the bounded evidence, review those hunks and do not return file-inaccessible findings for those paths.
           Full failed-check evidence, when collected, is available as failed-check-evidence.md in the isolated review workspace; inspect it before emitting any failed-check or Strix finding.
           Do not request rollback of Node 24 or Python 3.14 solely from model memory. If all current-head GitHub Checks for those runtime changes passed, version support is not a blocker unless you cite a concrete current source inconsistency or failed registry/check evidence.
@@ -885,7 +883,7 @@ jobs:
           Use CodeGraph for blast-radius, call graph, and test-coverage questions before broad local reads. Prefer deletion, stdlib/native platform features, and already-installed dependencies before proposing new code or packages, but do not simplify away trust-boundary validation, data-loss handling, security, accessibility, or required tests. For Korean prose, preserve facts, identifiers, numbers, and quotes while removing only formulaic filler or translationese.
           Cover security/privacy boundaries, tenant isolation, workflow contracts, user-facing behavior, tests, and regression risk. Do not narrow the review to one subsystem unless the diff is truly limited to that subsystem.
           Lead with findings ordered by severity. Distinguish blocking findings from important suggestions and nits. Request changes only for actionable blockers with clear problem, root cause, observable impact, trigger condition, minimal fix direction, and exact regression test or verification command when the repository already provides one. For Greptile-style specificity, include a P1/P2/P3 priority in each actionable finding, cite the evidence type behind the claim (nearby implementation, matching existing example, cross-file counterpart, current official docs, or failed check/log evidence), flag unrelated PR scope drift, make suggested diffs GitHub suggestion-ready minimal diffs when possible, and include one compact Mermaid graph mapping the changed surface to the main risk, fix, and verification path. Use an OpenCode-owned human-readable review structure compatible with Copilot Review's concise pull request overview followed by CodeRabbitAI's severity-ordered actionable finding format; put brief summary context after findings and do not depend on Copilot Review, CodeRabbitAI, or any human reviewer being present.
-          If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed. If every active failed-check block says the job was not started because the GitHub account is locked due to a billing issue, classify it as an external CI/account blocker with no repository source fix; do not invent source-backed REQUEST_CHANGES findings for it. If the evidence says no completed failed GitHub Checks were present, do not request changes solely from that section. If failed-check evidence says "No active failed GitHub Checks remained after superseded checks were classified", do not request changes solely from stale failed statusCheckRollup contexts; treat the superseded contexts as non-blocking and inspect the normal PR changes instead. A successful same-head manual workflow_dispatch Strix run, a successful same-head manual workflow_dispatch OpenCode run, or the current same-head manual OpenCode workflow_dispatch review run may supersede a stale failed PR statusCheckRollup context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL; otherwise treat failed rollup contexts as blockers. For Strix or other GitHub Checks, use the failed log excerpt and annotations to identify the exact local file line that must change, then provide a concrete from/to fix and suggested diff. When Strix evidence contains multiple model vulnerability reports, include every model-reported vulnerability as a separate evidence-backed finding, preserving each report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present. When evidence supports it, name the concrete CWE/KISA-style class such as injection, auth/authz, secrets, crypto, path traversal/file upload, XSS/CSRF/SSRF, error disclosure, or debug/deployment config; do not invent a category without evidence. One Strix model vulnerability report requires one distinct finding; do not combine duplicate titles or matching locations from different models into one finding. Do not request changes with only a check URL, workflow name, or generic failure summary.
+          If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed. If every active failed-check block says the job was not started because the GitHub account is locked due to a billing issue, classify it as an external CI/account blocker with no repository source fix; do not invent source-backed REQUEST_CHANGES findings for it. If the evidence says no completed failed GitHub Checks were present, do not request changes solely from that section. A successful same-head manual workflow_dispatch Strix run may supersede a stale failed PR statusCheckRollup Strix context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL; otherwise treat failed rollup contexts as blockers. For Strix or other GitHub Checks, use the failed log excerpt and annotations to identify the exact local file line that must change, then provide a concrete from/to fix and suggested diff. When Strix evidence contains multiple model vulnerability reports, include every model-reported vulnerability as a separate evidence-backed finding, preserving each report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present. When evidence supports it, name the concrete CWE/KISA-style class such as injection, auth/authz, secrets, crypto, path traversal/file upload, XSS/CSRF/SSRF, error disclosure, or debug/deployment config; do not invent a category without evidence. One Strix model vulnerability report requires one distinct finding; do not combine duplicate titles or matching locations from different models into one finding. Do not request changes with only a check URL, workflow name, or generic failure summary.
           If direct file reads fail but focused changed hunks are present in the bounded evidence, review those hunks and do not return file-inaccessible findings for those paths.
           Full failed-check evidence, when collected, is available as failed-check-evidence.md in the isolated review workspace; inspect it before emitting any failed-check or Strix finding.
           Do not request rollback of Node 24 or Python 3.14 solely from model memory. If all current-head GitHub Checks for those runtime changes passed, version support is not a blocker unless you cite a concrete current source inconsistency or failed registry/check evidence.
@@ -1013,7 +1011,7 @@ jobs:
           Use CodeGraph for blast-radius, call graph, and test-coverage questions before broad local reads. Prefer deletion, stdlib/native platform features, and already-installed dependencies before proposing new code or packages, but do not simplify away trust-boundary validation, data-loss handling, security, accessibility, or required tests. For Korean prose, preserve facts, identifiers, numbers, and quotes while removing only formulaic filler or translationese.
           Cover security/privacy boundaries, tenant isolation, workflow contracts, user-facing behavior, tests, and regression risk. Do not narrow the review to one subsystem unless the diff is truly limited to that subsystem.
           Lead with findings ordered by severity. Distinguish blocking findings from important suggestions and nits. Request changes only for actionable blockers with clear problem, root cause, observable impact, trigger condition, minimal fix direction, and exact regression test or verification command when the repository already provides one. For Greptile-style specificity, include a P1/P2/P3 priority in each actionable finding, cite the evidence type behind the claim (nearby implementation, matching existing example, cross-file counterpart, current official docs, or failed check/log evidence), flag unrelated PR scope drift, make suggested diffs GitHub suggestion-ready minimal diffs when possible, and include one compact Mermaid graph mapping the changed surface to the main risk, fix, and verification path. Use an OpenCode-owned human-readable review structure compatible with Copilot Review's concise pull request overview followed by CodeRabbitAI's severity-ordered actionable finding format; put brief summary context after findings and do not depend on Copilot Review, CodeRabbitAI, or any human reviewer being present.
-          If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed. If every active failed-check block says the job was not started because the GitHub account is locked due to a billing issue, classify it as an external CI/account blocker with no repository source fix; do not invent source-backed REQUEST_CHANGES findings for it. If the evidence says no completed failed GitHub Checks were present, do not request changes solely from that section. If failed-check evidence says "No active failed GitHub Checks remained after superseded checks were classified", do not request changes solely from stale failed statusCheckRollup contexts; treat the superseded contexts as non-blocking and inspect the normal PR changes instead. A successful same-head manual workflow_dispatch Strix run, a successful same-head manual workflow_dispatch OpenCode run, or the current same-head manual OpenCode workflow_dispatch review run may supersede a stale failed PR statusCheckRollup context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL; otherwise treat failed rollup contexts as blockers. For Strix or other GitHub Checks, use the failed log excerpt and annotations to identify the exact local file line that must change, then provide a concrete from/to fix and suggested diff. When Strix evidence contains multiple model vulnerability reports, include every model-reported vulnerability as a separate evidence-backed finding, preserving each report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present. When evidence supports it, name the concrete CWE/KISA-style class such as injection, auth/authz, secrets, crypto, path traversal/file upload, XSS/CSRF/SSRF, error disclosure, or debug/deployment config; do not invent a category without evidence. One Strix model vulnerability report requires one distinct finding; do not combine duplicate titles or matching locations from different models into one finding. Do not request changes with only a check URL, workflow name, or generic failure summary.
+          If bounded failed GitHub Check evidence contains active failed checks, treat it as a blocker until diagnosed. If every active failed-check block says the job was not started because the GitHub account is locked due to a billing issue, classify it as an external CI/account blocker with no repository source fix; do not invent source-backed REQUEST_CHANGES findings for it. If the evidence says no completed failed GitHub Checks were present, do not request changes solely from that section. A successful same-head manual workflow_dispatch Strix run may supersede a stale failed PR statusCheckRollup Strix context only when failed-check evidence explicitly lists it under Superseded failed checks with the exact target URL; otherwise treat failed rollup contexts as blockers. For Strix or other GitHub Checks, use the failed log excerpt and annotations to identify the exact local file line that must change, then provide a concrete from/to fix and suggested diff. When Strix evidence contains multiple model vulnerability reports, include every model-reported vulnerability as a separate evidence-backed finding, preserving each report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present. When evidence supports it, name the concrete CWE/KISA-style class such as injection, auth/authz, secrets, crypto, path traversal/file upload, XSS/CSRF/SSRF, error disclosure, or debug/deployment config; do not invent a category without evidence. One Strix model vulnerability report requires one distinct finding; do not combine duplicate titles or matching locations from different models into one finding. Do not request changes with only a check URL, workflow name, or generic failure summary.
           If direct file reads fail but focused changed hunks are present in the bounded evidence, review those hunks and do not return file-inaccessible findings for those paths.
           Full failed-check evidence, when collected, is available as failed-check-evidence.md in the isolated review workspace; inspect it before emitting any failed-check or Strix finding.
           Do not request rollback of Node 24 or Python 3.14 solely from model memory. If all current-head GitHub Checks for those runtime changes passed, version support is not a blocker unless you cite a concrete current source inconsistency or failed registry/check evidence.
@@ -1186,8 +1184,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          CURRENT_MANUAL_OPENCODE_RUN_ID: ${{ github.run_id }}
-          CURRENT_MANUAL_OPENCODE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OPENCODE_PRIMARY_OUTCOME: ${{ steps.opencode_review_primary.outputs.review_status }}
           OPENCODE_FALLBACK_OUTCOME: ${{ steps.opencode_review_fallback.outputs.review_status }}
           OPENCODE_SECOND_FALLBACK_OUTCOME: ${{ steps.opencode_review_second_fallback.outputs.review_status }}
@@ -1343,8 +1339,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          CURRENT_MANUAL_OPENCODE_RUN_ID: ${{ github.run_id }}
-          CURRENT_MANUAL_OPENCODE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OPENCODE_PRIMARY_OUTCOME: ${{ steps.opencode_review_primary.outputs.review_status }}
           OPENCODE_FALLBACK_OUTCOME: ${{ steps.opencode_review_fallback.outputs.review_status }}
           OPENCODE_SECOND_FALLBACK_OUTCOME: ${{ steps.opencode_review_second_fallback.outputs.review_status }}
@@ -2048,12 +2042,6 @@ jobs:
             build_billing_lock_body "$failed_checks_file" "$evidence_file" "$body_file"
             create_pull_review "COMMENT" "$(cat "$body_file")"
             return 0
-          }
-
-          failed_check_evidence_only_superseded_failures() {
-            local evidence_file="$1"
-
-            grep -Fq "No active failed GitHub Checks remained after superseded checks were classified." "$evidence_file"
           }
 
           build_pending_check_body() {
@@ -2784,19 +2772,15 @@ jobs:
                 exit 0
               fi
 
-              if failed_check_evidence_only_superseded_failures "$failed_check_evidence_file"; then
-                echo "failed-check evidence showed only superseded failures after model output failure; continuing deterministic fallback validation."
+              if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
+                create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
               else
-                if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
-                  create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
-                else
-                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
-                fi
-                echo "::endgroup::"
-                exit 0
+                build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
+                create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
               fi
-                          fi
+              echo "::endgroup::"
+              exit 0
+            fi
 
             pending_checks_file="$(mktemp)"
             set +e
@@ -2824,7 +2808,7 @@ jobs:
               elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
                 create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
               else
-                echo "::error::OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}; OpenCode model attempts did not produce a usable control block, no valid source-backed review output was available, and deterministic fallback approval did not apply for head ${HEAD_SHA}; it will not approve without source-backed current-head review evidence. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding."
+                echo "::error::OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}; OpenCode model attempts did not produce a usable control block, and deterministic fallback approval did not apply for head ${HEAD_SHA}. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding."
                 echo "::endgroup::"
                 exit 1
               fi
@@ -2984,19 +2968,15 @@ jobs:
                   echo "::endgroup::"
                   exit 0
                 fi
-                if failed_check_evidence_only_superseded_failures "$failed_check_evidence_file"; then
-                  echo "failed-check evidence showed only superseded failures; continuing approval validation."
+                if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
+                  create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
+                  echo "::endgroup::"
+                  exit 0
                 else
-                  if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
-                    create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
-                    echo "::endgroup::"
-                    exit 0
-                  else
-                    build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                    create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
-                    echo "::endgroup::"
-                    exit 0
-                  fi
+                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
+                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  echo "::endgroup::"
+                  exit 0
                 fi
               fi
               unresolved_human_threads_file="$(mktemp)"
@@ -3055,18 +3035,13 @@ jobs:
                   echo "::endgroup::"
                   exit 0
                 fi
-                if failed_check_evidence_only_superseded_failures "$failed_check_evidence_file"; then
-                  echo "failed-check evidence showed only superseded failures; publishing source-backed model REQUEST_CHANGES without failed-check fallback."
+                if scripts/ci/validate_opencode_failed_check_review.sh "$control_json" "$failed_checks_file" "$failed_check_evidence_file"; then
                   publish_request_changes_from_control "$control_json"
+                elif run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
+                  create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
                 else
-                  if scripts/ci/validate_opencode_failed_check_review.sh "$control_json" "$failed_checks_file" "$failed_check_evidence_file"; then
-                    publish_request_changes_from_control "$control_json"
-                  elif run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
-                    create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
-                  else
-                    build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                    create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
-                  fi
+                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
+                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
                 fi
               else
                 publish_request_changes_from_control "$control_json"

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+
 STRUCTURAL_FAILURE_PHRASES = (
     "structural exploration was not possible",
     "structural exploration not possible",
@@ -199,16 +200,17 @@ def iter_json_objects(text: str) -> list[Any]:
     values: list[Any] = []
 
     index = 0
-    while True:
-        index = text.find("{", index)
-        if index == -1:
-            break
+    while index < len(text):
+        if text[index] != "{":
+            index += 1
+            continue
         try:
             value, end = decoder.raw_decode(text, index)
-            values.append(value)
-            index = end
         except json.JSONDecodeError:
             index += 1
+            continue
+        values.append(value)
+        index = end
 
     return values
 
@@ -229,6 +231,10 @@ def main(argv: list[str]) -> int:
 
     expected_head_sha, expected_run_id, expected_run_attempt, output_file_arg = argv[1:]
     output_file = Path(output_file_arg)
+    project_root = Path.cwd().resolve()
+    if not output_file.resolve().is_relative_to(project_root) and "/_temp" not in str(output_file.resolve()) and "/tmp/pytest-" not in str(output_file.resolve()) and "/tmp/tmp." not in str(output_file.resolve()):
+        print(f"error: output file path {output_file_arg!r} is outside the project root", file=sys.stderr)
+        return 65
 
     try:
         output_text = output_file.read_text(encoding="utf-8")

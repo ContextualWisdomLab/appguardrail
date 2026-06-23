@@ -31,7 +31,6 @@ import os
 import re
 import shutil
 import stat
-import subprocess
 import sys
 from pathlib import Path
 
@@ -739,6 +738,7 @@ def _run_trivy_fs(scan_path: Path):
     if not trivy:
         raise RuntimeError("trivy executable not found. Install Trivy or run without --trivy.")
 
+    import subprocess
     process = subprocess.run(
         [
             trivy,
