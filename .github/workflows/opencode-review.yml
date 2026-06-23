@@ -2044,6 +2044,12 @@ jobs:
             return 0
           }
 
+          failed_check_evidence_only_superseded_failures() {
+            local evidence_file="$1"
+
+            grep -Fq "No active failed GitHub Checks remained after superseded checks were classified." "$evidence_file"
+          }
+
           build_pending_check_body() {
             local pending_checks_file="$1"
             local body_file="$2"
@@ -2968,15 +2974,19 @@ jobs:
                   echo "::endgroup::"
                   exit 0
                 fi
-                if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
-                  create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
-                  echo "::endgroup::"
-                  exit 0
+                if failed_check_evidence_only_superseded_failures "$failed_check_evidence_file"; then
+                  echo "failed-check evidence showed only superseded failures; continuing approval validation."
                 else
-                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
-                  echo "::endgroup::"
-                  exit 0
+                  if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
+                    create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
+                    echo "::endgroup::"
+                    exit 0
+                  else
+                    build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
+                    create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                    echo "::endgroup::"
+                    exit 0
+                  fi
                 fi
               fi
               unresolved_human_threads_file="$(mktemp)"
