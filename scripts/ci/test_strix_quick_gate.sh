@@ -2875,6 +2875,29 @@ EOS
 		echo "Penetration test failed: baseline critical finding"
 		exit 1
 		;;
+	pr-baseline-critical-after-primary-ratelimit)
+		case "${STRIX_LLM:-}" in
+		openai/gpt-5)
+			echo "openai.RateLimitError: Too many requests from GitHub Models"
+			echo "LLM CONNECTION FAILED"
+			exit 1
+			;;
+		github_models/deepseek/deepseek-v3-0324)
+			mkdir -p "$STRIX_REPORTS_DIR/fake-pr-baseline-after-provider/vulnerabilities"
+			cat >"$STRIX_REPORTS_DIR/fake-pr-baseline-after-provider/vulnerabilities/vuln-0001.md" <<'EOS'
+Severity: CRITICAL
+Location 1:
+sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/service/impl/SysUserServiceImpl.java:5
+EOS
+			echo "Penetration test failed: fallback baseline critical finding"
+			exit 1
+			;;
+		*)
+			echo "Error: pr-baseline-critical-after-primary-ratelimit unexpected model (${STRIX_LLM:-})" >&2
+			exit 36
+			;;
+		esac
+		;;
 	pr-critical-changed)
 		mkdir -p "$STRIX_REPORTS_DIR/fake-pr-changed/vulnerabilities"
 		cat >"$STRIX_REPORTS_DIR/fake-pr-changed/vulnerabilities/vuln-0001.md" <<'EOS'
@@ -7864,6 +7887,35 @@ run_gate_case "pr-baseline-critical-unchanged" \
 	"0" \
 	"pull_request" \
 	"sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/controller/SysPositionController.java"
+
+run_gate_case "pr-baseline-critical-after-primary-ratelimit" \
+	"openai/gpt-5" \
+	"" \
+	"0" \
+	"Strix findings are limited to unchanged files in this pull request; allowing pipeline continuation." \
+	"2" \
+	"openai/gpt-5|github_models/deepseek/deepseek-v3-0324" \
+	"https://example.invalid|https://example.invalid" \
+	"github_models" \
+	"https://example.invalid" \
+	"" \
+	"0" \
+	"CRITICAL" \
+	"0" \
+	"" \
+	"" \
+	"1200" \
+	"0" \
+	"pull_request" \
+	"sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/controller/SysPositionController.java" \
+	"" \
+	"" \
+	"0" \
+	"" \
+	"" \
+	"" \
+	"__UNSET__" \
+	"github_models/deepseek/deepseek-v3-0324"
 
 run_gate_case "pr-baseline-critical-absolute-target" \
 	"openai/gpt-4o-mini" \
