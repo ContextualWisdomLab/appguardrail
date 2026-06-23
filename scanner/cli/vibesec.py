@@ -860,12 +860,12 @@ def _print_scan_results(findings, files_scanned):
             non_blocking += 1
         icon = severity_icons.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
-        print(f"  Rule: {f['rule_id']}")
-        print(f"  Source: {f.get('source', 'vibesec-rule')} | Category: {f.get('category', 'misconfig')} | Context: {f.get('context', 'app-code')}")
-        print(f"  {f['message']}")
-        print(f"  Code: {f['snippet']}")
+        print(f"  Rule:    {f['rule_id']}")
+        print(f"  Details: {f.get('source', 'vibesec-rule')} | {f.get('category', 'misconfig')} | {f.get('context', 'app-code')}")
+        print(f"  Message: {f['message']}")
+        print(f"  Code:    {f['snippet']}")
         if f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
-            print("  Deploy gate: non-blocking context")
+            print("  Gate:    non-blocking context")
         print()
 
     print("─" * 60)

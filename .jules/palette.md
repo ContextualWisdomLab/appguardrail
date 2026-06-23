@@ -5,3 +5,7 @@
 ## 2024-06-22 - Precise Pluralization
 **Learning:** Terminal output needs UX polish too. Small things like saying "1 files" or "1 warnings" can make a tool feel unrefined or hacked together. Proper pluralization increases trust in CLI tools.
 **Action:** Always format counts with proper grammar (e.g., `warning` vs `warnings`) in CLI outputs to ensure a polished user experience.
+
+## 2024-06-23 - Vertical Alignment for Readable CLI Output
+**Learning:** Dense CLI output is hard to read quickly. When metadata is spread across lines with varying lengths, users struggle to scan for important details.
+**Action:** Vertically align label prefixes (e.g., `Rule:    `, `Details: `, `Message: `) in multi-line text outputs to create a scannable grid that improves the developer experience.
