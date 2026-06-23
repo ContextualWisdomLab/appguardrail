@@ -20,3 +20,7 @@
 ## 2026-06-22 - Avoiding redundant regex scans for non-source files
 **Learning:** Static substring pre-filters before regex evaluation can result in false negatives if security rules change, but regex overhead is significant for large, generated artifact files like `.map` and `.log`.
 **Action:** Skip large, non-source artifact extensions like `.map` and `.log` during file traversal to safely bypass regex processing overhead.
+
+## 2024-06-22 - Optimizing JSON extraction from large text
+**Learning:** When extracting multiple JSON objects from a large text string in Python, avoid repeated string slicing (e.g., `text[index:]`) or manual byte-by-byte iteration (`index += 1`) within loops to prevent O(N^2) performance degradation.
+**Action:** Instead, use a `while` loop with `text.find('{', index)` and `json.JSONDecoder().raw_decode(text, index)`, advancing the index to the returned end position on success.
