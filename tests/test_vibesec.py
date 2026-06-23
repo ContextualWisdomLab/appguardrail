@@ -1,3 +1,4 @@
+import json
 import re
 import tempfile
 from pathlib import Path
@@ -5,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _scan_file, cmd_init, cmd_scan
+from scanner.cli.vibesec import _collect_files, _print_scan_results, _run_trivy_fs, _scan_file, cmd_init, cmd_scan
 
 MOCK_RULES = [
     {
@@ -39,8 +40,9 @@ class Args:
 
 
 class ScanArgs:
-    def __init__(self, path):
+    def __init__(self, path, trivy=False):
         self.path = str(path)
+        self.trivy = trivy
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -232,6 +234,116 @@ def test_cmd_scan_skips_symlink_path(tmp_path, capsys):
     assert "Skipping symlink path:" in capsys.readouterr().out
 
 
+def test_cmd_scan_returns_failure_when_no_files_scanned(tmp_path, capsys):
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "index.js").write_text("console.log('ignored')\n")
+
+    assert cmd_scan(ScanArgs(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "No files were scanned. Are you in the right directory?" in out
+    assert "Scanned 0 files" in out
+
+
+def test_run_trivy_fs_maps_json_findings(tmp_path):
+    report = {
+        "Results": [{
+            "Target": str(tmp_path / "package-lock.json"),
+            "Vulnerabilities": [{
+                "VulnerabilityID": "CVE-2026-0001",
+                "PkgName": "leftpad",
+                "InstalledVersion": "1.0.0",
+                "FixedVersion": "1.0.1",
+                "Severity": "HIGH",
+                "Title": "demo vuln",
+            }],
+            "Misconfigurations": [{
+                "ID": "AVD-DS-0001",
+                "Severity": "MEDIUM",
+                "Title": "Dockerfile root user",
+                "Message": "Container runs as root",
+                "CauseMetadata": {"StartLine": 7},
+            }],
+            "Secrets": [{
+                "RuleID": "private-key",
+                "Severity": "CRITICAL",
+                "Title": "Private key",
+                "StartLine": 3,
+                "Match": "SHOULD_NOT_PRINT",
+            }],
+        }]
+    }
+    process = type("Process", (), {"returncode": 0, "stdout": json.dumps(report), "stderr": ""})()
+
+    with patch("scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"), \
+         patch("scanner.cli.vibesec.subprocess.run", return_value=process) as run:
+        findings = _run_trivy_fs(tmp_path)
+
+    assert run.call_args.args[0][:2] == ["/usr/bin/trivy", "fs"]
+    assert [finding["rule_id"] for finding in findings] == [
+        "trivy:CVE-2026-0001",
+        "trivy:AVD-DS-0001",
+        "trivy:private-key",
+    ]
+    assert findings[0]["file"] == "package-lock.json"
+    assert findings[1]["severity"] == "WARNING"
+    assert findings[1]["line"] == 7
+    assert findings[2]["severity"] == "CRITICAL"
+    assert findings[0]["source"] == "trivy"
+    assert findings[0]["category"] == "dependency"
+    assert findings[0]["context"] == "app-code"
+    assert findings[0]["fix_prompt"].startswith("Fix trivy:CVE-2026-0001")
+    assert "SHOULD_NOT_PRINT" not in findings[2]["snippet"]
+
+
+def test_run_trivy_fs_requires_trivy(tmp_path):
+    with patch("scanner.cli.vibesec.shutil.which", return_value=None):
+        with pytest.raises(RuntimeError, match="trivy executable not found"):
+            _run_trivy_fs(tmp_path)
+
+
+@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "example.md").write_text("MOCK_SECRET_KEY\n")
+
+    assert cmd_scan(ScanArgs(tmp_path)) == 0
+    out = capsys.readouterr().out
+    assert "Context: doc" in out
+    assert "Deploy gate: non-blocking context" in out
+    assert "🔴 0 critical" in out
+
+
+@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
+    (tmp_path / "app.py").write_text("MOCK_SECRET_KEY\n")
+
+    assert cmd_scan(ScanArgs(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "Context: app-code" in out
+    assert "🔴 1 critical" in out
+
+
+def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys):
+    scanner_cli = tmp_path / "scanner" / "cli"
+    scanner_cli.mkdir(parents=True)
+    (scanner_cli / "vibesec.py").write_text('"message": "Use eval() detected"\n')
+    rules = [{
+        "id": "dangerous-eval",
+        "pattern": re.compile(r"eval"),
+        "severity": "CRITICAL",
+        "message": "eval detected",
+        "extensions": [".py"],
+    }]
+
+    with patch("scanner.cli.vibesec.SCAN_RULES", rules):
+        assert cmd_scan(ScanArgs(tmp_path)) == 0
+
+    out = capsys.readouterr().out
+    assert "Context: scanner-fixture" in out
+    assert "🔴 0 critical" in out
+
+
 def test_print_scan_results_empty(capsys):
     _print_scan_results([], 5)
     captured = capsys.readouterr()
@@ -294,7 +406,7 @@ def test_print_scan_results_warnings_only(capsys):
 
     assert "[🟡 WARNING] utils.ts:1" in captured.out
     assert "🟡 1 warnings" in captured.out
-    assert "✅ No critical or high-severity issues found." in captured.out
+    assert "✅ No deploy-blocking critical or high issues found." in captured.out
 
 
 def test_print_scan_results_sorting(capsys):
