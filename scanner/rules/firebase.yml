@@ -1,7 +1,7 @@
 rules:
   - id: firebase-rules-allow-all
     patterns:
-      - pattern-regex: 'allow\s+(?:read|write|read,\s*write)\s*:\s*if\s+true'
+      - pattern-regex: 'allow\s+(read|write|read,\s*write)\s*:\s*if\s+true'
     message: |
       Firestore or Firebase Storage rule allows all reads or writes without
       authentication. This exposes your data to anyone on the internet.
@@ -17,7 +17,7 @@ rules:
 
   - id: firebase-rules-no-auth
     patterns:
-      - pattern-regex: 'allow\s+(?:read|write)\s*:\s*if\s+(?!request\.auth)'
+      - pattern-regex: 'allow\s+(read|write)\s*:\s*if\s+(?!request\.auth)'
     message: |
       Firebase rule may not check authentication. Ensure rules include
       request.auth != null as a minimum check.
@@ -53,7 +53,7 @@ rules:
 
   - id: realtime-db-rules-allow-all
     patterns:
-      - pattern-regex: '"\.(?:read|write)"\s*:\s*"?true"?'
+      - pattern-regex: '"\.(read|write)"\s*:\s*"?true"?'
     message: |
       Firebase Realtime Database rule allows unrestricted read or write access.
       Replace with authentication checks: ".read": "auth != null"

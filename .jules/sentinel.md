@@ -46,8 +46,3 @@
 **Vulnerability:** The VibeSec static analysis scanner lacked explicit detection for path traversal risks caused by dynamically constructing file paths using untrusted inputs (e.g., Python `open(f"...{var}...")` or Node `fs.readFile(\`...\${var}...\`)`).
 **Learning:** Path Traversal is a critical OWASP Top 10 vulnerability (A01:2021) that must be flagged. Constructing dynamic paths without validation or sanitization is a very common failure mode when AI generates file-system related code.
 **Prevention:** A new rule `path-traversal-risk` was added to `SCAN_RULES` to flag unsafe usage of `fs.readFile`, `fs.readFileSync`, `fs.writeFile`, `fs.writeFileSync`, `fs.createReadStream`, and Python's `open()` when used with string concatenation, f-strings, or template literals.
-
-## 2024-06-21 - [ReDoS Prevention in YAML Scanner Rules]
-**Vulnerability:** Regular Expression Denial of Service (ReDoS) potential in scanner rules.
-**Learning:** Capturing groups `(...)` in heavily used regex rules (like in `scanner/rules/*.yml`) increase backtracking overhead and memory usage, making the scanner vulnerable to ReDoS attacks with crafted input files.
-**Prevention:** Always use non-capturing groups `(?:...)` when the captured value is not needed for backreferences or extraction. This improves scanner performance and prevents ReDoS.
