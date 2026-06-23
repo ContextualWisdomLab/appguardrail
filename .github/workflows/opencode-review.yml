@@ -155,7 +155,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.event.inputs.pr_base_sha }}
+          ref: ${{ github.sha }}
 
       - name: Materialize pull request head for OpenCode review data
         env:
