@@ -1887,6 +1887,126 @@ extract_first_severity_rank() {
 	printf '%s\n' "$rank"
 }
 
+vulnerability_report_intersects_changed_lines() {
+	local report_file="$1"
+	local changed_file="$2"
+	local resolved_scan_target=""
+
+	if resolved_scan_target="$(resolve_current_target_path "$TARGET_PATH" 2>/dev/null)"; then
+		:
+	else
+		resolved_scan_target=""
+	fi
+
+	python3 - "$REPO_ROOT" "$REPO_NAME" "$resolved_scan_target" "$changed_file" "$report_file" "${PR_BASE_SHA:-}" "${PR_HEAD_SHA:-}" <<'PY'
+from pathlib import Path, PurePosixPath
+import re
+import subprocess
+import sys
+
+repo_root = Path(sys.argv[1]).resolve(strict=True)
+repo_name = sys.argv[2]
+scan_target_raw = sys.argv[3].strip()
+changed_file = PurePosixPath(sys.argv[4])
+report_file = Path(sys.argv[5])
+base_sha = sys.argv[6].strip()
+head_sha = sys.argv[7].strip()
+
+sha_re = re.compile(r"^[0-9a-fA-F]{40}$")
+if not sha_re.match(base_sha) or not sha_re.match(head_sha):
+    raise SystemExit(0)
+
+diff = subprocess.run(
+    [
+        "git",
+        "-C",
+        str(repo_root),
+        "diff",
+        "--unified=0",
+        "--no-ext-diff",
+        base_sha,
+        head_sha,
+        "--",
+        changed_file.as_posix(),
+    ],
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    check=False,
+)
+if diff.returncode != 0:
+    raise SystemExit(0)
+
+changed_ranges = []
+for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff.stdout, flags=re.MULTILINE):
+    start = int(match.group(1))
+    count = int(match.group(2) or "1")
+    if count > 0:
+        changed_ranges.append((start, start + count - 1))
+
+if not changed_ranges:
+    raise SystemExit(1)
+
+try:
+    text = report_file.read_text(encoding="utf-8", errors="replace")
+except OSError:
+    raise SystemExit(0)
+
+scan_target = Path(scan_target_raw).resolve(strict=True) if scan_target_raw else None
+scan_target_workspace_prefix = f"/workspace/{scan_target.name}/" if scan_target and scan_target != repo_root else ""
+
+
+def normalize(raw):
+    value = raw.strip().strip("`")
+    if not value:
+        return None
+    if scan_target_workspace_prefix and value.startswith(scan_target_workspace_prefix):
+        suffix = value[len(scan_target_workspace_prefix) :]
+        if suffix:
+            return PurePosixPath(suffix)
+    for prefix in (str(repo_root) + "/", f"/workspace/{repo_name}/"):
+        if value.startswith(prefix):
+            suffix = value[len(prefix) :]
+            if suffix:
+                return PurePosixPath(suffix)
+    if value == changed_file.as_posix() or value.endswith("/" + changed_file.as_posix()):
+        return changed_file
+    try:
+        candidate = (repo_root / value).resolve(strict=False)
+        relative = candidate.relative_to(repo_root)
+    except (OSError, ValueError):
+        return None
+    return PurePosixPath(relative.as_posix())
+
+
+path_line_pattern = re.compile(
+    r"(?P<path>/workspace/[^`\r\n│:]+|[A-Za-z0-9_./ \[\]-]+\.[A-Za-z0-9_]+):(?P<line>[0-9]+)"
+)
+xml_location_pattern = re.compile(
+    r"<file>\s*(?P<path>[^<]+?)\s*</file>.*?<start_line>\s*(?P<line>[0-9]+)\s*</start_line>",
+    flags=re.DOTALL,
+)
+
+saw_changed_file_line = False
+for pattern in (path_line_pattern, xml_location_pattern):
+    for match in pattern.finditer(text):
+        relative = normalize(match.group("path"))
+        if relative != changed_file:
+            continue
+        saw_changed_file_line = True
+        line = int(match.group("line"))
+        if any(start <= line <= end for start, end in changed_ranges):
+            raise SystemExit(0)
+
+if saw_changed_file_line:
+    raise SystemExit(1)
+
+# A report that only names the changed file without a line remains unsafe to
+# downgrade, because the gate cannot prove whether it points at changed code.
+raise SystemExit(0)
+PY
+}
+
 evaluate_pull_request_findings() {
 	PR_FINDINGS_DECISION="not_applicable"
 	if ! is_pull_request_event; then
@@ -1965,9 +2085,12 @@ evaluate_pull_request_findings() {
 			for vulnerability_location in "${vulnerability_locations[@]}"; do
 				for changed_file in "${CHANGED_FILES[@]}"; do
 					if [ "$vulnerability_location" = "$changed_file" ]; then
-						PR_FINDINGS_DECISION="block_changed"
-						echo "Strix finding intersects files changed in this pull request." >&2
-						return 1
+						if vulnerability_report_intersects_changed_lines "$vuln_file" "$changed_file"; then
+							PR_FINDINGS_DECISION="block_changed"
+							echo "Strix finding intersects files changed in this pull request." >&2
+							return 1
+						fi
+						echo "Strix finding references unchanged lines in a changed file; treating it as baseline." >&2
 					fi
 				done
 			done
@@ -2014,9 +2137,12 @@ evaluate_pull_request_findings() {
 				for vulnerability_location in "${vulnerability_locations[@]}"; do
 					for changed_file in "${CHANGED_FILES[@]}"; do
 						if [ "$vulnerability_location" = "$changed_file" ]; then
-							PR_FINDINGS_DECISION="block_changed"
-							echo "Strix finding intersects files changed in this pull request." >&2
-							return 1
+							if vulnerability_report_intersects_changed_lines "$STRIX_LOG" "$changed_file"; then
+								PR_FINDINGS_DECISION="block_changed"
+								echo "Strix finding intersects files changed in this pull request." >&2
+								return 1
+							fi
+							echo "Strix finding references unchanged lines in a changed file; treating it as baseline." >&2
 						fi
 					done
 				done
