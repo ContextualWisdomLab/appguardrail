@@ -1,5 +1,8 @@
 # VibeSec
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/VibeSec)
+[![Security Process](https://github.com/ContextualWisdomLab/VibeSec/actions/workflows/security-process.yml/badge.svg)](https://github.com/ContextualWisdomLab/VibeSec/actions/workflows/security-process.yml)
+
 **Security guardrails for vibe-coded apps.**
 
 VibeSec helps builders using Cursor, Claude Code, Lovable, Replit, Bolt, Supabase, Firebase, Vercel, and Netlify find and fix security issues introduced during AI-assisted development.
@@ -33,6 +36,8 @@ VibeSec is a **persistent security layer for vibe coders** — not a one-time pe
 
 ### Install the CLI
 
+Requires Python 3.9 or newer.
+
 ```bash
 pip install vibesec
 ```
@@ -59,10 +64,14 @@ This creates:
 
 ```bash
 vibesec scan .
+
+# Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
+vibesec scan --trivy .
 ```
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
+- Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Dangerous Supabase/Firebase usage patterns
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
@@ -70,6 +79,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+
+Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
+and scanner fixtures stay visible but do not fail the deploy gate by default.
 
 ### Generate a security review prompt
 
