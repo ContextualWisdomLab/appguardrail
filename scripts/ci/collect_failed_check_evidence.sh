@@ -382,7 +382,6 @@ env HEAD_SHA="$HEAD_SHA" gh run list \
 	' >>"$manual_success_contexts" || true
 
 if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] &&
-	[ "${GITHUB_WORKFLOW:-}" = "OpenCode Review" ] &&
 	[ -n "${CURRENT_MANUAL_OPENCODE_RUN_ID:-}" ]; then
 	current_manual_opencode_run_url="${CURRENT_MANUAL_OPENCODE_RUN_URL:-}"
 	if [ -z "$current_manual_opencode_run_url" ] && [ -n "${GITHUB_SERVER_URL:-}" ]; then
