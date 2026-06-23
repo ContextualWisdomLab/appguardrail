@@ -351,3 +351,137 @@ def test_if_name_main():
             mock_exit.assert_called_with(0)
     finally:
         sys.argv = original_argv
+def test_run_trivy_fs_error(tmp_path):
+    from scanner.cli.vibesec import _run_trivy_fs
+    from unittest.mock import patch
+    import subprocess
+    import json
+
+    class MockProcess:
+        returncode = 1
+        stderr = "mock error detail\n"
+        stdout = ""
+
+    with patch("scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"):
+        with patch("scanner.cli.vibesec.subprocess.run", return_value=MockProcess()):
+            import pytest
+            with pytest.raises(RuntimeError, match="Trivy scan failed: mock error detail"):
+                _run_trivy_fs(tmp_path)
+
+def test_run_trivy_fs_invalid_json(tmp_path):
+    from scanner.cli.vibesec import _run_trivy_fs
+    from unittest.mock import patch
+    import subprocess
+
+    class MockProcess:
+        returncode = 0
+        stderr = ""
+        stdout = "invalid json"
+
+    with patch("scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"):
+        with patch("scanner.cli.vibesec.subprocess.run", return_value=MockProcess()):
+            import pytest
+            with pytest.raises(RuntimeError, match="Trivy returned invalid JSON"):
+                _run_trivy_fs(tmp_path)
+
+def test_trivy_target_absolute(tmp_path):
+    from scanner.cli.vibesec import _trivy_target
+    target = str(tmp_path / "foo.txt")
+    assert _trivy_target(target, tmp_path) == "foo.txt"
+
+def test_trivy_target_relative(tmp_path):
+    from scanner.cli.vibesec import _trivy_target
+    target = "foo.txt"
+    assert _trivy_target(target, tmp_path) == "foo.txt"
+
+def test_trivy_target_value_error(tmp_path):
+    from scanner.cli.vibesec import _trivy_target
+    # simulate an error when calling Path(target) ? actually pathlib.Path doesn't easily raise ValueError on string parsing
+    # Let's mock Path to raise ValueError
+    from unittest.mock import patch
+    with patch("scanner.cli.vibesec.Path", side_effect=ValueError("mock error")):
+        assert _trivy_target("target", tmp_path) == "target"
+
+from unittest.mock import patch
+
+def test_cmd_scan_trivy_flag(tmp_path, monkeypatch, capsys):
+    from scanner.cli.vibesec import cmd_scan
+
+    class Args:
+        def __init__(self):
+            self.path = str(tmp_path)
+            self.trivy = True
+
+    with patch("scanner.cli.vibesec._run_trivy_fs", return_value=[]) as mock_trivy:
+        cmd_scan(Args())
+        mock_trivy.assert_called_once()
+        assert "Trivy FS enabled" in capsys.readouterr().out
+
+def test_cmd_scan_trivy_flag_error(tmp_path, monkeypatch, capsys):
+    from scanner.cli.vibesec import cmd_scan
+    class Args:
+        def __init__(self):
+            self.path = str(tmp_path)
+            self.trivy = True
+
+    with patch("scanner.cli.vibesec._run_trivy_fs", side_effect=RuntimeError("mock error")):
+        assert cmd_scan(Args()) == 1
+        assert "Error: mock error" in capsys.readouterr().err
+
+def test_finding_context_various():
+    from scanner.cli.vibesec import _finding_context
+    assert _finding_context("tests/foo.ts") == "test"
+    assert _finding_context("foo/tests/bar.ts") == "test"
+    assert _finding_context("examples/foo.ts") == "example"
+    assert _finding_context("scanner/rules/foo.ts") == "scanner-fixture"
+
+def test_finding_category_various():
+    from scanner.cli.vibesec import _finding_category
+    assert _finding_category("cve-123") == "dependency"
+    assert _finding_category("some-secret") == "secrets"
+    assert _finding_category("stripe-stuff") == "payment"
+    assert _finding_category("firebase-rule") == "storage"
+    assert _finding_category("eval-something") == "injection"
+    assert _finding_category("random-thing") == "misconfig"
+
+def test_trivy_target_empty(tmp_path):
+    from scanner.cli.vibesec import _trivy_target
+    assert _trivy_target("", tmp_path) == str(tmp_path)
+
+def test_finding_category_authz():
+    from scanner.cli.vibesec import _finding_category
+    assert _finding_category("admin-auth") == "authz"
+    assert _finding_category("session-key") == "authz"
+
+def test_scan_file_empty_content(tmp_path):
+    from scanner.cli.vibesec import _scan_file
+    test_file = tmp_path / "empty.ts"
+    test_file.write_text("")
+    assert _scan_file(test_file, tmp_path) == []
+
+def test_scan_file_exception(tmp_path):
+    from scanner.cli.vibesec import _scan_file
+    from unittest.mock import patch
+    test_file = tmp_path / "dummy.ts"
+    test_file.write_text("dummy")
+    with patch("pathlib.Path.open", side_effect=PermissionError("mock")):
+        assert _scan_file(test_file, tmp_path) == []
+def test_scan_file_no_newline_at_end(tmp_path):
+    from scanner.cli.vibesec import _scan_file
+    from unittest.mock import patch
+    test_file = tmp_path / "no_newline.ts"
+    test_file.write_text("console.log(MOCK_SECRET_KEY);")
+
+    import re
+    rules = [{
+        "id": "mock-rule",
+        "pattern": re.compile(r'MOCK_SECRET_KEY'),
+        "severity": "CRITICAL",
+        "message": "Mock message",
+        "extensions": [".ts"],
+    }]
+
+    with patch("scanner.cli.vibesec.SCAN_RULES", rules):
+        findings = _scan_file(test_file, tmp_path)
+        assert len(findings) == 1
+        assert "console.log(MOCK_SECRET_KEY);" in findings[0]["snippet"]
