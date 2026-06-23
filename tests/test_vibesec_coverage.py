@@ -417,6 +417,8 @@ def test_cmd_scan_trivy_flag(tmp_path, monkeypatch, capsys):
         mock_trivy.assert_called_once()
         assert "Trivy FS enabled" in capsys.readouterr().out
 
+
+
 def test_cmd_scan_trivy_flag_error(tmp_path, monkeypatch, capsys):
     from scanner.cli.vibesec import cmd_scan
     class Args:
@@ -453,11 +455,15 @@ def test_finding_category_authz():
     assert _finding_category("admin-auth") == "authz"
     assert _finding_category("session-key") == "authz"
 
+
+
 def test_scan_file_empty_content(tmp_path):
     from scanner.cli.vibesec import _scan_file
     test_file = tmp_path / "empty.ts"
     test_file.write_text("")
     assert _scan_file(test_file, tmp_path) == []
+
+
 
 def test_scan_file_exception(tmp_path):
     from scanner.cli.vibesec import _scan_file
@@ -466,6 +472,8 @@ def test_scan_file_exception(tmp_path):
     test_file.write_text("dummy")
     with patch("pathlib.Path.open", side_effect=PermissionError("mock")):
         assert _scan_file(test_file, tmp_path) == []
+
+
 def test_scan_file_no_newline_at_end(tmp_path):
     from scanner.cli.vibesec import _scan_file
     from unittest.mock import patch
