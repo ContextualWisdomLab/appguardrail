@@ -562,6 +562,8 @@ assert_opencode_review_uses_codegraph_and_gpt5_fallback() {
 	assert_file_contains "$workflow_file" "successful same-head manual workflow_dispatch OpenCode run" "opencode review prompt covers completed OpenCode manual superseding evidence"
 	assert_file_contains "$workflow_file" "CURRENT_MANUAL_OPENCODE_RUN_ID" "opencode review workflow passes the current manual run id into failed-check evidence collection"
 	assert_file_contains "$workflow_file" "CURRENT_MANUAL_OPENCODE_RUN_URL" "opencode review workflow passes the current manual run URL into failed-check evidence collection"
+	assert_equals "3" "$(grep -Fc "CURRENT_MANUAL_OPENCODE_RUN_ID" "$workflow_file")" "opencode review workflow passes current manual run id to evidence, publication, and approval steps"
+	assert_equals "3" "$(grep -Fc "CURRENT_MANUAL_OPENCODE_RUN_URL" "$workflow_file")" "opencode review workflow passes current manual run URL to evidence, publication, and approval steps"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Superseded failed checks" "failed-check evidence lists stale failed contexts superseded by current-head manual Strix evidence"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "manual_success_contexts" "failed-check evidence compares explicit manual success statuses before active failures"
 	assert_file_contains "$REPO_ROOT/scripts/ci/collect_failed_check_evidence.sh" "Current manual workflow_dispatch OpenCode review evidence in progress via run" "failed-check evidence treats the current manual OpenCode review run as superseding stale bridge failures"
