@@ -30,6 +30,16 @@ assert_equals() {
 	fi
 }
 
+assert_last_line_equals() {
+	local expected="$1"
+	local actual="$2"
+	local message="$3"
+	local last_line
+
+	last_line="$(printf '%s\n' "$actual" | tail -n 1)"
+	assert_equals "$expected" "$last_line" "$message"
+}
+
 assert_file_contains() {
 	local file_path="$1"
 	local needle="$2"
@@ -1049,7 +1059,10 @@ EOF
 	set -e
 
 	assert_equals "4" "$rc" "opencode approval gate rejects non-source-backed findings"
-	assert_equals "NO_CONCLUSION" "$gate_result" "non-source-backed finding rejection gate result"
+	assert_last_line_equals "NO_CONCLUSION" "$gate_result" "non-source-backed finding rejection gate result"
+	if ! printf '%s\n' "$gate_result" | grep -Fq "it will not approve without source-backed current-head review evidence"; then
+		record_failure "non-source-backed finding rejection explains missing source-backed evidence"
+	fi
 
 	rm -rf "$tmp_dir"
 }
@@ -2121,7 +2134,7 @@ case "${FAKE_STRIX_SCENARIO:?}" in
 			;;
 		esac
 		;;
-	github-models-fallback-provider-signal-tries-next | github-models-fallback-vulnerability-before-next-success-blocks)
+	github-models-fallback-provider-signal-tries-next | github-models-fallback-vulnerability-before-next-success-blocks | github-models-fallback-tool-mismatch-tries-next)
 		case "${STRIX_LLM:-}" in
 		openai/gpt-5)
 			echo "LLM CONNECTION FAILED"
@@ -2137,6 +2150,13 @@ Severity: CRITICAL
 Location 1:
 sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/service/impl/SysUserServiceImpl.java:5
 EOS
+			elif [ "${FAKE_STRIX_SCENARIO:?}" = "github-models-fallback-tool-mismatch-tries-next" ]; then
+				echo "╭─ STRIX ──────────────────────────────────────────────────────────────────────╮"
+				echo "│  Penetration test in progress                                                │"
+				echo "│  Model openai/deepseek/deepseek-r1-0528                                      │"
+				echo "│  Vulnerabilities 0                                                           │"
+				echo "╰──────────────────────────────────────────────────────────────────────────────╯"
+				echo "agents.exceptions.ModelBehaviorError: Tool exec_patch not found in agent strix"
 			else
 				echo "LLM CONNECTION FAILED"
 				echo "Could not establish connection to the language model."
@@ -2964,6 +2984,16 @@ EOS
 		echo "Penetration test failed: baseline critical narrative service finding"
 		exit 1
 		;;
+	pr-baseline-critical-bare-rule-filenames)
+		mkdir -p "$STRIX_REPORTS_DIR/fake-pr-baseline-bare-rule-filenames/vulnerabilities"
+		cat >"$STRIX_REPORTS_DIR/fake-pr-baseline-bare-rule-filenames/vulnerabilities/vuln-0001.md" <<'EOS'
+Severity: CRITICAL
+Technical Analysis
+The security scanner's rule definitions include dangerous credential exposure patterns in nextjs.yml and secrets.yml.
+EOS
+		echo "Penetration test failed: baseline critical bare rule filename finding"
+		exit 1
+		;;
 	pr-critical-unmapped-arbitrary-backticked-service-file)
 		mkdir -p "$STRIX_REPORTS_DIR/fake-pr-unmapped-arbitrary-backtick/vulnerabilities"
 		cat >"$STRIX_REPORTS_DIR/fake-pr-unmapped-arbitrary-backtick/vulnerabilities/vuln-0001.md" <<'EOS'
@@ -3389,6 +3419,9 @@ EOF
 		mkdir -p "$repo_root_dir/backend/services"
 		echo 'async def send_email(*args, **kwargs): return None' >"$repo_root_dir/backend/services/email_client.py"
 		echo 'def parse_eml(*args): return {}' >"$repo_root_dir/backend/services/email_parser.py"
+		mkdir -p "$repo_root_dir/scanner/rules"
+		echo 'rules: []' >"$repo_root_dir/scanner/rules/nextjs.yml"
+		echo 'rules: []' >"$repo_root_dir/scanner/rules/secrets.yml"
 		if [ -n "$current_pr_number" ]; then
 			cat >"$event_payload_file" <<EOF
 {
@@ -6651,6 +6684,36 @@ run_gate_case "github-models-fallback-provider-signal-tries-next" \
 	"deepseek/deepseek-r1-0528 deepseek/deepseek-v3-0324" \
 	"1"
 
+run_gate_case "github-models-fallback-tool-mismatch-tries-next" \
+	"openai/gpt-5" \
+	"" \
+	"0" \
+	"REGEX:Strix quick scan succeeded with fallback model 'deepseek/deepseek-v3-0324' in [0-9]+s\\." \
+	"3" \
+	"openai/gpt-5|openai/deepseek/deepseek-r1-0528|openai/deepseek/deepseek-v3-0324" \
+	"https://models.github.ai/inference|https://models.github.ai/inference|https://models.github.ai/inference" \
+	"openai" \
+	"https://models.github.ai/inference" \
+	"" \
+	"0" \
+	"CRITICAL" \
+	"0" \
+	"" \
+	"" \
+	"1200" \
+	"0" \
+	"pull_request" \
+	"sync-module-system/smart-crawling-biz/src/main/java/org/empasy/sync/modules/system/controller/SysPositionController.java" \
+	"" \
+	"" \
+	"0" \
+	"" \
+	"" \
+	"" \
+	"__SAME_AS_FALLBACK_MODELS__" \
+	"deepseek/deepseek-r1-0528 deepseek/deepseek-v3-0324" \
+	"1"
+
 run_gate_case "github-models-fallback-vulnerability-before-next-success-blocks" \
 	"openai/gpt-5" \
 	"" \
@@ -8194,6 +8257,27 @@ run_gate_case "pr-critical-changed-xml-file-location-space" \
 	"src/unsafe name.py"
 
 run_gate_case "pr-baseline-critical-narrative-backticked-service-file" \
+	"openai/gpt-4o-mini" \
+	"" \
+	"0" \
+	"Strix findings are limited to unchanged files in this pull request; allowing pipeline continuation." \
+	"1" \
+	"openai/gpt-4o-mini" \
+	"https://example.invalid" \
+	"vertex_ai" \
+	"__DEFAULT__" \
+	"" \
+	"0" \
+	"CRITICAL" \
+	"0" \
+	"" \
+	"" \
+	"1200" \
+	"0" \
+	"pull_request" \
+	"backend/services/email_client.py"
+
+run_gate_case "pr-baseline-critical-bare-rule-filenames" \
 	"openai/gpt-4o-mini" \
 	"" \
 	"0" \

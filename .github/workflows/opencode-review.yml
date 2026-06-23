@@ -834,7 +834,7 @@ jobs:
             fi
 
             if python3 "$GITHUB_WORKSPACE/scripts/ci/opencode_review_normalize_output.py" \
-              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file"; then
+              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file" "$OPENCODE_EVIDENCE_FILE"; then
               bash "$GITHUB_WORKSPACE/scripts/ci/opencode_review_approve_gate.sh" "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file" >/dev/null
               return $?
             fi
@@ -962,7 +962,7 @@ jobs:
             fi
 
             if python3 "$GITHUB_WORKSPACE/scripts/ci/opencode_review_normalize_output.py" \
-              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file"; then
+              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file" "$OPENCODE_EVIDENCE_FILE"; then
               bash "$GITHUB_WORKSPACE/scripts/ci/opencode_review_approve_gate.sh" "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file" >/dev/null
               return $?
             fi
@@ -1090,7 +1090,7 @@ jobs:
             fi
 
             if python3 "$GITHUB_WORKSPACE/scripts/ci/opencode_review_normalize_output.py" \
-              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file"; then
+              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file" "$OPENCODE_EVIDENCE_FILE"; then
               bash "$GITHUB_WORKSPACE/scripts/ci/opencode_review_approve_gate.sh" "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$output_file" >/dev/null
               return $?
             fi
@@ -1194,6 +1194,7 @@ jobs:
           OPENCODE_PRIMARY_OUTPUT_FILE: ${{ runner.temp }}/opencode-review-primary.md
           OPENCODE_FALLBACK_OUTPUT_FILE: ${{ runner.temp }}/opencode-review-fallback.md
           OPENCODE_SECOND_FALLBACK_OUTPUT_FILE: ${{ runner.temp }}/opencode-review-second-fallback.md
+          OPENCODE_EVIDENCE_FILE: ${{ runner.temp }}/opencode-review-evidence.md
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.inputs.pr_base_sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
         run: |
@@ -1256,7 +1257,7 @@ jobs:
 
           perl -pe 's/\x1b\[[0-9;?]*[A-Za-z]//g' "$review_output_file" >"$clean_output"
           if ! python3 scripts/ci/opencode_review_normalize_output.py \
-            "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$clean_output"; then
+            "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$clean_output" "$OPENCODE_EVIDENCE_FILE"; then
             echo "Selected successful OpenCode output did not include a valid control conclusion."
             cat "$clean_output"
             exit 4
