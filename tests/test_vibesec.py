@@ -143,6 +143,28 @@ def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
         assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == ["second"]
 
 
+def test_scan_file_detects_python_insecure_deserialization(tmp_path):
+    test_file = tmp_path / "unsafe_deserialization.py"
+    test_file.write_text(
+        "import pickle\n"
+        "import yaml\n"
+        "pickle.loads(request_body)\n"
+        "yaml.load(config_text)\n"
+        "yaml.safe_load(trusted_config)\n"
+    )
+
+    findings = _scan_file(test_file, tmp_path)
+    deserialization_findings = [
+        finding for finding in findings
+        if finding["rule_id"] == "insecure-deserialization"
+    ]
+
+    assert len(deserialization_findings) == 2
+    assert [finding["line"] for finding in deserialization_findings] == [3, 4]
+    assert any("pickle.loads" in finding["snippet"] for finding in deserialization_findings)
+    assert any("yaml.load" in finding["snippet"] for finding in deserialization_findings)
+
+
 def test_collect_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         base_path = Path(tmpdir)
