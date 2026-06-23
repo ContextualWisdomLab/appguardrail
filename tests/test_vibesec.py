@@ -309,8 +309,8 @@ def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
 
     assert cmd_scan(ScanArgs(tmp_path)) == 0
     out = capsys.readouterr().out
-    assert "Context: doc" in out
-    assert "Deploy gate: non-blocking context" in out
+    assert "| doc" in out
+    assert "Gate:    non-blocking context" in out
     assert "🔴 0 critical" in out
 
 
@@ -320,7 +320,7 @@ def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
 
     assert cmd_scan(ScanArgs(tmp_path)) == 1
     out = capsys.readouterr().out
-    assert "Context: app-code" in out
+    assert "| app-code" in out
     assert "🔴 1 critical" in out
 
 
@@ -340,7 +340,7 @@ def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys
         assert cmd_scan(ScanArgs(tmp_path)) == 0
 
     out = capsys.readouterr().out
-    assert "Context: scanner-fixture" in out
+    assert "| scanner-fixture" in out
     assert "🔴 0 critical" in out
 
 
@@ -367,9 +367,9 @@ def test_print_scan_results_critical(capsys):
     captured = capsys.readouterr()
 
     assert "[🔴 CRITICAL] app/page.tsx:10" in captured.out
-    assert "Rule: VSEC-001" in captured.out
+    assert "Rule:    VSEC-001" in captured.out
     assert "Found a critical issue" in captured.out
-    assert "Code: const secret = 'abc';" in captured.out
+    assert "Code:    const secret = 'abc';" in captured.out
     assert "🔴 1 critical" in captured.out
     assert "❌ Critical issues found. Fix before deploying." in captured.out
     assert "💡 Run 'vibesec review' to get an AI prompt for fixing these issues." in captured.out
