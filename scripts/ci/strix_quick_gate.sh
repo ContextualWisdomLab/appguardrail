@@ -2637,6 +2637,15 @@ is_midstream_fallback_error() {
 	return 1
 }
 
+is_model_behavior_tool_mismatch_error() {
+	if grep -Fq 'ModelBehaviorError' "$STRIX_LOG" &&
+		grep -Eq 'Tool [^[:space:]]+ not found in agent strix' "$STRIX_LOG"; then
+		return 0
+	fi
+
+	return 1
+}
+
 # Narrower variant: LLM providers only, excluding HTTP transport libraries
 # (httpx, httpcore, requests). Used for generic transport failures where
 # library names alone are insufficient to prove the timeout/connection error
@@ -2669,6 +2678,10 @@ has_detected_infrastructure_error() {
 	fi
 
 	if is_llm_service_unavailable_error; then
+		return 0
+	fi
+
+	if is_model_behavior_tool_mismatch_error; then
 		return 0
 	fi
 
@@ -3195,6 +3208,10 @@ is_model_retryable_error() {
 	fi
 
 	if is_llm_service_unavailable_error; then
+		return 0
+	fi
+
+	if is_model_behavior_tool_mismatch_error; then
 		return 0
 	fi
 
