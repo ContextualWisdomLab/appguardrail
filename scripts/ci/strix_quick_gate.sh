@@ -1299,6 +1299,13 @@ frontend/postcss.config.mjs
 docker-compose.yml
 render.yaml
 VERSION
+scanner/cli/vibesec.py
+scanner/rules/authz.yml
+scanner/rules/firebase.yml
+scanner/rules/nextjs.yml
+scanner/rules/secrets.yml
+scanner/rules/stripe.yml
+scanner/rules/supabase.yml
 EOF
 	fi
 }

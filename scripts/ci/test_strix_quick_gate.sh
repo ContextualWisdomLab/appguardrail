@@ -88,6 +88,8 @@ assert_strix_pr_scope_includes_deployment_context() {
 	assert_file_contains "$GATE_SCRIPT" "frontend/package-lock.json" "strix gate includes frontend dependency lock context"
 	assert_file_contains "$GATE_SCRIPT" "frontend/postcss.config.mjs" "strix gate includes frontend build config context"
 	assert_file_contains "$GATE_SCRIPT" "VERSION" "strix gate includes release version context for workflow scans"
+	assert_file_contains "$GATE_SCRIPT" "scanner/cli/vibesec.py" "strix gate includes the local VibeSec scanner CLI for security-process workflow scans"
+	assert_file_contains "$GATE_SCRIPT" "scanner/rules/secrets.yml" "strix gate includes VibeSec scanner rule context for security-process workflow scans"
 	assert_file_contains "$GATE_SCRIPT" "scripts/ci/test_*.sh" "strix gate excludes large CI self-test harnesses from PR scan targets"
 }
 
