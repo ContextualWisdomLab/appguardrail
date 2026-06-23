@@ -1,19 +1,23 @@
 import os
 from pathlib import Path
 from unittest.mock import patch
+
 import pytest
 
 from scanner.cli.vibesec import cmd_init, cmd_scan
 from tests.test_vibesec import MOCK_RULES
+
 
 class Args:
     def __init__(self, tool="cursor", stack=None):
         self.tool = tool
         self.stack = stack
 
+
 class ScanArgs:
     def __init__(self, path):
         self.path = str(path)
+
 
 def _create_symlink(target, link, target_is_directory=False):
     try:
@@ -60,7 +64,7 @@ def test_cmd_scan_path_not_exists(tmp_path, capsys):
         cmd_scan(ScanArgs(missing_path))
 
     assert excinfo.value.code == 1
-    assert "Error: Path does not exist:" in capsys.readouterr().out
+    assert "Error: Path does not exist:" in capsys.readouterr().err
 
 def test_cmd_scan_skips_symlink_path(tmp_path, capsys):
     target = tmp_path / "target.py"
@@ -70,7 +74,6 @@ def test_cmd_scan_skips_symlink_path(tmp_path, capsys):
 
     assert cmd_scan(ScanArgs(link)) == 0
     assert "Skipping symlink path:" in capsys.readouterr().out
-
 
     # We will simulate the target_file resolving outside the project_root.
     # We can do this by patching `Path.resolve` just for this test, or creating a symlink.
@@ -114,7 +117,9 @@ def test_cmd_init_path_traversal_target_file(tmp_path, monkeypatch, capsys):
     assert exc.value.code == 1
     assert "escapes the project root" in capsys.readouterr().err
 
+
 from scanner.cli.vibesec import cmd_hook
+
 
 class HookArgs:
     pass
@@ -135,6 +140,7 @@ def test_cmd_hook_success(tmp_path, monkeypatch, capsys):
     assert hook_file.exists()
     assert "vibesec scan ." in hook_file.read_text()
     import stat
+
     assert hook_file.stat().st_mode & stat.S_IEXEC
 
     assert "pre-commit hook installed successfully" in capsys.readouterr().out
@@ -175,7 +181,9 @@ from scanner.cli.vibesec import _collect_files, _scan_file
 
 def test_collect_files_oserror_on_scandir(tmp_path):
     import os
+
     original_scandir = os.scandir
+
     def mock_scandir(path):
         raise PermissionError("Mock permission error")
 
@@ -185,6 +193,7 @@ def test_collect_files_oserror_on_scandir(tmp_path):
 
 def test_collect_files_oserror_on_entry(tmp_path):
     import os
+
     original_scandir = os.scandir
 
     class MockEntry:
@@ -196,7 +205,8 @@ def test_collect_files_oserror_on_entry(tmp_path):
             self.path = str(tmp_path / "mock")
 
         def is_dir(self, follow_symlinks=False):
-            if self._is_dir: raise OSError("Mock OS Error")
+            if self._is_dir:
+                raise OSError("Mock OS Error")
             return False
 
         def is_file(self, follow_symlinks=False):
@@ -209,8 +219,10 @@ def test_collect_files_oserror_on_entry(tmp_path):
         class MockIt:
             def __enter__(self):
                 return [MockEntry(True, False, False)]
+
             def __exit__(self, *args):
                 pass
+
         return MockIt()
 
     with patch("os.scandir", mock_scandir):
@@ -219,6 +231,7 @@ def test_collect_files_oserror_on_entry(tmp_path):
 
 def test_scan_file_lstat_oserror(tmp_path):
     import os
+
     test_file = tmp_path / "test.ts"
 
     with patch("os.lstat", side_effect=OSError("Mock OS Error")):
@@ -226,11 +239,12 @@ def test_scan_file_lstat_oserror(tmp_path):
 
 def test_scan_file_large_file(tmp_path):
     import os
+
     test_file = tmp_path / "large.ts"
 
     class MockStat:
-        st_mode = 0o100644 # Regular file
-        st_size = 20 * 1024 * 1024 # 20MB
+        st_mode = 0o100644  # Regular file
+        st_size = 20 * 1024 * 1024  # 20MB
 
     with patch("os.lstat", return_value=MockStat()):
         assert _scan_file(test_file, tmp_path) == []
@@ -238,18 +252,21 @@ def test_scan_file_large_file(tmp_path):
 def test_scan_file_not_regular(tmp_path):
     import os
     import stat
+
     test_file = tmp_path / "fifo"
 
     class MockStat:
-        st_mode = stat.S_IFIFO # FIFO pipe
+        st_mode = stat.S_IFIFO  # FIFO pipe
         st_size = 100
 
     with patch("os.lstat", return_value=MockStat()):
         assert _scan_file(test_file, tmp_path) == []
 
 
-from scanner.cli.vibesec import cmd_review, main
 import sys
+
+from scanner.cli.vibesec import cmd_review, main
+
 
 class ReviewArgs:
     def __init__(self, stack=None, db=None, payments=None):
@@ -311,7 +328,6 @@ def test_main_no_args(monkeypatch, capsys):
     assert exc.value.code == 0
     assert "usage: vibesec" in capsys.readouterr().out
 
-
 def test_cmd_scan_actual_run(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     test_file = tmp_path / "unsafe.ts"
@@ -335,7 +351,6 @@ def test_scan_file_empty_rules(tmp_path):
         assert _scan_file(test_file, tmp_path) == []
 
 
-
 import runpy
 
 def test_if_name_main():
@@ -343,14 +358,15 @@ def test_if_name_main():
     from unittest.mock import patch
 
     original_argv = sys.argv
-    sys.argv = ['vibesec', '--help']
+    sys.argv = ["vibesec", "--help"]
 
     try:
-        with patch('sys.exit') as mock_exit:
-            runpy.run_path('scanner/cli/vibesec.py', run_name='__main__')
+        with patch("sys.exit") as mock_exit:
+            runpy.run_path("scanner/cli/vibesec.py", run_name="__main__")
             mock_exit.assert_called_with(0)
     finally:
         sys.argv = original_argv
+
 def test_run_trivy_fs_error(tmp_path):
     from scanner.cli.vibesec import _run_trivy_fs
     from unittest.mock import patch
@@ -417,8 +433,6 @@ def test_cmd_scan_trivy_flag(tmp_path, monkeypatch, capsys):
         mock_trivy.assert_called_once()
         assert "Trivy FS enabled" in capsys.readouterr().out
 
-
-
 def test_cmd_scan_trivy_flag_error(tmp_path, monkeypatch, capsys):
     from scanner.cli.vibesec import cmd_scan
     class Args:
@@ -455,15 +469,11 @@ def test_finding_category_authz():
     assert _finding_category("admin-auth") == "authz"
     assert _finding_category("session-key") == "authz"
 
-
-
 def test_scan_file_empty_content(tmp_path):
     from scanner.cli.vibesec import _scan_file
     test_file = tmp_path / "empty.ts"
     test_file.write_text("")
     assert _scan_file(test_file, tmp_path) == []
-
-
 
 def test_scan_file_exception(tmp_path):
     from scanner.cli.vibesec import _scan_file
@@ -472,7 +482,6 @@ def test_scan_file_exception(tmp_path):
     test_file.write_text("dummy")
     with patch("pathlib.Path.open", side_effect=PermissionError("mock")):
         assert _scan_file(test_file, tmp_path) == []
-
 
 def test_scan_file_no_newline_at_end(tmp_path):
     from scanner.cli.vibesec import _scan_file
