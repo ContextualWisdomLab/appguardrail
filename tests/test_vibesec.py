@@ -295,6 +295,20 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     assert "SHOULD_NOT_PRINT" not in findings[2]["snippet"]
 
 
+def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
+    scan_path = tmp_path / "literal;touch INJECTED"
+    scan_path.mkdir()
+    process = type("Process", (), {"returncode": 0, "stdout": json.dumps({}), "stderr": ""})()
+
+    with patch("scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"), \
+         patch("scanner.cli.vibesec.subprocess.run", return_value=process) as run:
+        assert _run_trivy_fs(scan_path) == []
+
+    command = run.call_args.args[0]
+    assert command[-1] == str(scan_path)
+    assert run.call_args.kwargs["shell"] is False
+
+
 def test_run_trivy_fs_requires_trivy(tmp_path):
     with patch("scanner.cli.vibesec.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="trivy executable not found"):

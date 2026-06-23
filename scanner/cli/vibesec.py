@@ -752,6 +752,7 @@ def _run_trivy_fs(scan_path: Path):
             "--skip-version-check",
             str(scan_path),
         ],
+        shell=False,
         capture_output=True,
         text=True,
         check=False,
