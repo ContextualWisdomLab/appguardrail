@@ -24,3 +24,7 @@
 ## 2024-06-21 - Avoiding False Negatives with Large Artifact Files
 **Learning:** String-based pre-filters (like `any(keyword in file.lower())`) are incredibly fast in Python, but using them to gate security regexes is dangerous and can lead to silent false negatives if the keyword list becomes decoupled from the actual regex patterns. At the same time, evaluating regexes over multi-megabyte auto-generated files (like source maps `.map` or `.log` files) is a massive performance bottleneck.
 **Action:** Instead of brittle string pre-filters that jeopardize security, heavily optimize the file traversal by skipping massive known auto-generated artifact extensions (like `.map` and `.log`) in `SKIP_EXTENSIONS`. This guarantees no source code vulnerabilities are missed while drastically reducing CPU overhead.
+
+## 2024-06-22 - Optimizing JSON extraction from large text
+**Learning:** When extracting multiple JSON objects from a large text string in Python, avoid repeated string slicing (e.g., `text[index:]`) or manual byte-by-byte iteration (`index += 1`) within loops to prevent O(N^2) performance degradation.
+**Action:** Instead, use a `while` loop with `text.find('{', index)` and `json.JSONDecoder().raw_decode(text, index)`, advancing the index to the returned end position on success.
