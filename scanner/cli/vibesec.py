@@ -121,9 +121,12 @@ See https://github.com/Seongho-Bae/VibeSec for full checklists.
 SCAN_RULES = [
     {
         "id": "python-insecure-deserialization",
-        "pattern": re.compile(r'\b(?:pickle|yaml|marshal)\.(?:load|loads|Unpickler)\s*\(', re.MULTILINE),
+        "pattern": re.compile(
+            r"\b(?:pickle\.(?:load|loads|Unpickler)|marshal\.(?:load|loads)|yaml\.load)\s*\(",
+            re.MULTILINE,
+        ),
         "severity": "CRITICAL",
-        "message": "Insecure deserialization detected. Loading untrusted data with pickle/yaml can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]",
+        "message": "Insecure deserialization detected. Loading untrusted data with pickle, marshal, or yaml.load can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]",
         "extensions": [".py"],
     },
     {

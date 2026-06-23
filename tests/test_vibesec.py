@@ -545,7 +545,23 @@ def test_sanitize_terminal_output():
 
 def test_scan_file_insecure_deserialization(tmp_path):
     test_file = tmp_path / "unsafe.py"
-    test_file.write_text("import pickle\npickle.loads(data)\n")
-    findings = _scan_file(test_file, tmp_path)
-    assert len(findings) == 1
-    assert findings[0]["rule_id"] == "python-insecure-deserialization"
+    test_file.write_text(
+        "import marshal\n"
+        "import pickle\n"
+        "import yaml\n"
+        "pickle.loads(data)\n"
+        "yaml.load(raw_config)\n"
+        "yaml.safe_load(trusted_config)\n"
+        "marshal.load(stream)\n"
+    )
+
+    findings = [
+        finding for finding in _scan_file(test_file, tmp_path)
+        if finding["rule_id"] == "python-insecure-deserialization"
+    ]
+
+    assert [finding["line"] for finding in findings] == [4, 5, 7]
+    assert any("pickle.loads" in finding["snippet"] for finding in findings)
+    assert any("yaml.load" in finding["snippet"] for finding in findings)
+    assert any("marshal.load" in finding["snippet"] for finding in findings)
+    assert all("safe_load" not in finding["snippet"] for finding in findings)
