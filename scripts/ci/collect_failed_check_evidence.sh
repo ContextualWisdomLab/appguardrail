@@ -207,11 +207,13 @@ manual_success_for_label() {
 	key="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
 	awk -F '\t' -v key="$key" '
 		tolower($1) == key {
-			print
+			line = $0
 			found = 1
-			exit
 		}
 		END {
+			if (found) {
+				print line
+			}
 			exit found ? 0 : 1
 		}
 	' "$manual_success_contexts"
@@ -378,6 +380,19 @@ env HEAD_SHA="$HEAD_SHA" gh run list \
 		]
 		| @tsv
 	' >>"$manual_success_contexts" || true
+
+if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] &&
+	[ "${GITHUB_WORKFLOW:-}" = "OpenCode Review" ] &&
+	[ -n "${CURRENT_MANUAL_OPENCODE_RUN_ID:-}" ]; then
+	current_manual_opencode_run_url="${CURRENT_MANUAL_OPENCODE_RUN_URL:-}"
+	if [ -z "$current_manual_opencode_run_url" ] && [ -n "${GITHUB_SERVER_URL:-}" ]; then
+		current_manual_opencode_run_url="${GITHUB_SERVER_URL%/}/${GH_REPOSITORY}/actions/runs/${CURRENT_MANUAL_OPENCODE_RUN_ID}"
+	fi
+	printf '%s\t%s\t%s\n' \
+		"opencode-review" \
+		"$current_manual_opencode_run_url" \
+		"Current manual workflow_dispatch OpenCode review evidence in progress via run ${CURRENT_MANUAL_OPENCODE_RUN_ID}" >>"$manual_success_contexts"
+fi
 
 while IFS=$'\t' read -r kind label conclusion details_url run_id check_run_id; do
 	if [ -z "$run_id" ]; then
