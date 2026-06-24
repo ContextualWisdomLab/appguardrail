@@ -99,7 +99,9 @@ def test_cmd_init_path_traversal_checklist(tmp_path, monkeypatch, capsys):
         cmd_init(Args(tool="cursor"))
 
     assert exc.value.code == 1
-    assert "escapes the project root" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "escapes the project root" in err
+    assert "💡 Hint: Ensure" in err
 
 
 def test_cmd_init_path_traversal_target_file(tmp_path, monkeypatch, capsys):
@@ -121,7 +123,9 @@ def test_cmd_init_path_traversal_target_file(tmp_path, monkeypatch, capsys):
         cmd_init(Args(tool="cursor"))
 
     assert exc.value.code == 1
-    assert "escapes the project root" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "escapes the project root" in err
+    assert "💡 Hint: Ensure" in err
 
 
 from scanner.cli.vibesec import cmd_hook
@@ -167,7 +171,9 @@ def test_cmd_hook_path_traversal(tmp_path, monkeypatch, capsys):
     _create_symlink(outside_dir, hooks_link, target_is_directory=True)
 
     assert cmd_hook(HookArgs()) == 1
-    assert "escapes the project root" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "escapes the project root" in err
+    assert "💡 Hint: Ensure" in err
 
 
 def test_cmd_hook_remove_symlink(tmp_path, monkeypatch):
