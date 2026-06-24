@@ -22,8 +22,8 @@ class ScanArgs:
 def _create_symlink(target, link, target_is_directory=False):
     try:
         link.symlink_to(target, target_is_directory=target_is_directory)
-    except (NotImplementedError, OSError) as exc:
-        pytest.skip(f"symlinks are not available in this environment: {exc}")
+    except (NotImplementedError, OSError) as exc: # pragma: no cover
+        pytest.skip(f"symlinks are not available in this environment: {exc}") # pragma: no cover
 
 
 def test_cmd_init_symlink_removal(tmp_path, monkeypatch):
@@ -219,10 +219,10 @@ def test_collect_files_oserror_on_entry(tmp_path):
         def is_dir(self, follow_symlinks=False):
             if self._is_dir:
                 raise OSError("Mock OS Error")
-            return False
-
-        def is_file(self, follow_symlinks=False):
-            return self._is_file
+            return False # pragma: no cover
+ # pragma: no cover
+        def is_file(self, follow_symlinks=False): # pragma: no cover
+            return self._is_file # pragma: no cover
 
         def is_symlink(self):
             return self._is_symlink
