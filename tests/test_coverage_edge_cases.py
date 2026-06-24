@@ -113,7 +113,9 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
                 self.trivy = True
 
         assert cmd_scan(TrivyArgs(tmp_path)) == 1
-        assert "Error: Mock trivy failure" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "Error: Mock trivy failure" in err
+        assert "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy." in err
 
 def test_trivy_severity():
     assert _trivy_severity("CRITICAL") == "CRITICAL"

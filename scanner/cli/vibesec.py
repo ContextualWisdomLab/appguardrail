@@ -428,6 +428,10 @@ def cmd_init(args):
                 f"❌ Error: Target path {target_file} escapes the project root. Aborting.",
                 file=sys.stderr,
             )
+            print(
+                "💡 Hint: Ensure the target file or its symlinks do not point outside the repository.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -457,6 +461,10 @@ def cmd_init(args):
     if not checklist_file.resolve().is_relative_to(project_root):
         print(
             f"❌ Error: Checklist path {checklist_file} escapes the project root. Aborting.",
+            file=sys.stderr,
+        )
+        print(
+            "💡 Hint: Ensure the checklist file or its symlinks do not point outside the repository.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -529,6 +537,10 @@ def cmd_scan(args):
             findings.extend(_run_trivy_fs(scan_path))
         except RuntimeError as exc:
             print(f"❌ Error: {exc}", file=sys.stderr)
+            print(
+                "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy.",
+                file=sys.stderr,
+            )
             return 1
 
     _print_scan_results(findings, files_scanned)
@@ -555,6 +567,10 @@ def cmd_hook(args):
     if not hooks_dir.resolve().is_relative_to(project_root):
         print(
             f"❌ Error: Target path {hooks_dir} escapes the project root. Aborting.",
+            file=sys.stderr,
+        )
+        print(
+            "💡 Hint: Ensure your .git directory or hooks path is contained within the project.",
             file=sys.stderr,
         )
         return 1
