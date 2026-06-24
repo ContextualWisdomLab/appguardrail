@@ -1,3 +1,8 @@
+## [Unreleased]
+### Performance (성능 개선)
+- `scanner/cli/vibesec.py`에서 `Path.open()` 대신 내장 `open()` 함수를 사용하여 파일 스캔 시 오버헤드 감소
+- `_trivy_severity` 및 `_print_scan_results` 함수 내 딕셔너리 객체를 모듈 레벨 상수로 추출하여 메모리 할당 최적화
+
 # 변경 사항 (CHANGELOG)
 
 ## [Unreleased]

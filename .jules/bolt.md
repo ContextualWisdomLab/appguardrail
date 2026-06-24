@@ -28,3 +28,7 @@
 ## 2024-06-22 - Optimizing JSON extraction from large text
 **Learning:** When extracting multiple JSON objects from a large text string in Python, avoid repeated string slicing (e.g., `text[index:]`) or manual byte-by-byte iteration (`index += 1`) within loops to prevent O(N^2) performance degradation.
 **Action:** Instead, use a `while` loop with `text.find('{', index)` and `json.JSONDecoder().raw_decode(text, index)`, advancing the index to the returned end position on success.
+
+## 2024-06-24 - File I/O and Constant Allocation Performance
+**Learning:** For file I/O in performance-critical Python paths, using the built-in `open(file_path)` is marginally faster than `Path.open()` because it avoids pathlib's method resolution overhead. Additionally, to reduce memory allocations in frequently called Python functions, move constant mappings and dictionaries to the module level rather than instantiating them within the function body.
+**Action:** Extract constant dictionaries and mappings to module-level variables (`_TRIVY_SEVERITY_MAP`, `_SEVERITY_ORDER`) to prevent runtime instantiation overhead. Replace `Path.open()` with `open(path)` in hot paths like `_scan_file`.

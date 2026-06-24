@@ -733,14 +733,17 @@ def _is_deploy_blocking(finding: dict) -> bool:
     )
 
 
+_TRIVY_SEVERITY_MAP = {
+    "CRITICAL": "CRITICAL",
+    "HIGH": "HIGH",
+    "MEDIUM": "WARNING",
+    "LOW": "INFO",
+    "UNKNOWN": "INFO",
+}
+
+
 def _trivy_severity(severity: str) -> str:
-    return {
-        "CRITICAL": "CRITICAL",
-        "HIGH": "HIGH",
-        "MEDIUM": "WARNING",
-        "LOW": "INFO",
-        "UNKNOWN": "INFO",
-    }.get((severity or "UNKNOWN").upper(), "INFO")
+    return _TRIVY_SEVERITY_MAP.get((severity or "UNKNOWN").upper(), "INFO")
 
 
 def _trivy_line(item: dict) -> int:
@@ -882,7 +885,7 @@ def _scan_file(file_path: Path, base_path: Path):
     build_finding = _build_finding
 
     try:
-        with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
             if not content:
                 return findings
@@ -926,16 +929,17 @@ def _scan_file(file_path: Path, base_path: Path):
     return findings
 
 
-def _print_scan_results(findings, files_scanned):
-    severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
-    findings.sort(key=lambda f: severity_order.get(f["severity"], 99))
+_SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
+_SEVERITY_ICONS = {
+    "CRITICAL": "🔴 CRITICAL",
+    "HIGH": "🟠 HIGH",
+    "WARNING": "🟡 WARNING",
+    "INFO": "🔵 INFO",
+}
 
-    severity_icons = {
-        "CRITICAL": "🔴 CRITICAL",
-        "HIGH": "🟠 HIGH",
-        "WARNING": "🟡 WARNING",
-        "INFO": "🔵 INFO",
-    }
+
+def _print_scan_results(findings, files_scanned):
+    findings.sort(key=lambda f: _SEVERITY_ORDER.get(f["severity"], 99))
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     non_blocking = 0
@@ -944,7 +948,7 @@ def _print_scan_results(findings, files_scanned):
             counts[f["severity"]] += 1
         elif f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
             non_blocking += 1
-        icon = severity_icons.get(f["severity"], f["severity"])
+        icon = _SEVERITY_ICONS.get(f["severity"], f["severity"])
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule:    {f['rule_id']}")
         print(
