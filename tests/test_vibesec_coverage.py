@@ -220,7 +220,6 @@ def test_collect_files_oserror_on_entry(tmp_path):
             if self._is_dir:
                 raise OSError("Mock OS Error")
             return False # pragma: no cover
- # pragma: no cover
         def is_file(self, follow_symlinks=False): # pragma: no cover
             return self._is_file # pragma: no cover
 

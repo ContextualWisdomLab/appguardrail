@@ -48,7 +48,7 @@ class ScanArgs:
 
 def _create_symlink(target, link, target_is_directory=False):
     try:
-        link.symlink_to(target, target_is_directory=target_is_directory) # pragma: no cover
+        link.symlink_to(target, target_is_directory=target_is_directory)
     except (NotImplementedError, OSError) as exc: # pragma: no cover
         pytest.skip(f"symlinks are not available in this environment: {exc}") # pragma: no cover
 
