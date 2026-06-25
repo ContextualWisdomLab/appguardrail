@@ -691,8 +691,9 @@ echo "✅ AppGuardrail scan passed."
     print(
         "\n✅ AppGuardrail pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
     )
+    hook_scan_command = f"appguardrail scan{scan_flags} ."
     print(
-        "This will run 'appguardrail scan .' before every commit and block commits if vulnerabilities are found."
+        f"This will run '{hook_scan_command}' before every commit and block commits if vulnerabilities are found."
     )
     if run_codegraph:
         print("CodeGraph mode is enabled for this hook.")
@@ -989,7 +990,9 @@ def _run_codegraph_index(scan_path: Path):
         raise RuntimeError(f"CodeGraph workdir is not a directory: {workdir}")
 
     codegraph_dir = workdir / ".codegraph"
-    if codegraph_dir.exists():
+    if codegraph_dir.exists() and not codegraph_dir.is_dir():
+        raise RuntimeError(f"CodeGraph path exists but is not a directory: {codegraph_dir}")
+    if codegraph_dir.is_dir():
         _run_codegraph_command([codegraph, "sync"], workdir, "sync")
     else:
         _run_codegraph_command([codegraph, "init", "-i"], workdir, "init")

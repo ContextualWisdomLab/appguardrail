@@ -3494,6 +3494,7 @@ import subprocess
 
 
 def scan():
+    subprocess.run("trivy", check=False)
     subprocess.run(["trivy", "fs", "."], check=False)
 EOS
 		elif [ "$scenario" = "appguardrail-cli-real-command-injection-blocks" ]; then

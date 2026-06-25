@@ -397,6 +397,14 @@ def test_run_codegraph_index_requires_codegraph(tmp_path):
             _run_codegraph_index(tmp_path)
 
 
+def test_run_codegraph_index_rejects_file_at_index_path(tmp_path):
+    (tmp_path / ".codegraph").write_text("not a directory")
+
+    with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"):
+        with pytest.raises(RuntimeError, match="not a directory"):
+            _run_codegraph_index(tmp_path)
+
+
 @patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     docs = tmp_path / "docs"

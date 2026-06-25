@@ -3167,14 +3167,6 @@ for node in ast.walk(tree):
         for keyword in node.keywords:
             if keyword.arg == "shell" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
                 raise SystemExit(0)
-        if node.args:
-            first_arg = node.args[0]
-            if isinstance(first_arg, (ast.JoinedStr, ast.BinOp)):
-                raise SystemExit(0)
-            if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
-                raise SystemExit(0)
-            if isinstance(first_arg, ast.Call) and call_name(first_arg.func).endswith(".format"):
-                raise SystemExit(0)
 
 raise SystemExit(1)
 PY
