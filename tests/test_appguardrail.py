@@ -6,7 +6,15 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import _collect_files, _print_scan_results, _run_trivy_fs, _scan_file, cmd_init, cmd_scan
+from scanner.cli.appguardrail import (
+    _collect_files,
+    _print_scan_results,
+    _run_codegraph_index,
+    _run_trivy_fs,
+    _scan_file,
+    cmd_init,
+    cmd_scan,
+)
 
 MOCK_RULES = [
     {
@@ -63,14 +71,14 @@ def test_scan_file_error_handling(tmp_path):
         assert _scan_file(test_file, tmp_path) == []
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_no_findings(tmp_path):
     test_file = tmp_path / "safe.py"
     test_file.write_text("print('hello')\n")
     assert _scan_file(test_file, tmp_path) == []
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_findings(tmp_path):
     test_file = tmp_path / "unsafe.ts"
     test_file.write_text("const key = MOCK_SECRET_KEY;\n")
@@ -80,10 +88,12 @@ def test_scan_file_with_findings(tmp_path):
     assert findings[0]["rule_id"] == "mock-secret"
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_multiple_findings(tmp_path):
     test_file = tmp_path / "unsafe_multiple.js"
-    test_file.write_text("const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n")
+    test_file.write_text(
+        "const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n"
+    )
 
     findings = _scan_file(test_file, tmp_path)
     rule_ids = [f["rule_id"] for f in findings]
@@ -100,7 +110,7 @@ def test_scan_file_unreadable(tmp_path):
         assert _scan_file(test_file, tmp_path) == []
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_extensions_filter(tmp_path):
     test_file = tmp_path / "rules.js"
     test_file.write_text("allow all\n")
@@ -121,26 +131,34 @@ def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
     test_file = tmp_path / "unsafe.py"
     test_file.write_text("FIRST_TOKEN\nSECOND_TOKEN\n")
 
-    first_rules = [{
-        "id": "first",
-        "pattern": re.compile(r"FIRST_TOKEN"),
-        "severity": "HIGH",
-        "message": "first token",
-        "extensions": [".py"],
-    }]
-    second_rules = [{
-        "id": "second",
-        "pattern": re.compile(r"SECOND_TOKEN"),
-        "severity": "HIGH",
-        "message": "second token",
-        "extensions": [".py"],
-    }]
+    first_rules = [
+        {
+            "id": "first",
+            "pattern": re.compile(r"FIRST_TOKEN"),
+            "severity": "HIGH",
+            "message": "first token",
+            "extensions": [".py"],
+        }
+    ]
+    second_rules = [
+        {
+            "id": "second",
+            "pattern": re.compile(r"SECOND_TOKEN"),
+            "severity": "HIGH",
+            "message": "second token",
+            "extensions": [".py"],
+        }
+    ]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", first_rules):
-        assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == ["first"]
+    with patch("scanner.cli.appguardrail.SCAN_RULES", first_rules):
+        assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == [
+            "first"
+        ]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", second_rules):
-        assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == ["second"]
+    with patch("scanner.cli.appguardrail.SCAN_RULES", second_rules):
+        assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == [
+            "second"
+        ]
 
 
 def test_collect_files():
@@ -158,7 +176,9 @@ def test_collect_files():
         (base_path / "package.lock").touch()
 
         collected_files = list(_collect_files(base_path))
-        collected_rel_paths = {f.relative_to(base_path).as_posix() for f in collected_files}
+        collected_rel_paths = {
+            f.relative_to(base_path).as_posix() for f in collected_files
+        }
 
         assert collected_rel_paths == {"src/main.py", "src/utils.js", "README.md"}
         assert "node_modules/index.js" not in collected_rel_paths
@@ -173,7 +193,9 @@ def test_collect_files_skips_file_symlink(tmp_path):
     link = tmp_path / "linked.py"
     _create_symlink(target, link)
 
-    collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
+    collected_rel_paths = {
+        f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)
+    }
 
     assert "target.py" in collected_rel_paths
     assert "linked.py" not in collected_rel_paths
@@ -186,7 +208,9 @@ def test_collect_files_skips_dir_symlink(tmp_path):
     link = tmp_path / "linked_dir"
     _create_symlink(real_dir, link, target_is_directory=True)
 
-    collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
+    collected_rel_paths = {
+        f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)
+    }
 
     assert "real/nested.py" in collected_rel_paths
     assert "linked_dir/nested.py" not in collected_rel_paths
@@ -209,12 +233,14 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     _create_symlink(dir_b, dir_a / "to_b", target_is_directory=True)
     _create_symlink(dir_a, dir_b / "to_a", target_is_directory=True)
 
-    collected_rel_paths = {f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)}
+    collected_rel_paths = {
+        f.relative_to(tmp_path).as_posix() for f in _collect_files(tmp_path)
+    }
 
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_skips_symlink(tmp_path):
     target = tmp_path / "target.py"
     target.write_text("MOCK_SECRET_KEY\n")
@@ -244,38 +270,65 @@ def test_cmd_scan_returns_failure_when_no_files_scanned(tmp_path, capsys):
     assert "Scanned 0 files" in out
 
 
+def test_collect_files_includes_security_hidden_directories(tmp_path):
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    workflow_file = workflow_dir / "security.yml"
+    workflow_file.write_text("name: Security\n")
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    ignored_file = git_dir / "config"
+    ignored_file.write_text("[core]\n")
+
+    files = {path.relative_to(tmp_path) for path in _collect_files(tmp_path)}
+
+    assert Path(".github/workflows/security.yml") in files
+    assert Path(".git/config") not in files
+
+
 def test_run_trivy_fs_maps_json_findings(tmp_path):
     report = {
-        "Results": [{
-            "Target": str(tmp_path / "package-lock.json"),
-            "Vulnerabilities": [{
-                "VulnerabilityID": "CVE-2026-0001",
-                "PkgName": "leftpad",
-                "InstalledVersion": "1.0.0",
-                "FixedVersion": "1.0.1",
-                "Severity": "HIGH",
-                "Title": "demo vuln",
-            }],
-            "Misconfigurations": [{
-                "ID": "AVD-DS-0001",
-                "Severity": "MEDIUM",
-                "Title": "Dockerfile root user",
-                "Message": "Container runs as root",
-                "CauseMetadata": {"StartLine": 7},
-            }],
-            "Secrets": [{
-                "RuleID": "private-key",
-                "Severity": "CRITICAL",
-                "Title": "Private key",
-                "StartLine": 3,
-                "Match": "SHOULD_NOT_PRINT",
-            }],
-        }]
+        "Results": [
+            {
+                "Target": str(tmp_path / "package-lock.json"),
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2026-0001",
+                        "PkgName": "leftpad",
+                        "InstalledVersion": "1.0.0",
+                        "FixedVersion": "1.0.1",
+                        "Severity": "HIGH",
+                        "Title": "demo vuln",
+                    }
+                ],
+                "Misconfigurations": [
+                    {
+                        "ID": "AVD-DS-0001",
+                        "Severity": "MEDIUM",
+                        "Title": "Dockerfile root user",
+                        "Message": "Container runs as root",
+                        "CauseMetadata": {"StartLine": 7},
+                    }
+                ],
+                "Secrets": [
+                    {
+                        "RuleID": "private-key",
+                        "Severity": "CRITICAL",
+                        "Title": "Private key",
+                        "StartLine": 3,
+                        "Match": "SHOULD_NOT_PRINT",
+                    }
+                ],
+            }
+        ]
     }
-    process = type("Process", (), {"returncode": 0, "stdout": json.dumps(report), "stderr": ""})()
+    process = type(
+        "Process", (), {"returncode": 0, "stdout": json.dumps(report), "stderr": ""}
+    )()
 
-    with patch("scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"), \
-         patch("scanner.cli.vibesec.subprocess.run", return_value=process) as run:
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"
+    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
         findings = _run_trivy_fs(tmp_path)
 
     assert run.call_args.args[0][:2] == ["/usr/bin/trivy", "fs"]
@@ -310,12 +363,63 @@ def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
 
 
 def test_run_trivy_fs_requires_trivy(tmp_path):
-    with patch("scanner.cli.vibesec.shutil.which", return_value=None):
+    with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="trivy executable not found"):
             _run_trivy_fs(tmp_path)
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+def test_run_codegraph_index_initializes_when_missing(tmp_path):
+    status_process = type(
+        "Process", (), {"returncode": 0, "stdout": "Index is up to date", "stderr": ""}
+    )()
+    init_process = type("Process", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+    ), patch(
+        "scanner.cli.appguardrail.subprocess.run",
+        side_effect=[init_process, status_process],
+    ) as run:
+        assert _run_codegraph_index(tmp_path) == "Index is up to date"
+
+    assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "init", "-i"]
+    assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+
+
+def test_run_codegraph_index_syncs_existing_index(tmp_path):
+    (tmp_path / ".codegraph").mkdir()
+    status_process = type(
+        "Process", (), {"returncode": 0, "stdout": "Index is up to date", "stderr": ""}
+    )()
+    sync_process = type("Process", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+    ), patch(
+        "scanner.cli.appguardrail.subprocess.run",
+        side_effect=[sync_process, status_process],
+    ) as run:
+        assert _run_codegraph_index(tmp_path) == "Index is up to date"
+
+    assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "sync"]
+    assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+
+
+def test_run_codegraph_index_requires_codegraph(tmp_path):
+    with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
+        with pytest.raises(RuntimeError, match="codegraph executable not found"):
+            _run_codegraph_index(tmp_path)
+
+
+def test_run_codegraph_index_rejects_file_at_index_path(tmp_path):
+    (tmp_path / ".codegraph").write_text("not a directory")
+
+    with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"):
+        with pytest.raises(RuntimeError, match="not a directory"):
+            _run_codegraph_index(tmp_path)
+
+
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     docs = tmp_path / "docs"
     docs.mkdir()
@@ -328,7 +432,7 @@ def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     assert "🔴 0 critical" in out
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
     (tmp_path / "app.py").write_text("MOCK_SECRET_KEY\n")
 
@@ -341,19 +445,46 @@ def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
 def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys):
     scanner_cli = tmp_path / "scanner" / "cli"
     scanner_cli.mkdir(parents=True)
-    (scanner_cli / "vibesec.py").write_text('"message": "Use eval() detected"\n')
-    rules = [{
-        "id": "dangerous-eval",
-        "pattern": re.compile(r"eval"),
-        "severity": "CRITICAL",
-        "message": "eval detected",
-        "extensions": [".py"],
-    }]
+    (scanner_cli / "appguardrail.py").write_text('"message": "Use eval() detected"\n')
+    rules = [
+        {
+            "id": "dangerous-eval",
+            "pattern": re.compile(r"eval"),
+            "severity": "CRITICAL",
+            "message": "eval detected",
+            "extensions": [".py"],
+        }
+    ]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", rules):
+    with patch("scanner.cli.appguardrail.SCAN_RULES", rules):
         assert cmd_scan(ScanArgs(tmp_path)) == 0
 
     out = capsys.readouterr().out
+    assert "| scanner-fixture" in out
+    assert "🔴 0 critical" in out
+
+
+def test_cmd_scan_single_file_keeps_scanner_fixture_context(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scanner_cli = tmp_path / "scanner" / "cli"
+    scanner_cli.mkdir(parents=True)
+    scanner_file = scanner_cli / "appguardrail.py"
+    scanner_file.write_text('"message": "Use eval() detected"\n')
+    rules = [
+        {
+            "id": "dangerous-eval",
+            "pattern": re.compile(r"eval"),
+            "severity": "CRITICAL",
+            "message": "eval detected",
+            "extensions": [".py"],
+        }
+    ]
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", rules):
+        assert cmd_scan(ScanArgs(scanner_file)) == 0
+
+    out = capsys.readouterr().out
+    assert "scanner/cli/appguardrail.py" in out
     assert "| scanner-fixture" in out
     assert "🔴 0 critical" in out
 
@@ -365,18 +496,20 @@ def test_print_scan_results_empty(capsys):
     assert "Scanned 5 files" in captured.out
     assert "🔴 0 critical" in captured.out
     assert "✅ No issues found in this scan." in captured.out
-    assert "Run 'vibesec review'" not in captured.out
+    assert "Run 'appguardrail review'" not in captured.out
 
 
 def test_print_scan_results_critical(capsys):
-    findings = [{
-        "severity": "CRITICAL",
-        "file": "app/page.tsx",
-        "line": 10,
-        "rule_id": "VSEC-001",
-        "message": "Found a critical issue",
-        "snippet": "const secret = 'abc';",
-    }]
+    findings = [
+        {
+            "severity": "CRITICAL",
+            "file": "app/page.tsx",
+            "line": 10,
+            "rule_id": "VSEC-001",
+            "message": "Found a critical issue",
+            "snippet": "const secret = 'abc';",
+        }
+    ]
     _print_scan_results(findings, 2)
     captured = capsys.readouterr()
 
@@ -386,18 +519,23 @@ def test_print_scan_results_critical(capsys):
     assert "Code:    const secret = 'abc';" in captured.out
     assert "🔴 1 critical" in captured.out
     assert "❌ Critical issues found. Fix before deploying." in captured.out
-    assert "💡 Run 'vibesec review' to get an AI prompt for fixing these issues." in captured.out
+    assert (
+        "💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
+        in captured.out
+    )
 
 
 def test_print_scan_results_high(capsys):
-    findings = [{
-        "severity": "HIGH",
-        "file": "app/api/route.ts",
-        "line": 5,
-        "rule_id": "VSEC-002",
-        "message": "Found a high issue",
-        "snippet": "export async function GET() {}",
-    }]
+    findings = [
+        {
+            "severity": "HIGH",
+            "file": "app/api/route.ts",
+            "line": 5,
+            "rule_id": "VSEC-002",
+            "message": "Found a high issue",
+            "snippet": "export async function GET() {}",
+        }
+    ]
     _print_scan_results(findings, 3)
     captured = capsys.readouterr()
 
@@ -407,14 +545,16 @@ def test_print_scan_results_high(capsys):
 
 
 def test_print_scan_results_warnings_only(capsys):
-    findings = [{
-        "severity": "WARNING",
-        "file": "utils.ts",
-        "line": 1,
-        "rule_id": "VSEC-003",
-        "message": "Found a warning",
-        "snippet": "console.log(data);",
-    }]
+    findings = [
+        {
+            "severity": "WARNING",
+            "file": "utils.ts",
+            "line": 1,
+            "rule_id": "VSEC-003",
+            "message": "Found a warning",
+            "snippet": "console.log(data);",
+        }
+    ]
     _print_scan_results(findings, 1)
     captured = capsys.readouterr()
 
@@ -425,10 +565,38 @@ def test_print_scan_results_warnings_only(capsys):
 
 def test_print_scan_results_sorting(capsys):
     findings = [
-        {"severity": "INFO", "file": "info.ts", "line": 1, "rule_id": "VSEC-004", "message": "Info message", "snippet": "info"},
-        {"severity": "CRITICAL", "file": "crit.ts", "line": 2, "rule_id": "VSEC-001", "message": "Crit message", "snippet": "crit"},
-        {"severity": "HIGH", "file": "high.ts", "line": 3, "rule_id": "VSEC-002", "message": "High message", "snippet": "high"},
-        {"severity": "WARNING", "file": "warn.ts", "line": 4, "rule_id": "VSEC-003", "message": "Warn message", "snippet": "warn"},
+        {
+            "severity": "INFO",
+            "file": "info.ts",
+            "line": 1,
+            "rule_id": "VSEC-004",
+            "message": "Info message",
+            "snippet": "info",
+        },
+        {
+            "severity": "CRITICAL",
+            "file": "crit.ts",
+            "line": 2,
+            "rule_id": "VSEC-001",
+            "message": "Crit message",
+            "snippet": "crit",
+        },
+        {
+            "severity": "HIGH",
+            "file": "high.ts",
+            "line": 3,
+            "rule_id": "VSEC-002",
+            "message": "High message",
+            "snippet": "high",
+        },
+        {
+            "severity": "WARNING",
+            "file": "warn.ts",
+            "line": 4,
+            "rule_id": "VSEC-003",
+            "message": "Warn message",
+            "snippet": "warn",
+        },
     ]
     _print_scan_results(findings, 4)
     out = capsys.readouterr().out
@@ -449,11 +617,11 @@ def test_cmd_init_cursor(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     cmd_init(Args(tool="cursor"))
 
-    assert (tmp_path / ".cursor" / "rules" / "vibesec.md").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
+    assert (tmp_path / ".cursor" / "rules" / "appguardrail.md").exists()
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
     captured = capsys.readouterr()
-    assert "✅ VibeSec initialized successfully!" in captured.out
-    assert ".cursor/rules/vibesec.md" in captured.out
+    assert "✅ AppGuardrail initialized successfully!" in captured.out
+    assert ".cursor/rules/appguardrail.md" in captured.out
 
 
 def test_cmd_init_claude_code_new(tmp_path, monkeypatch):
@@ -461,7 +629,7 @@ def test_cmd_init_claude_code_new(tmp_path, monkeypatch):
     cmd_init(Args(tool="claude-code"))
 
     assert (tmp_path / "CLAUDE.md").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
 
 
 def test_cmd_init_claude_code_append(tmp_path, monkeypatch, capsys):
@@ -480,21 +648,24 @@ def test_cmd_init_claude_code_append(tmp_path, monkeypatch, capsys):
 def test_cmd_init_claude_code_skip(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     claude_file = tmp_path / "CLAUDE.md"
-    claude_file.write_text("VibeSec existing rules\n")
+    claude_file.write_text("AppGuardrail existing rules\n")
 
     cmd_init(Args(tool="claude-code"))
 
-    assert claude_file.read_text() == "VibeSec existing rules\n"
-    assert "CLAUDE.md already contains VibeSec rules — skipping." in capsys.readouterr().out
+    assert claude_file.read_text() == "AppGuardrail existing rules\n"
+    assert (
+        "CLAUDE.md already contains AppGuardrail rules — skipping."
+        in capsys.readouterr().out
+    )
 
 
 def test_cmd_init_windsurf(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     cmd_init(Args(tool="windsurf"))
 
-    assert (tmp_path / ".windsurf" / "rules" / "vibesec.md").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
-    assert ".windsurf/rules/vibesec.md" in capsys.readouterr().out
+    assert (tmp_path / ".windsurf" / "rules" / "appguardrail.md").exists()
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
+    assert ".windsurf/rules/appguardrail.md" in capsys.readouterr().out
 
 
 def test_cmd_init_lovable(tmp_path, monkeypatch, capsys):
@@ -502,8 +673,8 @@ def test_cmd_init_lovable(tmp_path, monkeypatch, capsys):
     cmd_init(Args(tool="lovable"))
 
     assert not (tmp_path / ".lovable").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
-    assert "VIBESEC_CHECKLIST.md" in capsys.readouterr().out
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
+    assert "APPGUARDRAIL_CHECKLIST.md" in capsys.readouterr().out
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
@@ -514,8 +685,8 @@ def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Unknown tool: invalid-tool" in captured.out
-    assert "Supported tools: cursor, claude-code, windsurf, lovable" in captured.out
+    assert "Error: Unknown tool 'invalid-tool'" in captured.err
+    assert "Supported tools are auto, cursor, codex, copilot, claude-code, windsurf, lovable" in captured.err
 
 
 def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
@@ -528,7 +699,8 @@ def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
 
 
 def test_sanitize_terminal_output():
-    from scanner.cli.vibesec import _sanitize_terminal_output
+    from scanner.cli.appguardrail import _sanitize_terminal_output
+
     # Test normal strings
     assert _sanitize_terminal_output("normal string") == "normal string"
     assert _sanitize_terminal_output("tabs\tare\tallowed") == "tabs\tare\tallowed"

@@ -1,7 +1,7 @@
-# VibeSec Security Review Report
+# AppGuardrail Security Review Report
 
 **App:** [App Name]
-**Reviewed by:** VibeSec
+**Reviewed by:** AppGuardrail
 **Date:** [Date]
 **Version / Commit:** [Git SHA or version]
 
@@ -113,8 +113,8 @@ This review did **not** cover:
 
 ---
 
-## About VibeSec
+## About AppGuardrail
 
-VibeSec provides security reviews for apps built with AI coding tools. We specialize in the security issues that appear most often in Cursor, Claude Code, Lovable, Replit, and similar AI-assisted development workflows.
+AppGuardrail provides security reviews for apps built with AI coding tools. We specialize in the security issues that appear most often in Cursor, Claude Code, Lovable, Replit, and similar AI-assisted development workflows.
 
-[https://github.com/Seongho-Bae/VibeSec](https://github.com/Seongho-Bae/VibeSec)
+[https://github.com/ContextualWisdomLab/appguardrail](https://github.com/ContextualWisdomLab/appguardrail)

@@ -15,7 +15,7 @@ permissions:
   actions: read
 
 jobs:
-  vibesec-scan:
+  appguardrail-scan:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -23,17 +23,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Run VibeSec deploy gate
+      - name: Prepare CodeGraph CLI
+        env:
+          CODEGRAPH_PACKAGE: "@colbymchenry/codegraph@0.9.9"
         run: |
           set -euo pipefail
-          python3 scanner/cli/vibesec.py scan . | tee vibesec-scan.txt
+          codegraph_bin="${RUNNER_TEMP}/codegraph-bin"
+          mkdir -p "$codegraph_bin"
+          cat >"${codegraph_bin}/codegraph" <<SH
+          #!/bin/sh
+          exec npx -y "$CODEGRAPH_PACKAGE" "\$@"
+          SH
+          chmod 0755 "${codegraph_bin}/codegraph"
+          echo "$codegraph_bin" >>"$GITHUB_PATH"
 
-      - name: Upload VibeSec scan output
+      - name: Run AppGuardrail deploy gate
+        run: |
+          set -euo pipefail
+          python3 scanner/cli/appguardrail.py scan --codegraph . | tee appguardrail-scan.txt
+
+      - name: Upload AppGuardrail scan output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: vibesec-scan
-          path: vibesec-scan.txt
+          name: appguardrail-scan
+          path: appguardrail-scan.txt
           if-no-files-found: error
           retention-days: 7
 

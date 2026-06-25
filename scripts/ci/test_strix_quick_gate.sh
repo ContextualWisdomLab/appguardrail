@@ -98,8 +98,8 @@ assert_strix_pr_scope_includes_deployment_context() {
 	assert_file_contains "$GATE_SCRIPT" "frontend/package-lock.json" "strix gate includes frontend dependency lock context"
 	assert_file_contains "$GATE_SCRIPT" "frontend/postcss.config.mjs" "strix gate includes frontend build config context"
 	assert_file_contains "$GATE_SCRIPT" "VERSION" "strix gate includes release version context for workflow scans"
-	assert_file_contains "$GATE_SCRIPT" "scanner/cli/vibesec.py" "strix gate includes the local VibeSec scanner CLI for security-process workflow scans"
-	assert_file_contains "$GATE_SCRIPT" "scanner/rules/secrets.yml" "strix gate includes VibeSec scanner rule context for security-process workflow scans"
+	assert_file_contains "$GATE_SCRIPT" "scanner/cli/appguardrail.py" "strix gate includes the local AppGuardrail scanner CLI for security-process workflow scans"
+	assert_file_contains "$GATE_SCRIPT" "scanner/rules/secrets.yml" "strix gate includes AppGuardrail scanner rule context for security-process workflow scans"
 	assert_file_contains "$GATE_SCRIPT" "scripts/ci/test_*.sh" "strix gate excludes large CI self-test harnesses from PR scan targets"
 }
 
@@ -325,6 +325,9 @@ assert_absent_endpoint_search_uses_canonical_target_path() {
 	assert_file_contains "$GATE_SCRIPT" 'resolved_target_root="$(resolve_current_target_path "$TARGET_PATH" 2>/dev/null)"' "absent-endpoint search resolves canonical target root"
 	assert_file_contains "$GATE_SCRIPT" 'candidate="${resolved_target_root%/}/$dir_entry"' "absent-endpoint search uses canonical target root"
 	assert_file_not_contains "$GATE_SCRIPT" 'candidate="${TARGET_PATH%/}/$dir_entry"' "absent-endpoint search avoids relative target path roots"
+	assert_file_contains "$GATE_SCRIPT" "stream_has_hallucinated_appguardrail_cli_command_injection" "strix gate detects hallucinated AppGuardrail CLI command injection claims"
+	assert_file_contains "$GATE_SCRIPT" "source_file_has_subprocess_shell_execution" "strix gate verifies command-injection claims against AST source evidence"
+	assert_file_contains "$GATE_SCRIPT" "is_hallucinated_appguardrail_cli_command_injection_finding" "strix gate can retry hallucinated AppGuardrail CLI command injection claims"
 }
 
 assert_strix_llm_file_read_is_literal_data() {
@@ -474,6 +477,10 @@ assert_opencode_review_uses_codegraph_and_gpt5_fallback() {
 	assert_file_contains "$workflow_file" 'approve_low_risk_changed_files_after_model_failure()' "opencode approval has a deterministic fallback for low-risk model-output failures"
 	assert_file_contains "$workflow_file" 'This fallback is not used for workflow, source-code, script, dependency, infrastructure, configuration, or lockfile changes.' "opencode low-risk fallback excludes executable and configuration changes"
 	assert_file_contains "$workflow_file" '.github/workflows' "opencode low-risk fallback explicitly excludes workflow changes"
+	assert_file_contains "$workflow_file" 'approve_release_version_bump_after_model_failure()' "opencode approval has a deterministic fallback for release-version-only model-output failures"
+	assert_file_contains "$workflow_file" 'Deterministic release-version fallback approval was used' "opencode release-version fallback explains model-output failure approval"
+	assert_file_contains "$workflow_file" 'scanner/cli/appguardrail.py' "opencode release-version fallback is scoped to the scanner CLI package version"
+	assert_file_contains "$workflow_file" 'CHANGELOG.md' "opencode release-version fallback requires a matching changelog entry"
 	assert_file_contains "$workflow_file" 'approve_review_tooling_bootstrap_after_model_failure()' "opencode approval has a deterministic fallback for review-tooling bootstrap failures"
 	assert_file_contains "$workflow_file" 'Deterministic review-tooling bootstrap fallback approval was used' "opencode review-tooling bootstrap fallback explains model-output failure approval"
 	assert_file_contains "$workflow_file" 'scripts/ci/strix_quick_gate.sh' "opencode review-tooling bootstrap fallback is scoped to the Strix/OpenCode review bundle"
@@ -2436,11 +2443,39 @@ EOS
 			;;
 		esac
 		;;
-	empty-fallback-models)
-		# Output must match is_vertex_not_found_error() patterns so the gate
-		# proceeds to the fallback loop (where empty array triggers the message).
-		echo "Publisher Model vertex_ai/empty-fb-primary was not found in project."
-		exit 1
+	appguardrail-cli-hallucinated-command-injection-fallback-success|appguardrail-cli-real-command-injection-blocks)
+		case "${STRIX_LLM:-}" in
+		vertex_ai/appguardrail-cli-primary)
+			mkdir -p "$STRIX_REPORTS_DIR/fake-appguardrail-cli/vulnerabilities"
+			cat >"$STRIX_REPORTS_DIR/fake-appguardrail-cli/vulnerabilities/vuln-0001.md" <<'EOS'
+**Severity:** CRITICAL
+**Location:** scanner/cli/appguardrail.py:7
+
+Potential Command Injection in CLI Module. The code calls
+`subprocess.run(f'echo {user_input}', shell=True)`.
+EOS
+			echo "Penetration test failed: CRITICAL command injection in scanner/cli/appguardrail.py:7"
+			exit 1
+			;;
+		vertex_ai/fallback-one)
+			if [ "${FAKE_STRIX_SCENARIO:?}" = "appguardrail-cli-real-command-injection-blocks" ]; then
+				echo "Error: real AppGuardrail CLI command injection must not reach fallback" >&2
+				exit 33
+			fi
+			echo "scan ok after AppGuardrail CLI hallucination fallback"
+			exit 0
+			;;
+		*)
+			echo "Error: appguardrail-cli scenario unexpected model (${STRIX_LLM:-})" >&2
+			exit 34
+			;;
+		esac
+		;;
+		empty-fallback-models)
+			# Output must match is_vertex_not_found_error() patterns so the gate
+			# proceeds to the fallback loop (where empty array triggers the message).
+			echo "Publisher Model vertex_ai/empty-fb-primary was not found in project."
+			exit 1
 		;;
 	high-vuln-below-threshold)
 		mkdir -p "$STRIX_REPORTS_DIR/fake-high/vulnerabilities"
@@ -3448,17 +3483,36 @@ EOF
 		# Endpoint lives in api/ (not src/), validating multi-dir scanning.
 		mkdir -p "$repo_root_dir/api"
 		echo 'GET /api/status' >"$repo_root_dir/api/routes.txt"
-	elif [ "$scenario" = "endpoint-in-excluded-dir" ]; then
-		# Endpoint /api/hidden-secret exists ONLY inside excluded directories
-		# (.git/ and node_modules/). The grep excludes must prevent matching,
-		# so the finding is treated as hallucinated → fallback allowed.
-		mkdir -p "$repo_root_dir/.git/refs"
-		echo 'GET /api/hidden-secret' >"$repo_root_dir/.git/refs/leaked.txt"
-		mkdir -p "$repo_root_dir/node_modules/fake-pkg"
-		echo 'GET /api/hidden-secret' >"$repo_root_dir/node_modules/fake-pkg/index.js"
-	elif [ "$scenario" = "pr-stale-source-claim-fallback-success" ]; then
-		mkdir -p "$repo_root_dir/backend/db"
-		cat >"$repo_root_dir/backend/db/models.py" <<'EOS'
+		elif [ "$scenario" = "endpoint-in-excluded-dir" ]; then
+			# Endpoint /api/hidden-secret exists ONLY inside excluded directories
+			# (.git/ and node_modules/). The grep excludes must prevent matching,
+			# so the finding is treated as hallucinated → fallback allowed.
+			mkdir -p "$repo_root_dir/.git/refs"
+			echo 'GET /api/hidden-secret' >"$repo_root_dir/.git/refs/leaked.txt"
+			mkdir -p "$repo_root_dir/node_modules/fake-pkg"
+			echo 'GET /api/hidden-secret' >"$repo_root_dir/node_modules/fake-pkg/index.js"
+		elif [ "$scenario" = "appguardrail-cli-hallucinated-command-injection-fallback-success" ]; then
+			mkdir -p "$repo_root_dir/scanner/cli"
+			cat >"$repo_root_dir/scanner/cli/appguardrail.py" <<'EOS'
+import subprocess
+
+
+def scan():
+    subprocess.run("trivy", check=False)
+    subprocess.run(["trivy", "fs", "."], check=False)
+EOS
+		elif [ "$scenario" = "appguardrail-cli-real-command-injection-blocks" ]; then
+			mkdir -p "$repo_root_dir/scanner/cli"
+			cat >"$repo_root_dir/scanner/cli/appguardrail.py" <<'EOS'
+import os
+
+
+def scan(user_input):
+    os.system(f"echo {user_input}")
+EOS
+		elif [ "$scenario" = "pr-stale-source-claim-fallback-success" ]; then
+			mkdir -p "$repo_root_dir/backend/db"
+			cat >"$repo_root_dir/backend/db/models.py" <<'EOS'
 from sqlalchemy.orm import Mapped, mapped_column
 
 class EncryptedString:
@@ -9299,6 +9353,24 @@ run_gate_case "endpoint-in-excluded-dir" \
 	"2" \
 	"vertex_ai/excluded-dir-primary|vertex_ai/fallback-one" \
 	"<unset>|<unset>"
+
+run_gate_case "appguardrail-cli-hallucinated-command-injection-fallback-success" \
+	"vertex_ai/appguardrail-cli-primary" \
+	"vertex_ai/fallback-one vertex_ai/fallback-two" \
+	"0" \
+	"scan ok after AppGuardrail CLI hallucination fallback" \
+	"2" \
+	"vertex_ai/appguardrail-cli-primary|vertex_ai/fallback-one" \
+	"<unset>|<unset>"
+
+run_gate_case "appguardrail-cli-real-command-injection-blocks" \
+	"vertex_ai/appguardrail-cli-primary" \
+	"vertex_ai/fallback-one vertex_ai/fallback-two" \
+	"1" \
+	"Strix quick scan failed with a non-recoverable error." \
+	"1" \
+	"vertex_ai/appguardrail-cli-primary" \
+	"<unset>"
 
 # Whitespace-only fallback models: STRIX_VERTEX_FALLBACK_MODELS set to "  ".
 # This bypasses the :- default but produces an empty array from read -r -a.

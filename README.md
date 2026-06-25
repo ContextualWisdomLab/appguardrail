@@ -1,72 +1,89 @@
-# VibeSec
+# AppGuardrail
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/VibeSec)
-[![Security Process](https://github.com/ContextualWisdomLab/VibeSec/actions/workflows/security-process.yml/badge.svg)](https://github.com/ContextualWisdomLab/VibeSec/actions/workflows/security-process.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/appguardrail)
+[![Security Process](https://github.com/ContextualWisdomLab/appguardrail/actions/workflows/security-process.yml/badge.svg)](https://github.com/ContextualWisdomLab/appguardrail/actions/workflows/security-process.yml)
 
-**Security guardrails for vibe-coded apps.**
+**Security guardrails for AI-built apps.**
 
-VibeSec helps builders using Cursor, Claude Code, Lovable, Replit, Bolt, Supabase, Firebase, Vercel, and Netlify find and fix security issues introduced during AI-assisted development.
+AppGuardrail was formerly developed as VibeSec. The rename avoids the occupied third-party PyPI `vibesec` namespace.
 
-> **바이브코딩 앱을 위한 보안 가드레일.**
-> VibeSec은 Cursor, Claude Code, Lovable, Replit, Bolt, Supabase, Firebase, Vercel, Netlify로 만든 앱에서 자주 발생하는 보안 문제를 찾고 고칠 수 있게 돕습니다.
+AppGuardrail helps builders using Cursor, Claude Code, Lovable, Replit, Bolt, Supabase, Firebase, Vercel, and Netlify find and fix security issues introduced during AI-assisted development.
 
----
-
-## What is VibeSec?
-
-VibeSec is a **persistent security layer for vibe coders** — not a one-time pentest, but a security co-pilot that stays with you through the entire lifecycle of your AI-built app: coding, deployment, operation, updates, and incident response.
-
-> VibeSec = 바이브코더의 미니 보안팀
+> **AI 생성 앱을 위한 보안 가드레일.**
+> AppGuardrail은 Cursor, Claude Code, Lovable, Replit, Bolt, Supabase, Firebase, Vercel, Netlify로 만든 앱에서 자주 발생하는 보안 문제를 찾고 고칠 수 있게 돕습니다.
 
 ---
 
-## What VibeSec Provides
+## What is AppGuardrail?
+
+AppGuardrail is a **persistent security layer for AI-assisted builders** — not a one-time pentest, but a security co-pilot that stays with you through the entire lifecycle of your AI-built app: coding, deployment, operation, updates, and incident response.
+
+> AppGuardrail = AI 앱 빌더의 미니 보안팀
+
+---
+
+## What AppGuardrail Provides
 
 | Layer | Description |
 |---|---|
-| 🛡️ **VibeSec Rules** | Security rules for AI coding assistants (Cursor, Claude Code, Windsurf, Lovable) |
-| 🔍 **VibeSec Scan** | Lightweight static analysis for secrets, auth gaps, misconfigurations |
-| 👁️ **VibeSec Review** | Human-readable review templates and AI-powered audit prompts |
-| 📡 **VibeSec Monitor** | Continuous security checks triggered by commits, deploys, and feature additions |
-| 🔧 **VibeSec Fix** | AI-ready fix prompts + patch guidance + re-verification steps |
+| 🛡️ **AppGuardrail Rules** | Security rules for AI coding assistants (Cursor, Claude Code, Windsurf, Lovable) |
+| 🔍 **AppGuardrail Scan** | Lightweight static analysis for secrets, auth gaps, misconfigurations |
+| 👁️ **AppGuardrail Review** | Human-readable review templates and AI-powered audit prompts |
+| 📡 **AppGuardrail Monitor** | Continuous security checks triggered by commits, deploys, and feature additions |
+| 🔧 **AppGuardrail Fix** | AI-ready fix prompts + patch guidance + re-verification steps |
 
 ---
 
 ## Quick Start
 
-### Install the CLI
+### Run the CLI
 
 Requires Python 3.9 or newer.
 
+Install from PyPI:
+
 ```bash
-pip install vibesec
+python3 -m pip install appguardrail
+appguardrail --help
 ```
+
+Maintainers can prepare PyPI releases with GitHub Actions Bot and OpenCode
+Agent. See [Release Automation](docs/release-automation.md).
 
 ### Initialize security rules in your project
 
 ```bash
-# For Cursor users
-vibesec init --tool cursor
+# Recommended: install guardrails for Codex, Copilot, Claude Code, Cursor, and Windsurf
+appguardrail init
 
-# For Claude Code users
-vibesec init --tool claude-code
+# Or install for one tool explicitly
+appguardrail init --tool cursor
+appguardrail init --tool claude-code
+appguardrail init --tool codex
+appguardrail init --tool copilot
 
 # For a Next.js + Supabase stack
-vibesec init --stack nextjs-supabase
+appguardrail init --stack nextjs-supabase
 ```
 
 This creates:
-- `.cursor/rules/vibesec.md`
+- `.cursor/rules/appguardrail.md`
+- `.windsurf/rules/appguardrail.md`
 - `CLAUDE.md`
-- `VIBESEC_CHECKLIST.md`
+- `AGENTS.md`
+- `.github/copilot-instructions.md`
+- `APPGUARDRAIL_CHECKLIST.md`
 
 ### Scan your codebase
 
 ```bash
-vibesec scan .
+appguardrail scan .
 
 # Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
-vibesec scan --trivy .
+appguardrail scan --trivy .
+
+# If CodeGraph is installed, prepare structural context for deeper review
+appguardrail scan --codegraph .
 ```
 
 Detects:
@@ -83,10 +100,25 @@ Detects:
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
 
+### Install the pre-commit hook
+
+```bash
+appguardrail hook
+
+# Recommended when CodeGraph is available
+appguardrail hook --codegraph
+```
+
+The CodeGraph mode initializes or syncs the local structural index before each
+scan. This gives human reviewers and AI review agents better call-graph context
+for authorization, webhook, secret-handling, and other security-sensitive flows.
+The repository Security Process workflow also runs AppGuardrail with CodeGraph
+enabled, so pull requests get the same structural security context in CI.
+
 ### Generate a security review prompt
 
 ```bash
-vibesec review --stack nextjs --db supabase --payments stripe
+appguardrail review --stack nextjs --db supabase --payments stripe
 ```
 
 Outputs a prompt you can paste directly into Claude Code or Cursor.
@@ -96,7 +128,7 @@ Outputs a prompt you can paste directly into Claude Code or Cursor.
 ## Repository Structure
 
 ```
-vibesec/
+appguardrail/
 ├── README.md
 ├── rules/                        # Security rules for AI coding tools
 │   ├── cursor/
@@ -128,7 +160,7 @@ vibesec/
 │   │   ├── nextjs.yml
 │   │   └── stripe.yml
 │   └── cli/
-│       └── vibesec.py
+│       └── appguardrail.py
 ├── reports/                      # Report templates
 │   └── templates/
 │       ├── founder-friendly-report.md
@@ -145,9 +177,9 @@ vibesec/
 
 ---
 
-## The VibeSec Fix Format
+## The AppGuardrail Fix Format
 
-VibeSec doesn't hand you a traditional security report. Every finding comes with:
+AppGuardrail doesn't hand you a traditional security report. Every finding comes with:
 
 ```
 Problem:
@@ -167,11 +199,11 @@ Verification:
 
 ---
 
-## Why VibeSec is Different from Traditional SAST
+## Why AppGuardrail is Different from Traditional SAST
 
-Traditional scanners target classic vulnerabilities (SQLi, XSS). Vibe-coded apps fail differently:
+Traditional scanners target classic vulnerabilities (SQLi, XSS). AI-coded apps fail differently:
 
-| Vibe-coding failure mode | Example |
+| AI-coding failure mode | Example |
 |---|---|
 | Missing ownership check | Any user can read any record |
 | Public storage bucket | Files accessible without auth |
@@ -186,12 +218,12 @@ Traditional scanners target classic vulnerabilities (SQLi, XSS). Vibe-coded apps
 
 | Product | Description |
 |---|---|
-| **VibeSec Snapshot** | One-time security assessment of your current app |
-| **VibeSec Review** | Code, config, and authorization structure review |
-| **VibeSec Red Team Lite** | Defensive penetration test based on real user scenarios |
-| **VibeSec Fix Pack** | Patches and prompts to fix discovered issues |
-| **VibeSec Retainer** | Monthly security review of every change |
-| **VibeSec Monitor** | Continuous automated monitoring on every commit/deploy |
+| **AppGuardrail Snapshot** | One-time security assessment of your current app |
+| **AppGuardrail Review** | Code, config, and authorization structure review |
+| **AppGuardrail Red Team Lite** | Defensive penetration test based on real user scenarios |
+| **AppGuardrail Fix Pack** | Patches and prompts to fix discovered issues |
+| **AppGuardrail Retainer** | Monthly security review of every change |
+| **AppGuardrail Monitor** | Continuous automated monitoring on every commit/deploy |
 
 ---
 
