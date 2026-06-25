@@ -8,6 +8,7 @@ from scanner.cli.appguardrail import cmd_init, cmd_scan
 from tests.test_appguardrail import MOCK_RULES
 
 
+
 class Args:
     def __init__(self, tool="cursor", stack=None):
         self.tool = tool
@@ -93,10 +94,6 @@ def test_cmd_scan_skips_symlink_path(tmp_path, capsys):
     assert cmd_scan(ScanArgs(link)) == 0
     assert "Skipping symlink path:" in capsys.readouterr().out
 
-    # We will simulate the target_file resolving outside the project_root.
-    # We can do this by patching `Path.resolve` just for this test, or creating a symlink.
-    pass
-
 
 def test_cmd_init_path_traversal_checklist(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
@@ -143,6 +140,7 @@ def test_cmd_init_path_traversal_target_file(tmp_path, monkeypatch, capsys):
 
 
 from scanner.cli.appguardrail import cmd_hook
+
 
 
 class HookArgs:
@@ -389,7 +387,6 @@ def test_main_no_args(monkeypatch, capsys):
         main()
     assert exc.value.code == 0
     assert "usage: appguardrail" in capsys.readouterr().out
-
 
 def test_cmd_scan_actual_run(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
