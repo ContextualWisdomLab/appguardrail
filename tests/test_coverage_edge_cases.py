@@ -118,6 +118,28 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
         assert "Error: Mock trivy failure" in err
         assert "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy." in err
 
+
+def test_cmd_scan_codegraph_error_handled(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    def mock_run_codegraph(*args):
+        raise RuntimeError("Mock CodeGraph failure")
+
+    with patch(
+        "scanner.cli.appguardrail._run_codegraph_index",
+        side_effect=mock_run_codegraph,
+    ):
+        class CodeGraphArgs(ScanArgs):
+            def __init__(self, path):
+                super().__init__(path)
+                self.codegraph = True
+
+        assert cmd_scan(CodeGraphArgs(tmp_path)) == 1
+        err = capsys.readouterr().err
+        assert "Error: Mock CodeGraph failure" in err
+        assert "Install the CodeGraph CLI or run without --codegraph." in err
+
+
 def test_trivy_severity():
     assert _trivy_severity("CRITICAL") == "CRITICAL"
     assert _trivy_severity("HIGH") == "HIGH"
@@ -130,7 +152,7 @@ def test_trivy_line():
     assert _trivy_line({"CauseMetadata": {"StartLine": 20}}) == 20
     assert _trivy_line({}) == 1
 
-def test_trivy_findings_parsing():
+def test_trivy_findings_parsing(tmp_path):
     report = {
         "Results": [
             {
@@ -165,7 +187,7 @@ def test_trivy_findings_parsing():
             }
         ]
     }
-    findings = _trivy_findings(report, Path("/test"))
+    findings = _trivy_findings(report, tmp_path)
     assert len(findings) == 3
     assert findings[0]["rule_id"] == "trivy:CVE-2023-1234"
     assert findings[1]["rule_id"] == "trivy:AVD-AWS-0001"
