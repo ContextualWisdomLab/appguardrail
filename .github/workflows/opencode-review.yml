@@ -2658,6 +2658,7 @@ jobs:
                   path == "scripts/ci/emit_opencode_failed_check_fallback_findings.sh" ||
                   path == "scripts/ci/opencode_review_approve_gate.sh" ||
                   path == "scripts/ci/opencode_review_normalize_output.py" ||
+                  path == "scripts/ci/pr_review_merge_scheduler.py" ||
                   path == "scripts/ci/strix_model_utils.sh" ||
                   path == "scripts/ci/strix_quick_gate.sh" ||
                   path == "scripts/ci/test_strix_quick_gate.sh" ||
@@ -2707,6 +2708,9 @@ jobs:
               fi
               if [ -f scripts/ci/opencode_review_normalize_output.py ]; then
                 python3 -m py_compile scripts/ci/opencode_review_normalize_output.py
+              fi
+              if [ -f scripts/ci/pr_review_merge_scheduler.py ]; then
+                python3 -m py_compile scripts/ci/pr_review_merge_scheduler.py
               fi
             ) >"$validation_log" 2>&1
             validation_status=$?
