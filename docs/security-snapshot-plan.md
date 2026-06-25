@@ -1,15 +1,15 @@
-# VibeSec Security Snapshot Plan
+# AppGuardrail Security Snapshot Plan
 
 Date: 2026-06-22
 
 ## Goal
 
-Turn `vibesec scan` from a pattern matcher into a local deploy-readiness snapshot for AI-built web apps.
+Turn `appguardrail scan` from a pattern matcher into a local deploy-readiness snapshot for AI-built web apps.
 
 ## Observed Context
 
 - The README promises a persistent security layer, monitor, fix guidance, and a "mini security team" experience.
-- The methodology says VibeSec's real value is catching vibe-coded failures: IDOR, missing ownership checks, exposed service keys, permissive Supabase/Firebase rules, unsafe payments, and deferred auth TODOs.
+- The methodology says AppGuardrail's real value is catching AI-coded failures: IDOR, missing ownership checks, exposed service keys, permissive Supabase/Firebase rules, unsafe payments, and deferred auth TODOs.
 - GitHub issues are empty, and the open PR queue is mostly scanner performance, false-positive UX, and CI hardening work.
 - The current scanner can find risky text, but it also flags its own rules, tests, docs, and vulnerable examples. That is not enough for a deploy decision.
 - Trivy FS is useful, but only as one evidence source. It does not answer whether a Next.js/Supabase app enforces ownership or whether a Stripe flow is safe.
@@ -51,16 +51,16 @@ As a maintainer, I want CI to catch new security regressions without breaking bu
 Acceptance:
 - Machine-readable JSON is available for CI.
 - Findings have `source`, `category`, `confidence`, and `context` fields.
-- Defaults exclude docs, tests, examples, generated files, and VibeSec's own rule definitions from deploy-blocking counts.
+- Defaults exclude docs, tests, examples, generated files, and AppGuardrail's own rule definitions from deploy-blocking counts.
 
 ## Product Decision
 
-Do not add a sandbox scanner next. Sandbox scanning is only valuable after VibeSec defines a runnable app contract: start command, base URL, seeded test accounts, allowed routes, and destructive-action limits.
+Do not add a sandbox scanner next. Sandbox scanning is only valuable after AppGuardrail defines a runnable app contract: start command, base URL, seeded test accounts, allowed routes, and destructive-action limits.
 
 The next product primitive should be:
 
 ```bash
-vibesec scan --trivy .
+appguardrail scan --trivy .
 ```
 
 But its meaning should become "local security snapshot", not "regex scan plus Trivy output".
@@ -74,11 +74,11 @@ But its meaning should become "local security snapshot", not "regex scan plus Tr
    - docs/tests/examples/rule fixtures that should not count as deploy blockers
 
 2. Run evidence sources:
-   - VibeSec rule scan for vibe-coded app failures
+   - AppGuardrail rule scan for AI-coded app failures
    - Trivy FS when `--trivy` is enabled and installed
 
 3. Normalize findings:
-   - `source`: `vibesec-rule` or `trivy`
+   - `source`: `appguardrail-rule` or `trivy`
    - `category`: `authz`, `secrets`, `payment`, `storage`, `dependency`, `injection`, `misconfig`
    - `confidence`: `high`, `medium`, `low`
    - `context`: `app-code`, `test`, `doc`, `example`, `scanner-fixture`
@@ -106,7 +106,7 @@ Skipped for now: sandbox scanning, HTML reports, cloud upload, custom CVE databa
 
 ## Product Reframe: 2026-06-23
 
-VibeSec should become the smallest useful security operating loop for AI-built apps, not another scanner catalog. The product has to answer one question for a builder or reviewer: "Can this change ship, and what exact fix should I ask my AI coding tool to make if it cannot?"
+AppGuardrail should become the smallest useful security operating loop for AI-built apps, not another scanner catalog. The product has to answer one question for a builder or reviewer: "Can this change ship, and what exact fix should I ask my AI coding tool to make if it cannot?"
 
 ### Current Signals
 
@@ -124,14 +124,14 @@ As a contributor, I want one README badge path to the project knowledge base and
 Acceptance:
 - README links to DeepWiki for repository understanding.
 - README links to the baseline security workflow result.
-- The badge target is the canonical `ContextualWisdomLab/VibeSec` repository.
+- The badge target is the canonical `ContextualWisdomLab/appguardrail` repository.
 
 #### US6: Baseline Security Process
 
 As a maintainer, I want a security workflow that does not depend on LLM credentials so every PR and protected-branch push gets a deterministic baseline check.
 
 Acceptance:
-- The workflow runs `vibesec scan .`.
+- The workflow runs `appguardrail scan .`.
 - The workflow runs Trivy FS for critical/high vulnerabilities, secrets, and misconfigurations.
 - Trivy SARIF is uploaded to code scanning when GitHub permissions allow it.
 - Scan outputs are retained briefly as artifacts for review.
@@ -149,4 +149,4 @@ Acceptance:
 
 Add a baseline `Security Process` workflow now. Keep Strix and OpenCode as higher-signal review layers, but do not make them the only security process because they can depend on model availability, credentials, and longer review cycles.
 
-Do not build a dashboard, sandbox runner, or new report format in this step. The next code feature should still be JSON output for `vibesec scan` because CI and product learning both need a stable machine-readable artifact.
+Do not build a dashboard, sandbox runner, or new report format in this step. The next code feature should still be JSON output for `appguardrail scan` because CI and product learning both need a stable machine-readable artifact.

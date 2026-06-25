@@ -55,8 +55,8 @@ def test_main_amends_approve_summary_from_bounded_changed_file_evidence(tmp_path
         (
             "# OpenCode bounded PR review evidence\n\n"
             "## Changed files\n\n"
-            "M\tscanner/cli/vibesec.py\n"
-            "A\ttests/test_vibesec.py\n\n"
+            "M\tscanner/cli/appguardrail.py\n"
+            "A\ttests/test_appguardrail.py\n\n"
             "## Focused changed hunks\n\n"
         ),
         encoding="utf-8",
@@ -66,7 +66,7 @@ def test_main_amends_approve_summary_from_bounded_changed_file_evidence(tmp_path
 
     normalized = output_file.read_text(encoding="utf-8")
     assert result == 0
-    assert "Changed-file evidence: scanner/cli/vibesec.py" in normalized
+    assert "Changed-file evidence: scanner/cli/appguardrail.py" in normalized
 
 
 def test_main_rejects_pathless_approve_summary_without_bounded_evidence(tmp_path):
