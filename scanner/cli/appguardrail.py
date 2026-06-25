@@ -429,13 +429,10 @@ def cmd_init(args):
                 f"❌ Error: Target path {target_file} escapes the project root. Aborting.",
                 file=sys.stderr,
             )
-<<<<<<< HEAD:scanner/cli/vibesec.py
-=======
             print(
                 "💡 Hint: Ensure the target file or its symlinks do not point outside the repository.",
                 file=sys.stderr,
             )
->>>>>>> origin/develop:scanner/cli/appguardrail.py
             sys.exit(1)
 
         target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -467,13 +464,10 @@ def cmd_init(args):
             f"❌ Error: Checklist path {checklist_file} escapes the project root. Aborting.",
             file=sys.stderr,
         )
-<<<<<<< HEAD:scanner/cli/vibesec.py
-=======
         print(
             "💡 Hint: Ensure the checklist file or its symlinks do not point outside the repository.",
             file=sys.stderr,
         )
->>>>>>> origin/develop:scanner/cli/appguardrail.py
         sys.exit(1)
 
     if checklist_file.is_symlink():
@@ -544,13 +538,10 @@ def cmd_scan(args):
             findings.extend(_run_trivy_fs(scan_path))
         except RuntimeError as exc:
             print(f"❌ Error: {exc}", file=sys.stderr)
-<<<<<<< HEAD:scanner/cli/vibesec.py
-=======
             print(
                 "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy.",
                 file=sys.stderr,
             )
->>>>>>> origin/develop:scanner/cli/appguardrail.py
             return 1
 
     _print_scan_results(findings, files_scanned)
@@ -579,13 +570,10 @@ def cmd_hook(args):
             f"❌ Error: Target path {hooks_dir} escapes the project root. Aborting.",
             file=sys.stderr,
         )
-<<<<<<< HEAD:scanner/cli/vibesec.py
-=======
         print(
             "💡 Hint: Ensure your .git directory or hooks path is contained within the project.",
             file=sys.stderr,
         )
->>>>>>> origin/develop:scanner/cli/appguardrail.py
         return 1
 
     hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -624,17 +612,10 @@ echo "✅ AppGuardrail scan passed."
     pre_commit_file.chmod(pre_commit_file.stat().st_mode | stat.S_IEXEC)
 
     print(
-<<<<<<< HEAD:scanner/cli/vibesec.py
-        "\n✅ VibeSec pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
-    )
-    print(
-        "This will run 'vibesec scan .' before every commit and block commits if vulnerabilities are found."
-=======
         "\n✅ AppGuardrail pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
     )
     print(
         "This will run 'appguardrail scan .' before every commit and block commits if vulnerabilities are found."
->>>>>>> origin/develop:scanner/cli/appguardrail.py
     )
     return 0
 
@@ -940,20 +921,12 @@ def _scan_file(file_path: Path, base_path: Path):
             for rule_id, severity, message, finditer in applicable_rules:
                 for match in finditer(content):
                     if rel_path_str is None:
-<<<<<<< HEAD:scanner/cli/vibesec.py
-                        rel_path = (
-                            file_path.relative_to(base_path)
-                            if base_path.is_dir()
-                            else file_path
-                        )
-=======
                         try:
                             rel_path = file_path.relative_to(
                                 base_path if base_path.is_dir() else Path(".").resolve()
                             )
                         except ValueError:
                             rel_path = file_path.name if base_path.is_file() else file_path
->>>>>>> origin/develop:scanner/cli/appguardrail.py
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
@@ -967,11 +940,7 @@ def _scan_file(file_path: Path, base_path: Path):
 
                     findings.append(
                         build_finding(
-<<<<<<< HEAD:scanner/cli/vibesec.py
-                            "vibesec-rule",
-=======
                             "appguardrail-rule",
->>>>>>> origin/develop:scanner/cli/appguardrail.py
                             rule_id,
                             severity,
                             message,
@@ -1008,11 +977,7 @@ def _print_scan_results(findings, files_scanned):
         print(f"[{icon}] {f['file']}:{f['line']}")
         print(f"  Rule:    {f['rule_id']}")
         print(
-<<<<<<< HEAD:scanner/cli/vibesec.py
-            f"  Details: {f.get('source', 'vibesec-rule')} | {f.get('category', 'misconfig')} | {f.get('context', 'app-code')}"
-=======
             f"  Details: {f.get('source', 'appguardrail-rule')} | {f.get('category', 'misconfig')} | {f.get('context', 'app-code')}"
->>>>>>> origin/develop:scanner/cli/appguardrail.py
         )
         print(f"  Message: {f['message']}")
         print(f"  Code:    {f['snippet']}")
@@ -1097,12 +1062,6 @@ def main():
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
-<<<<<<< HEAD:scanner/cli/vibesec.py
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
-=======
->>>>>>> origin/develop:scanner/cli/appguardrail.py
 
     subparsers = parser.add_subparsers(dest="command")
 

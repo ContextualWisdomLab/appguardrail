@@ -7,13 +7,9 @@
 - 문서화된 CLI 명령, 생성 rule 파일명, scan artifact 이름, 저장소 참조를 `appguardrail` 기준으로 갱신했습니다.
 
 ### 추가
-<<<<<<< HEAD
-- `scanner/cli/vibesec.py`의 100% 테스트 커버리지를 달성하기 위해 `tests/test_vibesec_coverage.py` 테스트 파일을 추가 및 수정했습니다.
-=======
 - PyPI 배포를 위한 `pyproject.toml`, package discovery 설정, `appguardrail` console script entry point를 추가했습니다.
 - GitHub Actions 기반 PyPI Trusted Publishing workflow를 추가했습니다.
 - `scanner/cli/appguardrail.py`의 100% 테스트 커버리지를 달성하기 위해 `tests/test_appguardrail_coverage.py` 테스트 파일을 추가했습니다.
->>>>>>> origin/develop
   - `cmd_init`: `claude-code` 사용 시 `append_marker` 관련 파일 생성 및 심볼릭 링크 예외, 경로 이탈(`path traversal`) 방지 테스트 추가.
   - `cmd_scan`: 존재하지 않는 경로 및 심볼릭 링크 경로 스캔 시 예외 처리 테스트 추가.
   - `cmd_hook`: `.git` 디렉토리 부재 시 에러 반환, 훅 스크립트의 정상 설치, 심볼릭 링크 처리 및 경로 이탈 방지 테스트 추가.
@@ -21,15 +17,7 @@
   - `cmd_review`: `--stack`, `--db`, `--payments` 인자 유무에 따른 프롬프트 생성 분기 테스트 추가.
   - `main` 함수: 터미널 인자(args) 파싱 및 서브 커맨드(`init`, `scan`, `review`, `hook`) 호출, 그리고 인자가 없을 때의 예외 동작을 포함한 테스트 추가.
   - `if __name__ == '__main__':` 블록의 실행 테스트 추가.
-<<<<<<< HEAD
-  - `_run_trivy_fs`: Trivy 스캔 에러 및 잘못된 JSON 형식 반환에 대한 예외 처리 테스트 추가.
-  - `cmd_scan`: `--trivy` 옵션 사용에 따른 분기 및 예외 처리 테스트 추가.
-  - `_finding_category`: `authz` 항목 분류 로직에 대한 테스트 추가.
-  - `_scan_file`: 빈 내용의 파일, 파일 읽기 예외, 마지막 줄 개행이 없는 파일에 대한 테스트 추가.
-- `scanner/cli/vibesec.py`의 엣지 케이스를 커버하기 위한 `tests/test_coverage_edge_cases.py` 테스트 파일을 추가했습니다.
-=======
 - `scanner/cli/appguardrail.py`의 엣지 케이스를 커버하기 위한 `tests/test_coverage_edge_cases.py` 테스트 파일을 추가했습니다.
->>>>>>> origin/develop
   - `_run_trivy_fs`: Trivy 스캔 시의 비정상 종료 및 JSON 파싱 에러 처리 테스트 추가.
   - `_finding_context`, `_finding_category`, `_trivy_severity`, `_confidence`, `_is_deploy_blocking` 등 헬퍼 함수들의 다양한 입력값에 대한 반환값 테스트 추가.
   - `_trivy_target`: 절대 경로, 상대 경로 및 빈 문자열 입력 처리 엣지 케이스 추가.

@@ -6,11 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-<<<<<<< HEAD:tests/test_vibesec.py
-from scanner.cli.vibesec import (_collect_files, _print_scan_results,
-=======
 from scanner.cli.appguardrail import (_collect_files, _print_scan_results,
->>>>>>> origin/develop:tests/test_appguardrail.py
                                  _run_trivy_fs, _scan_file, cmd_init, cmd_scan)
 
 MOCK_RULES = [
@@ -147,20 +143,12 @@ def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
         }
     ]
 
-<<<<<<< HEAD:tests/test_vibesec.py
-    with patch("scanner.cli.vibesec.SCAN_RULES", first_rules):
-=======
     with patch("scanner.cli.appguardrail.SCAN_RULES", first_rules):
->>>>>>> origin/develop:tests/test_appguardrail.py
         assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == [
             "first"
         ]
 
-<<<<<<< HEAD:tests/test_vibesec.py
-    with patch("scanner.cli.vibesec.SCAN_RULES", second_rules):
-=======
     with patch("scanner.cli.appguardrail.SCAN_RULES", second_rules):
->>>>>>> origin/develop:tests/test_appguardrail.py
         assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == [
             "second"
         ]
@@ -316,13 +304,8 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     )()
 
     with patch(
-<<<<<<< HEAD:tests/test_vibesec.py
-        "scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"
-    ), patch("scanner.cli.vibesec.subprocess.run", return_value=process) as run:
-=======
         "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"
     ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
->>>>>>> origin/develop:tests/test_appguardrail.py
         findings = _run_trivy_fs(tmp_path)
 
     assert run.call_args.args[0][:2] == ["/usr/bin/trivy", "fs"]
@@ -374,11 +357,7 @@ def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
 def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys):
     scanner_cli = tmp_path / "scanner" / "cli"
     scanner_cli.mkdir(parents=True)
-<<<<<<< HEAD:tests/test_vibesec.py
-    (scanner_cli / "vibesec.py").write_text('"message": "Use eval() detected"\n')
-=======
     (scanner_cli / "appguardrail.py").write_text('"message": "Use eval() detected"\n')
->>>>>>> origin/develop:tests/test_appguardrail.py
     rules = [
         {
             "id": "dangerous-eval",
@@ -453,11 +432,7 @@ def test_print_scan_results_critical(capsys):
     assert "🔴 1 critical" in captured.out
     assert "❌ Critical issues found. Fix before deploying." in captured.out
     assert (
-<<<<<<< HEAD:tests/test_vibesec.py
-        "💡 Run 'vibesec review' to get an AI prompt for fixing these issues."
-=======
         "💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
->>>>>>> origin/develop:tests/test_appguardrail.py
         in captured.out
     )
 
@@ -589,15 +564,9 @@ def test_cmd_init_claude_code_skip(tmp_path, monkeypatch, capsys):
 
     cmd_init(Args(tool="claude-code"))
 
-<<<<<<< HEAD:tests/test_vibesec.py
-    assert claude_file.read_text() == "VibeSec existing rules\n"
-    assert (
-        "CLAUDE.md already contains VibeSec rules — skipping."
-=======
     assert claude_file.read_text() == "AppGuardrail existing rules\n"
     assert (
         "CLAUDE.md already contains AppGuardrail rules — skipping."
->>>>>>> origin/develop:tests/test_appguardrail.py
         in capsys.readouterr().out
     )
 
@@ -642,11 +611,7 @@ def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
 
 
 def test_sanitize_terminal_output():
-<<<<<<< HEAD:tests/test_vibesec.py
-    from scanner.cli.vibesec import _sanitize_terminal_output
-=======
     from scanner.cli.appguardrail import _sanitize_terminal_output
->>>>>>> origin/develop:tests/test_appguardrail.py
 
     # Test normal strings
     assert _sanitize_terminal_output("normal string") == "normal string"

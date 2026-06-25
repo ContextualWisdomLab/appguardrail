@@ -5,20 +5,12 @@ from pathlib import Path
 import pytest
 from unittest.mock import patch, MagicMock
 
-<<<<<<< HEAD
-from scanner.cli.vibesec import (
-=======
 from scanner.cli.appguardrail import (
->>>>>>> origin/develop
     cmd_scan, _run_trivy_fs, _finding_context, _finding_category, _trivy_target,
     _scan_file, _trivy_severity, _trivy_line, _trivy_findings, _build_finding,
     _confidence, _is_deploy_blocking
 )
-<<<<<<< HEAD
-from tests.test_vibesec_coverage import ScanArgs
-=======
 from tests.test_appguardrail_coverage import ScanArgs
->>>>>>> origin/develop
 
 def test_run_trivy_fs_error(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -58,13 +50,8 @@ def test_finding_context_docs():
 def test_finding_context_scanner_fixture():
     assert _finding_context("scanner/rules/test.yml") == "scanner-fixture"
 
-<<<<<<< HEAD
-def test_finding_context_scanner_fixture_vibesec():
-    assert _finding_context("scanner/cli/vibesec.py", '"id": "test"') == "scanner-fixture"
-=======
 def test_finding_context_scanner_fixture_appguardrail():
     assert _finding_context("scanner/cli/appguardrail.py", '"id": "test"') == "scanner-fixture"
->>>>>>> origin/develop
 
 def test_finding_category_cve():
     assert _finding_category("cve-1234") == "dependency"
@@ -81,13 +68,14 @@ def test_finding_category_authz():
 def test_finding_category_injection():
     assert _finding_category("eval-test") == "injection"
 
-def test_trivy_target_empty():
-    base = Path("/test")
-    assert _trivy_target("", base) == str(base)
+def test_trivy_target_empty(tmp_path):
+    assert _trivy_target("", tmp_path) == str(tmp_path)
 
-def test_trivy_target_absolute_valueerror():
-    base = Path("/test")
-    assert _trivy_target("/other/path", base) == "other/path"
+def test_trivy_target_absolute_valueerror(tmp_path):
+    # base is a non-existent file (not a dir), so root = base.parent = tmp_path
+    base = tmp_path / "base_file.txt"
+    target = str(tmp_path / "other" / "path.txt")
+    assert _trivy_target(target, base) == "other/path.txt"
 
 def test_scan_file_empty_file(tmp_path):
     empty_file = tmp_path / "empty.ts"
@@ -108,11 +96,7 @@ def test_scan_file_no_newline_after_match(tmp_path):
         "pattern": re.compile(r"password")
     }]
 
-<<<<<<< HEAD
-    with patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES):
-=======
     with patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES):
->>>>>>> origin/develop
         findings = _scan_file(test_file, tmp_path)
         assert len(findings) > 0
         assert findings[0]["snippet"].startswith("const password")
@@ -123,24 +107,16 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
     def mock_run_trivy(*args):
         raise RuntimeError("Mock trivy failure")
 
-<<<<<<< HEAD
-    with patch("scanner.cli.vibesec._run_trivy_fs", side_effect=mock_run_trivy):
-=======
     with patch("scanner.cli.appguardrail._run_trivy_fs", side_effect=mock_run_trivy):
->>>>>>> origin/develop
         class TrivyArgs(ScanArgs):
             def __init__(self, path):
                 super().__init__(path)
                 self.trivy = True
 
         assert cmd_scan(TrivyArgs(tmp_path)) == 1
-<<<<<<< HEAD
-        assert "Error: Mock trivy failure" in capsys.readouterr().err
-=======
         err = capsys.readouterr().err
         assert "Error: Mock trivy failure" in err
         assert "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy." in err
->>>>>>> origin/develop
 
 def test_trivy_severity():
     assert _trivy_severity("CRITICAL") == "CRITICAL"
