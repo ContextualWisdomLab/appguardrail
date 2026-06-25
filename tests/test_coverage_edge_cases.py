@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 from unittest.mock import patch, MagicMock
 
-from scanner.cli.vibesec import (
+from scanner.cli.appguardrail import (
     cmd_scan, _run_trivy_fs, _finding_context, _finding_category, _trivy_target,
     _scan_file, _trivy_severity, _trivy_line, _trivy_findings, _build_finding,
     _confidence, _is_deploy_blocking
 )
-from tests.test_vibesec_coverage import ScanArgs
+from tests.test_appguardrail_coverage import ScanArgs
 
 def test_run_trivy_fs_error(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -50,8 +50,8 @@ def test_finding_context_docs():
 def test_finding_context_scanner_fixture():
     assert _finding_context("scanner/rules/test.yml") == "scanner-fixture"
 
-def test_finding_context_scanner_fixture_vibesec():
-    assert _finding_context("scanner/cli/vibesec.py", '"id": "test"') == "scanner-fixture"
+def test_finding_context_scanner_fixture_appguardrail():
+    assert _finding_context("scanner/cli/appguardrail.py", '"id": "test"') == "scanner-fixture"
 
 def test_finding_category_cve():
     assert _finding_category("cve-1234") == "dependency"
@@ -95,7 +95,7 @@ def test_scan_file_no_newline_after_match(tmp_path):
         "pattern": re.compile(r"password")
     }]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES):
+    with patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES):
         findings = _scan_file(test_file, tmp_path)
         assert len(findings) > 0
         assert findings[0]["snippet"].startswith("const password")
@@ -106,7 +106,7 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
     def mock_run_trivy(*args):
         raise RuntimeError("Mock trivy failure")
 
-    with patch("scanner.cli.vibesec._run_trivy_fs", side_effect=mock_run_trivy):
+    with patch("scanner.cli.appguardrail._run_trivy_fs", side_effect=mock_run_trivy):
         class TrivyArgs(ScanArgs):
             def __init__(self, path):
                 super().__init__(path)
