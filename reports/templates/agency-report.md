@@ -1,8 +1,8 @@
-# VibeSec Agency Security Review Report
+# AppGuardrail Agency Security Review Report
 
 **Client:** [Client Name]
 **Project:** [Project / App Name]
-**Reviewed by:** [Agency Name] powered by VibeSec
+**Reviewed by:** [Agency Name] powered by AppGuardrail
 **Date:** [Date]
 **Engagement type:** Pre-launch review / Ongoing retainer / Incident review
 
@@ -22,7 +22,7 @@ This report documents the security review of [App Name], a [brief description, e
 
 ## Methodology
 
-This review used the VibeSec methodology for AI-generated web applications, focusing on:
+This review used the AppGuardrail methodology for AI-generated web applications, focusing on:
 
 1. **Static analysis** — Automated scanning for hardcoded secrets, dangerous patterns, and common misconfigurations
 2. **Manual code review** — Review of authentication flows, authorization logic, and data access patterns
@@ -133,7 +133,7 @@ The following security controls were found to be correctly implemented:
 
 ## Appendix A: Tools Used
 
-- vibesec scan
+- appguardrail scan
 - Manual code review
 - [Any other tools]
 
@@ -151,4 +151,4 @@ The following security controls were found to be correctly implemented:
 ## Appendix C: References
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [VibeSec Rules and Checklists](https://github.com/Seongho-Bae/VibeSec)
+- [AppGuardrail Rules and Checklists](https://github.com/ContextualWisdomLab/appguardrail)

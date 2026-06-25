@@ -2,7 +2,7 @@
 
 ## Principles
 
-VibeSec is a security tool. Like all security tools, it can be used responsibly or irresponsibly. These guidelines exist to ensure VibeSec is used to protect applications and their users — not to harm them.
+AppGuardrail is a security tool. Like all security tools, it can be used responsibly or irresponsibly. These guidelines exist to ensure AppGuardrail is used to protect applications and their users — not to harm them.
 
 ---
 
@@ -93,9 +93,9 @@ See [scope-and-authorization.md](scope-and-authorization.md) for details on what
 
 ---
 
-## Reporting Vulnerabilities in VibeSec Itself
+## Reporting Vulnerabilities in AppGuardrail Itself
 
-If you find a security vulnerability in the VibeSec tools or scanner:
+If you find a security vulnerability in the AppGuardrail tools or scanner:
 
 1. Do not disclose it publicly until a fix is available.
 2. Report it via a GitHub Security Advisory (private) or email the maintainer.
@@ -105,4 +105,4 @@ If you find a security vulnerability in the VibeSec tools or scanner:
 
 ## Legal Notice
 
-VibeSec tools are provided for legitimate security testing and educational purposes only. The maintainers are not responsible for misuse. By using VibeSec, you agree to use it only on applications you own or have explicit written authorization to test.
+AppGuardrail tools are provided for legitimate security testing and educational purposes only. The maintainers are not responsible for misuse. By using AppGuardrail, you agree to use it only on applications you own or have explicit written authorization to test.

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appguardrail"
+dynamic = ["version"]
+description = "Security guardrails for AI-built apps."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+  { name = "Seongho Bae" }
+]
+keywords = [
+  "ai",
+  "application-security",
+  "security",
+  "sast",
+  "scanner"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance"
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/ContextualWisdomLab/appguardrail"
+Repository = "https://github.com/ContextualWisdomLab/appguardrail"
+Issues = "https://github.com/ContextualWisdomLab/appguardrail/issues"
+Changelog = "https://github.com/ContextualWisdomLab/appguardrail/blob/develop/CHANGELOG.md"
+
+[project.scripts]
+appguardrail = "scanner.cli.appguardrail:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "scanner.cli.appguardrail.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scanner*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"scanner.rules" = ["*.yml"]

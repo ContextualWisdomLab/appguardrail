@@ -2,7 +2,7 @@
 
 ## Security Testing Requires Explicit Authorization
 
-**Before scanning, testing, or reviewing any application using VibeSec, you must have explicit written authorization from the application owner.**
+**Before scanning, testing, or reviewing any application using AppGuardrail, you must have explicit written authorization from the application owner.**
 
 Unauthorized security testing — even with good intentions — may violate:
 
@@ -27,7 +27,7 @@ A simple written statement (email is fine) like this is sufficient for most enga
 
 ---
 
-## Defining Scope for VibeSec Engagements
+## Defining Scope for AppGuardrail Engagements
 
 Before starting a review, document:
 
@@ -65,7 +65,7 @@ Before starting a review, document:
 
 ## Responsible Disclosure
 
-If you are using VibeSec tools to assess an application you do **not** own and did **not** have explicit authorization to test:
+If you are using AppGuardrail tools to assess an application you do **not** own and did **not** have explicit authorization to test:
 
 1. **Stop immediately.**
 2. **Do not store or share any data accessed.**
@@ -73,7 +73,7 @@ If you are using VibeSec tools to assess an application you do **not** own and d
 
 ---
 
-## For VibeSec Contributors
+## For AppGuardrail Contributors
 
 If you are contributing scanner rules or detection patterns to this repository:
 
