@@ -4175,6 +4175,201 @@ EOS
 	rm -rf "$tmp_dir"
 }
 
+run_pull_request_target_mode_only_finding_fails_closed_case() {
+	local tmp_dir
+	tmp_dir="$(mktemp -d)"
+	local bin_dir="$tmp_dir/bin"
+	local repo_root_dir="$tmp_dir/repo"
+	local changed_file="scanner/cli/vibesec.py"
+	mkdir -p "$bin_dir" "$repo_root_dir/scripts/ci" "$repo_root_dir/$(dirname -- "$changed_file")"
+	cp "$GATE_SCRIPT" "$repo_root_dir/scripts/ci/strix_quick_gate.sh"
+	cp "$REPO_ROOT/scripts/ci/strix_model_utils.sh" "$repo_root_dir/scripts/ci/strix_model_utils.sh"
+	chmod +x "$repo_root_dir/scripts/ci/strix_quick_gate.sh"
+
+	local fake_strix="$bin_dir/strix"
+	local output_log="$tmp_dir/output.log"
+	local call_log="$tmp_dir/calls.log"
+	local strix_llm_file="$tmp_dir/strix_llm.txt"
+	local llm_api_key_file="$tmp_dir/llm_api_key.txt"
+
+	cat >"$fake_strix" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "${STRIX_LLM:-}" >> "${FAKE_STRIX_CALL_LOG:?}"
+mkdir -p "${STRIX_REPORTS_DIR:?}/mode-only/vulnerabilities"
+cat >"$STRIX_REPORTS_DIR/mode-only/vulnerabilities/vuln-0001.md" <<'EOS'
+Severity: CRITICAL
+Location 1:
+scanner/cli/vibesec.py:1
+EOS
+echo "Penetration test failed: mode-only changed-file finding"
+exit 1
+EOF
+	chmod +x "$fake_strix"
+	printf '%s' 'openai/gpt-4o-mini' >"$strix_llm_file"
+	printf '%s' 'dummy' >"$llm_api_key_file"
+
+	(
+		cd "$repo_root_dir"
+		git init -q
+		git config user.name 'Strix Test'
+		git config user.email 'strix-test@example.invalid'
+		cat >"$changed_file" <<'EOS'
+RULES = [
+    {"id": "dangerous-eval", "message": "Use of eval() detected."},
+]
+EOS
+		git add .
+		git commit -qm 'base commit'
+	)
+	local base_sha
+	base_sha="$(git -C "$repo_root_dir" rev-parse HEAD)"
+	(
+		cd "$repo_root_dir"
+		chmod +x "$changed_file"
+		git add "$changed_file"
+		git commit -qm 'head commit'
+	)
+	local head_sha
+	head_sha="$(git -C "$repo_root_dir" rev-parse HEAD)"
+	git -C "$repo_root_dir" checkout -q "$base_sha"
+
+	set +e
+	(
+		cd "$repo_root_dir"
+		env -u GITHUB_EVENT_PATH \
+			PATH="$bin_dir:$PATH" \
+			STRIX_INPUT_FILE_ROOT="$tmp_dir" \
+			GITHUB_EVENT_NAME="pull_request_target" \
+			PR_BASE_SHA="$base_sha" \
+			PR_HEAD_SHA="$head_sha" \
+			STRIX_TEST_CHANGED_FILES_OVERRIDE="$changed_file" \
+			FAKE_STRIX_CALL_LOG="$call_log" \
+			STRIX_FAIL_ON_MIN_SEVERITY="CRITICAL" \
+			STRIX_DISABLE_PR_SCOPING="0" \
+			STRIX_LLM_FILE="$strix_llm_file" \
+			LLM_API_KEY_FILE="$llm_api_key_file" \
+			STRIX_TARGET_PATH="." \
+			STRIX_REPORTS_DIR="$repo_root_dir/strix_runs" \
+			bash "./scripts/ci/strix_quick_gate.sh" >"$output_log" 2>&1
+	)
+	local rc=$?
+	set -e
+
+	assert_equals "1" "$rc" "case=pull-request-target-mode-only-finding-fails-closed exit code"
+	assert_file_contains "$output_log" "Strix finding intersects files changed in this pull request." "case=pull-request-target-mode-only-finding-fails-closed output"
+	assert_equals "1" "$(wc -l <"$call_log" | tr -d ' ')" "case=pull-request-target-mode-only-finding-fails-closed strix call count"
+
+	rm -rf "$tmp_dir"
+}
+
+run_pull_request_target_missing_scan_target_fails_closed_case() {
+	local tmp_dir
+	tmp_dir="$(mktemp -d)"
+	local bin_dir="$tmp_dir/bin"
+	local repo_root_dir="$tmp_dir/repo"
+	local changed_file="backend/api/emails.py"
+	mkdir -p "$bin_dir" "$repo_root_dir/scripts/ci" "$repo_root_dir/$(dirname -- "$changed_file")"
+	cp "$GATE_SCRIPT" "$repo_root_dir/scripts/ci/strix_quick_gate.sh"
+	cp "$REPO_ROOT/scripts/ci/strix_model_utils.sh" "$repo_root_dir/scripts/ci/strix_model_utils.sh"
+	chmod +x "$repo_root_dir/scripts/ci/strix_quick_gate.sh"
+
+	local fake_python3="$bin_dir/python3"
+	cat >"$fake_python3" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${DELETE_ON_VULN_HELPER:-0}" = "1" ] && [ "$#" -eq 8 ] && [ "$1" = "-" ] && [ -n "${4:-}" ]; then
+	rm -rf -- "$4"
+fi
+
+exec /usr/bin/python3 "$@"
+EOF
+	chmod +x "$fake_python3"
+
+	local fake_strix="$bin_dir/strix"
+	local output_log="$tmp_dir/output.log"
+	local call_log="$tmp_dir/calls.log"
+	local strix_llm_file="$tmp_dir/strix_llm.txt"
+	local llm_api_key_file="$tmp_dir/llm_api_key.txt"
+
+	cat >"$fake_strix" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "${STRIX_LLM:-}" >> "${FAKE_STRIX_CALL_LOG:?}"
+mkdir -p "${STRIX_REPORTS_DIR:?}/missing-target/vulnerabilities"
+cat >"$STRIX_REPORTS_DIR/missing-target/vulnerabilities/vuln-0001.md" <<'EOS'
+Severity: CRITICAL
+Location 1:
+backend/api/emails.py:4
+EOS
+echo "Penetration test failed: missing scan target changed-file finding"
+exit 1
+EOF
+	chmod +x "$fake_strix"
+	printf '%s' 'openai/gpt-4o-mini' >"$strix_llm_file"
+	printf '%s' 'dummy' >"$llm_api_key_file"
+
+	(
+		cd "$repo_root_dir"
+		git init -q
+		git config user.name 'Strix Test'
+		git config user.email 'strix-test@example.invalid'
+		cat >"$changed_file" <<'EOS'
+def send_email():
+    return "safe"
+EOS
+		git add .
+		git commit -qm 'base commit'
+	)
+	local base_sha
+	base_sha="$(git -C "$repo_root_dir" rev-parse HEAD)"
+	(
+		cd "$repo_root_dir"
+		cat >>"$changed_file" <<'EOS'
+
+def send_admin_email():
+    return "unsafe"
+EOS
+		git add .
+		git commit -qm 'head commit'
+	)
+	local head_sha
+	head_sha="$(git -C "$repo_root_dir" rev-parse HEAD)"
+	git -C "$repo_root_dir" checkout -q "$base_sha"
+
+	set +e
+	(
+		cd "$repo_root_dir"
+		env -u GITHUB_EVENT_PATH \
+			PATH="$bin_dir:$PATH" \
+			DELETE_ON_VULN_HELPER="1" \
+			STRIX_INPUT_FILE_ROOT="$tmp_dir" \
+			GITHUB_EVENT_NAME="pull_request_target" \
+			PR_BASE_SHA="$base_sha" \
+			PR_HEAD_SHA="$head_sha" \
+			STRIX_TEST_CHANGED_FILES_OVERRIDE="$changed_file" \
+			FAKE_STRIX_CALL_LOG="$call_log" \
+			STRIX_FAIL_ON_MIN_SEVERITY="CRITICAL" \
+			STRIX_DISABLE_PR_SCOPING="0" \
+			STRIX_LLM_FILE="$strix_llm_file" \
+			LLM_API_KEY_FILE="$llm_api_key_file" \
+			STRIX_TARGET_PATH="." \
+			STRIX_REPORTS_DIR="$repo_root_dir/strix_runs" \
+			bash "./scripts/ci/strix_quick_gate.sh" >"$output_log" 2>&1
+	)
+	local rc=$?
+	set -e
+
+	assert_equals "1" "$rc" "case=pull-request-target-missing-scan-target-fails-closed exit code"
+	assert_file_contains "$output_log" "Strix finding intersects files changed in this pull request." "case=pull-request-target-missing-scan-target-fails-closed output"
+	assert_equals "1" "$(wc -l <"$call_log" | tr -d ' ')" "case=pull-request-target-missing-scan-target-fails-closed strix call count"
+
+	rm -rf "$tmp_dir"
+}
+
 run_pull_request_target_bounded_head_context_scope_case() {
 	local tmp_dir
 	tmp_dir="$(mktemp -d)"
@@ -6326,6 +6521,10 @@ run_pull_request_target_unchanged_line_finding_allows_baseline_case \
 	"1" \
 	"Strix finding intersects files changed in this pull request." \
 	"pull-request-target-added-line-finding-fails-closed"
+
+run_pull_request_target_mode_only_finding_fails_closed_case
+
+run_pull_request_target_missing_scan_target_fails_closed_case
 
 run_pull_request_target_shallow_head_merge_base_fallback_case
 

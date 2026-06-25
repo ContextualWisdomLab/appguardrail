@@ -1945,14 +1945,17 @@ for match in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", diff.stdout
         changed_ranges.append((start, start + count - 1))
 
 if not changed_ranges:
-    raise SystemExit(1)
+    raise SystemExit(0)
 
 try:
     text = report_file.read_text(encoding="utf-8", errors="replace")
 except OSError:
     raise SystemExit(0)
 
-scan_target = Path(scan_target_raw).resolve(strict=True) if scan_target_raw else None
+try:
+    scan_target = Path(scan_target_raw).resolve(strict=True) if scan_target_raw else None
+except OSError:
+    raise SystemExit(0)
 scan_target_workspace_prefix = f"/workspace/{scan_target.name}/" if scan_target and scan_target != repo_root else ""
 
 
