@@ -967,6 +967,21 @@ def _run_trivy_fs(scan_path: Path):
 
 
 def _run_codegraph_command(command, cwd: Path, action: str):
+    if not command:
+        raise RuntimeError("CodeGraph command cannot be empty.")
+    for arg in command:
+        if not isinstance(arg, str):
+            raise RuntimeError(
+                f"CodeGraph command argument must be a string, got {type(arg).__name__}."
+            )
+        if not arg.isprintable():
+            raise RuntimeError("CodeGraph command argument contains control characters.")
+
+    executable = Path(command[0]).name
+    allowed_args = {("sync",), ("init", "-i"), ("status",)}
+    if executable != "codegraph" or tuple(command[1:]) not in allowed_args:
+        raise RuntimeError(f"Unsupported CodeGraph {action} command.")
+
     process = subprocess.run(
         command,
         cwd=cwd,

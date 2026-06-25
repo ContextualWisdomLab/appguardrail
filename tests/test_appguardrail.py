@@ -9,6 +9,7 @@ import pytest
 from scanner.cli.appguardrail import (
     _collect_files,
     _print_scan_results,
+    _run_codegraph_command,
     _run_codegraph_index,
     _run_trivy_fs,
     _scan_file,
@@ -403,6 +404,23 @@ def test_run_codegraph_index_rejects_file_at_index_path(tmp_path):
     with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"):
         with pytest.raises(RuntimeError, match="not a directory"):
             _run_codegraph_index(tmp_path)
+
+
+def test_run_codegraph_command_rejects_non_string_argument(tmp_path):
+    with pytest.raises(RuntimeError, match="must be a string"):
+        _run_codegraph_command(["/usr/bin/codegraph", 123], tmp_path, "status")
+
+
+def test_run_codegraph_command_rejects_control_characters(tmp_path):
+    with pytest.raises(RuntimeError, match="control characters"):
+        _run_codegraph_command(["/usr/bin/codegraph", "status\n"], tmp_path, "status")
+
+
+def test_run_codegraph_command_rejects_unexpected_arguments(tmp_path):
+    with pytest.raises(RuntimeError, match="Unsupported CodeGraph status command"):
+        _run_codegraph_command(
+            ["/usr/bin/codegraph", "status", ";", "echo", "pwned"], tmp_path, "status"
+        )
 
 
 @patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
