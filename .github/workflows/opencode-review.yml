@@ -2945,7 +2945,7 @@ jobs:
               elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
                 create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
               else
-                leave_review_unchanged_for_tooling_instability "OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}; OpenCode model attempts did not produce a usable control block, no valid source-backed review output was available, and deterministic fallback approval did not apply for head ${HEAD_SHA}. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding. Re-run OpenCode if automated review evidence is still required."
+                leave_review_unchanged_for_tooling_instability "OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}; OpenCode model attempts did not produce a usable control block, no valid source-backed review output was available, and deterministic fallback approval did not apply for head ${HEAD_SHA}; it will not approve without source-backed current-head review evidence. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding. Re-run OpenCode if automated review evidence is still required."
               fi
             fi
             echo "::endgroup::"
@@ -3244,7 +3244,7 @@ jobs:
                   elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
                     create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
                   else
-                    leave_review_unchanged_for_tooling_instability "OpenCode gate result ${gate_result:-empty} was not publishable, and deterministic fallback approval did not apply for head ${HEAD_SHA}. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding. Re-run OpenCode if automated review evidence is still required."
+                    leave_review_unchanged_for_tooling_instability "OpenCode gate result ${gate_result:-empty} was not publishable, and deterministic fallback approval did not apply for head ${HEAD_SHA}; it will not approve without source-backed current-head review evidence. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding. Re-run OpenCode if automated review evidence is still required."
                   fi
                 fi
               fi

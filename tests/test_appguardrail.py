@@ -353,8 +353,8 @@ def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
     scan_path.mkdir()
     process = type("Process", (), {"returncode": 0, "stdout": json.dumps({}), "stderr": ""})()
 
-    with patch("scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"), \
-         patch("scanner.cli.vibesec.subprocess.run", return_value=process) as run:
+    with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"), \
+         patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
         assert _run_trivy_fs(scan_path) == []
 
     command = run.call_args.args[0]
