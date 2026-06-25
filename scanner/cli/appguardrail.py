@@ -155,6 +155,16 @@ See https://github.com/ContextualWisdomLab/appguardrail for full checklists.
 
 SCAN_RULES = [
     {
+        "id": "python-insecure-deserialization",
+        "pattern": re.compile(
+            r"\b(?:pickle\.(?:load|loads|Unpickler)|marshal\.(?:load|loads)|yaml\.(?:load|unsafe_load))\s*\(",
+            re.MULTILINE,
+        ),
+        "severity": "CRITICAL",
+        "message": "Insecure deserialization detected. Loading untrusted data with pickle, marshal, yaml.load, or yaml.unsafe_load can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]",
+        "extensions": [".py"],
+    },
+    {
         "id": "hardcoded-stripe-secret",
         "pattern": re.compile(r"sk_(?:live|test)_[A-Za-z0-9]{24,}", re.MULTILINE),
         "severity": "CRITICAL",
@@ -975,6 +985,7 @@ def _run_trivy_fs(scan_path: Path):
             "--skip-version-check",
             str(scan_path),
         ],
+        shell=False,
         capture_output=True,
         text=True,
         check=False,

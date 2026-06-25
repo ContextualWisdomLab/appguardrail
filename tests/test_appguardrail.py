@@ -358,6 +358,20 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     assert "SHOULD_NOT_PRINT" not in findings[2]["snippet"]
 
 
+def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
+    scan_path = tmp_path / "literal;touch INJECTED"
+    scan_path.mkdir()
+    process = type("Process", (), {"returncode": 0, "stdout": json.dumps({}), "stderr": ""})()
+
+    with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"), \
+         patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+        assert _run_trivy_fs(scan_path) == []
+
+    command = run.call_args.args[0]
+    assert command[-1] == str(scan_path)
+    assert run.call_args.kwargs["shell"] is False
+
+
 def test_run_trivy_fs_requires_trivy(tmp_path):
     with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="trivy executable not found"):
@@ -782,3 +796,29 @@ def test_sanitize_terminal_output():
 
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
+
+def test_scan_file_insecure_deserialization(tmp_path):
+    test_file = tmp_path / "unsafe.py"
+    test_file.write_text(
+        "import marshal\n"
+        "import pickle\n"
+        "import yaml\n"
+        "pickle.loads(data)\n"
+        "yaml.load(raw_config)\n"
+        "yaml.unsafe_load(raw_config)\n"
+        "yaml.safe_load(trusted_config)\n"
+        "marshal.load(stream)\n"
+    )
+
+    findings = [
+        finding for finding in _scan_file(test_file, tmp_path)
+        if finding["rule_id"] == "python-insecure-deserialization"
+    ]
+
+    assert len(findings) == 4
+    assert [finding["line"] for finding in findings] == [4, 5, 6, 8]
+    assert any("pickle.loads" in finding["snippet"] for finding in findings)
+    assert any("yaml.load" in finding["snippet"] for finding in findings)
+    assert any("yaml.unsafe_load" in finding["snippet"] for finding in findings)
+    assert any("marshal.load" in finding["snippet"] for finding in findings)
+    assert all("yaml.safe_load" not in finding["snippet"] for finding in findings)
