@@ -967,6 +967,21 @@ def _run_trivy_fs(scan_path: Path):
 
 
 def _run_codegraph_command(command, cwd: Path, action: str):
+    if not command:
+        raise RuntimeError("CodeGraph command cannot be empty.")
+    for arg in command:
+        if not isinstance(arg, str):
+            raise RuntimeError(
+                f"CodeGraph command argument must be a string, got {type(arg).__name__}."
+            )
+        if not arg.isprintable():
+            raise RuntimeError("CodeGraph command argument contains control characters.")
+
+    executable = Path(command[0]).name
+    allowed_args = {("sync",), ("init", "-i"), ("status",)}
+    if executable != "codegraph" or tuple(command[1:]) not in allowed_args:
+        raise RuntimeError(f"Unsupported CodeGraph {action} command.")
+
     process = subprocess.run(
         command,
         cwd=cwd,
@@ -1111,10 +1126,10 @@ def _print_scan_results(findings, files_scanned):
 
     print("─" * 60)
     files_word = "file" if files_scanned == 1 else "files"
-    critical_word = "critical"
-    high_word = "high"
+    critical_word = "critical issue" if counts["CRITICAL"] == 1 else "critical issues"
+    high_word = "high issue" if counts["HIGH"] == 1 else "high issues"
     warnings_word = "warning" if counts["WARNING"] == 1 else "warnings"
-    info_word = "info"
+    info_word = "info issue" if counts["INFO"] == 1 else "info issues"
 
     print(
         f"Scanned {files_scanned} {files_word}  |  Deploy blockers: "
