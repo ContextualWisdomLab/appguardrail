@@ -4418,7 +4418,7 @@ EOS
 	set -e
 
 	assert_equals "1" "$rc" "case=pull-request-target-missing-scan-target-fails-closed exit code"
-	assert_file_contains "$output_log" "Strix finding intersects files changed in this pull request." "case=pull-request-target-missing-scan-target-fails-closed output"
+	assert_file_contains "$output_log" "Unable to map Strix findings to changed files; failing closed for pull request." "case=pull-request-target-missing-scan-target-fails-closed output"
 	assert_equals "1" "$(wc -l <"$call_log" | tr -d ' ')" "case=pull-request-target-missing-scan-target-fails-closed strix call count"
 
 	rm -rf "$tmp_dir"

@@ -1768,7 +1768,7 @@ def normalize_within(base: Path, location: str) -> Path:
         raise SystemExit(1)
     return candidate
 
-def try_normalize_within(base: Path, location: str) -> Path | None:
+def try_normalize_within(base: Path, location: str):
     try:
         return normalize_within(base, location)
     except SystemExit:
