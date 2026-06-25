@@ -341,7 +341,7 @@ def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "| doc" in out
     assert "Gate:    non-blocking context" in out
-    assert "🔴 0 critical" in out
+    assert "🔴 0 critical issues" in out
 
 
 @patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
@@ -351,7 +351,7 @@ def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
     assert cmd_scan(ScanArgs(tmp_path)) == 1
     out = capsys.readouterr().out
     assert "| app-code" in out
-    assert "🔴 1 critical" in out
+    assert "🔴 1 critical issue" in out
 
 
 def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys):
@@ -373,7 +373,7 @@ def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys
 
     out = capsys.readouterr().out
     assert "| scanner-fixture" in out
-    assert "🔴 0 critical" in out
+    assert "🔴 0 critical issues" in out
 
 
 def test_cmd_scan_single_file_keeps_scanner_fixture_context(tmp_path, monkeypatch, capsys):
@@ -398,7 +398,7 @@ def test_cmd_scan_single_file_keeps_scanner_fixture_context(tmp_path, monkeypatc
     out = capsys.readouterr().out
     assert "scanner/cli/appguardrail.py" in out
     assert "| scanner-fixture" in out
-    assert "🔴 0 critical" in out
+    assert "🔴 0 critical issues" in out
 
 
 def test_print_scan_results_empty(capsys):
@@ -406,7 +406,7 @@ def test_print_scan_results_empty(capsys):
     captured = capsys.readouterr()
 
     assert "Scanned 5 files" in captured.out
-    assert "🔴 0 critical" in captured.out
+    assert "🔴 0 critical issues" in captured.out
     assert "✅ No issues found in this scan." in captured.out
     assert "Run 'appguardrail review'" not in captured.out
 
@@ -429,7 +429,7 @@ def test_print_scan_results_critical(capsys):
     assert "Rule:    VSEC-001" in captured.out
     assert "Found a critical issue" in captured.out
     assert "Code:    const secret = 'abc';" in captured.out
-    assert "🔴 1 critical" in captured.out
+    assert "🔴 1 critical issue" in captured.out
     assert "❌ Critical issues found. Fix before deploying." in captured.out
     assert (
         "💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
@@ -452,7 +452,7 @@ def test_print_scan_results_high(capsys):
     captured = capsys.readouterr()
 
     assert "[🟠 HIGH] app/api/route.ts:5" in captured.out
-    assert "🟠 1 high" in captured.out
+    assert "🟠 1 high issue" in captured.out
     assert "⚠️  High-severity issues found. Review before deploying." in captured.out
 
 
