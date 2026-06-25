@@ -47,14 +47,20 @@ python3 -m pip install appguardrail
 appguardrail --help
 ```
 
+Maintainers can prepare PyPI releases with GitHub Actions Bot and OpenCode
+Agent. See [Release Automation](docs/release-automation.md).
+
 ### Initialize security rules in your project
 
 ```bash
-# For Cursor users
-appguardrail init --tool cursor
+# Recommended: install guardrails for Codex, Copilot, Claude Code, Cursor, and Windsurf
+appguardrail init
 
-# For Claude Code users
+# Or install for one tool explicitly
+appguardrail init --tool cursor
 appguardrail init --tool claude-code
+appguardrail init --tool codex
+appguardrail init --tool copilot
 
 # For a Next.js + Supabase stack
 appguardrail init --stack nextjs-supabase
@@ -62,7 +68,10 @@ appguardrail init --stack nextjs-supabase
 
 This creates:
 - `.cursor/rules/appguardrail.md`
+- `.windsurf/rules/appguardrail.md`
 - `CLAUDE.md`
+- `AGENTS.md`
+- `.github/copilot-instructions.md`
 - `APPGUARDRAIL_CHECKLIST.md`
 
 ### Scan your codebase
@@ -72,6 +81,9 @@ appguardrail scan .
 
 # Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
 appguardrail scan --trivy .
+
+# If CodeGraph is installed, prepare structural context for deeper review
+appguardrail scan --codegraph .
 ```
 
 Detects:
@@ -87,6 +99,21 @@ Detects:
 
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
+
+### Install the pre-commit hook
+
+```bash
+appguardrail hook
+
+# Recommended when CodeGraph is available
+appguardrail hook --codegraph
+```
+
+The CodeGraph mode initializes or syncs the local structural index before each
+scan. This gives human reviewers and AI review agents better call-graph context
+for authorization, webhook, secret-handling, and other security-sensitive flows.
+The repository Security Process workflow also runs AppGuardrail with CodeGraph
+enabled, so pull requests get the same structural security context in CI.
 
 ### Generate a security review prompt
 

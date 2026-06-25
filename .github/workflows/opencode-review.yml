@@ -2563,6 +2563,110 @@ jobs:
             scripts/ci/collect_failed_check_evidence.sh "$evidence_file"
           }
 
+          approve_release_version_bump_after_model_failure() {
+            local body_file="$1"
+            local changed_files_file
+            local source_root="${OPENCODE_SOURCE_WORKDIR:-}"
+            local version
+            local diff_check_status=0
+
+            if [ -z "$source_root" ] || ! git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+              return 1
+            fi
+
+            changed_files_file="$(mktemp)"
+            if ! gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate \
+              --jq '.[].filename' >"$changed_files_file"; then
+              rm -f "$changed_files_file"
+              return 1
+            fi
+
+            if [ "$(wc -l <"$changed_files_file" | tr -d ' ')" -ne 2 ] ||
+              ! grep -Fxq 'CHANGELOG.md' "$changed_files_file" ||
+              ! grep -Fxq 'scanner/cli/appguardrail.py' "$changed_files_file"; then
+              rm -f "$changed_files_file"
+              return 1
+            fi
+            rm -f "$changed_files_file"
+
+            version="$(
+              python3 -c 'import textwrap; exec(textwrap.dedent("""
+          from pathlib import Path
+          import re
+          import sys
+
+          text = Path(sys.argv[1]).read_text(encoding="utf-8")
+          match = re.search("^__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+(?:[a-zA-Z0-9._+-]+)?)\"$", text, re.MULTILINE)
+          if not match:
+              raise SystemExit(1)
+          print(match.group(1))
+          """))' "$source_root/scanner/cli/appguardrail.py"
+            )" || return 1
+
+            set +e
+            python3 -c 'import textwrap; exec(textwrap.dedent("""
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+
+          source_root = Path(sys.argv[1])
+          base_sha = sys.argv[2]
+          head_sha = sys.argv[3]
+          version = sys.argv[4]
+
+          diff = subprocess.run(
+              ["git", "diff", "--unified=0", f"{base_sha}...{head_sha}", "--", "scanner/cli/appguardrail.py"],
+              cwd=source_root,
+              capture_output=True,
+              text=True,
+              check=False,
+          )
+          if diff.returncode != 0:
+              raise SystemExit(1)
+          removed = []
+          added = []
+          for line in diff.stdout.splitlines():
+              if line.startswith("---") or line.startswith("+++"):
+                  continue
+              if line.startswith("-"):
+                  removed.append(line[1:])
+              elif line.startswith("+"):
+                  added.append(line[1:])
+          version_line = re.compile("^__version__ = \"[0-9]+\\.[0-9]+\\.[0-9]+(?:[a-zA-Z0-9._+-]+)?\"$")
+          if len(removed) != 1 or len(added) != 1:
+              raise SystemExit(1)
+          if not version_line.fullmatch(removed[0]) or added[0] != f"__version__ = \"{version}\"":
+              raise SystemExit(1)
+          changelog = (source_root / "CHANGELOG.md").read_text(encoding="utf-8")
+          if f"## [{version}]" not in changelog:
+              raise SystemExit(1)
+          """))' "$source_root" "$PR_BASE_SHA" "$PR_HEAD_SHA" "$version"
+            diff_check_status=$?
+            set -e
+            if [ "$diff_check_status" -ne 0 ]; then
+              return 1
+            fi
+
+            {
+              printf '## Pull request overview\n\n'
+              printf 'OpenCode model attempts did not produce a usable control block, but the trusted gate verified that this PR has no failed peer GitHub Checks, no pending peer GitHub Checks, no unresolved human review threads, and no merge conflict.\n\n'
+              printf '## Findings\n\n'
+              printf 'No blocking findings.\n\n'
+              printf '## Summary\n\n'
+              printf 'Deterministic release-version fallback approval was used because this PR changes only `scanner/cli/appguardrail.py` and `CHANGELOG.md`, the scanner CLI diff is limited to the `__version__` assignment, and the changelog contains the matching `%s` release heading.\n\n' "$version"
+              printf -- '- `scanner/cli/appguardrail.py`\n'
+              printf -- '- `CHANGELOG.md`\n\n'
+              printf 'This fallback is not used for product source edits beyond the package version assignment, workflow changes, dependency changes, or any PR with failed or pending peer checks.\n\n'
+              printf -- '- Result: APPROVE\n'
+              printf -- '- Reason: OpenCode model output was unavailable, but the release-version-only fallback and trusted gate checks passed for current head `%s`.\n' "$HEAD_SHA"
+              printf -- '- Head SHA: `%s`\n' "$HEAD_SHA"
+              printf -- '- Workflow run: %s\n' "$RUN_ID"
+              printf -- '- Workflow attempt: %s\n' "$RUN_ATTEMPT"
+            } >"$body_file"
+            return 0
+          }
+
           approve_low_risk_changed_files_after_model_failure() {
             local body_file="$1"
             local changed_files_file
@@ -2820,6 +2924,8 @@ jobs:
                 create_pull_review "REQUEST_CHANGES" "$(cat "$human_thread_review_body_file")"
               elif request_changes_for_merge_conflict_if_present; then
                 :
+              elif approve_release_version_bump_after_model_failure "$failed_check_review_body_file"; then
+                create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
               elif approve_review_tooling_bootstrap_after_model_failure "$failed_check_review_body_file"; then
                 create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
               elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
@@ -3123,6 +3229,8 @@ jobs:
                     create_pull_review "REQUEST_CHANGES" "$(cat "$human_thread_review_body_file")"
                   elif request_changes_for_merge_conflict_if_present; then
                     :
+                  elif approve_release_version_bump_after_model_failure "$failed_check_review_body_file"; then
+                    create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
                   elif approve_review_tooling_bootstrap_after_model_failure "$failed_check_review_body_file"; then
                     create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
                   elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
