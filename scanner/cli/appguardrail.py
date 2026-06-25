@@ -773,6 +773,31 @@ def _sanitize_terminal_output(text: str) -> str:
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
+_SENSITIVE_RULE_TOKENS = (
+    "secret",
+    "password",
+    "token",
+    "jwt",
+    "database-url",
+    "db-url",
+    "stripe",
+    "openai",
+    "supabase-service-role",
+)
+_REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
+
+
+def _is_sensitive_rule(rule_id: str) -> bool:
+    lowered = (rule_id or "").lower()
+    return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
+
+
+def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
+    if category == "secrets" or _is_sensitive_rule(rule_id):
+        return _REDACTED_SENSITIVE_SNIPPET
+    return _sanitize_terminal_output(snippet)
+
+
 def _finding_context(file_path: str, snippet: str = "") -> str:
     path = (file_path or "").replace("\\", "/").lstrip("./")
     snippet = (snippet or "").strip()
@@ -827,7 +852,7 @@ def _build_finding(
         "message": message,
         "file": file,
         "line": line,
-        "snippet": _sanitize_terminal_output(snippet),
+        "snippet": _safe_snippet(rule_id, snippet, category),
         "source": source,
         "category": category,
         "confidence": _confidence(rule_id),

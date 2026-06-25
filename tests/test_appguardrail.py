@@ -103,6 +103,15 @@ def test_scan_file_with_multiple_findings(tmp_path):
     assert "mock-todo" in rule_ids
 
 
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
+def test_scan_file_redacts_sensitive_snippet(tmp_path):
+    test_file = tmp_path / "unsafe.ts"
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n")
+
+    findings = _scan_file(test_file, tmp_path)
+    assert findings[0]["snippet"] == "[REDACTED: sensitive match suppressed]"
+
+
 def test_scan_file_unreadable(tmp_path):
     test_file = tmp_path / "unreadable.ts"
     test_file.write_text("MOCK_SECRET_KEY\n")
@@ -444,6 +453,61 @@ def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "| app-code" in out
     assert "🔴 1 critical" in out
+
+
+def test_cmd_scan_redacts_sensitive_values_in_output(tmp_path, capsys):
+    rules = [
+        {
+            "id": "stripe-secret",
+            "pattern": re.compile(r"sk_test_123456789"),
+            "severity": "CRITICAL",
+            "message": "Stripe key exposed",
+            "extensions": None,
+        },
+        {
+            "id": "openai-token",
+            "pattern": re.compile(r"sk-openai-abcdefghijk"),
+            "severity": "CRITICAL",
+            "message": "OpenAI key exposed",
+            "extensions": None,
+        },
+        {
+            "id": "jwt-hardcoded",
+            "pattern": re.compile(r"jwt-secret-value"),
+            "severity": "HIGH",
+            "message": "JWT secret hardcoded",
+            "extensions": None,
+        },
+        {
+            "id": "database-url",
+            "pattern": re.compile(r"sqlite:///tmp/app.db"),
+            "severity": "HIGH",
+            "message": "Database URL hardcoded",
+            "extensions": None,
+        },
+    ]
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "STRIPE_SECRET_KEY=sk_test_123456789",
+                "OPENAI_API_KEY=sk-openai-abcdefghijk",
+                "JWT_SECRET=jwt-secret-value",
+                "DATABASE_URL=sqlite:///tmp/app.db",
+            ]
+        )
+        + "\n"
+    )
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", rules):
+        assert cmd_scan(ScanArgs(tmp_path)) == 1
+
+    captured = capsys.readouterr()
+    combined = f"{captured.out}\n{captured.err}"
+    assert "sk_test_123456789" not in combined
+    assert "sk-openai-abcdefghijk" not in combined
+    assert "jwt-secret-value" not in combined
+    assert "sqlite:///tmp/app.db" not in combined
+    assert "[REDACTED: sensitive match suppressed]" in captured.out
 
 
 def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys):
