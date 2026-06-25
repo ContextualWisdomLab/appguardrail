@@ -1,2 +1,0 @@
-[console_scripts]
-appguardrail = scanner.cli.appguardrail:main
