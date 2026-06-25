@@ -1,0 +1,1 @@
+"""Packaged AppGuardrail rule metadata."""

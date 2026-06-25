@@ -1,6 +1,6 @@
-# VibeSec Fix Pack
+# AppGuardrail Fix Pack
 
-A Fix Pack is the actionable output from a VibeSec review. Each entry contains a specific vulnerability, its risk, an AI-ready fix prompt, and a verification step.
+A Fix Pack is the actionable output from an AppGuardrail review. Each entry contains a specific vulnerability, its risk, an AI-ready fix prompt, and a verification step.
 
 **App:** [App Name]
 **Fix Pack generated:** [Date]
@@ -115,7 +115,7 @@ Also add tests:
 
 After all fixes are applied:
 
-- [ ] Run `vibesec scan .` — confirm no new issues introduced
+- [ ] Run `appguardrail scan .` — confirm no new issues introduced
 - [ ] Run existing test suite — confirm no regressions
 - [ ] Deploy to staging and repeat the verification tests
 - [ ] Get sign-off from reviewer before deploying to production
@@ -124,4 +124,4 @@ After all fixes are applied:
 
 ## Questions?
 
-If a fix prompt doesn't produce the right result, or if you need clarification on any item, contact VibeSec for follow-up support.
+If a fix prompt doesn't produce the right result, or if you need clarification on any item, contact AppGuardrail for follow-up support.

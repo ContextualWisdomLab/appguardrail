@@ -1300,7 +1300,7 @@ frontend/postcss.config.mjs
 docker-compose.yml
 render.yaml
 VERSION
-scanner/cli/vibesec.py
+scanner/cli/appguardrail.py
 scanner/rules/authz.yml
 scanner/rules/firebase.yml
 scanner/rules/nextjs.yml

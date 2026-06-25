@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.vibesec import (_collect_files, _print_scan_results,
+from scanner.cli.appguardrail import (_collect_files, _print_scan_results,
                                  _run_trivy_fs, _scan_file, cmd_init, cmd_scan)
 
 MOCK_RULES = [
@@ -64,14 +64,14 @@ def test_scan_file_error_handling(tmp_path):
         assert _scan_file(test_file, tmp_path) == []
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_no_findings(tmp_path):
     test_file = tmp_path / "safe.py"
     test_file.write_text("print('hello')\n")
     assert _scan_file(test_file, tmp_path) == []
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_findings(tmp_path):
     test_file = tmp_path / "unsafe.ts"
     test_file.write_text("const key = MOCK_SECRET_KEY;\n")
@@ -81,7 +81,7 @@ def test_scan_file_with_findings(tmp_path):
     assert findings[0]["rule_id"] == "mock-secret"
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_with_multiple_findings(tmp_path):
     test_file = tmp_path / "unsafe_multiple.js"
     test_file.write_text(
@@ -103,7 +103,7 @@ def test_scan_file_unreadable(tmp_path):
         assert _scan_file(test_file, tmp_path) == []
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_extensions_filter(tmp_path):
     test_file = tmp_path / "rules.js"
     test_file.write_text("allow all\n")
@@ -143,12 +143,12 @@ def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
         }
     ]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", first_rules):
+    with patch("scanner.cli.appguardrail.SCAN_RULES", first_rules):
         assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == [
             "first"
         ]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", second_rules):
+    with patch("scanner.cli.appguardrail.SCAN_RULES", second_rules):
         assert [finding["rule_id"] for finding in _scan_file(test_file, tmp_path)] == [
             "second"
         ]
@@ -233,7 +233,7 @@ def test_collect_files_handles_cyclic_symlink(tmp_path):
     assert collected_rel_paths == {"a/a.py", "b/b.py"}
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_skips_symlink(tmp_path):
     target = tmp_path / "target.py"
     target.write_text("MOCK_SECRET_KEY\n")
@@ -304,8 +304,8 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     )()
 
     with patch(
-        "scanner.cli.vibesec.shutil.which", return_value="/usr/bin/trivy"
-    ), patch("scanner.cli.vibesec.subprocess.run", return_value=process) as run:
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"
+    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
         findings = _run_trivy_fs(tmp_path)
 
     assert run.call_args.args[0][:2] == ["/usr/bin/trivy", "fs"]
@@ -326,12 +326,12 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
 
 
 def test_run_trivy_fs_requires_trivy(tmp_path):
-    with patch("scanner.cli.vibesec.shutil.which", return_value=None):
+    with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="trivy executable not found"):
             _run_trivy_fs(tmp_path)
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     docs = tmp_path / "docs"
     docs.mkdir()
@@ -344,7 +344,7 @@ def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     assert "🔴 0 critical" in out
 
 
-@patch("scanner.cli.vibesec.SCAN_RULES", MOCK_RULES)
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
     (tmp_path / "app.py").write_text("MOCK_SECRET_KEY\n")
 
@@ -357,7 +357,7 @@ def test_cmd_scan_blocks_app_code_findings(tmp_path, capsys):
 def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys):
     scanner_cli = tmp_path / "scanner" / "cli"
     scanner_cli.mkdir(parents=True)
-    (scanner_cli / "vibesec.py").write_text('"message": "Use eval() detected"\n')
+    (scanner_cli / "appguardrail.py").write_text('"message": "Use eval() detected"\n')
     rules = [
         {
             "id": "dangerous-eval",
@@ -368,10 +368,35 @@ def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys
         }
     ]
 
-    with patch("scanner.cli.vibesec.SCAN_RULES", rules):
+    with patch("scanner.cli.appguardrail.SCAN_RULES", rules):
         assert cmd_scan(ScanArgs(tmp_path)) == 0
 
     out = capsys.readouterr().out
+    assert "| scanner-fixture" in out
+    assert "🔴 0 critical" in out
+
+
+def test_cmd_scan_single_file_keeps_scanner_fixture_context(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scanner_cli = tmp_path / "scanner" / "cli"
+    scanner_cli.mkdir(parents=True)
+    scanner_file = scanner_cli / "appguardrail.py"
+    scanner_file.write_text('"message": "Use eval() detected"\n')
+    rules = [
+        {
+            "id": "dangerous-eval",
+            "pattern": re.compile(r"eval"),
+            "severity": "CRITICAL",
+            "message": "eval detected",
+            "extensions": [".py"],
+        }
+    ]
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", rules):
+        assert cmd_scan(ScanArgs(scanner_file)) == 0
+
+    out = capsys.readouterr().out
+    assert "scanner/cli/appguardrail.py" in out
     assert "| scanner-fixture" in out
     assert "🔴 0 critical" in out
 
@@ -383,7 +408,7 @@ def test_print_scan_results_empty(capsys):
     assert "Scanned 5 files" in captured.out
     assert "🔴 0 critical" in captured.out
     assert "✅ No issues found in this scan." in captured.out
-    assert "Run 'vibesec review'" not in captured.out
+    assert "Run 'appguardrail review'" not in captured.out
 
 
 def test_print_scan_results_critical(capsys):
@@ -407,7 +432,7 @@ def test_print_scan_results_critical(capsys):
     assert "🔴 1 critical" in captured.out
     assert "❌ Critical issues found. Fix before deploying." in captured.out
     assert (
-        "💡 Run 'vibesec review' to get an AI prompt for fixing these issues."
+        "💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
         in captured.out
     )
 
@@ -504,11 +529,11 @@ def test_cmd_init_cursor(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     cmd_init(Args(tool="cursor"))
 
-    assert (tmp_path / ".cursor" / "rules" / "vibesec.md").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
+    assert (tmp_path / ".cursor" / "rules" / "appguardrail.md").exists()
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
     captured = capsys.readouterr()
-    assert "✅ VibeSec initialized successfully!" in captured.out
-    assert ".cursor/rules/vibesec.md" in captured.out
+    assert "✅ AppGuardrail initialized successfully!" in captured.out
+    assert ".cursor/rules/appguardrail.md" in captured.out
 
 
 def test_cmd_init_claude_code_new(tmp_path, monkeypatch):
@@ -516,7 +541,7 @@ def test_cmd_init_claude_code_new(tmp_path, monkeypatch):
     cmd_init(Args(tool="claude-code"))
 
     assert (tmp_path / "CLAUDE.md").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
 
 
 def test_cmd_init_claude_code_append(tmp_path, monkeypatch, capsys):
@@ -535,13 +560,13 @@ def test_cmd_init_claude_code_append(tmp_path, monkeypatch, capsys):
 def test_cmd_init_claude_code_skip(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     claude_file = tmp_path / "CLAUDE.md"
-    claude_file.write_text("VibeSec existing rules\n")
+    claude_file.write_text("AppGuardrail existing rules\n")
 
     cmd_init(Args(tool="claude-code"))
 
-    assert claude_file.read_text() == "VibeSec existing rules\n"
+    assert claude_file.read_text() == "AppGuardrail existing rules\n"
     assert (
-        "CLAUDE.md already contains VibeSec rules — skipping."
+        "CLAUDE.md already contains AppGuardrail rules — skipping."
         in capsys.readouterr().out
     )
 
@@ -550,9 +575,9 @@ def test_cmd_init_windsurf(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     cmd_init(Args(tool="windsurf"))
 
-    assert (tmp_path / ".windsurf" / "rules" / "vibesec.md").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
-    assert ".windsurf/rules/vibesec.md" in capsys.readouterr().out
+    assert (tmp_path / ".windsurf" / "rules" / "appguardrail.md").exists()
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
+    assert ".windsurf/rules/appguardrail.md" in capsys.readouterr().out
 
 
 def test_cmd_init_lovable(tmp_path, monkeypatch, capsys):
@@ -560,8 +585,8 @@ def test_cmd_init_lovable(tmp_path, monkeypatch, capsys):
     cmd_init(Args(tool="lovable"))
 
     assert not (tmp_path / ".lovable").exists()
-    assert (tmp_path / "VIBESEC_CHECKLIST.md").exists()
-    assert "VIBESEC_CHECKLIST.md" in capsys.readouterr().out
+    assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
+    assert "APPGUARDRAIL_CHECKLIST.md" in capsys.readouterr().out
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
@@ -586,7 +611,7 @@ def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
 
 
 def test_sanitize_terminal_output():
-    from scanner.cli.vibesec import _sanitize_terminal_output
+    from scanner.cli.appguardrail import _sanitize_terminal_output
 
     # Test normal strings
     assert _sanitize_terminal_output("normal string") == "normal string"

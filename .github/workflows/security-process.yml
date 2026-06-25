@@ -15,7 +15,7 @@ permissions:
   actions: read
 
 jobs:
-  vibesec-scan:
+  appguardrail-scan:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -23,17 +23,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Run VibeSec deploy gate
+      - name: Run AppGuardrail deploy gate
         run: |
           set -euo pipefail
-          python3 scanner/cli/vibesec.py scan . | tee vibesec-scan.txt
+          python3 scanner/cli/appguardrail.py scan . | tee appguardrail-scan.txt
 
-      - name: Upload VibeSec scan output
+      - name: Upload AppGuardrail scan output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: vibesec-scan
-          path: vibesec-scan.txt
+          name: appguardrail-scan
+          path: appguardrail-scan.txt
           if-no-files-found: error
           retention-days: 7
 
