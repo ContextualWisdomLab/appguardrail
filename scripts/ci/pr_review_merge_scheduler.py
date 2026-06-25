@@ -75,6 +75,17 @@ class Decision:
 
 
 def run(args: list[str], *, stdin: str | None = None) -> str:
+    # Validate args to prevent command injection: all arguments must be
+    # printable strings (no null bytes, control characters, etc.).
+    for arg in args:
+        if not isinstance(arg, str):
+            raise ValueError(
+                f"Command argument must be a string, got {type(arg).__name__!r}: {arg!r}"
+            )
+        if not arg.isprintable():
+            raise ValueError(
+                f"Command argument contains non-printable characters: {arg!r}"
+            )
     process = subprocess.run(args, input=stdin, capture_output=True, text=True)
     if process.returncode != 0:
         raise RuntimeError(
@@ -229,8 +240,6 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             f"pr_base_ref={pr['baseRefName']}",
             "-f",
             f"pr_base_sha={pr['baseRefOid']}",
-            "-f",
-            f"pr_head_ref={pr['headRefName']}",
             "-f",
             f"pr_head_sha={pr['headRefOid']}",
         ]

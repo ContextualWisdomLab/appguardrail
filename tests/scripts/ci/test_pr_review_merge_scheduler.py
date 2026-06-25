@@ -6,6 +6,7 @@ from scripts.ci.pr_review_merge_scheduler import (
     dispatch_opencode_review,
     enable_auto_merge,
     inspect_pr,
+    run,
     split_repo,
 )
 
@@ -80,3 +81,22 @@ def test_inspect_pr_validates_pr_number_before_decision():
             workflow="OpenCode Review",
             base_branch="develop",
         )
+
+
+def test_run_rejects_non_string_argument():
+    with pytest.raises(ValueError, match="must be a string"):
+        run(["echo", 123])  # type: ignore[list-item]
+
+
+def test_run_rejects_non_printable_argument():
+    with pytest.raises(ValueError, match="non-printable characters"):
+        run(["echo", "hello\x00world"])
+
+
+def test_run_accepts_valid_arguments(monkeypatch):
+    import subprocess
+
+    completed = subprocess.CompletedProcess(args=["echo", "hi"], returncode=0, stdout="hi\n", stderr="")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: completed)
+    result = run(["echo", "hi"])
+    assert result == "hi\n"
