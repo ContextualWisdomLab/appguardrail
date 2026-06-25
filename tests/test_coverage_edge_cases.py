@@ -68,13 +68,14 @@ def test_finding_category_authz():
 def test_finding_category_injection():
     assert _finding_category("eval-test") == "injection"
 
-def test_trivy_target_empty():
-    base = Path("/test")
-    assert _trivy_target("", base) == str(base)
+def test_trivy_target_empty(tmp_path):
+    assert _trivy_target("", tmp_path) == str(tmp_path)
 
-def test_trivy_target_absolute_valueerror():
-    base = Path("/test")
-    assert _trivy_target("/other/path", base) == "other/path"
+def test_trivy_target_absolute_valueerror(tmp_path):
+    # base is a non-existent file (not a dir), so root = base.parent = tmp_path
+    base = tmp_path / "base_file.txt"
+    target = str(tmp_path / "other" / "path.txt")
+    assert _trivy_target(target, base) == "other/path.txt"
 
 def test_scan_file_empty_file(tmp_path):
     empty_file = tmp_path / "empty.ts"
@@ -151,7 +152,7 @@ def test_trivy_line():
     assert _trivy_line({"CauseMetadata": {"StartLine": 20}}) == 20
     assert _trivy_line({}) == 1
 
-def test_trivy_findings_parsing():
+def test_trivy_findings_parsing(tmp_path):
     report = {
         "Results": [
             {
@@ -186,7 +187,7 @@ def test_trivy_findings_parsing():
             }
         ]
     }
-    findings = _trivy_findings(report, Path("/test"))
+    findings = _trivy_findings(report, tmp_path)
     assert len(findings) == 3
     assert findings[0]["rule_id"] == "trivy:CVE-2023-1234"
     assert findings[1]["rule_id"] == "trivy:AVD-AWS-0001"
