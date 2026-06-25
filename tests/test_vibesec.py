@@ -561,6 +561,7 @@ def test_scan_file_insecure_deserialization(tmp_path):
         if finding["rule_id"] == "python-insecure-deserialization"
     ]
 
+    assert len(findings) == 4
     assert [finding["line"] for finding in findings] == [4, 5, 6, 8]
     assert any("pickle.loads" in finding["snippet"] for finding in findings)
     assert any("yaml.load" in finding["snippet"] for finding in findings)
