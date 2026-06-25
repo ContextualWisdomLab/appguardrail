@@ -75,6 +75,15 @@ class Decision:
 
 
 def run(args: list[str], *, stdin: str | None = None) -> str:
+    for arg in args:
+        if not isinstance(arg, str):
+            raise ValueError(
+                f"Command argument must be a string, got {type(arg).__name__!r}: {arg!r}"
+            )
+        if not arg.isprintable():
+            raise ValueError(
+                f"Command argument contains non-printable characters: {arg!r}"
+            )
     process = subprocess.run(args, input=stdin, capture_output=True, text=True)
     if process.returncode != 0:
         raise RuntimeError(
