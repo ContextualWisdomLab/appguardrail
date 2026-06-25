@@ -43,20 +43,22 @@ Requires Python 3.9 or newer.
 Install from a trusted checkout or a pinned release tag until the official `appguardrail` PyPI project is published with Trusted Publishing.
 
 ```bash
-python3 scanner/cli/appguardrail.py --help
+# From the trusted AppGuardrail checkout
+export APPGUARDRAIL_CLI="$PWD/scanner/cli/appguardrail.py"
+python3 "$APPGUARDRAIL_CLI" --help
 ```
 
 ### Initialize security rules in your project
 
 ```bash
 # For Cursor users
-appguardrail init --tool cursor
+python3 "$APPGUARDRAIL_CLI" init --tool cursor
 
 # For Claude Code users
-appguardrail init --tool claude-code
+python3 "$APPGUARDRAIL_CLI" init --tool claude-code
 
 # For a Next.js + Supabase stack
-appguardrail init --stack nextjs-supabase
+python3 "$APPGUARDRAIL_CLI" init --stack nextjs-supabase
 ```
 
 This creates:
@@ -67,10 +69,10 @@ This creates:
 ### Scan your codebase
 
 ```bash
-appguardrail scan .
+python3 "$APPGUARDRAIL_CLI" scan .
 
 # Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
-appguardrail scan --trivy .
+python3 "$APPGUARDRAIL_CLI" scan --trivy .
 ```
 
 Detects:
@@ -90,7 +92,7 @@ and scanner fixtures stay visible but do not fail the deploy gate by default.
 ### Generate a security review prompt
 
 ```bash
-appguardrail review --stack nextjs --db supabase --payments stripe
+python3 "$APPGUARDRAIL_CLI" review --stack nextjs --db supabase --payments stripe
 ```
 
 Outputs a prompt you can paste directly into Claude Code or Cursor.
