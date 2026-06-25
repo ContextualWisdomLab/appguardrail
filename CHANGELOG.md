@@ -32,5 +32,9 @@
   - `_finding_context`, `_finding_category`, `_trivy_severity`, `_confidence`, `_is_deploy_blocking` 등 헬퍼 함수들의 다양한 입력값에 대한 반환값 테스트 추가.
   - `_trivy_target`: 절대 경로, 상대 경로 및 빈 문자열 입력 처리 엣지 케이스 추가.
 
+### Performance (성능 개선)
+- `scanner/cli/appguardrail.py`에서 `Path.open()` 대신 내장 `open()` 함수를 사용하여 파일 스캔 시 오버헤드 감소
+- `_trivy_severity` 및 `_print_scan_results` 함수 내 딕셔너리 객체를 모듈 레벨 상수로 추출하여 메모리 할당 최적화
+
 ### 검증
 - `scanner/cli/appguardrail.py` 전체 코드에 대한 테스트 커버리지 100% 달성 및 기존 기능의 안정성 확보 검증.
