@@ -1,12 +1,12 @@
-# VibeSec Methodology
+# AppGuardrail Methodology
 
 ## Overview
 
-VibeSec is designed to find and fix security issues that appear specifically in applications built with AI coding assistants (Cursor, Claude Code, Windsurf, Lovable, Replit, Bolt, etc.).
+AppGuardrail is designed to find and fix security issues that appear specifically in applications built with AI coding assistants (Cursor, Claude Code, Windsurf, Lovable, Replit, Bolt, etc.).
 
-Traditional security scanners are optimized for classic web vulnerabilities — SQL injection, cross-site scripting, buffer overflows. These are important, but vibe-coded apps have a different failure profile:
+Traditional security scanners are optimized for classic web vulnerabilities — SQL injection, cross-site scripting, buffer overflows. These are important, but AI-coded apps have a different failure profile:
 
-| Traditional scanners target | Vibe-coded apps fail at |
+| Traditional scanners target | AI-coded apps fail at |
 |---|---|
 | SQL injection | Missing ownership checks (IDOR) |
 | XSS | Exposed service role keys |
@@ -30,9 +30,9 @@ AI coding tools are optimized to generate working, functional code quickly. Secu
 
 ---
 
-## The VibeSec Review Layers
+## The AppGuardrail Review Layers
 
-### Layer 1: Automated Scan (VibeSec Scan)
+### Layer 1: Automated Scan (AppGuardrail Scan)
 
 A lightweight static analysis pass that detects:
 
@@ -46,7 +46,7 @@ A lightweight static analysis pass that detects:
 
 **What it does not replace:** Manual review, logic errors, complex IDOR chains.
 
-### Layer 2: Manual Code Review (VibeSec Review)
+### Layer 2: Manual Code Review (AppGuardrail Review)
 
 A human-in-the-loop review of:
 
@@ -60,7 +60,7 @@ A human-in-the-loop review of:
 
 ### Layer 3: Business Logic Review
 
-VibeSec also considers application-level logic:
+AppGuardrail also considers application-level logic:
 
 - Can a user escalate their own subscription tier?
 - Can a user access premium features without paying?
@@ -70,7 +70,7 @@ VibeSec also considers application-level logic:
 
 ---
 
-## The VibeSec Fix Format
+## The AppGuardrail Fix Format
 
 Every finding is delivered in a format designed for AI-assisted remediation:
 
@@ -102,24 +102,24 @@ This is different from a traditional security report because:
 
 ## Limitations
 
-VibeSec review is **not** equivalent to:
+AppGuardrail review is **not** equivalent to:
 
 - A full penetration test
 - A red team engagement
 - Infrastructure security review
 - Compliance certification (SOC 2, ISO 27001, PCI-DSS)
 
-VibeSec focuses specifically on application-layer security for AI-generated web apps. For comprehensive security programs, engage a qualified security firm.
+AppGuardrail focuses specifically on application-layer security for AI-generated web apps. For comprehensive security programs, engage a qualified security firm.
 
 ---
 
-## Continuous Security (VibeSec Monitor)
+## Continuous Security (AppGuardrail Monitor)
 
-Vibe-coded apps change frequently — AI tools add features rapidly. Every commit is a potential security regression.
+AI-coded apps change frequently — AI tools add features rapidly. Every commit is a potential security regression.
 
-VibeSec Monitor tracks:
+AppGuardrail Monitor tracks:
 
-| Trigger | What VibeSec checks |
+| Trigger | What AppGuardrail checks |
 |---|---|
 | New commit | Security-relevant diff analysis |
 | New API route | Auth + ownership check presence |
