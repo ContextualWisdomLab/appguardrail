@@ -2505,20 +2505,6 @@ jobs:
             return 2
           }
 
-          leave_review_unchanged_for_tooling_instability() {
-            local message="$1"
-
-            echo "::warning::${message}"
-            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-              {
-                printf '### OpenCode review tooling notice\n\n'
-                printf '%s\n' "$message"
-              } >>"$GITHUB_STEP_SUMMARY"
-            fi
-            echo "::endgroup::"
-            exit 0
-          }
-
           request_changes_for_merge_conflict_if_present() {
             local pr_json merge_state mergeable base_ref head_ref body
 
@@ -2945,7 +2931,9 @@ jobs:
               elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
                 create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
               else
-                leave_review_unchanged_for_tooling_instability "OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}; OpenCode model attempts did not produce a usable control block, no valid source-backed review output was available, and deterministic fallback approval did not apply for head ${HEAD_SHA}; it will not approve without source-backed current-head review evidence. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding. Re-run OpenCode if automated review evidence is still required."
+                echo "::error::OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}; OpenCode model attempts did not produce a usable control block, no valid source-backed review output was available, and deterministic fallback approval did not apply for head ${HEAD_SHA}; it will not approve without source-backed current-head review evidence. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding."
+                echo "::endgroup::"
+                exit 1
               fi
             fi
             echo "::endgroup::"
@@ -3197,7 +3185,9 @@ jobs:
               failed_check_inline_failure_body_file="$(mktemp)"
               failed_checks_file="$(mktemp)"
               if ! collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file"; then
-                leave_review_unchanged_for_tooling_instability "GitHub Checks statusCheckRollup could not be read after OpenCode gate result ${gate_result:-empty}. Leaving the PR review unchanged. Re-run OpenCode after the GitHub Checks API is readable if automated review evidence is still required."
+                echo "::error::GitHub Checks statusCheckRollup could not be read after OpenCode gate result ${gate_result:-empty}. Leaving the PR review unchanged."
+                echo "::endgroup::"
+                exit 1
               fi
 
               if [ -s "$failed_checks_file" ]; then
@@ -3222,7 +3212,9 @@ jobs:
                 pending_wait_status=$?
                 set -e
                 if [ "$pending_wait_status" -eq 1 ]; then
-                  leave_review_unchanged_for_tooling_instability "GitHub Checks statusCheckRollup could not be read after OpenCode gate result ${gate_result:-empty}. Leaving the PR review unchanged. Re-run OpenCode after the GitHub Checks API is readable if automated review evidence is still required."
+                  echo "::error::GitHub Checks statusCheckRollup could not be read after OpenCode gate result ${gate_result:-empty}. Leaving the PR review unchanged."
+                  echo "::endgroup::"
+                  exit 1
                 elif [ "$pending_wait_status" -ne 0 ]; then
                   build_pending_check_body "$pending_checks_file" "$failed_check_review_body_file"
                   create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
@@ -3244,7 +3236,9 @@ jobs:
                   elif approve_low_risk_changed_files_after_model_failure "$failed_check_review_body_file"; then
                     create_pull_review "APPROVE" "$(cat "$failed_check_review_body_file")"
                   else
-                    leave_review_unchanged_for_tooling_instability "OpenCode gate result ${gate_result:-empty} was not publishable, and deterministic fallback approval did not apply for head ${HEAD_SHA}; it will not approve without source-backed current-head review evidence. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding. Re-run OpenCode if automated review evidence is still required."
+                    echo "::error::OpenCode gate result ${gate_result:-empty} was not publishable, and deterministic fallback approval did not apply for head ${HEAD_SHA}. Leaving the PR review unchanged because this is review tooling instability, not a source-code finding."
+                    echo "::endgroup::"
+                    exit 1
                   fi
                 fi
               fi
