@@ -30,6 +30,7 @@ import json
 import os
 import re
 import shutil
+import shlex
 import stat
 import subprocess
 import sys
@@ -581,11 +582,22 @@ def cmd_hook(args):
     if pre_commit_file.is_symlink():
         pre_commit_file.unlink()
 
-    hook_content = """#!/bin/sh
+    cli_path = shlex.quote(str(Path(__file__).resolve()))
+    hook_content = f"""#!/bin/sh
 # AppGuardrail Pre-Commit Hook
 
 echo "\\n🔍 Running AppGuardrail scan..."
-appguardrail scan .
+APPGUARDRAIL_CLI={cli_path}
+
+if command -v appguardrail >/dev/null 2>&1; then
+    appguardrail scan .
+elif [ -f "$APPGUARDRAIL_CLI" ]; then
+    python3 "$APPGUARDRAIL_CLI" scan .
+else
+    echo "\\n❌ AppGuardrail CLI not found."
+    echo "Install appguardrail or reinstall this hook from a trusted AppGuardrail checkout."
+    exit 127
+fi
 
 if [ $? -ne 0 ]; then
     echo "\\n❌ AppGuardrail scan failed! Critical or high vulnerabilities found."

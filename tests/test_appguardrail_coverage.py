@@ -150,7 +150,10 @@ def test_cmd_hook_success(tmp_path, monkeypatch, capsys):
 
     hook_file = git_dir / "hooks" / "pre-commit"
     assert hook_file.exists()
-    assert "appguardrail scan ." in hook_file.read_text()
+    hook_text = hook_file.read_text()
+    assert "appguardrail scan ." in hook_text
+    assert "command -v appguardrail" in hook_text
+    assert 'python3 "$APPGUARDRAIL_CLI" scan .' in hook_text
     import stat
 
     assert hook_file.stat().st_mode & stat.S_IEXEC

@@ -11,6 +11,7 @@ This handoff treats the long-running `scripts/ci/test_strix_quick_gate.sh` harne
 - Renamed the CLI module from `scanner/cli/vibesec.py` to `scanner/cli/appguardrail.py`.
 - Renamed scanner tests from `tests/test_vibesec*.py` to `tests/test_appguardrail*.py`.
 - Updated CLI command text, generated rule filenames, checklist filenames, hook text, scanner source IDs, and review prompts to `appguardrail` / `AppGuardrail`.
+- Added a pre-commit hook fallback so trusted-checkout users can run the repo-local CLI when no `appguardrail` executable is installed on `PATH`.
 - Updated `.github/workflows/security-process.yml` job, command, output file, and artifact names to `appguardrail-scan`.
 - Updated Strix quick-gate path references and OpenCode normalizer test fixtures to `scanner/cli/appguardrail.py`.
 - Updated README, methodology, responsible-testing, scope, security snapshot, report templates, and CHANGELOG public naming.
