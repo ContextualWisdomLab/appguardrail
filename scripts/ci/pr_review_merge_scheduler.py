@@ -75,6 +75,8 @@ class Decision:
 
 
 def run(args: list[str], *, stdin: str | None = None) -> str:
+    # Validate args to prevent command injection: all arguments must be
+    # printable strings (no null bytes, control characters, etc.).
     for arg in args:
         if not isinstance(arg, str):
             raise ValueError(
