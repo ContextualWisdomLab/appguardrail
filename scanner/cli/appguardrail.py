@@ -4,8 +4,9 @@ appguardrail - Security guardrails for AI-built apps
 
 Usage:
   appguardrail init [--tool <tool>] [--stack <stack>]
-  appguardrail scan [--trivy] [<path>]
+  appguardrail scan [--trivy] [--codegraph] [<path>]
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
+  appguardrail hook [--codegraph]
   appguardrail --help
   appguardrail --version
 
@@ -16,11 +17,12 @@ Commands:
   hook      Install a pre-commit hook to block vulnerabilities
 
 Options:
-  --tool    AI coding tool: cursor, claude-code, windsurf, lovable (default: cursor)
+  --tool    AI coding tool: auto, codex, copilot, cursor, claude-code, windsurf, lovable (default: auto)
   --stack   Tech stack: nextjs, nextjs-supabase, nextjs-firebase, remix, sveltekit
   --db      Database/backend: supabase, firebase, prisma, drizzle
   --payments  Payment provider: stripe
   --trivy  Also run Trivy filesystem scan
+  --codegraph  Initialize or sync a CodeGraph index before scanning
   --help    Show this help message
   --version Show version
 """
@@ -75,6 +77,38 @@ Apply the following security rules to all code you generate:
 Return 401 for unauthenticated requests, 403 for ownership violations.
 
 See https://github.com/ContextualWisdomLab/appguardrail for full rules and checklists.
+"""
+
+RULES_CODEX = """\
+# AppGuardrail Security Guardrails
+
+When working in this repository, apply these security rules before proposing,
+editing, or merging code:
+
+- Check authentication at the start of every protected API handler.
+- Verify resource ownership server-side before returning user-owned data.
+- Never expose service-role, admin, Stripe secret, or webhook signing keys to client code.
+- Validate request body, params, query, uploaded files, and webhook payloads server-side.
+- Verify Stripe webhook signatures before processing payment events.
+- Confirm Supabase RLS or equivalent authorization is enabled before trusting client filters.
+- Run `appguardrail scan --codegraph .` before merging security-sensitive changes when CodeGraph is installed.
+- Treat AppGuardrail critical/high findings as deploy blockers unless the finding is in docs, tests, examples, or scanner fixtures.
+
+If CodeGraph is available, use it for call graph, blast radius, and ownership-flow checks before broad file reads.
+"""
+
+RULES_COPILOT = """\
+# AppGuardrail Security Instructions
+
+Apply these rules when suggesting code, reviewing pull requests, or generating fixes:
+
+- Protected routes must authenticate first and authorize user-owned resources server-side.
+- Do not place service-role keys, admin keys, Stripe secrets, or webhook secrets in client code.
+- Validate all request inputs and uploaded files before use.
+- Verify Stripe webhook signatures with the raw body and signing secret.
+- Prefer tests that prove cross-user access returns 403.
+- Run or recommend `appguardrail scan --codegraph .` for security-sensitive changes when CodeGraph is installed.
+- Treat AppGuardrail critical/high findings in app code as deploy blockers.
 """
 
 RULES_WINDSURF = RULES_CURSOR  # Windsurf uses the same format
@@ -303,6 +337,16 @@ SKIP_DIRS = {
     "coverage",
 }
 
+SECURITY_HIDDEN_DIRS = {
+    ".github",
+    ".vercel",
+    ".netlify",
+    ".supabase",
+    ".firebase",
+    ".well-known",
+    ".config",
+}
+
 SKIP_EXTENSIONS = {
     ".png",
     ".jpg",
@@ -386,7 +430,7 @@ For each issue found, provide:
 
 def cmd_init(args):
     """Install security rules into the project."""
-    tool = getattr(args, "tool", "cursor") or "cursor"
+    tool = getattr(args, "tool", "auto") or "auto"
     stack = getattr(args, "stack", None)
     project_root = Path(".").resolve()
 
@@ -396,6 +440,16 @@ def cmd_init(args):
         "cursor": {
             "path": Path(".cursor") / "rules" / "appguardrail.md",
             "content": RULES_CURSOR,
+        },
+        "codex": {
+            "path": Path("AGENTS.md"),
+            "content": RULES_CODEX,
+            "append_marker": "AppGuardrail",
+        },
+        "copilot": {
+            "path": Path(".github") / "copilot-instructions.md",
+            "content": RULES_COPILOT,
+            "append_marker": "AppGuardrail",
         },
         "claude-code": {
             "path": Path("CLAUDE.md"),
@@ -410,17 +464,26 @@ def cmd_init(args):
             "shared_only": True,
         },
     }
+    tool_groups = {
+        "auto": ["codex", "copilot", "claude-code", "cursor", "windsurf"],
+    }
 
-    if tool not in tool_configs:
+    selected_tools = tool_groups.get(tool, [tool])
+
+    unknown_tools = [selected for selected in selected_tools if selected not in tool_configs]
+    if unknown_tools:
         print(f"❌ Error: Unknown tool '{tool}'", file=sys.stderr)
         print(
-            f"💡 Hint: Supported tools are {', '.join(tool_configs.keys())}",
+            f"💡 Hint: Supported tools are {', '.join([*tool_groups.keys(), *tool_configs.keys()])}",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    config = tool_configs[tool]
-    if not config.get("shared_only"):
+    for selected_tool in selected_tools:
+        config = tool_configs[selected_tool]
+        if config.get("shared_only"):
+            continue
+
         target_file = project_root / config["path"]
 
         # SECURITY: Prevent Arbitrary File Write via symlink path traversal
@@ -439,19 +502,15 @@ def cmd_init(args):
         if target_file.is_symlink():
             target_file.unlink()
 
-        if "append_marker" in config:
-            if target_file.exists():
-                existing = target_file.read_text()
-                if config["append_marker"] not in existing:
-                    target_file.write_text(existing + "\n\n" + config["content"])
-                    installed.append(f"{config['path']} (appended)")
-                else:
-                    print(
-                        f"{config['path']} already contains {config['append_marker']} rules — skipping."
-                    )
+        if "append_marker" in config and target_file.exists():
+            existing = target_file.read_text()
+            if config["append_marker"] not in existing:
+                target_file.write_text(existing + "\n\n" + config["content"])
+                installed.append(f"{config['path']} (appended)")
             else:
-                target_file.write_text(config["content"])
-                installed.append(str(config["path"]))
+                print(
+                    f"{config['path']} already contains {config['append_marker']} rules — skipping."
+                )
         else:
             target_file.write_text(config["content"])
             installed.append(str(config["path"]))
@@ -504,6 +563,7 @@ def cmd_scan(args):
     scan_arg = Path(getattr(args, "path", ".") or ".")
     scan_path = scan_arg.resolve()
     run_trivy = getattr(args, "trivy", False)
+    run_codegraph = getattr(args, "codegraph", False)
 
     if not scan_arg.exists():
         print(f"❌ Error: Path does not exist: {scan_path}", file=sys.stderr)
@@ -518,6 +578,21 @@ def cmd_scan(args):
         return 0
 
     print(f"\n🔍 AppGuardrail scanning: {scan_path}\n")
+
+    if run_codegraph:
+        print("🧭 CodeGraph enabled: initializing or syncing structural index\n")
+        try:
+            status = _run_codegraph_index(scan_path)
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            print(
+                "💡 Hint: Install the CodeGraph CLI or run without --codegraph.",
+                file=sys.stderr,
+            )
+            return 1
+        if status:
+            print(status)
+            print()
 
     findings = []
     files_scanned = 0
@@ -554,6 +629,7 @@ def cmd_hook(args):
     """Install a pre-commit hook to block commits with vulnerabilities."""
     project_root = Path(".").resolve()
     git_dir = project_root / ".git"
+    run_codegraph = getattr(args, "codegraph", False)
 
     if not git_dir.is_dir():
         print("❌ Error: Not a git repository.", file=sys.stderr)
@@ -583,6 +659,7 @@ def cmd_hook(args):
         pre_commit_file.unlink()
 
     cli_path = shlex.quote(str(Path(__file__).resolve()))
+    scan_flags = " --codegraph" if run_codegraph else ""
     hook_content = f"""#!/bin/sh
 # AppGuardrail Pre-Commit Hook
 
@@ -590,9 +667,9 @@ echo "\\n🔍 Running AppGuardrail scan..."
 APPGUARDRAIL_CLI={cli_path}
 
 if command -v appguardrail >/dev/null 2>&1; then
-    appguardrail scan .
+    appguardrail scan{scan_flags} .
 elif [ -f "$APPGUARDRAIL_CLI" ]; then
-    python3 "$APPGUARDRAIL_CLI" scan .
+    python3 "$APPGUARDRAIL_CLI" scan{scan_flags} .
 else
     echo "\\n❌ AppGuardrail CLI not found."
     echo "Install appguardrail or reinstall this hook from a trusted AppGuardrail checkout."
@@ -617,6 +694,8 @@ echo "✅ AppGuardrail scan passed."
     print(
         "This will run 'appguardrail scan .' before every commit and block commits if vulnerabilities are found."
     )
+    if run_codegraph:
+        print("CodeGraph mode is enabled for this hook.")
     return 0
 
 
@@ -666,7 +745,10 @@ def _collect_files(base_path: Path):
                         if entry.is_dir(follow_symlinks=False):
                             if (
                                 entry.name not in SKIP_DIRS
-                                and not entry.name.startswith(".")
+                                and (
+                                    not entry.name.startswith(".")
+                                    or entry.name in SECURITY_HIDDEN_DIRS
+                                )
                             ):
                                 dirs.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
@@ -880,6 +962,41 @@ def _run_trivy_fs(scan_path: Path):
     return _trivy_findings(report, scan_path)
 
 
+def _run_codegraph_command(command, cwd: Path, action: str):
+    process = subprocess.run(
+        command,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if process.returncode != 0:
+        detail = (process.stderr or process.stdout).strip().splitlines()
+        suffix = f": {detail[-1]}" if detail else "."
+        raise RuntimeError(f"CodeGraph {action} failed{suffix}")
+    return (process.stdout or "").strip()
+
+
+def _run_codegraph_index(scan_path: Path):
+    codegraph = shutil.which("codegraph")
+    if not codegraph:
+        raise RuntimeError(
+            "codegraph executable not found. Install CodeGraph before using --codegraph."
+        )
+
+    workdir = scan_path if scan_path.is_dir() else scan_path.parent
+    if not workdir.is_dir():
+        raise RuntimeError(f"CodeGraph workdir is not a directory: {workdir}")
+
+    codegraph_dir = workdir / ".codegraph"
+    if codegraph_dir.exists():
+        _run_codegraph_command([codegraph, "sync"], workdir, "sync")
+    else:
+        _run_codegraph_command([codegraph, "init", "-i"], workdir, "init")
+
+    return _run_codegraph_command([codegraph, "status"], workdir, "status")
+
+
 def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
@@ -1071,9 +1188,17 @@ def main():
     )
     init_parser.add_argument(
         "--tool",
-        choices=["cursor", "claude-code", "windsurf", "lovable"],
-        default="cursor",
-        help="AI coding tool (default: cursor)",
+        choices=[
+            "auto",
+            "codex",
+            "copilot",
+            "cursor",
+            "claude-code",
+            "windsurf",
+            "lovable",
+        ],
+        default="auto",
+        help="AI coding tool or agent suite (default: auto)",
     )
     init_parser.add_argument(
         "--stack",
@@ -1095,6 +1220,11 @@ def main():
         action="store_true",
         help="Also run Trivy filesystem scan for dependency, secret, and misconfiguration findings",
     )
+    scan_parser.add_argument(
+        "--codegraph",
+        action="store_true",
+        help="Initialize or sync CodeGraph before scanning for structural review context",
+    )
 
     # review
     review_parser = subparsers.add_parser(
@@ -1109,6 +1239,11 @@ def main():
     # hook
     hook_parser = subparsers.add_parser(
         "hook", help="Install a pre-commit hook to block commits with vulnerabilities"
+    )
+    hook_parser.add_argument(
+        "--codegraph",
+        action="store_true",
+        help="Install the hook in CodeGraph mode so commits also refresh structural context",
     )
 
     args = parser.parse_args()

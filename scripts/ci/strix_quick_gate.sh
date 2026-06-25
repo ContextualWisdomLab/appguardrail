@@ -3124,6 +3124,107 @@ runner_registration_token_source_candidates() {
 	printf '%s\n' "$REPO_ROOT/backend/db/models.py"
 }
 
+appguardrail_cli_source_candidates() {
+	local resolved_scan_target=""
+	resolved_scan_target="$(resolve_current_target_path "$TARGET_PATH" 2>/dev/null || true)"
+
+	if [ -n "$resolved_scan_target" ]; then
+		printf '%s\n' "$resolved_scan_target/scanner/cli/appguardrail.py"
+	fi
+	if pull_request_head_blob_required || [ "$TARGET_PATH_IS_INTERNAL_PR_SCOPE" -eq 1 ]; then
+		return 0
+	fi
+	printf '%s\n' "$REPO_ROOT/scanner/cli/appguardrail.py"
+}
+
+source_file_has_subprocess_shell_execution() {
+	local source_file="$1"
+	python3 - "$source_file" <<'PY'
+from pathlib import Path
+import ast
+import sys
+
+source_path = Path(sys.argv[1])
+tree = ast.parse(source_path.read_text(encoding="utf-8", errors="replace"))
+
+
+def call_name(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = call_name(node.value)
+        return f"{parent}.{node.attr}" if parent else node.attr
+    return ""
+
+
+for node in ast.walk(tree):
+    if not isinstance(node, ast.Call):
+        continue
+    name = call_name(node.func)
+    if name == "os.system":
+        raise SystemExit(0)
+    if name in {"subprocess.call", "subprocess.run", "subprocess.Popen"}:
+        for keyword in node.keywords:
+            if keyword.arg == "shell" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
+                raise SystemExit(0)
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, (ast.JoinedStr, ast.BinOp)):
+                raise SystemExit(0)
+            if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+                raise SystemExit(0)
+            if isinstance(first_arg, ast.Call) and call_name(first_arg.func).endswith(".format"):
+                raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+stream_claims_appguardrail_cli_command_injection() {
+	local source_path="$1"
+	if [ ! -f "$source_path" ] || [ -L "$source_path" ]; then
+		return 1
+	fi
+	python3 - "$source_path" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+if "Potential Command Injection" not in text and "command injection" not in text.lower():
+    raise SystemExit(1)
+if "scanner/cli/appguardrail.py" not in text:
+    raise SystemExit(1)
+if "shell=True" in text or "subprocess.run(f" in text or "subprocess.run(['echo'" in text:
+    raise SystemExit(0)
+location_claim = re.search(r"scanner/cli/appguardrail\.py:[0-9]+", text)
+raise SystemExit(0 if location_claim else 1)
+PY
+}
+
+stream_has_hallucinated_appguardrail_cli_command_injection() {
+	local source_stream="$1"
+	if ! stream_claims_appguardrail_cli_command_injection "$source_stream"; then
+		return 1
+	fi
+
+	local source_file
+	while IFS= read -r source_file; do
+		if [ -z "$source_file" ]; then
+			continue
+		fi
+		if [ ! -f "$source_file" ] || [ -L "$source_file" ]; then
+			continue
+		fi
+		if ! source_file_has_subprocess_shell_execution "$source_file"; then
+			echo "Detected Strix report contradicting AppGuardrail CLI subprocess usage; treating as retryable model inconsistency." >&2
+			return 0
+		fi
+	done < <(appguardrail_cli_source_candidates)
+
+	return 1
+}
+
 vulnerability_file_has_hallucinated_source_claim() {
 	local vuln_file="$1"
 	if [ ! -f "$vuln_file" ] || [ -L "$vuln_file" ]; then
@@ -3158,6 +3259,9 @@ vulnerability_file_is_retryable_model_inconsistency() {
 	if vulnerability_file_has_hallucinated_source_claim "$vuln_file"; then
 		return 0
 	fi
+	if stream_has_hallucinated_appguardrail_cli_command_injection "$vuln_file"; then
+		return 0
+	fi
 	return 1
 }
 
@@ -3170,6 +3274,29 @@ is_hallucinated_source_claim_finding() {
 	local vuln_file
 	for vuln_file in "$latest_report_dir"/vulnerabilities/*.md; do
 		if vulnerability_file_has_hallucinated_source_claim "$vuln_file"; then
+			return 0
+		fi
+		if stream_has_hallucinated_appguardrail_cli_command_injection "$vuln_file"; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+is_hallucinated_appguardrail_cli_command_injection_finding() {
+	if stream_has_hallucinated_appguardrail_cli_command_injection "$STRIX_LOG"; then
+		return 0
+	fi
+
+	local latest_report_dir
+	if ! latest_report_dir="$(latest_strix_report_dir)"; then
+		return 1
+	fi
+
+	local vuln_file
+	for vuln_file in "$latest_report_dir"/vulnerabilities/*.md; do
+		if stream_has_hallucinated_appguardrail_cli_command_injection "$vuln_file"; then
 			return 0
 		fi
 	done
@@ -3228,6 +3355,10 @@ is_model_retryable_error() {
 	fi
 
 	if is_hallucinated_source_claim_finding; then
+		return 0
+	fi
+
+	if is_hallucinated_appguardrail_cli_command_injection_finding; then
 		return 0
 	fi
 

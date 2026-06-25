@@ -61,6 +61,20 @@ def test_cmd_init_append_marker_no_marker(tmp_path, monkeypatch):
     assert "AppGuardrail" in content
 
 
+def test_cmd_init_auto_installs_agent_instructions(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    cmd_init(Args(tool="auto"))
+
+    assert (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / ".github" / "copilot-instructions.md").exists()
+    assert (tmp_path / "CLAUDE.md").exists()
+    assert (tmp_path / ".cursor" / "rules" / "appguardrail.md").exists()
+    assert (tmp_path / ".windsurf" / "rules" / "appguardrail.md").exists()
+    assert "AppGuardrail" in (tmp_path / "AGENTS.md").read_text()
+    assert "appguardrail scan --codegraph ." in (tmp_path / "AGENTS.md").read_text()
+
+
 def test_cmd_scan_path_not_exists(tmp_path, capsys):
     missing_path = tmp_path / "does_not_exist"
     with pytest.raises(SystemExit) as excinfo:
@@ -159,6 +173,23 @@ def test_cmd_hook_success(tmp_path, monkeypatch, capsys):
     assert hook_file.stat().st_mode & stat.S_IEXEC
 
     assert "pre-commit hook installed successfully" in capsys.readouterr().out
+
+
+def test_cmd_hook_codegraph_mode(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+
+    class CodeGraphHookArgs:
+        codegraph = True
+
+    assert cmd_hook(CodeGraphHookArgs()) == 0
+
+    hook_file = git_dir / "hooks" / "pre-commit"
+    hook_text = hook_file.read_text()
+    assert "appguardrail scan --codegraph ." in hook_text
+    assert 'python3 "$APPGUARDRAIL_CLI" scan --codegraph .' in hook_text
+    assert "CodeGraph mode is enabled" in capsys.readouterr().out
 
 
 def test_cmd_hook_path_traversal(tmp_path, monkeypatch, capsys):

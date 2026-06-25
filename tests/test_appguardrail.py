@@ -6,8 +6,15 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (_collect_files, _print_scan_results,
-                                 _run_trivy_fs, _scan_file, cmd_init, cmd_scan)
+from scanner.cli.appguardrail import (
+    _collect_files,
+    _print_scan_results,
+    _run_codegraph_index,
+    _run_trivy_fs,
+    _scan_file,
+    cmd_init,
+    cmd_scan,
+)
 
 MOCK_RULES = [
     {
@@ -263,6 +270,22 @@ def test_cmd_scan_returns_failure_when_no_files_scanned(tmp_path, capsys):
     assert "Scanned 0 files" in out
 
 
+def test_collect_files_includes_security_hidden_directories(tmp_path):
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    workflow_file = workflow_dir / "security.yml"
+    workflow_file.write_text("name: Security\n")
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    ignored_file = git_dir / "config"
+    ignored_file.write_text("[core]\n")
+
+    files = {path.relative_to(tmp_path) for path in _collect_files(tmp_path)}
+
+    assert Path(".github/workflows/security.yml") in files
+    assert Path(".git/config") not in files
+
+
 def test_run_trivy_fs_maps_json_findings(tmp_path):
     report = {
         "Results": [
@@ -329,6 +352,49 @@ def test_run_trivy_fs_requires_trivy(tmp_path):
     with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="trivy executable not found"):
             _run_trivy_fs(tmp_path)
+
+
+def test_run_codegraph_index_initializes_when_missing(tmp_path):
+    status_process = type(
+        "Process", (), {"returncode": 0, "stdout": "Index is up to date", "stderr": ""}
+    )()
+    init_process = type("Process", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+    ), patch(
+        "scanner.cli.appguardrail.subprocess.run",
+        side_effect=[init_process, status_process],
+    ) as run:
+        assert _run_codegraph_index(tmp_path) == "Index is up to date"
+
+    assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "init", "-i"]
+    assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+
+
+def test_run_codegraph_index_syncs_existing_index(tmp_path):
+    (tmp_path / ".codegraph").mkdir()
+    status_process = type(
+        "Process", (), {"returncode": 0, "stdout": "Index is up to date", "stderr": ""}
+    )()
+    sync_process = type("Process", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+    ), patch(
+        "scanner.cli.appguardrail.subprocess.run",
+        side_effect=[sync_process, status_process],
+    ) as run:
+        assert _run_codegraph_index(tmp_path) == "Index is up to date"
+
+    assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "sync"]
+    assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+
+
+def test_run_codegraph_index_requires_codegraph(tmp_path):
+    with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
+        with pytest.raises(RuntimeError, match="codegraph executable not found"):
+            _run_codegraph_index(tmp_path)
 
 
 @patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
@@ -598,7 +664,7 @@ def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
     assert "Error: Unknown tool 'invalid-tool'" in captured.err
-    assert "Supported tools are cursor, claude-code, windsurf, lovable" in captured.err
+    assert "Supported tools are auto, cursor, codex, copilot, claude-code, windsurf, lovable" in captured.err
 
 
 def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
