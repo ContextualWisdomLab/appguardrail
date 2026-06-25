@@ -432,3 +432,28 @@ def test_if_name_main():
             mock_exit.assert_called_with(0)
     finally:
         sys.argv = original_argv
+
+
+def test_scan_file_open_permission_error():
+    import stat
+    from pathlib import Path
+    from unittest.mock import mock_open, patch
+
+    from scanner.cli.appguardrail import _scan_file
+
+    base_path = Path("/mock/base")
+    file_path = Path("/mock/base/test.js")
+
+    with patch("os.lstat") as mock_lstat, patch(
+        "scanner.cli.appguardrail._get_applicable_rules"
+    ) as mock_get_rules, patch("builtins.open", mock_open()) as m_open:
+
+        mock_st = mock_lstat.return_value
+        mock_st.st_mode = stat.S_IFREG
+        mock_st.st_size = 100
+
+        mock_get_rules.return_value = [("rule1", "HIGH", "msg", lambda c: iter([]))]
+        m_open.side_effect = PermissionError("Mock permission error")
+
+        findings = _scan_file(file_path, base_path)
+        assert findings == []
