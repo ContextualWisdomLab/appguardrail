@@ -11,7 +11,7 @@ This repository has two release workflows:
 2. Run `Prepare PyPI Release`.
 3. Enter the next version, for example `0.1.2`.
 4. Review the generated PR.
-5. Wait for OpenCode Agent, Security Process, and Strix evidence.
+5. Wait for central required OpenCode and Strix checks plus Security Process evidence.
 6. Merge the release PR.
 7. Run `Publish Python Package` from `develop`, or push the matching `vX.Y.Z` tag.
 
@@ -28,7 +28,7 @@ The GitHub Actions Bot:
 - builds the source and wheel distributions;
 - checks the distributions with `twine`;
 - opens or updates a release PR;
-- dispatches OpenCode, Security Process, and Strix follow-up workflows.
+- dispatches the release Security Process workflow.
 
-OpenCode Agent remains the review gate. The bot prepares the PR; it does not
-merge or publish on its own.
+Central required OpenCode and Strix workflows remain the review gates. The bot
+prepares the PR; it does not merge or publish on its own.

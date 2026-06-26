@@ -561,6 +561,7 @@ def cmd_init(args):
 
 
 def _print_supabase_reminder():
+    """Print extra operational reminders for Supabase-backed projects."""
     print("\n💡 Supabase stack detected. Quick reminders:")
     print("  - Enable RLS on every user-data table")
     print("  - Use getUser() not getSession() on the server")
@@ -717,6 +718,7 @@ _LAST_SCAN_RULES_ID = None
 
 
 def _get_applicable_rules(ext: str):
+    """Return cached scanner rules that apply to a file extension."""
     global _LAST_SCAN_RULES_ID, _RULES_CACHE
     current_id = id(SCAN_RULES)
     if _LAST_SCAN_RULES_ID != current_id:
@@ -798,17 +800,20 @@ _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
 
 def _is_sensitive_rule(rule_id: str) -> bool:
+    """Return whether a rule id is likely to expose secret material."""
     lowered = (rule_id or "").lower()
     return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
 
 
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
+    """Redact sensitive snippets and sanitize non-sensitive terminal output."""
     if category == "secrets" or _is_sensitive_rule(rule_id):
         return _REDACTED_SENSITIVE_SNIPPET
     return _sanitize_terminal_output(snippet)
 
 
 def _finding_context(file_path: str, snippet: str = "") -> str:
+    """Classify a finding path as app code, docs, tests, examples, or fixtures."""
     path = (file_path or "").replace("\\", "/").lstrip("./")
     snippet = (snippet or "").strip()
     if path == "README.md" or path.startswith(("docs/", "checklists/", "prompts/")):
@@ -828,6 +833,7 @@ def _finding_context(file_path: str, snippet: str = "") -> str:
 
 
 def _finding_category(rule_id: str) -> str:
+    """Map a rule id to a stable finding category."""
     rule = (rule_id or "").lower()
     if "cve-" in rule or "vulnerability" in rule:
         return "dependency"
@@ -848,12 +854,14 @@ def _finding_category(rule_id: str) -> str:
 
 
 def _confidence(rule_id: str) -> str:
+    """Return a conservative confidence label for a rule id."""
     return "medium" if "todo" in (rule_id or "").lower() else "high"
 
 
 def _build_finding(
     source, rule_id, severity, message, file, line, snippet, category=None
 ):
+    """Build the normalized finding dictionary emitted by scan providers."""
     context = _finding_context(file, snippet)
     category = category or _finding_category(rule_id)
     return {
@@ -873,6 +881,7 @@ def _build_finding(
 
 
 def _is_deploy_blocking(finding: dict) -> bool:
+    """Return whether a finding should fail the deploy gate."""
     return (
         finding.get("severity") in DEPLOY_BLOCKING_SEVERITIES
         and finding.get("context", "app-code") not in NON_BLOCKING_CONTEXTS
@@ -889,15 +898,18 @@ _TRIVY_SEVERITY_MAP = {
 
 
 def _trivy_severity(severity: str) -> str:
+    """Translate Trivy severity values into AppGuardrail severities."""
     return _TRIVY_SEVERITY_MAP.get((severity or "UNKNOWN").upper(), "INFO")
 
 
 def _trivy_line(item: dict) -> int:
+    """Extract the best source line from a Trivy result item."""
     metadata = item.get("CauseMetadata") or {}
     return item.get("StartLine") or metadata.get("StartLine") or 1
 
 
 def _trivy_target(target: str, base_path: Path) -> str:
+    """Normalize a Trivy target path relative to the scan base when possible."""
     if not target:
         return str(base_path)
     try:
@@ -911,6 +923,7 @@ def _trivy_target(target: str, base_path: Path) -> str:
 
 
 def _trivy_findings(report: dict, base_path: Path):
+    """Convert a Trivy JSON report into AppGuardrail finding dictionaries."""
     findings = []
     for result in report.get("Results") or []:
         target = _sanitize_terminal_output(
@@ -964,6 +977,7 @@ def _trivy_findings(report: dict, base_path: Path):
 
 
 def _run_trivy_fs(scan_path: Path):
+    """Run Trivy filesystem scanning and return normalized findings."""
     trivy = shutil.which("trivy")
     if not trivy:
         raise RuntimeError(
@@ -1003,6 +1017,7 @@ def _run_trivy_fs(scan_path: Path):
 
 
 def _run_codegraph_command(command, cwd: Path, action: str):
+    """Run an allowlisted CodeGraph command in a trusted working directory."""
     if not command:
         raise RuntimeError("CodeGraph command cannot be empty.")
     for arg in command:
@@ -1033,6 +1048,7 @@ def _run_codegraph_command(command, cwd: Path, action: str):
 
 
 def _run_codegraph_index(scan_path: Path):
+    """Initialize or sync the CodeGraph index for the scanned path."""
     codegraph = shutil.which("codegraph")
     if not codegraph:
         raise RuntimeError(
@@ -1139,6 +1155,7 @@ _SEVERITY_ICONS = {
 
 
 def _print_scan_results(findings, files_scanned):
+    """Print sorted findings and deploy-gate summary counts."""
     findings.sort(key=lambda f: _SEVERITY_ORDER.get(f["severity"], 99))
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
@@ -1230,6 +1247,7 @@ def cmd_review(args):
 
 
 def main():
+    """Parse CLI arguments and dispatch the requested AppGuardrail command."""
     parser = argparse.ArgumentParser(
         prog="appguardrail",
         description="Security guardrails for AI-built apps",

@@ -143,7 +143,7 @@ jobs:
               f"- Bump AppGuardrail CLI/package version to `{version}`.\n"
               f"- {notes}\n\n"
               "### Verification\n"
-              "- GitHub Actions Bot prepared this release PR and dispatched OpenCode/Security follow-up workflows.\n"
+              "- GitHub Actions Bot prepared this release PR; central required OpenCode and Strix workflows plus Security Process provide review evidence.\n"
               "- PyPI Trusted Publishing will publish this version after the release PR is merged.\n\n"
           )
           changelog_path.write_text(changelog.replace(marker, entry, 1))
@@ -176,7 +176,7 @@ jobs:
 
           - Bump AppGuardrail to ${RELEASE_VERSION}.
           - Prepare a PyPI Trusted Publishing release using GitHub Actions Bot.
-          - Dispatch OpenCode, Security Process, and Strix follow-up workflows for review evidence.
+          - Dispatch Security Process; central required OpenCode and Strix workflows run as PR checks.
 
           ## Release
 
@@ -209,32 +209,9 @@ jobs:
 
           echo "pr_number=${pr_number}" >>"$GITHUB_OUTPUT"
 
-      - name: Dispatch OpenCode and security follow-up workflows
+      - name: Dispatch release security follow-up workflow
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.release_pr.outputs.pr_number }}
         run: |
           set -euo pipefail
-          pr_json="$(
-            gh pr view "$PR_NUMBER" \
-              --json baseRefName,baseRefOid,headRefOid \
-              --jq '{baseRefName, baseRefOid, headRefOid}'
-          )"
-          base_ref="$(printf '%s' "$pr_json" | jq -r '.baseRefName')"
-          base_sha="$(printf '%s' "$pr_json" | jq -r '.baseRefOid')"
-          head_sha="$(printf '%s' "$pr_json" | jq -r '.headRefOid')"
-
-          gh workflow run opencode-review.yml \
-            --ref "$base_ref" \
-            -f pr_number="$PR_NUMBER" \
-            -f pr_base_ref="$base_ref" \
-            -f pr_base_sha="$base_sha" \
-            -f pr_head_sha="$head_sha"
-
           gh workflow run security-process.yml --ref "$RELEASE_BRANCH"
-
-          gh workflow run strix.yml \
-            --ref "$base_ref" \
-            -f pr_number="$PR_NUMBER" \
-            -f pr_base_sha="$base_sha" \
-            -f pr_head_sha="$head_sha"

@@ -1,5 +1,10 @@
 # AppGuardrail Rename Implementation Plan
 
+> Historical archive: this plan records the 2026-06-25 rename work as it was
+> executed. Current OpenCode, Strix, and PR review merge scheduling contracts are
+> enforced by ContextualWisdomLab organization-level required workflows, not by
+> repo-local `scripts/ci/*` governance copies referenced in this archived plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the approved full rename from VibeSec to AppGuardrail so public install, CLI, workflow, documentation, and test surfaces no longer direct users to the third-party PyPI `vibesec` namespace.

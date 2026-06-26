@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock
 from scanner.cli.appguardrail import (
     cmd_scan, _run_trivy_fs, _finding_context, _finding_category, _trivy_target,
     _scan_file, _trivy_severity, _trivy_line, _trivy_findings, _build_finding,
-    _confidence, _is_deploy_blocking
+    _confidence, _is_deploy_blocking, _run_codegraph_command, _run_codegraph_index
 )
 from tests.test_appguardrail_coverage import ScanArgs
 
@@ -140,6 +140,22 @@ def test_cmd_scan_codegraph_error_handled(tmp_path, monkeypatch, capsys):
         assert "Install the CodeGraph CLI or run without --codegraph." in err
 
 
+def test_cmd_scan_codegraph_prints_status(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    class CodeGraphArgs(ScanArgs):
+        def __init__(self, path):
+            super().__init__(path)
+            self.codegraph = True
+
+    with patch("scanner.cli.appguardrail._run_codegraph_index", return_value="indexed"):
+        assert cmd_scan(CodeGraphArgs(tmp_path)) == 1
+
+    out = capsys.readouterr().out
+    assert "indexed" in out
+    assert "No files were scanned" in out
+
+
 def test_trivy_severity():
     assert _trivy_severity("CRITICAL") == "CRITICAL"
     assert _trivy_severity("HIGH") == "HIGH"
@@ -210,3 +226,54 @@ def test_trivy_target_value_error():
     base = Path("/opt/project")
     # path is absolute and definitely not relative to base
     assert _trivy_target("/etc/passwd", base) == "/etc/passwd"
+
+
+def test_run_codegraph_command_rejects_empty_command(tmp_path):
+    with pytest.raises(RuntimeError, match="cannot be empty"):
+        _run_codegraph_command([], tmp_path, "status")
+
+
+def test_run_codegraph_command_reports_failure(tmp_path):
+    result = subprocess.CompletedProcess(
+        args=["codegraph", "status"],
+        returncode=2,
+        stdout="",
+        stderr="status failed\n",
+    )
+    with patch("subprocess.run", return_value=result):
+        with pytest.raises(RuntimeError, match="CodeGraph status failed: status failed"):
+            _run_codegraph_command(["codegraph", "status"], tmp_path, "status")
+
+
+def test_run_codegraph_index_rejects_missing_workdir(tmp_path):
+    missing_file = tmp_path / "missing" / "source.py"
+    with patch("shutil.which", return_value="codegraph"):
+        with pytest.raises(RuntimeError, match="workdir is not a directory"):
+            _run_codegraph_index(missing_file)
+
+
+def test_scan_file_uses_absolute_path_when_base_is_unrelated(tmp_path):
+    source_dir = tmp_path / "source"
+    base_dir = tmp_path / "base"
+    source_dir.mkdir()
+    base_dir.mkdir()
+    test_file = source_dir / "unsafe.ts"
+    test_file.write_text("const apiKey = 'sk_test_123';\n")
+
+    import re
+
+    mock_rules = [
+        {
+            "id": "hardcoded-secret",
+            "severity": "CRITICAL",
+            "message": "Hardcoded secret",
+            "extensions": [".ts"],
+            "pattern": re.compile(r"sk_test_123"),
+        }
+    ]
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", mock_rules):
+        findings = _scan_file(test_file, base_dir)
+
+    assert len(findings) == 1
+    assert findings[0]["file"] == str(test_file)

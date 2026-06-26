@@ -1,5 +1,10 @@
 # AppGuardrail Rename PR Handoff
 
+> Historical archive: this handoff records the 2026-06-25 rename PR state.
+> Current OpenCode, Strix, and PR review merge scheduling contracts are enforced
+> by ContextualWisdomLab organization-level required workflows, not by repo-local
+> `scripts/ci/*` governance copies referenced in this archived handoff.
+
 ## Status
 
 The full rename from VibeSec to AppGuardrail is implemented on branch `appguardrail-rename-design`.
