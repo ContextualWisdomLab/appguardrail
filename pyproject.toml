@@ -54,3 +54,6 @@ namespaces = false
 
 [tool.setuptools.package-data]
 "scanner.rules" = ["*.yml"]
+
+[tool.interrogate]
+exclude = ["tests", "build", "dist"]
