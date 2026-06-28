@@ -322,6 +322,124 @@ SCAN_RULES = [
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
+        "id": "browser-localstorage-sensitive-state",
+        "pattern": re.compile(
+            r"\blocalStorage\.setItem\s*\([^,\n]+,\s*(?:JSON\.stringify\s*\(|[^)]*(?:token|jwt|session|user|project|task|dsn|database|credential))",
+            re.IGNORECASE | re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "Client-side localStorage persistence of sensitive or user-controlled app state detected. Prefer server-side storage, HttpOnly cookies for tokens, or encrypted browser storage. [OWASP A02:2021 - Cryptographic Failures]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "dom-xss-html-sink",
+        "pattern": re.compile(
+            r"\b(?:innerHTML|outerHTML)\s*=|\binsertAdjacentHTML\s*\(",
+            re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "HTML injection sink detected. Ensure attacker-controlled values are encoded or sanitized before reaching innerHTML, outerHTML, or insertAdjacentHTML. [OWASP A03:2021 - Injection]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "unsafe-inline-script-csp",
+        "pattern": re.compile(
+            r"(?i)(?:content-security-policy[^;\n]*script-src[^;\n]*'unsafe-inline'|script-src[^;\n]*'unsafe-inline')",
+            re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "Content Security Policy allows unsafe inline scripts. Remove 'unsafe-inline' from script-src or use nonces/hashes. [OWASP A05:2021 - Security Misconfiguration]",
+        "extensions": [".html", ".htm", ".js", ".jsx", ".ts", ".tsx"],
+    },
+    {
+        "id": "frontend-database-dsn-exposure",
+        "pattern": re.compile(
+            r"(?i)\b(?:dsn|databaseUrl|database_url)\b[^\n]{0,80}\b(?:useState|useRef|input|placeholder|value|localStorage|sessionStorage)\b|\b(?:useState|useRef|input|placeholder|value|localStorage|sessionStorage)\b[^\n]{0,80}\b(?:dsn|databaseUrl|database_url)\b",
+            re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "Database DSN or connection string appears to be collected, stored, or rendered in client-side code. Keep database credentials server-side. [OWASP A02:2021 - Cryptographic Failures]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "upload-filename-path-traversal-risk",
+        "pattern": re.compile(
+            r"(?i)(?:os\.path\.join\s*\([^)\n]*(?:file|upload|attachment)\w*\.filename|Path\s*\([^)\n]*\)\s*/\s*(?:file|upload|attachment)\w*\.filename|/\s*(?:file|upload|attachment)\w*\.filename)",
+            re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "Uploaded filename is used in a filesystem path. Sanitize with a strict allowlist and verify the resolved path stays inside the intended directory. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-dynamic-sql",
+        "pattern": re.compile(
+            r"(?is)(?:execute|query)\s*\(\s*(?:f[\"']\s*(?:select|insert|update|delete|with)\b[^\"']*\{[^}]+\}|[\"']\s*(?:select|insert|update|delete|with)\b[^\"']*[\"']\s*(?:\+|%))",
+        ),
+        "severity": "CRITICAL",
+        "message": "Dynamic SQL query construction detected. Use parameterized queries or query-builder binding instead of string formatting or concatenation. [OWASP A03:2021 - Injection]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-jwt-decode-without-algorithms",
+        "pattern": re.compile(
+            r"jwt\.decode\s*\((?:(?!algorithms\s*=).){0,400}\)",
+            re.IGNORECASE | re.DOTALL,
+        ),
+        "severity": "CRITICAL",
+        "message": "JWT decode call does not appear to pin accepted algorithms. Explicitly require expected algorithms and validate issuer, audience, expiry, and key id. [OWASP A07:2021 - Identification and Authentication Failures]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-subprocess-string-command",
+        "pattern": re.compile(
+            r"(?i)subprocess\.(?:run|Popen|call|check_call|check_output)\s*\(\s*(?:f[\"']|[\"'][^\"']*[\"']\s*\+)",
+            re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "Subprocess command is built as a formatted or concatenated string. Pass an argument list and validate attacker-controlled command arguments. [OWASP A03:2021 - Injection]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-permissive-cors",
+        "pattern": re.compile(
+            r"(?i)(?:allow_origins|origins)\s*=\s*\[\s*[\"']\*[\"']\s*\]",
+            re.MULTILINE,
+        ),
+        "severity": "HIGH",
+        "message": "CORS allows every origin. Restrict authenticated APIs to known origins. [OWASP A05:2021 - Security Misconfiguration]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "client-side-dev-user-auth",
+        "pattern": re.compile(
+            r"(?i)(?:dev-user|x-dev-user|devUser)[^\n]{0,100}(?:auth|user|headers|localStorage|useState)|(?:auth|user|headers|localStorage|useState)[^\n]{0,100}(?:dev-user|x-dev-user|devUser)",
+            re.MULTILINE,
+        ),
+        "severity": "CRITICAL",
+        "message": "Client-controlled dev-user authentication marker detected. Do not trust browser-supplied user identity for server authorization. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "state-changing-fetch-without-csrf-token",
+        "pattern": re.compile(
+            r"(?is)\bfetch\s*\([^)]*method\s*:\s*[\"'](?:POST|PUT|PATCH|DELETE)[\"'](?:(?!csrf|xsrf).){0,300}\)",
+        ),
+        "severity": "WARNING",
+        "message": "State-changing browser request has no nearby CSRF/XSRF token marker. Confirm SameSite cookie policy or token validation on the server. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "http-exception-chains-internal-error",
+        "pattern": re.compile(
+            r"raise\s+HTTPException\s*\([^)]*\)\s+from\s+exc",
+            re.MULTILINE,
+        ),
+        "severity": "WARNING",
+        "message": "HTTPException is chained from an internal exception. Avoid leaking implementation details in API error responses. [OWASP A05:2021 - Security Misconfiguration]",
+        "extensions": [".py"],
+    },
+    {
         "id": "hardcoded-password",
         "pattern": re.compile(
             r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
@@ -792,6 +910,8 @@ _SENSITIVE_RULE_TOKENS = (
     "jwt",
     "database-url",
     "db-url",
+    "dsn",
+    "credential",
     "stripe",
     "openai",
     "supabase-service-role",
@@ -837,6 +957,8 @@ def _finding_category(rule_id: str) -> str:
     rule = (rule_id or "").lower()
     if "cve-" in rule or "vulnerability" in rule:
         return "dependency"
+    if "jwt-decode" in rule:
+        return "authz"
     if any(
         token in rule
         for token in ("secret", "jwt", "password", "database-url", "openai")

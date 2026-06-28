@@ -103,6 +103,63 @@ def test_scan_file_with_multiple_findings(tmp_path):
     assert "mock-todo" in rule_ids
 
 
+def test_scan_file_detects_strix_derived_patterns(tmp_path):
+    samples = {
+        "app.js": {
+            "content": (
+                "localStorage.setItem('scopeweave:planner-state:v1', JSON.stringify(state));\n"
+                "taskEl.innerHTML = task.title;\n"
+                "const headers = { 'X-Dev-User': devUser };\n"
+                "fetch('/api/calendar/writeback-intent', { method: 'POST', body: JSON.stringify({ target_source_id }) });\n"
+            ),
+            "ids": {
+                "browser-localstorage-sensitive-state",
+                "dom-xss-html-sink",
+                "client-side-dev-user-auth",
+                "state-changing-fetch-without-csrf-token",
+            },
+        },
+        "frontend.tsx": {
+            "content": "const [dsn, setDsn] = useState('');\nreturn <input value={dsn} />;\n",
+            "ids": {"frontend-database-dsn-exposure"},
+        },
+        "index.html": {
+            "content": "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; script-src 'self' 'unsafe-inline'\">\n",
+            "ids": {"unsafe-inline-script-csp"},
+        },
+        "upload.py": {
+            "content": "target = os.path.join(tmpdir, upload.filename)\n",
+            "ids": {"upload-filename-path-traversal-risk"},
+        },
+        "main.py": {
+            "content": "app.add_middleware(CORSMiddleware, allow_origins=['*'])\n",
+            "ids": {"python-permissive-cors"},
+        },
+        "auth.py": {
+            "content": "claims = jwt.decode(token, key)\n",
+            "ids": {"python-jwt-decode-without-algorithms"},
+        },
+        "data.py": {
+            "content": "cursor.execute(f\"SELECT * FROM users WHERE name = {name}\")\n",
+            "ids": {"python-dynamic-sql"},
+        },
+        "media.py": {
+            "content": "subprocess.run(f\"ffmpeg -i {source_path}\")\n",
+            "ids": {"python-subprocess-string-command"},
+        },
+        "api.py": {
+            "content": "raise HTTPException(status_code=500) from exc\n",
+            "ids": {"http-exception-chains-internal-error"},
+        },
+    }
+
+    for name, sample in samples.items():
+        test_file = tmp_path / name
+        test_file.write_text(sample["content"])
+        rule_ids = {finding["rule_id"] for finding in _scan_file(test_file, tmp_path)}
+        assert sample["ids"] <= rule_ids
+
+
 @patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_scan_file_redacts_sensitive_snippet(tmp_path):
     test_file = tmp_path / "unsafe.ts"
