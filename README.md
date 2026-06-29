@@ -27,9 +27,9 @@ AppGuardrail is a **persistent security layer for AI-assisted builders** — not
 | Layer | Description |
 |---|---|
 | 🛡️ **AppGuardrail Rules** | Security rules for AI coding assistants (Cursor, Claude Code, Windsurf, Lovable) |
-| 🔍 **AppGuardrail Scan** | Lightweight static analysis for secrets, auth gaps, misconfigurations |
+| 🔍 **AppGuardrail Scan** | Lightweight static analysis for secrets, auth gaps, misconfigurations, and packaged YAML regex rules |
 | 👁️ **AppGuardrail Review** | Human-readable review templates and AI-powered audit prompts |
-| 📡 **AppGuardrail Monitor** | Continuous security checks triggered by commits, deploys, and feature additions |
+| 📡 **AppGuardrail Monitor** | GitHub Actions workflow installer for continuous AppGuardrail checks |
 | 🔧 **AppGuardrail Fix** | AI-ready fix prompts + patch guidance + re-verification steps |
 
 ---
@@ -61,6 +61,7 @@ appguardrail init --tool cursor
 appguardrail init --tool claude-code
 appguardrail init --tool codex
 appguardrail init --tool copilot
+appguardrail init --tool lovable
 
 # For a Next.js + Supabase stack
 appguardrail init --stack nextjs-supabase
@@ -73,6 +74,8 @@ This creates:
 - `AGENTS.md`
 - `.github/copilot-instructions.md`
 - `APPGUARDRAIL_CHECKLIST.md`
+
+`appguardrail init --tool lovable` creates `LOVABLE_SECURITY_CHECKLIST.md`.
 
 ### Scan your codebase
 
@@ -97,8 +100,22 @@ Detects:
 - Unprotected admin routes
 - Risky file upload handlers
 
+The scanner loads built-in Python rules and supported `pattern-regex` entries
+from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
+documented rule fixtures until the lightweight engine grows structural matching.
+
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
+
+### Install continuous monitoring
+
+```bash
+appguardrail monitor
+```
+
+This installs `.github/workflows/appguardrail-monitor.yml`, which runs
+`appguardrail scan .` on pull requests, pushes to common default branches, and
+manual workflow dispatches.
 
 ### Install the pre-commit hook
 
@@ -223,7 +240,7 @@ Traditional scanners target classic vulnerabilities (SQLi, XSS). AI-coded apps f
 | **AppGuardrail Red Team Lite** | Defensive penetration test based on real user scenarios |
 | **AppGuardrail Fix Pack** | Patches and prompts to fix discovered issues |
 | **AppGuardrail Retainer** | Monthly security review of every change |
-| **AppGuardrail Monitor** | Continuous automated monitoring on every commit/deploy |
+| **AppGuardrail Monitor** | Continuous automated monitoring on commits and pull requests |
 
 ---
 

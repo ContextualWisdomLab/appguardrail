@@ -7,13 +7,17 @@ from unittest.mock import patch
 import pytest
 
 from scanner.cli.appguardrail import (
+    SCAN_RULES,
     _collect_files,
+    _load_packaged_regex_rules,
+    _path_allowed_by_rule,
     _print_scan_results,
     _run_codegraph_command,
     _run_codegraph_index,
     _run_trivy_fs,
     _scan_file,
     cmd_init,
+    cmd_monitor,
     cmd_scan,
 )
 
@@ -52,6 +56,10 @@ class ScanArgs:
     def __init__(self, path, trivy=False):
         self.path = str(path)
         self.trivy = trivy
+
+
+class MonitorArgs:
+    pass
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -241,6 +249,34 @@ def test_scan_file_extensions_filter(tmp_path):
     findings = _scan_file(test_file_rules, tmp_path)
     rule_ids = [f["rule_id"] for f in findings]
     assert "mock-rules-ext" in rule_ids
+
+
+def test_packaged_yaml_regex_rules_are_loaded():
+    packaged_rules = _load_packaged_regex_rules()
+    packaged_ids = {rule["id"] for rule in packaged_rules}
+    active_ids = {rule["id"] for rule in SCAN_RULES}
+
+    assert "hardcoded-generic-secret" in packaged_ids
+    assert "firebase-rules-allow-all" in packaged_ids
+    assert "nextjs-env-secret-client-prefix" in active_ids
+
+
+def test_yaml_rule_path_filters_match_root_and_nested_paths():
+    assert _path_allowed_by_rule(".env.local", ["**/.env*"], [])
+    assert _path_allowed_by_rule("apps/web/.env.production", ["**/.env*"], [])
+    assert not _path_allowed_by_rule("src/config.ts", ["**/.env*"], [])
+    assert not _path_allowed_by_rule("tests/mock-auth.ts", [], ["**/tests/**"])
+
+
+def test_scan_file_detects_packaged_yaml_regex_rule(tmp_path):
+    env_file = tmp_path / ".env.local"
+    env_file.write_text(
+        "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=sbp_12345678901234567890\n"
+    )
+
+    rule_ids = {finding["rule_id"] for finding in _scan_file(env_file, tmp_path)}
+
+    assert "supabase-service-role-key-in-env" in rule_ids
 
 
 def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
@@ -860,9 +896,38 @@ def test_cmd_init_lovable(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     cmd_init(Args(tool="lovable"))
 
-    assert not (tmp_path / ".lovable").exists()
+    lovable_file = tmp_path / "LOVABLE_SECURITY_CHECKLIST.md"
+    assert lovable_file.exists()
+    assert "AppGuardrail Secure Build Checklist for Lovable" in lovable_file.read_text()
     assert (tmp_path / "APPGUARDRAIL_CHECKLIST.md").exists()
-    assert "APPGUARDRAIL_CHECKLIST.md" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "LOVABLE_SECURITY_CHECKLIST.md" in out
+    assert "APPGUARDRAIL_CHECKLIST.md" in out
+
+
+def test_cmd_monitor_installs_github_actions_workflow(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert cmd_monitor(MonitorArgs()) == 0
+
+    workflow = tmp_path / ".github" / "workflows" / "appguardrail-monitor.yml"
+    workflow_text = workflow.read_text()
+    assert workflow.exists()
+    assert "name: AppGuardrail Monitor" in workflow_text
+    assert "appguardrail scan ." in workflow_text
+    assert "appguardrail-monitor.yml" in capsys.readouterr().out
+
+
+def test_cmd_monitor_path_traversal(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    github_dir = tmp_path / ".github"
+    github_dir.mkdir()
+    outside_dir = tmp_path.parent / "outside_monitor_workflows"
+    outside_dir.mkdir(exist_ok=True)
+    _create_symlink(outside_dir, github_dir / "workflows", target_is_directory=True)
+
+    assert cmd_monitor(MonitorArgs()) == 1
+    assert "escapes the project root" in capsys.readouterr().err
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
