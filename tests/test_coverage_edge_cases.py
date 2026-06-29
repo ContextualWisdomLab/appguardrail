@@ -65,9 +65,14 @@ def test_finding_category_storage():
 def test_finding_category_authz():
     assert _finding_category("auth-test") == "authz"
     assert _finding_category("python-jwt-decode-without-algorithms") == "authz"
+    assert _finding_category("fastapi-state-changing-route-without-auth") == "authz"
 
 def test_finding_category_injection():
     assert _finding_category("eval-test") == "injection"
+    assert _finding_category("python-subprocess-user-controlled-args") == "injection"
+
+def test_finding_category_secrets_for_credentials():
+    assert _finding_category("hardcoded-api-credential") == "secrets"
 
 def test_trivy_target_empty(tmp_path):
     assert _trivy_target("", tmp_path) == str(tmp_path)

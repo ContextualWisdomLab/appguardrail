@@ -440,6 +440,70 @@ SCAN_RULES = [
         "extensions": [".py"],
     },
     {
+        "id": "python-subprocess-user-controlled-args",
+        "pattern": re.compile(
+            r"(?is)subprocess\.(?:run|Popen|call|check_call|check_output)\s*\(\s*\[[^\]]{0,500}\b(?:source_path|input_path|filename|target_bytes|silence_noise)\b"
+        ),
+        "severity": "HIGH",
+        "message": "Subprocess argument list includes high-risk user-controlled media or filename parameters. Validate each argument with strict allowlists and bounds before invoking external tools. [OWASP A03:2021 - Injection]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-target-bytes-missing-upper-bound",
+        "pattern": re.compile(
+            r"(?is)\btarget_bytes\b(?:(?!\btarget_bytes\s*[<>]=?\s*(?:MAX_|max_|[0-9])).){0,500}\bif\s+target_bytes\s*<=\s*0\s*:"
+        ),
+        "severity": "HIGH",
+        "message": "target_bytes is checked only for a lower bound. Add a server-side upper bound to prevent resource exhaustion in media processing. [OWASP A04:2021 - Insecure Design]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "hardcoded-api-credential",
+        "pattern": re.compile(
+            r'(?i)\b(?:api[_-]?key|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[=:]\s*["\x27][^"\x27\s]{8,}["\x27]',
+            re.MULTILINE,
+        ),
+        "severity": "CRITICAL",
+        "message": "Hardcoded API credential detected. Move credentials to secret storage and rotate any committed value. [OWASP A07:2021 - Identification and Authentication Failures]",
+        "extensions": None,
+    },
+    {
+        "id": "fastapi-state-changing-route-without-auth",
+        "pattern": re.compile(
+            r"(?is)@(?:app|router)\.(?:post|put|patch|delete)\s*\([^)]*\)\s*(?:async\s+)?def\s+\w+\s*\((?:(?!Depends|Security|current_user|require_auth|get_current_user|auth).){0,500}\)\s*:",
+        ),
+        "severity": "HIGH",
+        "message": "State-changing FastAPI route has no nearby authentication dependency marker. Require authentication and server-side authorization before mutating state. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "pydantic-bounding-box-unconstrained",
+        "pattern": re.compile(
+            r"(?is)class\s+\w*BoundingBox\w*\s*\([^)]*BaseModel[^)]*\)\s*:(?:(?!\nclass\s).){0,800}\b(?:x|y|width|height)\s*:\s*(?:float|int)\b(?:(?!Field\s*\(|ge\s*=|le\s*=).){0,800}\b(?:x|y|width|height)\s*:\s*(?:float|int)\b"
+        ),
+        "severity": "HIGH",
+        "message": "Bounding box schema fields are unconstrained numeric values. Add min/max bounds to reject invalid coordinates before document processing. [OWASP A04:2021 - Insecure Design]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "pydantic-unbounded-nested-list",
+        "pattern": re.compile(
+            r"(?is)class\s+\w+\s*\([^)]*BaseModel[^)]*\)\s*:(?:(?!\nclass\s).){0,800}\b\w+\s*:\s*(?:list|List)\s*\[\s*(?:list|List)\s*\["
+        ),
+        "severity": "HIGH",
+        "message": "Pydantic model accepts nested lists without an obvious size or depth bound. Add max_length/depth validation for untrusted recursive structures. [OWASP A04:2021 - Insecure Design]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-absolute-path-traversal-check-missing",
+        "pattern": re.compile(
+            r"(?is)Path\s*\([^)]*\)(?:(?!is_absolute).){0,600}[\"']\.\.[\"']\s+in\s+\w+\.parts"
+        ),
+        "severity": "HIGH",
+        "message": "Path validation checks '..' parts but does not reject absolute paths nearby. Reject absolute paths and verify resolved paths stay under the allowed root. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".py"],
+    },
+    {
         "id": "hardcoded-password",
         "pattern": re.compile(
             r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
@@ -961,16 +1025,28 @@ def _finding_category(rule_id: str) -> str:
         return "authz"
     if any(
         token in rule
-        for token in ("secret", "jwt", "password", "database-url", "openai")
+        for token in (
+            "secret",
+            "jwt",
+            "password",
+            "database-url",
+            "credential",
+            "api-key",
+            "token",
+            "openai",
+        )
     ):
         return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    if any(token in rule for token in ("auth", "session", "admin")):
+    if any(token in rule for token in ("auth", "session", "admin", "route-without-auth")):
         return "authz"
-    if any(token in rule for token in ("eval", "sql", "command", "path-traversal")):
+    if any(
+        token in rule
+        for token in ("eval", "sql", "command", "subprocess", "path-traversal")
+    ):
         return "injection"
     return "misconfig"
 

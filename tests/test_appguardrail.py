@@ -151,6 +151,55 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
             "content": "raise HTTPException(status_code=500) from exc\n",
             "ids": {"http-exception-chains-internal-error"},
         },
+        "media_args.py": {
+            "content": (
+                "subprocess.run(['ffmpeg', '-i', source_path, '-fs', str(target_bytes)])\n"
+            ),
+            "ids": {"python-subprocess-user-controlled-args"},
+        },
+        "media_bounds.py": {
+            "content": (
+                "def shrink(target_bytes):\n"
+                "    if target_bytes <= 0:\n"
+                "        raise ValueError('bad target')\n"
+            ),
+            "ids": {"python-target-bytes-missing-upper-bound"},
+        },
+        "config.py": {
+            "content": "API_KEY = 'abc1234567890secret'\n",
+            "ids": {"hardcoded-api-credential"},
+        },
+        "routes.py": {
+            "content": (
+                "@router.post('/api/calendar/writeback-intent')\n"
+                "async def writeback_intent(target_source_id: str):\n"
+                "    return {'ok': True}\n"
+            ),
+            "ids": {"fastapi-state-changing-route-without-auth"},
+        },
+        "schemas.py": {
+            "content": (
+                "class BoundingBox(BaseModel):\n"
+                "    x: float\n"
+                "    y: float\n"
+                "    width: float\n"
+                "    height: float\n\n"
+                "class ParseQuality(BaseModel):\n"
+                "    warnings: list[list[str]]\n"
+            ),
+            "ids": {
+                "pydantic-bounding-box-unconstrained",
+                "pydantic-unbounded-nested-list",
+            },
+        },
+        "paths.py": {
+            "content": (
+                "candidate = Path(input_path)\n"
+                "if '..' in candidate.parts:\n"
+                "    raise ValueError('bad path')\n"
+            ),
+            "ids": {"python-absolute-path-traversal-check-missing"},
+        },
     }
 
     for name, sample in samples.items():
