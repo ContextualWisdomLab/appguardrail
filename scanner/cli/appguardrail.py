@@ -854,6 +854,7 @@ def cmd_init(args):
     project_root = Path(".").resolve()
 
     installed = []
+    skipped = []
 
     tool_configs = {
         "cursor": {
@@ -928,9 +929,7 @@ def cmd_init(args):
                 target_file.write_text(existing + "\n\n" + config["content"])
                 installed.append(f"{config['path']} (appended)")
             else:
-                print(
-                    f"{config['path']} already contains {config['append_marker']} rules — skipping."
-                )
+                skipped.append(str(config["path"]))
         else:
             target_file.write_text(config["content"])
             installed.append(str(config["path"]))
@@ -954,15 +953,25 @@ def cmd_init(args):
     if not checklist_file.exists():
         checklist_file.write_text(CHECKLIST_TEMPLATE)
         installed.append("APPGUARDRAIL_CHECKLIST.md")
+    else:
+        skipped.append("APPGUARDRAIL_CHECKLIST.md")
 
     if stack and "supabase" in stack:
         _print_supabase_reminder()
 
     print("\n✅ AppGuardrail initialized successfully!\n")
-    print("Created/updated files:")
-    for f in installed:
-        print(f"  {f}")
-    print()
+    if installed:
+        print("Created/updated files:")
+        for f in installed:
+            print(f"  {f}")
+        print()
+
+    if skipped:
+        print("Skipped (already configured):")
+        for f in skipped:
+            print(f"  {f}")
+        print()
+
     print("Next steps:")
     print("  1. Review the installed rules and customize for your project")
     print("  2. Run 'appguardrail scan .' to check for existing issues")

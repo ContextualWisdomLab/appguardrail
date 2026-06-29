@@ -877,10 +877,9 @@ def test_cmd_init_claude_code_skip(tmp_path, monkeypatch, capsys):
     cmd_init(Args(tool="claude-code"))
 
     assert claude_file.read_text() == "AppGuardrail existing rules\n"
-    assert (
-        "CLAUDE.md already contains AppGuardrail rules — skipping."
-        in capsys.readouterr().out
-    )
+    out = capsys.readouterr().out
+    assert "Skipped (already configured):" in out
+    assert "CLAUDE.md" in out
 
 
 def test_cmd_init_windsurf(tmp_path, monkeypatch, capsys):
@@ -993,3 +992,15 @@ def test_scan_file_insecure_deserialization(tmp_path):
     assert any("yaml.unsafe_load" in finding["snippet"] for finding in findings)
     assert any("marshal.load" in finding["snippet"] for finding in findings)
     assert all("yaml.safe_load" not in finding["snippet"] for finding in findings)
+
+def test_cmd_init_checklist_skipped(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    checklist_file = tmp_path / "APPGUARDRAIL_CHECKLIST.md"
+    checklist_file.write_text("Existing checklist\n")
+
+    cmd_init(Args(tool="cursor"))
+
+    assert checklist_file.read_text() == "Existing checklist\n"
+    out = capsys.readouterr().out
+    assert "Skipped (already configured):" in out
+    assert "APPGUARDRAIL_CHECKLIST.md" in out
