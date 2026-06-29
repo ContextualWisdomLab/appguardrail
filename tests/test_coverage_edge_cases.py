@@ -64,6 +64,7 @@ def test_finding_category_storage():
 
 def test_finding_category_authz():
     assert _finding_category("auth-test") == "authz"
+    assert _finding_category("python-jwt-decode-without-algorithms") == "authz"
 
 def test_finding_category_injection():
     assert _finding_category("eval-test") == "injection"
