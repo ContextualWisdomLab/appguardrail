@@ -35,8 +35,8 @@ import importlib.resources as resources
 import json
 import os
 import re
-import shutil
 import shlex
+import shutil
 import stat
 import subprocess
 import sys
@@ -372,6 +372,15 @@ SCAN_RULES = [
         "extensions": [".ts", ".tsx", ".js", ".jsx"],
     },
     {
+        "id": "ssrf-risk",
+        "pattern": re.compile(
+            r"(?is)\b(?:fetch|axios(?:\.\w+)?|urllib(?:3)?\.(?:request\.)?urlopen|requests\.(?:get|post|put|delete|patch|request)|http\.client\.HTTPSConnection)\s*\(\s*(?:`[^`]*\$\{[^}]+\}[^`]*`|f[\"'][^\"']*\{[^}]+\}[^\"']*[\"']|[\"'].*?[\"']\s*\+\s*[a-zA-Z0-9_]+)"
+        ),
+        "severity": "CRITICAL",
+        "message": "Potential Server-Side Request Forgery (SSRF) detected: dynamic URL construction in network request. Validate and sanitize URLs before fetching. [OWASP A10:2021 - Server-Side Request Forgery (SSRF)]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
+    },
+    {
         "id": "python-command-injection",
         "pattern": re.compile(
             r"(?i)(?:os\.system|subprocess\.(?:Popen|run|call|check_call|check_output))\s*\([^)]*shell\s*=\s*True"
@@ -670,7 +679,9 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
             path_mode = None
             continue
         if raw_line.startswith("    severity: "):
-            current["severity"] = _unquote_rule_scalar(raw_line.split(":", 1)[1]).upper()
+            current["severity"] = _unquote_rule_scalar(
+                raw_line.split(":", 1)[1]
+            ).upper()
             path_mode = None
             continue
         if raw_line.startswith("    languages: "):
@@ -891,7 +902,9 @@ def cmd_init(args):
 
     selected_tools = tool_groups.get(tool, [tool])
 
-    unknown_tools = [selected for selected in selected_tools if selected not in tool_configs]
+    unknown_tools = [
+        selected for selected in selected_tools if selected not in tool_configs
+    ]
     if unknown_tools:
         print(f"❌ Error: Unknown tool '{tool}'", file=sys.stderr)
         print(
@@ -1079,7 +1092,9 @@ def cmd_monitor(args):
     print("\n✅ AppGuardrail monitor workflow installed!\n")
     print(f"Created/updated: {workflow_file.relative_to(project_root)}")
     print()
-    print("This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches.")
+    print(
+        "This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
+    )
     return 0
 
 
@@ -1205,7 +1220,9 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
 
 def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     """Return whether a path passes optional YAML include/exclude filters."""
-    if include_paths and not any(_path_matches_glob(path, glob) for glob in include_paths):
+    if include_paths and not any(
+        _path_matches_glob(path, glob) for glob in include_paths
+    ):
         return False
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
@@ -1229,12 +1246,9 @@ def _collect_files(base_path: Path):
                         if entry.is_symlink():
                             continue
                         if entry.is_dir(follow_symlinks=False):
-                            if (
-                                entry.name not in SKIP_DIRS
-                                and (
-                                    not entry.name.startswith(".")
-                                    or entry.name in SECURITY_HIDDEN_DIRS
-                                )
+                            if entry.name not in SKIP_DIRS and (
+                                not entry.name.startswith(".")
+                                or entry.name in SECURITY_HIDDEN_DIRS
                             ):
                                 dirs.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
@@ -1332,7 +1346,9 @@ def _finding_category(rule_id: str) -> str:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    if any(token in rule for token in ("auth", "session", "admin", "route-without-auth")):
+    if any(
+        token in rule for token in ("auth", "session", "admin", "route-without-auth")
+    ):
         return "authz"
     if any(
         token in rule
@@ -1515,7 +1531,9 @@ def _run_codegraph_command(command, cwd: Path, action: str):
                 f"CodeGraph command argument must be a string, got {type(arg).__name__}."
             )
         if not arg.isprintable():
-            raise RuntimeError("CodeGraph command argument contains control characters.")
+            raise RuntimeError(
+                "CodeGraph command argument contains control characters."
+            )
 
     executable = Path(command[0]).name
     allowed_args = {("sync",), ("init", "-i"), ("status",)}
@@ -1550,7 +1568,9 @@ def _run_codegraph_index(scan_path: Path):
 
     codegraph_dir = workdir / ".codegraph"
     if codegraph_dir.exists() and not codegraph_dir.is_dir():
-        raise RuntimeError(f"CodeGraph path exists but is not a directory: {codegraph_dir}")
+        raise RuntimeError(
+            f"CodeGraph path exists but is not a directory: {codegraph_dir}"
+        )
     if codegraph_dir.is_dir():
         _run_codegraph_command([codegraph, "sync"], workdir, "sync")
     else:
@@ -1613,7 +1633,9 @@ def _scan_file(file_path: Path, base_path: Path):
                                 base_path if base_path.is_dir() else Path(".").resolve()
                             )
                         except ValueError:
-                            rel_path = file_path.name if base_path.is_file() else file_path
+                            rel_path = (
+                                file_path.name if base_path.is_file() else file_path
+                            )
                         rel_path_for_filters = str(rel_path)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
@@ -1626,7 +1648,9 @@ def _scan_file(file_path: Path, base_path: Path):
                                 base_path if base_path.is_dir() else Path(".").resolve()
                             )
                         except ValueError:
-                            rel_path = file_path.name if base_path.is_file() else file_path
+                            rel_path = (
+                                file_path.name if base_path.is_file() else file_path
+                            )
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
@@ -1716,7 +1740,9 @@ def _print_scan_results(findings, files_scanned):
         print("\n✅ No deploy-blocking critical or high issues found.")
 
     if findings:
-        print("\n💡 Run 'appguardrail review' to get an AI prompt for fixing these issues.")
+        print(
+            "\n💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
+        )
     print()
 
 
