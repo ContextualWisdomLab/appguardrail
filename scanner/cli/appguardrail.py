@@ -884,6 +884,11 @@ def cmd_init(args):
             "path": Path("LOVABLE_SECURITY_CHECKLIST.md"),
             "content": RULES_LOVABLE,
         },
+        "__test_shared": {
+            "path": Path("test"),
+            "content": "",
+            "shared_only": True
+        }
     }
     tool_groups = {
         "auto": ["codex", "copilot", "claude-code", "cursor", "windsurf"],

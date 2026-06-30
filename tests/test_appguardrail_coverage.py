@@ -258,8 +258,8 @@ def test_collect_files_oserror_on_entry(tmp_path):
             if self._is_dir:
                 raise OSError("Mock OS Error")
             return False # pragma: no cover
-        def is_file(self, follow_symlinks=False): # pragma: no cover
-            return self._is_file
+        def is_file(self, follow_symlinks=False):
+            return self._is_file # pragma: no cover
 
         def is_symlink(self):
             return self._is_symlink
@@ -453,3 +453,105 @@ def test_scan_file_open_permission_error():
 
         findings = _scan_file(file_path, base_path)
         assert findings == []
+
+def test_parse_inline_list_invalid():
+    from scanner.cli.appguardrail import _parse_inline_list
+    assert _parse_inline_list("invalid") == []
+    assert _parse_inline_list("[]") == []
+
+def test_compile_yaml_regex_rule_error():
+    from scanner.cli.appguardrail import _compile_yaml_regex_rule
+    rule = {"id": "test", "regexes": ["[invalid("]}
+    assert _compile_yaml_regex_rule(rule) == []
+
+def test_load_packaged_regex_rules_file_not_found(monkeypatch):
+    import scanner.cli.appguardrail as appguardrail
+    import importlib.resources as resources
+    def mock_files(*args, **kwargs):
+        raise FileNotFoundError()
+    monkeypatch.setattr(resources, "files", mock_files)
+    assert appguardrail._load_packaged_regex_rules() == []
+
+def test_load_packaged_regex_rules_file_read_error(monkeypatch):
+    import scanner.cli.appguardrail as appguardrail
+    import importlib.resources as resources
+    from unittest.mock import MagicMock
+    mock_iterdir = MagicMock()
+    mock_file = MagicMock()
+    mock_file.suffix = ".yml"
+    mock_file.read_text.side_effect = OSError()
+    mock_iterdir.iterdir.return_value = [mock_file]
+    monkeypatch.setattr(resources, "files", lambda _: mock_iterdir)
+    assert appguardrail._load_packaged_regex_rules() == []
+
+def test_cmd_init_shared_only(monkeypatch, tmp_path):
+    import scanner.cli.appguardrail as appguardrail
+    monkeypatch.chdir(tmp_path)
+
+    class Args:
+        tool = "__test_shared"
+        stack = None
+
+    appguardrail.cmd_init(Args())
+
+def test_cmd_monitor_symlink(tmp_path, monkeypatch):
+    import scanner.cli.appguardrail as appguardrail
+    monkeypatch.chdir(tmp_path)
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    workflow_file = workflow_dir / "appguardrail-monitor.yml"
+
+    dummy_target = tmp_path / "dummy.yml"
+    dummy_target.touch()
+
+    try:
+        workflow_file.symlink_to(dummy_target)
+    except OSError: # pragma: no cover
+        pytest.skip("Symlinks not supported") # pragma: no cover
+
+        pytest.skip("Symlinks not supported")
+
+    class Args:
+        pass
+    assert appguardrail.cmd_monitor(Args()) == 0
+
+def test_path_matches_glob_prefix():
+    import scanner.cli.appguardrail as appguardrail
+    assert appguardrail._path_matches_glob("./test/file", "./test/*") == True
+    assert appguardrail._path_matches_glob("./test/file", "test/*") == True
+
+def test_scan_file_value_error(tmp_path):
+    import scanner.cli.appguardrail as appguardrail
+    from unittest.mock import patch, MagicMock
+    import re
+
+    test_file = tmp_path / "test.js"
+    test_file.write_text("const a = 1;")
+
+    base_path = tmp_path / "other_dir"
+
+    mock_rules = [
+        (
+            "test-rule",
+            "CRITICAL",
+            "Test",
+            re.compile(r"const").finditer,
+            ["**/*.js"],
+            []
+        )
+    ]
+    with patch("scanner.cli.appguardrail._get_applicable_rules", return_value=mock_rules):
+        findings = appguardrail._scan_file(test_file, base_path)
+        assert len(findings) == 1
+        assert "test.js" in findings[0]["file"]
+
+def test_cmd_main_monitor(monkeypatch):
+    import scanner.cli.appguardrail as appguardrail
+    import sys
+    monkeypatch.setattr(sys, "argv", ["appguardrail", "monitor"])
+    monkeypatch.setattr(appguardrail, "cmd_monitor", lambda x: 0)
+
+    with pytest.raises(SystemExit) as e:
+        appguardrail.main()
+    assert e.value.code == 0
