@@ -705,7 +705,7 @@ def test_cmd_scan_single_file_keeps_scanner_fixture_context(tmp_path, monkeypatc
     ]
 
     with patch("scanner.cli.appguardrail.SCAN_RULES", rules):
-        assert cmd_scan(ScanArgs(scanner_file)) == 0
+        assert cmd_scan(ScanArgs(str(scanner_file))) == 0
 
     out = capsys.readouterr().out
     assert "scanner/cli/appguardrail.py" in out
@@ -742,9 +742,9 @@ def test_print_scan_results_critical(capsys):
     assert "Found a critical issue" in captured.out
     assert "Code:    const secret = 'abc';" in captured.out
     assert "🔴 1 critical issue" in captured.out
-    assert "❌ Critical issues found. Fix before deploying." in captured.out
+    assert "❌ Critical issue found. Fix before deploying." in captured.out
     assert (
-        "💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
+        "💡 Run 'appguardrail review' to get an AI prompt for fixing this issue."
         in captured.out
     )
 
@@ -765,7 +765,7 @@ def test_print_scan_results_high(capsys):
 
     assert "[🟠 HIGH] app/api/route.ts:5" in captured.out
     assert "🟠 1 high issue" in captured.out
-    assert "⚠️  High-severity issues found. Review before deploying." in captured.out
+    assert "⚠️  High-severity issue found. Review before deploying." in captured.out
 
 
 def test_print_scan_results_warnings_only(capsys):
