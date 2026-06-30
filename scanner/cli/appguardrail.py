@@ -1724,22 +1724,26 @@ def _print_scan_results(findings, files_scanned):
         f"🔵 {counts['INFO']} {info_word}"
     )
     if non_blocking:
-        print(f"Non-blocking findings in docs/tests/examples/fixtures: {non_blocking}")
+        finding_word = "finding" if non_blocking == 1 else "findings"
+        print(f"Non-blocking {finding_word} in docs/tests/examples/fixtures: {non_blocking}")
 
     if files_scanned == 0:
         print("\n⚠️  No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
-        print("\n❌ Critical issues found. Fix before deploying.")
+        issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
+        print(f"\n❌ Critical {issue_word} found. Fix before deploying.")
     elif counts["HIGH"] > 0:
-        print("\n⚠️  High-severity issues found. Review before deploying.")
+        issue_word = "issue" if counts["HIGH"] == 1 else "issues"
+        print(f"\n⚠️  High-severity {issue_word} found. Review before deploying.")
     elif not findings:
         print("\n✅ No issues found in this scan.")
     else:
         print("\n✅ No deploy-blocking critical or high issues found.")
 
     if findings:
+        these_word = "this issue" if len(findings) == 1 else "these issues"
         print(
-            "\n💡 Run 'appguardrail review' to get an AI prompt for fixing these issues."
+            f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
         )
     print()
 
