@@ -611,6 +611,16 @@ def _parse_inline_list(value: str):
     return [_unquote_rule_scalar(item) for item in inner.split(",")]
 
 
+def _compile_glob(pattern: str):
+    """Compile a glob pattern into a regular expression for fast path matching."""
+    pattern = pattern.replace("\\", "/")
+    if pattern.startswith("./"):
+        pattern = pattern[2:]
+    if pattern.startswith("**/"):
+        return re.compile(r"(?:.*/)?" + fnmatch.translate(pattern[3:]))
+    return re.compile(fnmatch.translate(pattern))
+
+
 def _extensions_for_languages(languages):
     """Map YAML rule languages to file extensions for the regex scanner."""
     if not languages or "generic" in languages:
@@ -700,6 +710,8 @@ def _compile_yaml_regex_rule(rule):
     """Build runtime regex scanner rules from one parsed YAML rule."""
     compiled_rules = []
     extensions = _extensions_for_languages(rule.get("languages") or [])
+    include_paths = [_compile_glob(p) for p in (rule.get("include_paths") or [])]
+    exclude_paths = [_compile_glob(p) for p in (rule.get("exclude_paths") or [])]
     for regex in rule.get("regexes") or []:
         try:
             pattern = re.compile(regex, re.MULTILINE)
@@ -712,8 +724,8 @@ def _compile_yaml_regex_rule(rule):
                 "severity": rule.get("severity", "WARNING"),
                 "message": rule.get("message") or f"Rule {rule['id']} matched.",
                 "extensions": extensions,
-                "include_paths": rule.get("include_paths") or [],
-                "exclude_paths": rule.get("exclude_paths") or [],
+                "include_paths": include_paths,
+                "exclude_paths": exclude_paths,
             }
         )
     return compiled_rules
@@ -1188,26 +1200,20 @@ def _get_applicable_rules(ext: str):
     return _RULES_CACHE[ext]
 
 
-def _path_matches_glob(path: str, pattern: str) -> bool:
-    """Match a normalized relative path against AppGuardrail rule globs."""
-    path = path.replace("\\", "/")
-    pattern = pattern.replace("\\", "/")
-    if path.startswith("./"):
-        path = path[2:]
-    if pattern.startswith("./"):
-        pattern = pattern[2:]
-    if fnmatch.fnmatch(path, pattern):
-        return True
-    if pattern.startswith("**/") and fnmatch.fnmatch(path, pattern[3:]):
-        return True
-    return False
-
-
 def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     """Return whether a path passes optional YAML include/exclude filters."""
-    if include_paths and not any(_path_matches_glob(path, glob) for glob in include_paths):
+    path = path.replace("\\", "/")
+    if path.startswith("./"):
+        path = path[2:]
+    if include_paths and not any(
+        (compiled_regex.match(path) if hasattr(compiled_regex, "match") else _compile_glob(compiled_regex).match(path))
+        for compiled_regex in include_paths
+    ):
         return False
-    if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
+    if exclude_paths and any(
+        (compiled_regex.match(path) if hasattr(compiled_regex, "match") else _compile_glob(compiled_regex).match(path))
+        for compiled_regex in exclude_paths
+    ):
         return False
     return True
 

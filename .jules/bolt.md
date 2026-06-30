@@ -1,34 +1,3 @@
-## 2024-05-24 - File traversal performance
-**Learning:** When optimizing os.walk combined with Path objects, replacing them with os.scandir and os.path.splitext reduces stat() calls drastically, but requires careful matching of symlink behavior (os.walk matches directory symlinks depending on arguments, Path.is_file() follows symlinks by default).
-**Action:** Use entry.is_dir(follow_symlinks=False) to match os.walk and entry.is_file() to match Path.is_file() default.
-
-## 2024-06-11 - Global state caching in Python tests
-**Learning:** When aggressively caching global module state (like pre-extracted regex rules from `SCAN_RULES`), tests using `unittest.mock.patch` on that global state may fail because the cache retains stale references to the unpatched objects.
-**Action:** Implement cache-busting logic (e.g., tracking `id(SCAN_RULES)`) to clear the cache when the object identity changes.
-
-## 2024-06-13 - Optimizing multiple pathlib stat checks
-**Learning:** Checking `Path.is_symlink()`, `Path.is_file()`, and `Path.stat().st_size` individually on a pathlib object invokes multiple separate `stat()` system calls and generates overhead. For hot paths scanning thousands of files, this adds up significantly.
-**Action:** Replace multiple `Path` metadata checks with a single `os.lstat(path)` call and `stat` module bitwise checks (e.g., `stat.S_ISLNK(st.st_mode)`, `stat.S_ISREG(st.st_mode)`) to collapse everything into one highly performant system call.
-
-## 2026-06-14 - Deferring Pathlib Operations in Hot Paths
-**Learning:** In highly repetitive loops like file scanners (e.g., iterating through thousands of safe files), preemptively calculating `Path.relative_to()` and sanitizing strings adds significant cumulative overhead. Pathlib operations internally parse paths, check parts, and construct new objects, which is extremely expensive when executed on a per-file basis unconditionally.
-**Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
-## 2024-06-20 - Regex File Scanning Optimization
-**Learning:** Python's `for line in f:` combined with running multiple regex checks per line introduces huge interpreter overhead for file scanning utilities.
-**Action:** Use `.read()` and `.finditer(content)` for the whole file, which pushes the tight iteration loops down to the C-compiled regex engine. Recover line numbers with string `.count('\n')` only when a match is found to achieve massive performance gains (~20-30% reduction in scan time on large text corpuses).
-
-## 2024-06-21 - Python Regex vs String Lookup Overhead
-**Learning:** In Python, a combined massive regular expression (e.g., `re.compile("...|...|...", re.IGNORECASE)`) or iterating over multiple compiled regex objects with `finditer()` is surprisingly slower on large texts than a simple substring pre-filter using `content.lower()` and `any(k in content for k in keywords)`. In `VibeSec`, `finditer` on a clean 10MB file took ~1.5s, `re.search` with a combined regex took ~2.6s, while `in` operator substring searching completed in ~0.1s (a 10x+ speedup). The C-compiled string operations bypass regular expression engine overhead completely.
-**Action:** When implementing file content scanners or linters in Python, always introduce a static substring pre-filter (extracted from the regex patterns) to quickly reject files that don't contain relevant keywords before invoking `re` module operations.
-
-## 2024-06-21 - Avoiding False Negatives with Large Artifact Files
-**Learning:** String-based pre-filters (like `any(keyword in file.lower())`) are incredibly fast in Python, but using them to gate security regexes is dangerous and can lead to silent false negatives if the keyword list becomes decoupled from the actual regex patterns. At the same time, evaluating regexes over multi-megabyte auto-generated files (like source maps `.map` or `.log` files) is a massive performance bottleneck.
-**Action:** Instead of brittle string pre-filters that jeopardize security, heavily optimize the file traversal by skipping massive known auto-generated artifact extensions (like `.map` and `.log`) in `SKIP_EXTENSIONS`. This guarantees no source code vulnerabilities are missed while drastically reducing CPU overhead.
-
-## 2024-06-22 - Optimizing JSON extraction from large text
-**Learning:** When extracting multiple JSON objects from a large text string in Python, avoid repeated string slicing (e.g., `text[index:]`) or manual byte-by-byte iteration (`index += 1`) within loops to prevent O(N^2) performance degradation.
-**Action:** Instead, use a `while` loop with `text.find('{', index)` and `json.JSONDecoder().raw_decode(text, index)`, advancing the index to the returned end position on success.
-
-## 2024-06-24 - File I/O and Constant Allocation Performance
-**Learning:** For file I/O in performance-critical Python paths, using the built-in `open(file_path)` is marginally faster than `Path.open()` because it avoids pathlib's method resolution overhead. Additionally, to reduce memory allocations in frequently called Python functions, move constant mappings and dictionaries to the module level rather than instantiating them within the function body.
-**Action:** Extract constant dictionaries and mappings to module-level variables (`_TRIVY_SEVERITY_MAP`, `_SEVERITY_ORDER`) to prevent runtime instantiation overhead. Replace `Path.open()` with `open(path)` in hot paths like `_scan_file`.
+## 2026-06-30 - [Optimize File Filtering Globs]
+**Learning:** `fnmatch.fnmatch` parsing within a deep nested loop for path matching incurs significant overhead during file tree traversal scanning.
+**Action:** Pre-compile glob patterns into native regular expressions using `fnmatch.translate` during rule loading, rather than evaluating globs for every file. This avoids repetitive path normalization and regex translation during execution time. Ensure recursive globs like `**/` translate correctly to `(?:.*/)?`.
