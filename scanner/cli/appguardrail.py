@@ -572,6 +572,94 @@ SCAN_RULES = [
         "extensions": [".py"],
     },
     {
+        "id": "python-okta-host-endswith-ssrf",
+        "pattern": re.compile(
+            r"(?is)\b(?:authenticator|hostname|netloc|parsed_url|parsed)\b(?:(?!\n\s*\n).){0,500}\.endswith\s*\(\s*(?:\([^\)]*)?[\"']\.?(?:okta|oktapreview)\.com[\"']"
+        ),
+        "severity": "HIGH",
+        "message": "Okta/Snowflake authenticator host validation uses a suffix check. Parse the URL hostname and allow only exact Okta domains or verified subdomains to prevent SSRF bypasses. [OWASP A10:2021 - Server-Side Request Forgery]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-subprocess-missing-timeout",
+        "pattern": re.compile(
+            r"(?is)(?:subprocess\.(?:run|Popen|call|check_call|check_output)\s*\((?!(?:(?!\n\s*\)\s*(?:\n|$)).)*timeout\s*=)(?:(?!\n\s*\)\s*(?:\n|$)).){0,1200}\n\s*\)|subprocess\.(?:run|Popen|call|check_call|check_output)\s*\((?:(?!timeout\s*=)[^\n])+\))"
+        ),
+        "severity": "HIGH",
+        "message": "External process call has no timeout. Add a bounded timeout and handle TimeoutExpired to prevent worker exhaustion. [OWASP A04:2021 - Insecure Design]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "shell-awk-variable-injection",
+        "pattern": re.compile(
+            r"(?is)\bawk\s+(?:[\"'][^\"'\n]{0,300}\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\"'\n]{0,300}[\"']|[\"'][^\"'\n]{0,300}[\"']\s*\"\$[A-Za-z_][A-Za-z0-9_]*\")"
+        ),
+        "severity": "CRITICAL",
+        "message": "Shell variable is interpolated into an awk program. Validate input and pass values with awk -v instead of embedding shell variables in the awk script. [OWASP A03:2021 - Injection]",
+        "extensions": [".sh", ".bash"],
+    },
+    {
+        "id": "node-exec-url-command-injection",
+        "pattern": re.compile(
+            r"(?i)\bexec(?:Sync)?\s*\(\s*(?:authUrl|browserUrl|openUrl|url|command)\b"
+        ),
+        "severity": "CRITICAL",
+        "message": "child_process.exec is called with a URL or command variable. Use spawn/execFile with argument arrays and validate allowed URL protocols. [OWASP A03:2021 - Injection]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "node-unvalidated-output-path-write",
+        "pattern": re.compile(
+            r"(?i)\b(?:writeFile|writeFileSync|createWriteStream)\s*\(\s*(?:output|outputPath|filePath|dest|destination|exportPath)\b"
+        ),
+        "severity": "HIGH",
+        "message": "File write uses a caller-controlled output path. Resolve the target and verify it stays inside the allowed project root before writing. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "python-expanduser-user-path-traversal",
+        "pattern": re.compile(
+            r"(?i)\bPath\s*\([^)]*(?:input|output|file|path)[^)]*\)\.expanduser\s*\("
+        ),
+        "severity": "HIGH",
+        "message": "User-controlled path is expanded before containment validation. Reject traversal and verify resolved paths stay under the allowed root. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "github-actions-secret-env-passthrough",
+        "pattern": re.compile(
+            r"(?is)\b(?:LLM_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|DB_PASS|DATABASE_URL|PRIVATE_KEY|ACCESS_TOKEN)\s*:\s*\$\{\{\s*secrets\."
+        ),
+        "severity": "HIGH",
+        "message": "GitHub Actions passes a high-risk secret directly through environment variables. Prefer file-based secret handoff or a scoped platform token. [OWASP A03:2021 - Injection]",
+        "extensions": [".yml", ".yaml"],
+    },
+    {
+        "id": "github-actions-secrets-github-token",
+        "pattern": re.compile(r"\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}", re.IGNORECASE),
+        "severity": "HIGH",
+        "message": "Workflow references secrets.GITHUB_TOKEN. Use github.token with least job permissions instead of secret-context token interpolation. [OWASP A05:2021 - Security Misconfiguration]",
+        "extensions": [".yml", ".yaml"],
+    },
+    {
+        "id": "docker-cli-secret-env-leak",
+        "pattern": re.compile(
+            r"(?i)\bdocker\s+(?:run|exec|compose)[^\n]*(?:-e|--env)\s+(?:DB_PASS|DATABASE_URL|PASSWORD|TOKEN|[A-Z0-9_]*SECRET)[A-Z0-9_]*="
+        ),
+        "severity": "HIGH",
+        "message": "Docker command passes a secret through CLI environment flags where it can leak through process listings. Use --env-file or secret mounts. [OWASP A07:2021 - Identification and Authentication Failures]",
+        "extensions": [".sh", ".bash", ".yml", ".yaml"],
+    },
+    {
+        "id": "html-target-blank-without-noopener",
+        "pattern": re.compile(
+            r"(?i)<a\b(?=[^>\n]*target\s*=\s*[\"']_blank[\"'])(?![^>\n]*rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer))[^>\n]*href\s*=\s*[\"']https?://"
+        ),
+        "severity": "WARNING",
+        "message": "External target=_blank link is missing rel=\"noopener noreferrer\". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]",
+        "extensions": [".html", ".htm"],
+    },
+    {
         "id": "hardcoded-password",
         "pattern": re.compile(
             r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
@@ -1473,26 +1561,30 @@ def _run_trivy_fs(scan_path: Path):
             "trivy executable not found. Install Trivy or run without --trivy."
         )
 
-    process = subprocess.run(
-        [
-            trivy,
-            "fs",
-            "--quiet",
-            "--format",
-            "json",
-            "--scanners",
-            "vuln,secret,misconfig",
-            "--exit-code",
-            "0",
-            "--no-progress",
-            "--skip-version-check",
-            str(scan_path),
-        ],
-        shell=False,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        process = subprocess.run(
+            [
+                trivy,
+                "fs",
+                "--quiet",
+                "--format",
+                "json",
+                "--scanners",
+                "vuln,secret,misconfig",
+                "--exit-code",
+                "0",
+                "--no-progress",
+                "--skip-version-check",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Trivy scan timed out.") from exc
     if process.returncode != 0:
         detail = (process.stderr or process.stdout).strip().splitlines()
         raise RuntimeError("Trivy scan failed" + (f": {detail[-1]}" if detail else "."))
@@ -1522,13 +1614,17 @@ def _run_codegraph_command(command, cwd: Path, action: str):
     if executable != "codegraph" or tuple(command[1:]) not in allowed_args:
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
-    process = subprocess.run(
-        command,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        process = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"CodeGraph {action} timed out.") from exc
     if process.returncode != 0:
         detail = (process.stderr or process.stdout).strip().splitlines()
         suffix = f": {detail[-1]}" if detail else "."
