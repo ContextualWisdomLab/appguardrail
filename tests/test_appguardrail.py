@@ -8,14 +8,22 @@ import pytest
 
 from scanner.cli.appguardrail import (
     SCAN_RULES,
+    _bandit_findings,
     _collect_files,
+    _detect_scan_languages,
     _load_packaged_regex_rules,
     _path_allowed_by_rule,
     _print_scan_results,
+    _ruff_findings,
+    _run_bandit_scan,
     _run_codegraph_command,
     _run_codegraph_index,
+    _run_ruff_security_scan,
+    _run_semgrep_scan,
     _run_trivy_fs,
+    _run_zap_baseline,
     _scan_file,
+    _semgrep_findings,
     cmd_init,
     cmd_monitor,
     cmd_scan,
@@ -56,6 +64,13 @@ class ScanArgs:
     def __init__(self, path, trivy=False):
         self.path = str(path)
         self.trivy = trivy
+        self.external = "off"
+        self.bandit = False
+        self.ruff = False
+        self.semgrep = False
+        self.semgrep_config = None
+        self.zap_baseline = None
+        self.codegraph = False
 
 
 class MonitorArgs:
@@ -207,6 +222,87 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
                 "    raise ValueError('bad path')\n"
             ),
             "ids": {"python-absolute-path-traversal-check-missing"},
+        },
+    }
+
+    for name, sample in samples.items():
+        test_file = tmp_path / name
+        test_file.write_text(sample["content"])
+        rule_ids = {finding["rule_id"] for finding in _scan_file(test_file, tmp_path)}
+        assert sample["ids"] <= rule_ids
+
+
+def test_scan_file_detects_sast_dast_derived_patterns(tmp_path):
+    samples = {
+        "tls.py": {
+            "content": "requests.get('https://api.example.test', verify=False)\n",
+            "ids": {"python-requests-verify-false"},
+        },
+        "tmp.py": {
+            "content": "name = tempfile.mktemp()\n",
+            "ids": {"python-tempfile-mktemp"},
+        },
+        "flask_app.py": {
+            "content": "app.run(host='0.0.0.0', debug=True)\n",
+            "ids": {"python-flask-debug-true"},
+        },
+        "templates.py": {
+            "content": "env = jinja2.Environment(loader=loader, autoescape=False)\n",
+            "ids": {"python-jinja-autoescape-disabled"},
+        },
+        "views.py": {
+            "content": "@csrf_exempt\ndef update_profile(request):\n    return HttpResponse('ok')\n",
+            "ids": {"python-django-csrf-exempt"},
+        },
+        "tls.js": {
+            "content": "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';\n",
+            "ids": {"node-tls-validation-disabled"},
+        },
+        "jwt.ts": {
+            "content": "jwt.verify(token, key, { algorithms: ['none'] });\n",
+            "ids": {"node-jwt-none-algorithm"},
+        },
+        "cors.ts": {
+            "content": "app.use(cors({ origin: '*', credentials: true }));\n",
+            "ids": {"node-cors-wildcard-with-credentials"},
+        },
+        "helmet.ts": {
+            "content": "app.use(helmet({ contentSecurityPolicy: false }));\n",
+            "ids": {"node-helmet-csp-disabled"},
+        },
+        "frame.ts": {
+            "content": "app.use(helmet({ frameguard: false }));\n",
+            "ids": {"node-clickjacking-protection-disabled"},
+        },
+        "xss.js": {
+            "content": "res.send('<h1>' + req.query.name + '</h1>');\n",
+            "ids": {"express-reflected-input-send"},
+        },
+        "SecurityConfig.java": {
+            "content": "http.csrf(csrf -> csrf.disable());\n",
+            "ids": {"java-spring-csrf-disabled"},
+        },
+        "TrustAll.java": {
+            "content": (
+                "HostnameVerifier verifier = new HostnameVerifier() {\n"
+                "    public boolean verify(String host, SSLSession session) {\n"
+                "        return true;\n"
+                "    }\n"
+                "};\n"
+            ),
+            "ids": {"java-hostname-verifier-allow-all"},
+        },
+        "CookieConfig.java": {
+            "content": "cookie.setSecure(false);\n",
+            "ids": {"java-cookie-secure-false"},
+        },
+        "JwtVerifier.java": {
+            "content": "Algorithm algorithm = Algorithm.none();\n",
+            "ids": {"java-jwt-none-algorithm"},
+        },
+        "Deserialize.java": {
+            "content": "ObjectInputStream in = new ObjectInputStream(request.getInputStream());\n",
+            "ids": {"java-objectinputstream-deserialization"},
         },
     }
 
@@ -422,6 +518,35 @@ def test_cmd_scan_returns_failure_when_no_files_scanned(tmp_path, capsys):
     assert "Scanned 0 files" in out
 
 
+def test_cmd_scan_auto_external_uses_detected_language_axes(tmp_path, monkeypatch):
+    monkeypatch.delenv("APPGUARDRAIL_TARGET_URL", raising=False)
+    (tmp_path / "app.py").write_text("print('safe')\n")
+    (tmp_path / "App.java").write_text("class App {}\n")
+    (tmp_path / "server.ts").write_text("export const ok = true;\n")
+
+    args = ScanArgs(tmp_path)
+    args.external = "auto"
+
+    def fake_available(name, version_args=("--version",)):
+        return f"/usr/bin/{name}" if name in {"bandit", "ruff", "semgrep"} else None
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []), patch(
+        "scanner.cli.appguardrail._external_tool_available",
+        side_effect=fake_available,
+    ), patch(
+        "scanner.cli.appguardrail._run_bandit_scan", return_value=[]
+    ) as bandit, patch(
+        "scanner.cli.appguardrail._run_ruff_security_scan", return_value=[]
+    ) as ruff, patch(
+        "scanner.cli.appguardrail._run_semgrep_scan", return_value=[]
+    ) as semgrep:
+        assert cmd_scan(args) == 0
+
+    bandit.assert_called_once_with(tmp_path.resolve())
+    ruff.assert_called_once_with(tmp_path.resolve())
+    semgrep.assert_called_once_with(tmp_path.resolve(), "auto")
+
+
 def test_collect_files_includes_security_hidden_directories(tmp_path):
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
@@ -518,6 +643,217 @@ def test_run_trivy_fs_requires_trivy(tmp_path):
     with patch("scanner.cli.appguardrail.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="trivy executable not found"):
             _run_trivy_fs(tmp_path)
+
+
+def test_detect_scan_languages_maps_file_extensions(tmp_path):
+    files = []
+    for name in ["app.py", "Main.java", "server.js", "view.tsx", "index.html"]:
+        path = tmp_path / name
+        path.write_text("// sample\n")
+        files.append(path)
+
+    assert _detect_scan_languages(files) == {
+        "java",
+        "javascript",
+        "python",
+        "typescript",
+        "web",
+    }
+
+
+def test_bandit_findings_maps_json_report(tmp_path):
+    report = {
+        "results": [
+            {
+                "test_id": "B501",
+                "filename": str(tmp_path / "client.py"),
+                "line_number": 12,
+                "issue_severity": "HIGH",
+                "issue_text": "Requests call with verify=False",
+                "code": "requests.get(url, verify=False)",
+            }
+        ]
+    }
+
+    findings = _bandit_findings(report, tmp_path)
+
+    assert findings[0]["rule_id"] == "bandit:B501"
+    assert findings[0]["severity"] == "HIGH"
+    assert findings[0]["file"] == "client.py"
+    assert findings[0]["line"] == 12
+
+
+def test_run_bandit_scan_maps_json_findings(tmp_path):
+    report = {
+        "results": [
+            {
+                "test_id": "B201",
+                "filename": str(tmp_path / "app.py"),
+                "line_number": 5,
+                "issue_severity": "MEDIUM",
+                "issue_text": "Flask app run with debug=True",
+                "code": "app.run(debug=True)",
+            }
+        ]
+    }
+    process = type(
+        "Process", (), {"returncode": 1, "stdout": json.dumps(report), "stderr": ""}
+    )()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/bandit"
+    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+        findings = _run_bandit_scan(tmp_path)
+
+    assert run.call_args.args[0][:4] == ["/usr/bin/bandit", "-f", "json", "-q"]
+    assert "-r" in run.call_args.args[0]
+    assert findings[0]["rule_id"] == "bandit:B201"
+    assert findings[0]["severity"] == "WARNING"
+
+
+def test_ruff_findings_maps_json_diagnostics(tmp_path):
+    report = [
+        {
+            "code": "S501",
+            "filename": str(tmp_path / "client.py"),
+            "location": {"row": 9},
+            "message": "Probable use of requests call with verify=False",
+        }
+    ]
+
+    findings = _ruff_findings(report, tmp_path)
+
+    assert findings[0]["rule_id"] == "ruff:S501"
+    assert findings[0]["severity"] == "HIGH"
+    assert findings[0]["file"] == "client.py"
+    assert findings[0]["line"] == 9
+
+
+def test_run_ruff_security_scan_maps_json_findings(tmp_path):
+    report = [
+        {
+            "code": "S201",
+            "filename": str(tmp_path / "app.py"),
+            "location": {"row": 3},
+            "message": "flask app with debug=True",
+        }
+    ]
+    process = type(
+        "Process", (), {"returncode": 1, "stdout": json.dumps(report), "stderr": ""}
+    )()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/ruff"
+    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+        findings = _run_ruff_security_scan(tmp_path)
+
+    assert run.call_args.args[0][:4] == [
+        "/usr/bin/ruff",
+        "check",
+        "--select",
+        "S",
+    ]
+    assert findings[0]["rule_id"] == "ruff:S201"
+
+
+def test_semgrep_findings_maps_json_results(tmp_path):
+    report = {
+        "results": [
+            {
+                "check_id": "javascript.express.security.audit.xss.direct-response",
+                "path": str(tmp_path / "server.ts"),
+                "start": {"line": 7},
+                "extra": {
+                    "message": "Detected reflected response",
+                    "severity": "ERROR",
+                    "lines": "res.send(req.query.name)",
+                },
+            }
+        ]
+    }
+
+    findings = _semgrep_findings(report, tmp_path)
+
+    assert findings[0]["rule_id"].startswith("semgrep:javascript.express")
+    assert findings[0]["severity"] == "HIGH"
+    assert findings[0]["file"] == "server.ts"
+    assert findings[0]["line"] == 7
+
+
+def test_run_semgrep_scan_maps_json_findings(tmp_path):
+    report = {
+        "results": [
+            {
+                "check_id": "java.lang.security.audit.cookie-missing-secure",
+                "path": str(tmp_path / "App.java"),
+                "start": {"line": 11},
+                "extra": {
+                    "message": "Cookie missing Secure flag",
+                    "severity": "WARNING",
+                    "lines": "cookie.setSecure(false);",
+                },
+            }
+        ]
+    }
+    process = type(
+        "Process", (), {"returncode": 1, "stdout": json.dumps(report), "stderr": ""}
+    )()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/semgrep"
+    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+        findings = _run_semgrep_scan(tmp_path, "auto")
+
+    assert run.call_args.args[0][:5] == [
+        "/usr/bin/semgrep",
+        "scan",
+        "--config",
+        "auto",
+        "--json",
+    ]
+    assert findings[0]["rule_id"].startswith("semgrep:java.lang")
+    assert findings[0]["severity"] == "WARNING"
+
+
+def test_run_zap_baseline_maps_json_findings(tmp_path):
+    report = {
+        "site": [
+            {
+                "@name": "https://example.test",
+                "alerts": [
+                    {
+                        "pluginid": "10038",
+                        "riskdesc": "High (Medium)",
+                        "alert": "Content Security Policy Header Not Set",
+                        "instances": [
+                            {
+                                "uri": "https://example.test/",
+                                "evidence": "missing header",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    def fake_run(command, **kwargs):
+        Path(command[4]).write_text(json.dumps(report))
+        return type("Process", (), {"returncode": 1, "stdout": "", "stderr": ""})()
+
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/zap-baseline.py"
+    ), patch("scanner.cli.appguardrail.subprocess.run", side_effect=fake_run) as run:
+        findings = _run_zap_baseline("https://example.test")
+
+    assert run.call_args.args[0][:3] == [
+        "/usr/bin/zap-baseline.py",
+        "-t",
+        "https://example.test",
+    ]
+    assert findings[0]["rule_id"] == "zap:10038"
+    assert findings[0]["severity"] == "HIGH"
+    assert findings[0]["file"] == "https://example.test/"
 
 
 def test_run_codegraph_index_initializes_when_missing(tmp_path):

@@ -85,6 +85,13 @@ appguardrail scan .
 # Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
 appguardrail scan --trivy .
 
+# The scanner detects Python, Java, JavaScript, TypeScript, and web files
+# automatically. If supported external SAST tools are installed and runnable,
+# scan auto mode can include Bandit/Ruff/Semgrep without choosing a language profile.
+
+# Run OWASP ZAP baseline only when you have an authorized running URL
+APPGUARDRAIL_TARGET_URL=https://your-authorized-test-host.example appguardrail scan .
+
 # If CodeGraph is installed, prepare structural context for deeper review
 appguardrail scan --codegraph .
 ```
@@ -92,6 +99,7 @@ appguardrail scan --codegraph .
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
+- Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
