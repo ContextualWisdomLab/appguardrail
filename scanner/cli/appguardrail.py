@@ -965,18 +965,18 @@ def cmd_init(args):
 
     print("\n✅ AppGuardrail initialized successfully!\n")
     if installed:
-        print("Created/updated files:")
+        print("✨ Created/updated files:")
         for f in installed:
             print(f"  {f}")
         print()
 
     if skipped:
-        print("Skipped (already configured):")
+        print("⏭️  Skipped (already configured):")
         for f in skipped:
             print(f"  {f}")
         print()
 
-    print("Next steps:")
+    print("🚀 Next steps:")
     print("  1. Review the installed rules and customize for your project")
     print("  2. Run 'appguardrail scan .' to check for existing issues")
     print("  3. Check APPGUARDRAIL_CHECKLIST.md before deploying")
@@ -1725,7 +1725,9 @@ def _print_scan_results(findings, files_scanned):
     )
     if non_blocking:
         finding_word = "finding" if non_blocking == 1 else "findings"
-        print(f"Non-blocking {finding_word} in docs/tests/examples/fixtures: {non_blocking}")
+        print(
+            f"Non-blocking {finding_word} in docs/tests/examples/fixtures: {non_blocking}"
+        )
 
     if files_scanned == 0:
         print("\n⚠️  No files were scanned. Are you in the right directory?")

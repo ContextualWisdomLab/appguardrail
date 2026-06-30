@@ -6,20 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    SCAN_RULES,
-    _collect_files,
-    _load_packaged_regex_rules,
-    _path_allowed_by_rule,
-    _print_scan_results,
-    _run_codegraph_command,
-    _run_codegraph_index,
-    _run_trivy_fs,
-    _scan_file,
-    cmd_init,
-    cmd_monitor,
-    cmd_scan,
-)
+from scanner.cli.appguardrail import (SCAN_RULES, _collect_files,
+                                      _load_packaged_regex_rules,
+                                      _path_allowed_by_rule,
+                                      _print_scan_results,
+                                      _run_codegraph_command,
+                                      _run_codegraph_index, _run_trivy_fs,
+                                      _scan_file, cmd_init, cmd_monitor,
+                                      cmd_scan)
 
 MOCK_RULES = [
     {
@@ -65,8 +59,10 @@ class MonitorArgs:
 def _create_symlink(target, link, target_is_directory=False):
     try:
         link.symlink_to(target, target_is_directory=target_is_directory)
-    except (NotImplementedError, OSError) as exc: # pragma: no cover
-        pytest.skip(f"symlinks are not available in this environment: {exc}") # pragma: no cover
+    except (NotImplementedError, OSError) as exc:  # pragma: no cover
+        pytest.skip(
+            f"symlinks are not available in this environment: {exc}"
+        )  # pragma: no cover
 
 
 def test_scan_file_error_handling(tmp_path):
@@ -148,11 +144,11 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
             "ids": {"python-jwt-decode-without-algorithms"},
         },
         "data.py": {
-            "content": "cursor.execute(f\"SELECT * FROM users WHERE name = {name}\")\n",
+            "content": 'cursor.execute(f"SELECT * FROM users WHERE name = {name}")\n',
             "ids": {"python-dynamic-sql"},
         },
         "media.py": {
-            "content": "subprocess.run(f\"ffmpeg -i {source_path}\")\n",
+            "content": 'subprocess.run(f"ffmpeg -i {source_path}")\n',
             "ids": {"python-subprocess-string-command"},
         },
         "api.py": {
@@ -478,9 +474,10 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
         "Process", (), {"returncode": 0, "stdout": json.dumps(report), "stderr": ""}
     )()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"
-    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+    with (
+        patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"),
+        patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run,
+    ):
         findings = _run_trivy_fs(tmp_path)
 
     assert run.call_args.args[0][:2] == ["/usr/bin/trivy", "fs"]
@@ -503,10 +500,14 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
 def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
     scan_path = tmp_path / "literal;touch INJECTED"
     scan_path.mkdir()
-    process = type("Process", (), {"returncode": 0, "stdout": json.dumps({}), "stderr": ""})()
+    process = type(
+        "Process", (), {"returncode": 0, "stdout": json.dumps({}), "stderr": ""}
+    )()
 
-    with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"), \
-         patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+    with (
+        patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/trivy"),
+        patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run,
+    ):
         assert _run_trivy_fs(scan_path) == []
 
     command = run.call_args.args[0]
@@ -526,12 +527,15 @@ def test_run_codegraph_index_initializes_when_missing(tmp_path):
     )()
     init_process = type("Process", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
-    ), patch(
-        "scanner.cli.appguardrail.subprocess.run",
-        side_effect=[init_process, status_process],
-    ) as run:
+    with (
+        patch(
+            "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+        ),
+        patch(
+            "scanner.cli.appguardrail.subprocess.run",
+            side_effect=[init_process, status_process],
+        ) as run,
+    ):
         assert _run_codegraph_index(tmp_path) == "Index is up to date"
 
     assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "init", "-i"]
@@ -545,12 +549,15 @@ def test_run_codegraph_index_syncs_existing_index(tmp_path):
     )()
     sync_process = type("Process", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
-    ), patch(
-        "scanner.cli.appguardrail.subprocess.run",
-        side_effect=[sync_process, status_process],
-    ) as run:
+    with (
+        patch(
+            "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+        ),
+        patch(
+            "scanner.cli.appguardrail.subprocess.run",
+            side_effect=[sync_process, status_process],
+        ) as run,
+    ):
         assert _run_codegraph_index(tmp_path) == "Index is up to date"
 
     assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "sync"]
@@ -566,7 +573,9 @@ def test_run_codegraph_index_requires_codegraph(tmp_path):
 def test_run_codegraph_index_rejects_file_at_index_path(tmp_path):
     (tmp_path / ".codegraph").write_text("not a directory")
 
-    with patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"):
+    with patch(
+        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
+    ):
         with pytest.raises(RuntimeError, match="not a directory"):
             _run_codegraph_index(tmp_path)
 
@@ -688,7 +697,9 @@ def test_cmd_scan_does_not_block_embedded_scanner_rule_fixtures(tmp_path, capsys
     assert "🔴 0 critical issues" in out
 
 
-def test_cmd_scan_single_file_keeps_scanner_fixture_context(tmp_path, monkeypatch, capsys):
+def test_cmd_scan_single_file_keeps_scanner_fixture_context(
+    tmp_path, monkeypatch, capsys
+):
     monkeypatch.chdir(tmp_path)
     scanner_cli = tmp_path / "scanner" / "cli"
     scanner_cli.mkdir(parents=True)
@@ -878,7 +889,7 @@ def test_cmd_init_claude_code_skip(tmp_path, monkeypatch, capsys):
 
     assert claude_file.read_text() == "AppGuardrail existing rules\n"
     out = capsys.readouterr().out
-    assert "Skipped (already configured):" in out
+    assert "⏭️  Skipped (already configured):" in out
     assert "CLAUDE.md" in out
 
 
@@ -938,7 +949,10 @@ def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
     assert "Error: Unknown tool 'invalid-tool'" in captured.err
-    assert "Supported tools are auto, cursor, codex, copilot, claude-code, windsurf, lovable" in captured.err
+    assert (
+        "Supported tools are auto, cursor, codex, copilot, claude-code, windsurf, lovable"
+        in captured.err
+    )
 
 
 def test_cmd_init_supabase_stack(tmp_path, monkeypatch, capsys):
@@ -967,6 +981,7 @@ def test_sanitize_terminal_output():
     # Test non-strings
     assert _sanitize_terminal_output(None) is None
 
+
 def test_scan_file_insecure_deserialization(tmp_path):
     test_file = tmp_path / "unsafe.py"
     test_file.write_text(
@@ -981,7 +996,8 @@ def test_scan_file_insecure_deserialization(tmp_path):
     )
 
     findings = [
-        finding for finding in _scan_file(test_file, tmp_path)
+        finding
+        for finding in _scan_file(test_file, tmp_path)
         if finding["rule_id"] == "python-insecure-deserialization"
     ]
 
@@ -993,6 +1009,7 @@ def test_scan_file_insecure_deserialization(tmp_path):
     assert any("marshal.load" in finding["snippet"] for finding in findings)
     assert all("yaml.safe_load" not in finding["snippet"] for finding in findings)
 
+
 def test_cmd_init_checklist_skipped(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     checklist_file = tmp_path / "APPGUARDRAIL_CHECKLIST.md"
@@ -1002,5 +1019,20 @@ def test_cmd_init_checklist_skipped(tmp_path, monkeypatch, capsys):
 
     assert checklist_file.read_text() == "Existing checklist\n"
     out = capsys.readouterr().out
-    assert "Skipped (already configured):" in out
+    assert "⏭️  Skipped (already configured):" in out
     assert "APPGUARDRAIL_CHECKLIST.md" in out
+
+
+def test_cmd_init_prints_emoji_prefixes(tmp_path, monkeypatch, capsys):
+    from collections import namedtuple
+
+    from scanner.cli.appguardrail import cmd_init
+
+    Args = namedtuple("Args", ["tool", "stack"])
+
+    monkeypatch.chdir(tmp_path)
+    cmd_init(Args(tool="cursor", stack=None))
+
+    out = capsys.readouterr().out
+    assert "✨ Created/updated files:" in out
+    assert "🚀 Next steps:" in out
