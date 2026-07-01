@@ -142,19 +142,20 @@ def test_issue_body_contains_hidden_seen_marker_and_summary():
 
     assert "<!-- appguardrail-org-security-failure:" in body
     assert finding.seen_key in body
+    assert "Automated collection of security workflow failures across ContextualWisdomLab." in body
     assert "- Repository: `ContextualWisdomLab/naruon`" in body
     assert "VULN-0001 CRITICAL example" in body
 
 
 class FakeClient:
-    def __init__(self, issue):
-        self.issue = issue
+    def __init__(self, issues):
+        self.issues = issues
         self.calls = []
 
     def paginate(self, path, params=None):
         self.calls.append(("paginate", path, params))
         if path.endswith("/issues"):
-            return [self.issue]
+            return self.issues
         return []
 
     def request(self, method, path, data=None, params=None, accept="application/vnd.github+json"):
@@ -170,9 +171,16 @@ def test_publish_skips_duplicate_run_job(capsys):
         "title": collector.issue_title(finding.repo, finding.workflow),
         "body": collector.marker_payload(finding.repo, finding.workflow, {finding.seen_key}),
     }
-    client = FakeClient(issue)
+    client = FakeClient([issue])
 
-    collector.publish_finding(client, "ContextualWisdomLab/appguardrail", finding, dry_run=True)
+    collector.publish_finding(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        finding,
+        dry_run=True,
+        issues_by_title={issue["title"]: issue},
+        ensured_labels=set(),
+    )
 
     assert "skip duplicate" in capsys.readouterr().out
     assert all(call[0] != "request" for call in client.calls)
@@ -186,9 +194,16 @@ def test_publish_reopens_closed_issue_for_unseen_failure():
         "title": collector.issue_title(finding.repo, finding.workflow),
         "body": collector.marker_payload(finding.repo, finding.workflow, {"1:2"}),
     }
-    client = FakeClient(issue)
+    client = FakeClient([issue])
 
-    collector.publish_finding(client, "ContextualWisdomLab/appguardrail", finding, dry_run=False)
+    collector.publish_finding(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        finding,
+        dry_run=False,
+        issues_by_title={issue["title"]: issue},
+        ensured_labels=set(),
+    )
 
     issue_updates = [
         call
@@ -206,3 +221,32 @@ def test_publish_reopens_closed_issue_for_unseen_failure():
     assert issue_updates[0][3]["state"] == "open"
     assert finding.seen_key in issue_updates[0][3]["body"]
     assert comments
+
+
+def test_publish_findings_fetches_existing_issues_once_and_caches_labels(capsys):
+    first = make_finding(run_id=1, job_id=10)
+    second = make_finding(run_id=2, job_id=20)
+    client = FakeClient([])
+
+    collector.publish_findings(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        [first, second],
+        dry_run=True,
+    )
+
+    issue_fetches = [
+        call
+        for call in client.calls
+        if call == (
+            "paginate",
+            "/repos/ContextualWisdomLab/appguardrail/issues",
+            {"state": "all", "labels": collector.ISSUE_LABEL},
+        )
+    ]
+    output = capsys.readouterr().out
+
+    assert len(issue_fetches) == 1
+    assert output.count("DRY_RUN label ContextualWisdomLab/appguardrail") == 3
+    assert "DRY_RUN create issue" in output
+    assert "DRY_RUN update issue #dry-run" in output

@@ -313,10 +313,11 @@ def replace_marker(body: str | None, repo: str, workflow: str, seen: set[str]) -
 
 
 def issue_body(finding: Finding, seen: set[str]) -> str:
+    owner = finding.repo.split("/", 1)[0]
     return "\n\n".join(
         [
             marker_payload(finding.repo, finding.workflow, seen),
-            "Automated collection of security workflow failures across ContextualWisdomLab.",
+            f"Automated collection of security workflow failures across {owner}.",
             finding_summary(finding),
             "```text\n" + finding.snippet + "\n```",
         ]
@@ -443,9 +444,20 @@ def parse_run_url(url: str) -> tuple[str, int]:
     return match.group(1), int(match.group(2))
 
 
-def ensure_label(client: GitHubClient, target_repo: str, name: str, color: str, description: str, dry_run: bool) -> None:
+def ensure_label(
+    client: GitHubClient,
+    target_repo: str,
+    name: str,
+    color: str,
+    description: str,
+    dry_run: bool,
+    ensured_labels: set[str],
+) -> None:
+    if name in ensured_labels:
+        return
     if dry_run:
         print(f"DRY_RUN label {target_repo}: {name}")
+        ensured_labels.add(name)
         return
     try:
         client.request(
@@ -453,37 +465,61 @@ def ensure_label(client: GitHubClient, target_repo: str, name: str, color: str, 
             f"/repos/{target_repo}/labels",
             {"name": name, "color": color, "description": description},
         )
+        ensured_labels.add(name)
     except RuntimeError as exc:
         if "422" not in str(exc):
             raise
+        ensured_labels.add(name)
 
 
-def existing_issue(client: GitHubClient, target_repo: str, title: str) -> dict[str, Any] | None:
+def existing_issues_by_title(client: GitHubClient, target_repo: str) -> dict[str, dict[str, Any]]:
     issues = client.paginate(
         f"/repos/{target_repo}/issues",
         {"state": "all", "labels": ISSUE_LABEL},
     )
+    indexed = {}
     for issue in issues:
-        if issue.get("title") == title and "pull_request" not in issue:
-            return issue
-    return None
+        title = issue.get("title")
+        if title and "pull_request" not in issue:
+            indexed[title] = issue
+    return indexed
 
 
-def publish_finding(client: GitHubClient, target_repo: str, finding: Finding, dry_run: bool) -> None:
+def publish_finding(
+    client: GitHubClient,
+    target_repo: str,
+    finding: Finding,
+    dry_run: bool,
+    issues_by_title: dict[str, dict[str, Any]],
+    ensured_labels: set[str],
+) -> None:
     repo_name = finding.repo.split("/", 1)[1]
     labels = [ISSUE_LABEL, SECURITY_LABEL, f"repo:{sanitize_label_value(repo_name)}"]
-    for label in labels:
-        ensure_label(client, target_repo, label, "B60205", "Automated AppGuardrail security failure collection.", dry_run)
 
     title = issue_title(finding.repo, finding.workflow)
-    issue = existing_issue(client, target_repo, title)
+    issue = issues_by_title.get(title)
     if issue is None:
+        for label in labels:
+            ensure_label(
+                client,
+                target_repo,
+                label,
+                "B60205",
+                "Automated AppGuardrail security failure collection.",
+                dry_run,
+                ensured_labels,
+            )
         seen = {finding.seen_key}
         body = issue_body(finding, seen)
         if dry_run:
             print(f"DRY_RUN create issue: {title}\n{body}\n")
+            issues_by_title[title] = {"number": "dry-run", "state": "open", "title": title, "body": body}
             return
-        client.request("POST", f"/repos/{target_repo}/issues", {"title": title, "body": body, "labels": labels})
+        created = client.request("POST", f"/repos/{target_repo}/issues", {"title": title, "body": body, "labels": labels})
+        if isinstance(created, dict):
+            issues_by_title[title] = created
+        else:
+            issues_by_title[title] = {"state": "open", "title": title, "body": body}
         print(f"created issue for {finding.repo} {finding.workflow} {finding.seen_key}")
         return
 
@@ -495,17 +531,31 @@ def publish_finding(client: GitHubClient, target_repo: str, finding: Finding, dr
 
     seen.add(finding.seen_key)
     new_body = replace_marker(issue.get("body"), finding.repo, finding.workflow, seen)
+    reopen = should_reopen_issue(issue, finding)
     if dry_run:
-        print(f"DRY_RUN update issue #{issue['number']}: {title}")
+        action = "reopen/update" if reopen else "update"
+        print(f"DRY_RUN {action} issue #{issue['number']}: {title}")
         print(issue_comment(finding))
+        issue["body"] = new_body
+        if reopen:
+            issue["state"] = "open"
         return
 
-    if should_reopen_issue(issue, finding):
+    if reopen:
         client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", {"state": "open", "body": new_body})
+        issue["state"] = "open"
     else:
         client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", {"body": new_body})
+    issue["body"] = new_body
     client.request("POST", f"/repos/{target_repo}/issues/{issue['number']}/comments", {"body": issue_comment(finding)})
     print(f"updated issue #{issue['number']} for {finding.repo} {finding.workflow} {finding.seen_key}")
+
+
+def publish_findings(client: GitHubClient, target_repo: str, findings: list[Finding], dry_run: bool) -> None:
+    issues_by_title = existing_issues_by_title(client, target_repo) if findings else {}
+    ensured_labels: set[str] = set()
+    for finding in findings:
+        publish_finding(client, target_repo, finding, dry_run, issues_by_title, ensured_labels)
 
 
 def parse_bool(value: str | None) -> bool:
@@ -540,8 +590,7 @@ def main(argv: list[str] | None = None) -> int:
         run_url=args.run_url,
     )
     print(f"collected {len(findings)} security workflow failure job(s)")
-    for finding in findings:
-        publish_finding(client, args.target_repo, finding, args.dry_run)
+    publish_findings(client, args.target_repo, findings, args.dry_run)
     return 0
 
 
