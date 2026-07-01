@@ -82,7 +82,7 @@ def test_cmd_scan_path_not_exists(tmp_path, capsys):
         cmd_scan(ScanArgs(missing_path))
 
     assert excinfo.value.code == 1
-    assert "Error: Path does not exist:" in capsys.readouterr().err
+    assert "❌ Error: Path does not exist:" in capsys.readouterr().err
 
 
 def test_cmd_scan_skips_symlink_path(tmp_path, capsys):

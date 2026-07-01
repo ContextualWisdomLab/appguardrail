@@ -1339,7 +1339,7 @@ def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Error: Unknown tool 'invalid-tool'" in captured.err
+    assert "❌ Error: Unknown tool 'invalid-tool'" in captured.err
     assert (
         "Supported tools are auto, cursor, codex, copilot, claude-code, windsurf, lovable"
         in captured.err
