@@ -455,6 +455,32 @@ SCAN_RULES = [
         "extensions": [".py"],
     },
     {
+        "id": "tool-execute-parameters-passthrough",
+        "pattern": re.compile(
+            r"(?is)[\"'][^\"'\n]*(?:/api)?/tools/(?:\{[^}\"']+\}|:[A-Za-z_][\w-]*)/execute[^\"'\n]*[\"'](?:(?!\n\s*(?:class|def|function|export|interface)\b).){0,2000}\b(?:registry|tool|handler|executor)\s*\.\s*execute\s*\([^)]*\b(?:request|req|body|payload|params)\b[^)]*\bparameters\b",
+        ),
+        "severity": "CRITICAL",
+        "message": "Tool execution endpoint appears to pass request parameters directly into a registry or handler. Validate the tool code allowlist and parameter schema before dispatch. [OWASP A03:2021 - Injection]",
+        "extensions": [
+            ".py",
+            ".js",
+            ".jsx",
+            ".mjs",
+            ".cjs",
+            ".ts",
+            ".tsx",
+            ".mts",
+            ".cts",
+            ".java",
+            ".go",
+            ".rb",
+            ".php",
+            ".cs",
+            ".kt",
+            ".rs",
+        ],
+    },
+    {
         "id": "python-jwt-decode-without-algorithms",
         "pattern": re.compile(
             r"jwt\.decode\s*\((?:(?!algorithms\s*=).){0,400}\)",
