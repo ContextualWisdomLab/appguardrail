@@ -549,6 +549,29 @@ def test_cmd_scan_auto_external_uses_detected_language_axes(tmp_path, monkeypatc
     semgrep.assert_called_once_with(tmp_path.resolve(), "auto")
 
 
+def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
+    files = [tmp_path / "first.py", tmp_path / "second.py"]
+    for file_path in files:
+        file_path.write_text("print('safe')\n")
+    events = []
+
+    def fake_collect_files(_base_path):
+        for file_path in files:
+            events.append(f"yield:{file_path.name}")
+            yield file_path
+
+    def fake_scan_file(file_path, _base_path):
+        events.append(f"scan:{file_path.name}")
+        return []
+
+    with patch("scanner.cli.appguardrail._collect_files", side_effect=fake_collect_files), patch(
+        "scanner.cli.appguardrail._scan_file", side_effect=fake_scan_file
+    ):
+        assert cmd_scan(ScanArgs(tmp_path)) == 0
+
+    assert events[:2] == ["yield:first.py", "scan:first.py"]
+
+
 def test_collect_files_includes_security_hidden_directories(tmp_path):
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
