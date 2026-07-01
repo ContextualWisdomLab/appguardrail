@@ -168,6 +168,32 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
             "content": 'cursor.execute(f"SELECT * FROM users WHERE name = {name}")\n',
             "ids": {"python-dynamic-sql"},
         },
+        "tools.py": {
+            "content": (
+                "@router.post('/tools/{code}/execute')\n"
+                "async def execute_tool(code, request):\n"
+                "    return await registry.execute(code, request.parameters)\n"
+            ),
+            "ids": {"tool-execute-parameters-passthrough"},
+        },
+        "tools.ts": {
+            "content": (
+                "app.post('/api/tools/:code/execute', async (req, res) => {\n"
+                "  const result = await registry.execute(req.params.code, req.body.parameters);\n"
+                "  res.json(result);\n"
+                "});\n"
+            ),
+            "ids": {"tool-execute-parameters-passthrough"},
+        },
+        "tools.go": {
+            "content": (
+                'router.POST("/api/tools/{code}/execute", func(req Request) {\n'
+                "  result := registry.Execute(req.Code, req.Body.Parameters)\n"
+                "  _ = result\n"
+                "})\n"
+            ),
+            "ids": {"tool-execute-parameters-passthrough"},
+        },
         "media.py": {
             "content": 'subprocess.run(f"ffmpeg -i {source_path}")\n',
             "ids": {"python-subprocess-string-command"},

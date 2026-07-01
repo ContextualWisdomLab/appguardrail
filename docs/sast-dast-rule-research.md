@@ -76,6 +76,11 @@ files being scanned, then applies the union of relevant checks. Examples:
 - `java-jwt-none-algorithm`: JWT none algorithm marker.
 - `java-objectinputstream-deserialization`: direct Java native deserialization
   entry point, CWE-502.
+- `tool-execute-parameters-passthrough`: Strix-observed dynamic tool execution
+  endpoint pattern where request `parameters` are dispatched directly into a
+  registry/handler without a nearby schema boundary. This is language-agnostic
+  because the risky shape is the `/tools/{code}/execute` dispatch surface, not
+  one framework.
 
 ## Integration Paths
 
@@ -102,4 +107,5 @@ files being scanned, then applies the union of relevant checks. Examples:
 - Generic SSRF URL fetch from request input: useful, but too context-dependent
   without framework routing and allowlist analysis.
 - Generic SQL/XSS/command injection families already covered by existing
-  AppGuardrail rules or Trivy/CodeQL integration paths.
+  AppGuardrail rules or Trivy/CodeQL integration paths. Tool execution dispatch
+  is promoted only for the specific endpoint-plus-parameters pattern above.
