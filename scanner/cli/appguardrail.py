@@ -1224,16 +1224,19 @@ def cmd_scan(args):
     if scan_path.is_file():
         files_to_scan = [scan_path]
     else:
-        files_to_scan = list(_collect_files(scan_path))
+        files_to_scan = _collect_files(scan_path)
 
-    languages = _detect_scan_languages(files_to_scan)
-    if languages:
-        print(f"🧩 Detected language axes: {', '.join(sorted(languages))}\n")
-
+    languages = set()
     for file_path in files_to_scan:
+        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
+        if language:
+            languages.add(language)
         files_scanned += 1
         file_findings = _scan_file(file_path, scan_path)
         findings.extend(file_findings)
+
+    if languages:
+        print(f"🧩 Detected language axes: {', '.join(sorted(languages))}\n")
 
     auto_external = external_mode == "auto"
     auto_bandit = (
