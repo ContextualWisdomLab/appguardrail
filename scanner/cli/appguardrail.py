@@ -2237,6 +2237,12 @@ def _scan_file(file_path: Path, base_path: Path):
                 if not search_method(content):
                     continue
 
+                # ⚡ Bolt: Progressive line counting for O(N) instead of O(N*M)
+                # finditer yields matches in order, allowing us to scan for newlines
+                # incrementally from the last known position rather than starting from 0.
+                current_line = 1
+                current_pos = 0
+
                 for match in finditer(content):
                     if rel_path_str is None:
                         try:
@@ -2248,7 +2254,14 @@ def _scan_file(file_path: Path, base_path: Path):
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
-                    line_num = count_newlines("\n", 0, start_idx) + 1
+
+                    if start_idx >= current_pos:
+                        current_line += count_newlines("\n", current_pos, start_idx)
+                    else:
+                        # Fallback for unexpected out-of-order execution, though finditer is ordered
+                        current_line = count_newlines("\n", 0, start_idx) + 1
+                    current_pos = start_idx
+                    line_num = current_line
 
                     snippet_start = rfind_newline("\n", 0, start_idx) + 1
                     snippet_end = find_newline("\n", start_idx)
