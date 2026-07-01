@@ -1873,7 +1873,9 @@ def _run_bandit_scan(scan_path: Path):
 
     if process.returncode not in {0, 1}:
         detail = (process.stderr or process.stdout).strip().splitlines()
-        raise RuntimeError("Bandit scan failed" + (f": {detail[-1]}" if detail else "."))
+        raise RuntimeError(
+            "Bandit scan failed" + (f": {detail[-1]}" if detail else ".")
+        )
 
     try:
         report = json.loads(process.stdout or "{}")
@@ -1972,9 +1974,7 @@ def _semgrep_findings(report: dict, base_path: Path):
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
-        path = _sanitize_terminal_output(
-            _trivy_target(item.get("path", ""), base_path)
-        )
+        path = _sanitize_terminal_output(_trivy_target(item.get("path", ""), base_path))
         check_id = item.get("check_id") or "semgrep"
         findings.append(
             _build_finding(
@@ -2171,11 +2171,6 @@ def _scan_file(file_path: Path, base_path: Path):
     """Scan a single file and return a list of findings."""
     findings = []
 
-    # ⚡ Bolt: Hoist expensive relative_to base_path resolution outside of loops.
-    # Path.is_dir() and Path.resolve() invoke stat() system calls. Doing this inside
-    # the finding iteration loop for every match was causing massive I/O overhead.
-    resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()
-
     # ⚡ Bolt: Optimize stat calls by using os.lstat instead of Path objects
     # Impact: Combines symlink, file type, and size checks into a single stat call
     try:
@@ -2198,6 +2193,8 @@ def _scan_file(file_path: Path, base_path: Path):
     # ⚡ Bolt: Defer expensive Pathlib operations (like relative_to) and string
     # sanitization until a match is actually found. This avoids significant overhead
     # for the vast majority of files that have no vulnerabilities.
+    # We also defer `base_path.is_dir()` and `Path(".").resolve()` which invoke `stat()`.
+    resolved_base_path = None
     rel_path_str = None
     rel_path_for_filters = None
     build_finding = _build_finding
@@ -2223,6 +2220,12 @@ def _scan_file(file_path: Path, base_path: Path):
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
                         try:
+                            if resolved_base_path is None:
+                                resolved_base_path = (
+                                    base_path
+                                    if base_path.is_dir()
+                                    else Path(".").resolve()
+                                )
                             rel_path = file_path.relative_to(resolved_base_path)
                         except ValueError:
                             rel_path = (
@@ -2246,6 +2249,12 @@ def _scan_file(file_path: Path, base_path: Path):
                 for match in finditer(content):
                     if rel_path_str is None:
                         try:
+                            if resolved_base_path is None:
+                                resolved_base_path = (
+                                    base_path
+                                    if base_path.is_dir()
+                                    else Path(".").resolve()
+                                )
                             rel_path = file_path.relative_to(resolved_base_path)
                         except ValueError:
                             rel_path = (

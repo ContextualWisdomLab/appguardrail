@@ -43,3 +43,6 @@
 ## 2026-07-01 - O(N*M) Line Counting Optimization
 **Learning:** In `scanner/cli/appguardrail.py`, the `_scan_file` loop calculates line numbers by calling `count_newlines("\n", 0, start_idx)` for *every* regex match. In files with many matches, this repeatedly scans the string from the beginning, resulting in O(N*M) performance (where N is file length and M is matches). This is a massive bottleneck.
 **Action:** Since `re.finditer` yields matches strictly in order, always calculate line numbers progressively using a tracking variable `current_line` and `current_pos`. Update `current_line += count_newlines("\n", current_pos, start_idx)`. This makes the line calculation strictly O(N), bringing up to a 15x speedup for files with many hits.
+## 2026-07-02 - Deferring base_path.is_dir() and Path(".").resolve()
+**Learning:** Evaluating `base_path.is_dir()` and `Path(".").resolve()` invokes expensive synchronous `stat()` system calls. Pre-calculating these at the beginning of a hot path (like file scanning) incurs pure overhead for all files, especially since the vast majority of files don't have vulnerabilities and don't need this value.
+**Action:** Always initialize these variables to `None` and only evaluate `base_path.is_dir()` and `Path(".").resolve()` lazily right before they are actually needed (e.g. constructing match findings) to avoid unnecessary I/O.
