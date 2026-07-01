@@ -121,7 +121,7 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
 
         assert cmd_scan(TrivyArgs(tmp_path)) == 1
         err = capsys.readouterr().err
-        assert "Error: Mock trivy failure" in err
+        assert "❌ Error: Mock trivy failure" in err
         assert "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy." in err
 
 
@@ -142,7 +142,7 @@ def test_cmd_scan_codegraph_error_handled(tmp_path, monkeypatch, capsys):
 
         assert cmd_scan(CodeGraphArgs(tmp_path)) == 1
         err = capsys.readouterr().err
-        assert "Error: Mock CodeGraph failure" in err
+        assert "❌ Error: Mock CodeGraph failure" in err
         assert "Install the CodeGraph CLI or run without --codegraph." in err
 
 
