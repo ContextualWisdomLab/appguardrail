@@ -32,3 +32,11 @@
 ## 2024-06-24 - File I/O and Constant Allocation Performance
 **Learning:** For file I/O in performance-critical Python paths, using the built-in `open(file_path)` is marginally faster than `Path.open()` because it avoids pathlib's method resolution overhead. Additionally, to reduce memory allocations in frequently called Python functions, move constant mappings and dictionaries to the module level rather than instantiating them within the function body.
 **Action:** Extract constant dictionaries and mappings to module-level variables (`_TRIVY_SEVERITY_MAP`, `_SEVERITY_ORDER`) to prevent runtime instantiation overhead. Replace `Path.open()` with `open(path)` in hot paths like `_scan_file`.
+
+## 2024-06-30 - Optimize regex match enumeration in tight loops
+**Learning:** Using `finditer` to check for regex matches in a file requires allocating match object iterators and string manipulations, even when a file has no matches. For 99% of files, there are no vulnerabilities, making these allocations pure overhead.
+**Action:** Always extract and cache the `search` method alongside `finditer` for pre-compiled regex objects in hot paths, and use `if not search(content): continue` to short-circuit expensive loops without paying iterator allocation penalties.
+
+## 2024-06-30 - Hoisting redundant pathlib stat checks
+**Learning:** Inside tight loops like rule match processing, repeatedly invoking `base_path.is_dir()` and `Path(".").resolve()` is extremely expensive because they trigger synchronous `stat()` system calls on the disk.
+**Action:** Always hoist constant path resolutions (like determining the base directory) outside of loops and hot paths. Store the resolved reference once and reuse it to avoid recursive I/O overhead.

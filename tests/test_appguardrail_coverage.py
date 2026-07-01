@@ -453,3 +453,18 @@ def test_scan_file_open_permission_error():
 
         findings = _scan_file(file_path, base_path)
         assert findings == []
+
+from scanner.cli.appguardrail import cmd_monitor, _path_matches_glob, _parse_inline_list
+
+def test_cmd_monitor(capsys, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    class MonitorArgs:
+        pass
+    assert cmd_monitor(MonitorArgs()) == 0
+
+def test_path_matches_glob():
+    assert _path_matches_glob("./a/b/c.py", "a/b/c.py")
+    assert _path_matches_glob("a/b/c.py", "./a/b/c.py")
+
+def test_parse_inline_list():
+    assert _parse_inline_list("[]") == []
