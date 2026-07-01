@@ -4,7 +4,7 @@ appguardrail - Security guardrails for AI-built apps
 
 Usage:
   appguardrail init [--tool <tool>] [--stack <stack>]
-  appguardrail scan [--trivy] [--codegraph] [<path>]
+  appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--codegraph] [<path>]
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
   appguardrail hook [--codegraph]
@@ -24,6 +24,11 @@ Options:
   --db      Database/backend: supabase, firebase, prisma, drizzle
   --payments  Payment provider: stripe
   --trivy  Also run Trivy filesystem scan
+  --external  Auto-discover installed SAST/DAST engines for detected languages (default: auto)
+  --bandit  Force-run Bandit Python SAST
+  --ruff  Force-run Ruff Bandit-compatible security rules
+  --semgrep  Force-run Semgrep multi-language SAST
+  --zap-baseline  Run OWASP ZAP baseline scan against a URL
   --codegraph  Initialize or sync a CodeGraph index before scanning
   --help    Show this help message
   --version Show version
@@ -40,6 +45,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 __version__ = "0.1.1"
@@ -572,6 +578,140 @@ SCAN_RULES = [
         "extensions": [".py"],
     },
     {
+        "id": "python-requests-verify-false",
+        "pattern": re.compile(
+            r"(?is)\b(?:requests|httpx)\.(?:request|get|post|put|patch|delete)\s*\((?:(?!\n\s*\)).){0,500}verify\s*=\s*False"
+        ),
+        "severity": "HIGH",
+        "message": "HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-tempfile-mktemp",
+        "pattern": re.compile(r"\btempfile\.mktemp\s*\(", re.MULTILINE),
+        "severity": "HIGH",
+        "message": "tempfile.mktemp creates predictable names without opening the file atomically. Use NamedTemporaryFile or mkstemp. [CWE-377 - Insecure Temporary File]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-flask-debug-true",
+        "pattern": re.compile(
+            r"(?is)\bapp\.run\s*\((?:(?!\n\s*\)).){0,300}debug\s*=\s*True|\bDEBUG\s*=\s*True"
+        ),
+        "severity": "HIGH",
+        "message": "Debug mode is enabled in application code. Disable active debug code before deployment. [CWE-489 - Active Debug Code]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-jinja-autoescape-disabled",
+        "pattern": re.compile(
+            r"(?is)\b(?:jinja2\.)?Environment\s*\((?:(?!\n\s*\)).){0,500}autoescape\s*=\s*False"
+        ),
+        "severity": "HIGH",
+        "message": "Jinja2 autoescaping is disabled. Keep autoescape enabled for HTML templates to reduce XSS risk. [CWE-79 - Cross-site Scripting]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-django-csrf-exempt",
+        "pattern": re.compile(r"@csrf_exempt\b", re.MULTILINE),
+        "severity": "HIGH",
+        "message": "Django CSRF protection is explicitly disabled on a view. Require CSRF protection or document a safe non-browser authentication boundary. [CWE-352 - Cross-Site Request Forgery]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "node-tls-validation-disabled",
+        "pattern": re.compile(
+            r"(?i)(?:NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*[\"']0[\"']|rejectUnauthorized\s*:\s*false)"
+        ),
+        "severity": "HIGH",
+        "message": "Node.js TLS certificate validation is disabled. Keep certificate validation enabled in production paths. [CWE-295 - Improper Certificate Validation]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "node-jwt-none-algorithm",
+        "pattern": re.compile(
+            r"(?is)\bjwt\.(?:verify|sign)\s*\((?:(?!\n\s*\)).){0,700}(?:algorithms?\s*:\s*\[[^\]]*[\"']none[\"']|algorithm\s*:\s*[\"']none[\"'])"
+        ),
+        "severity": "CRITICAL",
+        "message": "JWT verification or signing allows the none algorithm. Pin expected algorithms and reject unsigned tokens. [CWE-347 - Improper Verification of Cryptographic Signature]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "node-cors-wildcard-with-credentials",
+        "pattern": re.compile(
+            r"(?is)\bcors\s*\(\s*\{(?:(?!\}\s*\)).){0,500}origin\s*:\s*[\"']\*[\"'](?:(?!\}\s*\)).){0,500}credentials\s*:\s*true"
+        ),
+        "severity": "HIGH",
+        "message": "CORS allows every origin while credentials are enabled. Use an explicit allowlist for credentialed requests. [CWE-942 - Permissive Cross-domain Policy]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "node-helmet-csp-disabled",
+        "pattern": re.compile(
+            r"(?is)\bhelmet\s*\(\s*\{(?:(?!\}\s*\)).){0,500}contentSecurityPolicy\s*:\s*false"
+        ),
+        "severity": "HIGH",
+        "message": "Helmet Content-Security-Policy is disabled. Keep CSP enabled or configure a strict policy. [CWE-693 - Protection Mechanism Failure]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "node-clickjacking-protection-disabled",
+        "pattern": re.compile(
+            r"(?is)(?:\bhelmet\s*\(\s*\{(?:(?!\}\s*\)).){0,500}(?:frameguard|xFrameOptions)\s*:\s*false|X-Frame-Options[\"']?\s*,\s*[\"']ALLOWALL[\"'])"
+        ),
+        "severity": "HIGH",
+        "message": "Clickjacking protection is disabled. Use deny/sameorigin frame controls unless embedding is explicitly required. [CWE-1021 - Improper Restriction of Rendered UI Layers]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "express-reflected-input-send",
+        "pattern": re.compile(
+            r"(?is)\bres\.(?:send|write|end)\s*\((?:(?!sanitize|escape|encode).){0,300}\breq\.(?:query|params|body)\b"
+        ),
+        "severity": "HIGH",
+        "message": "Express response sends request-controlled input without a nearby escaping marker. Encode output or render through a safe template context. [CWE-79 - Cross-site Scripting]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "java-spring-csrf-disabled",
+        "pattern": re.compile(
+            r"(?is)\.csrf\s*\(\s*\)\s*\.disable\s*\(|\.csrf\s*\(\s*\w+\s*->\s*\w+\.disable\s*\(\s*\)\s*\)|\.csrf\s*\(\s*AbstractHttpConfigurer\s*::\s*disable\s*\)"
+        ),
+        "severity": "HIGH",
+        "message": "Spring CSRF protection is disabled. Keep CSRF enabled for browser-reachable state-changing routes or document a non-browser-only boundary. [CWE-352 - Cross-Site Request Forgery]",
+        "extensions": [".java"],
+    },
+    {
+        "id": "java-hostname-verifier-allow-all",
+        "pattern": re.compile(
+            r"(?is)(?:setHostnameVerifier\s*\([^)]*->\s*true|HostnameVerifier\b(?:(?!\n\s*\n).){0,800}\breturn\s+true\s*;)"
+        ),
+        "severity": "HIGH",
+        "message": "Hostname verification accepts every host. Keep TLS hostname verification enabled to prevent machine-in-the-middle attacks. [CWE-295 - Improper Certificate Validation]",
+        "extensions": [".java"],
+    },
+    {
+        "id": "java-cookie-secure-false",
+        "pattern": re.compile(r"\.setSecure\s*\(\s*false\s*\)", re.MULTILINE),
+        "severity": "HIGH",
+        "message": "Cookie Secure flag is explicitly disabled. Session and auth cookies should be restricted to HTTPS transport. [CWE-614 - Sensitive Cookie in HTTPS Session Without Secure Attribute]",
+        "extensions": [".java"],
+    },
+    {
+        "id": "java-jwt-none-algorithm",
+        "pattern": re.compile(r"\bAlgorithm\.none\s*\(", re.MULTILINE),
+        "severity": "CRITICAL",
+        "message": "JWT code uses the none algorithm. Require a signed algorithm and validate issuer, audience, expiry, and key id. [CWE-347 - Improper Verification of Cryptographic Signature]",
+        "extensions": [".java"],
+    },
+    {
+        "id": "java-objectinputstream-deserialization",
+        "pattern": re.compile(r"new\s+ObjectInputStream\s*\(", re.MULTILINE),
+        "severity": "HIGH",
+        "message": "ObjectInputStream deserialization detected. Do not deserialize untrusted data without strict type allowlists and integrity controls. [CWE-502 - Deserialization of Untrusted Data]",
+        "extensions": [".java"],
+    },
+    {
         "id": "hardcoded-password",
         "pattern": re.compile(
             r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
@@ -585,7 +725,15 @@ SCAN_RULES = [
 LANGUAGE_EXTENSIONS = {
     "javascript": [".js", ".jsx", ".mjs", ".cjs"],
     "typescript": [".ts", ".tsx", ".mts", ".cts"],
+    "java": [".java"],
     "python": [".py"],
+    "web": [".html", ".htm"],
+}
+
+LANGUAGE_BY_EXTENSION = {
+    extension: language
+    for language, extensions in LANGUAGE_EXTENSIONS.items()
+    for extension in extensions
 }
 
 
@@ -992,11 +1140,53 @@ def _print_supabase_reminder():
     print()
 
 
+def _detect_scan_languages(files):
+    """Return language axes found in a scan target without requiring a profile."""
+    languages = set()
+    for file_path in files:
+        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
+        if language:
+            languages.add(language)
+    return languages
+
+
+def _external_tool_available(name: str, version_args=("--version",)):
+    """Return a runnable external tool path, or None for missing/broken tools."""
+    executable = shutil.which(name)
+    if not executable:
+        return None
+    try:
+        process = subprocess.run(
+            [executable, *version_args],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if process.returncode != 0:
+        return None
+    return executable
+
+
 def cmd_scan(args):
     """Run a lightweight security scan."""
     scan_arg = Path(getattr(args, "path", ".") or ".")
     scan_path = scan_arg.resolve()
     run_trivy = getattr(args, "trivy", False)
+    external_mode = getattr(args, "external", "off")
+    force_bandit = getattr(args, "bandit", False)
+    force_ruff = getattr(args, "ruff", False)
+    force_semgrep = getattr(args, "semgrep", False)
+    semgrep_config = getattr(args, "semgrep_config", None) or os.environ.get(
+        "APPGUARDRAIL_SEMGREP_CONFIG", "auto"
+    )
+    zap_baseline_url = getattr(args, "zap_baseline", None) or os.environ.get(
+        "APPGUARDRAIL_TARGET_URL"
+    )
+    force_zap = bool(getattr(args, "zap_baseline", None))
     run_codegraph = getattr(args, "codegraph", False)
 
     if not scan_arg.exists():
@@ -1036,10 +1226,37 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    languages = set()
     for file_path in files_to_scan:
+        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
+        if language:
+            languages.add(language)
         files_scanned += 1
         file_findings = _scan_file(file_path, scan_path)
         findings.extend(file_findings)
+
+    if languages:
+        print(f"🧩 Detected language axes: {', '.join(sorted(languages))}\n")
+
+    auto_external = external_mode == "auto"
+    auto_bandit = (
+        auto_external and "python" in languages and _external_tool_available("bandit")
+    )
+    auto_ruff = (
+        auto_external and "python" in languages and _external_tool_available("ruff")
+    )
+    auto_semgrep = (
+        auto_external
+        and bool(languages & {"java", "javascript", "python", "typescript", "web"})
+        and _external_tool_available("semgrep")
+    )
+    auto_zap = bool(zap_baseline_url) and (
+        auto_external and _external_tool_available("zap-baseline.py", ("-h",))
+    )
+    run_bandit = force_bandit or auto_bandit
+    run_ruff = force_ruff or auto_ruff
+    run_semgrep = force_semgrep or auto_semgrep
+    run_zap = bool(zap_baseline_url) and (force_zap or auto_zap)
 
     if run_trivy:
         print("🔎 Trivy FS enabled: vuln, secret, misconfig\n")
@@ -1052,6 +1269,66 @@ def cmd_scan(args):
                 file=sys.stderr,
             )
             return 1
+
+    if run_bandit:
+        print("🐍 Bandit enabled: Python SAST\n")
+        try:
+            findings.extend(_run_bandit_scan(scan_path))
+        except RuntimeError as exc:
+            if auto_bandit and not force_bandit:
+                print(f"⚠️  Skipping Bandit auto integration: {exc}\n")
+            else:
+                print(f"❌ Error: {exc}", file=sys.stderr)
+                print(
+                    "💡 Hint: Install Bandit or run without --bandit.",
+                    file=sys.stderr,
+                )
+                return 1
+
+    if run_ruff:
+        print("🐍 Ruff security rules enabled: select S\n")
+        try:
+            findings.extend(_run_ruff_security_scan(scan_path))
+        except RuntimeError as exc:
+            if auto_ruff and not force_ruff:
+                print(f"⚠️  Skipping Ruff auto integration: {exc}\n")
+            else:
+                print(f"❌ Error: {exc}", file=sys.stderr)
+                print(
+                    "💡 Hint: Install Ruff or run without --ruff.",
+                    file=sys.stderr,
+                )
+                return 1
+
+    if run_semgrep:
+        print(f"🔎 Semgrep enabled: config {semgrep_config}\n")
+        try:
+            findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
+        except RuntimeError as exc:
+            if auto_semgrep and not force_semgrep:
+                print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
+            else:
+                print(f"❌ Error: {exc}", file=sys.stderr)
+                print(
+                    "💡 Hint: Install Semgrep correctly or run with --external off.",
+                    file=sys.stderr,
+                )
+                return 1
+
+    if run_zap:
+        print(f"🌐 OWASP ZAP baseline enabled: {zap_baseline_url}\n")
+        try:
+            findings.extend(_run_zap_baseline(zap_baseline_url))
+        except RuntimeError as exc:
+            if auto_zap and not force_zap:
+                print(f"⚠️  Skipping ZAP auto integration: {exc}\n")
+            else:
+                print(f"❌ Error: {exc}", file=sys.stderr)
+                print(
+                    "💡 Hint: Install zap-baseline.py or run without --zap-baseline.",
+                    file=sys.stderr,
+                )
+                return 1
 
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
@@ -1481,26 +1758,30 @@ def _run_trivy_fs(scan_path: Path):
             "trivy executable not found. Install Trivy or run without --trivy."
         )
 
-    process = subprocess.run(
-        [
-            trivy,
-            "fs",
-            "--quiet",
-            "--format",
-            "json",
-            "--scanners",
-            "vuln,secret,misconfig",
-            "--exit-code",
-            "0",
-            "--no-progress",
-            "--skip-version-check",
-            str(scan_path),
-        ],
-        shell=False,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        process = subprocess.run(
+            [
+                trivy,
+                "fs",
+                "--quiet",
+                "--format",
+                "json",
+                "--scanners",
+                "vuln,secret,misconfig",
+                "--exit-code",
+                "0",
+                "--no-progress",
+                "--skip-version-check",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Trivy scan timed out.") from exc
     if process.returncode != 0:
         detail = (process.stderr or process.stdout).strip().splitlines()
         raise RuntimeError("Trivy scan failed" + (f": {detail[-1]}" if detail else "."))
@@ -1511,6 +1792,291 @@ def _run_trivy_fs(scan_path: Path):
         raise RuntimeError(f"Trivy returned invalid JSON: {exc}") from exc
 
     return _trivy_findings(report, scan_path)
+
+
+def _bandit_severity(severity: str) -> str:
+    """Translate Bandit severity values into AppGuardrail severities."""
+    return _TRIVY_SEVERITY_MAP.get((severity or "LOW").upper(), "INFO")
+
+
+def _bandit_findings(report: dict, base_path: Path):
+    """Convert a Bandit JSON report into AppGuardrail finding dictionaries."""
+    findings = []
+    for result in report.get("results") or []:
+        test_id = result.get("test_id") or "bandit"
+        filename = _sanitize_terminal_output(
+            _trivy_target(result.get("filename", ""), base_path)
+        )
+        findings.append(
+            _build_finding(
+                "bandit",
+                f"bandit:{test_id}",
+                _bandit_severity(result.get("issue_severity")),
+                result.get("issue_text") or result.get("test_name") or test_id,
+                filename,
+                result.get("line_number") or 1,
+                result.get("code") or "",
+            )
+        )
+    return findings
+
+
+def _run_bandit_scan(scan_path: Path):
+    """Run Bandit Python SAST and return normalized findings."""
+    bandit = shutil.which("bandit")
+    if not bandit:
+        raise RuntimeError("bandit executable not found.")
+
+    command = [bandit, "-f", "json", "-q"]
+    if scan_path.is_dir():
+        command.extend(["-r", str(scan_path)])
+    else:
+        command.append(str(scan_path))
+
+    try:
+        process = subprocess.run(
+            command,
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Bandit scan timed out.") from exc
+
+    if process.returncode not in {0, 1}:
+        detail = (process.stderr or process.stdout).strip().splitlines()
+        raise RuntimeError("Bandit scan failed" + (f": {detail[-1]}" if detail else "."))
+
+    try:
+        report = json.loads(process.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Bandit returned invalid JSON: {exc}") from exc
+
+    return _bandit_findings(report, scan_path)
+
+
+def _ruff_severity(code: str) -> str:
+    """Translate Ruff security rule codes into AppGuardrail severities."""
+    code = code or ""
+    return "WARNING" if code in {"S101", "S104"} else "HIGH"
+
+
+def _ruff_findings(report: list, base_path: Path):
+    """Convert Ruff JSON diagnostics into AppGuardrail finding dictionaries."""
+    findings = []
+    for item in report or []:
+        code = item.get("code") or "ruff"
+        location = item.get("location") or {}
+        filename = _sanitize_terminal_output(
+            _trivy_target(item.get("filename", ""), base_path)
+        )
+        findings.append(
+            _build_finding(
+                "ruff",
+                f"ruff:{code}",
+                _ruff_severity(code),
+                item.get("message") or code,
+                filename,
+                location.get("row") or 1,
+                item.get("message") or code,
+            )
+        )
+    return findings
+
+
+def _run_ruff_security_scan(scan_path: Path):
+    """Run Ruff's Bandit-compatible security rules and return findings."""
+    ruff = shutil.which("ruff")
+    if not ruff:
+        raise RuntimeError("ruff executable not found.")
+
+    try:
+        process = subprocess.run(
+            [
+                ruff,
+                "check",
+                "--select",
+                "S",
+                "--output-format",
+                "json",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Ruff security scan timed out.") from exc
+
+    if process.returncode not in {0, 1}:
+        detail = (process.stderr or process.stdout).strip().splitlines()
+        raise RuntimeError(
+            "Ruff security scan failed" + (f": {detail[-1]}" if detail else ".")
+        )
+
+    try:
+        report = json.loads(process.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Ruff returned invalid JSON: {exc}") from exc
+
+    return _ruff_findings(report, scan_path)
+
+
+_SEMGREP_SEVERITY_MAP = {
+    "ERROR": "HIGH",
+    "WARNING": "WARNING",
+    "INFO": "INFO",
+    "INVENTORY": "INFO",
+    "EXPERIMENT": "INFO",
+}
+
+
+def _semgrep_severity(severity: str) -> str:
+    """Translate Semgrep severity values into AppGuardrail severities."""
+    return _SEMGREP_SEVERITY_MAP.get((severity or "INFO").upper(), "INFO")
+
+
+def _semgrep_findings(report: dict, base_path: Path):
+    """Convert Semgrep JSON results into AppGuardrail finding dictionaries."""
+    findings = []
+    for item in report.get("results") or []:
+        extra = item.get("extra") or {}
+        start = item.get("start") or {}
+        path = _sanitize_terminal_output(
+            _trivy_target(item.get("path", ""), base_path)
+        )
+        check_id = item.get("check_id") or "semgrep"
+        findings.append(
+            _build_finding(
+                "semgrep",
+                f"semgrep:{check_id}",
+                _semgrep_severity(extra.get("severity")),
+                extra.get("message") or check_id,
+                path,
+                start.get("line") or 1,
+                extra.get("lines") or extra.get("message") or check_id,
+            )
+        )
+    return findings
+
+
+def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
+    """Run Semgrep multi-language SAST and return normalized findings."""
+    semgrep = shutil.which("semgrep")
+    if not semgrep:
+        raise RuntimeError("semgrep executable not found.")
+
+    config = config or "auto"
+    try:
+        process = subprocess.run(
+            [
+                semgrep,
+                "scan",
+                "--config",
+                config,
+                "--json",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Semgrep scan timed out.") from exc
+
+    if process.returncode not in {0, 1}:
+        detail = (process.stderr or process.stdout).strip().splitlines()
+        raise RuntimeError(
+            "Semgrep scan failed" + (f": {detail[-1]}" if detail else ".")
+        )
+
+    try:
+        report = json.loads(process.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Semgrep returned invalid JSON: {exc}") from exc
+
+    return _semgrep_findings(report, scan_path)
+
+
+_ZAP_SEVERITY_MAP = {
+    "HIGH": "HIGH",
+    "MEDIUM": "WARNING",
+    "LOW": "INFO",
+    "INFORMATIONAL": "INFO",
+}
+
+
+def _zap_severity(risk: str) -> str:
+    """Translate ZAP risk text into AppGuardrail severities."""
+    risk_text = (risk or "INFO").split()[0].upper()
+    return _ZAP_SEVERITY_MAP.get(risk_text, "INFO")
+
+
+def _zap_findings(report: dict):
+    """Convert an OWASP ZAP JSON report into AppGuardrail findings."""
+    findings = []
+    for site in report.get("site") or []:
+        for alert in site.get("alerts") or []:
+            instances = alert.get("instances") or [{}]
+            for instance in instances:
+                uri = instance.get("uri") or site.get("@name") or "zap-baseline"
+                findings.append(
+                    _build_finding(
+                        "zap",
+                        f"zap:{alert.get('pluginid', 'alert')}",
+                        _zap_severity(alert.get("riskdesc") or alert.get("risk")),
+                        alert.get("alert") or alert.get("name") or "ZAP alert",
+                        _sanitize_terminal_output(uri),
+                        1,
+                        instance.get("evidence") or alert.get("desc") or "",
+                        category="misconfig",
+                    )
+                )
+    return findings
+
+
+def _run_zap_baseline(target_url: str):
+    """Run OWASP ZAP baseline scan against an explicit URL."""
+    if not target_url or not re.match(r"^https?://", target_url):
+        raise RuntimeError("--zap-baseline requires an http(s) URL.")
+    zap = shutil.which("zap-baseline.py")
+    if not zap:
+        raise RuntimeError("zap-baseline.py executable not found.")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        report_path = Path(tmpdir) / "zap-baseline.json"
+        try:
+            process = subprocess.run(
+                [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=900,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("ZAP baseline scan timed out.") from exc
+
+        if process.returncode not in {0, 1, 2}:
+            detail = (process.stderr or process.stdout).strip().splitlines()
+            raise RuntimeError(
+                "ZAP baseline scan failed" + (f": {detail[-1]}" if detail else ".")
+            )
+
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8") or "{}")
+        except OSError as exc:
+            raise RuntimeError("ZAP baseline did not produce a JSON report.") from exc
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"ZAP baseline returned invalid JSON: {exc}") from exc
+
+    return _zap_findings(report)
 
 
 def _run_codegraph_command(command, cwd: Path, action: str):
@@ -1532,13 +2098,17 @@ def _run_codegraph_command(command, cwd: Path, action: str):
     if executable != "codegraph" or tuple(command[1:]) not in allowed_args:
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
-    process = subprocess.run(
-        command,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        process = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"CodeGraph {action} timed out.") from exc
     if process.returncode != 0:
         detail = (process.stderr or process.stdout).strip().splitlines()
         suffix = f": {detail[-1]}" if detail else "."
@@ -1835,6 +2405,37 @@ def main():
         "--trivy",
         action="store_true",
         help="Also run Trivy filesystem scan for dependency, secret, and misconfiguration findings",
+    )
+    scan_parser.add_argument(
+        "--external",
+        choices=["auto", "off"],
+        default="auto",
+        help="Auto-discover runnable SAST/DAST engines for detected languages (default: auto)",
+    )
+    scan_parser.add_argument(
+        "--bandit",
+        action="store_true",
+        help="Force-run Bandit Python SAST",
+    )
+    scan_parser.add_argument(
+        "--ruff",
+        action="store_true",
+        help="Force-run Ruff Bandit-compatible security rules",
+    )
+    scan_parser.add_argument(
+        "--semgrep",
+        action="store_true",
+        help="Force-run Semgrep multi-language SAST",
+    )
+    scan_parser.add_argument(
+        "--semgrep-config",
+        default=None,
+        help="Semgrep config to use when Semgrep runs (default: auto)",
+    )
+    scan_parser.add_argument(
+        "--zap-baseline",
+        default=None,
+        help="Run OWASP ZAP baseline scan against this http(s) URL",
     )
     scan_parser.add_argument(
         "--codegraph",
