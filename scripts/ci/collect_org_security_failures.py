@@ -12,6 +12,26 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+class SecureRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urllib.parse.urlparse(newurl)
+        if parsed.scheme not in ("http", "https"):
+            raise urllib.error.URLError(f"Invalid redirect scheme: {parsed.scheme}")
+        if parsed.hostname in (
+            "localhost",
+            "127.0.0.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "::1",
+        ):
+            raise urllib.error.URLError(
+                f"Access to internal address blocked: {parsed.hostname}"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 from typing import Any
 
 API = "https://api.github.com"
@@ -145,10 +165,22 @@ class GitHub:
             if not (300 <= exc.code < 400 and location):
                 detail = exc.read().decode("utf-8", errors="replace")
                 return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
-        if not location.lower().startswith(("http://", "https://")):
-            return f"Could not fetch job log: Invalid or dangerous URL scheme in location: {location}"
+        parsed = urllib.parse.urlparse(location)
+        if parsed.scheme not in ("http", "https"):
+            redacted = f"{parsed.scheme}://{parsed.hostname}{parsed.path}"
+            return f"Could not fetch job log: Invalid or dangerous URL scheme in location: {redacted}"
+        if parsed.hostname in (
+            "localhost",
+            "127.0.0.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "::1",
+        ):
+            redacted = f"{parsed.scheme}://{parsed.hostname}{parsed.path}"
+            return f"Could not fetch job log: Access to internal address blocked: {redacted}"
         try:
-            with urllib.request.urlopen(
+            opener = urllib.request.build_opener(SecureRedirectHandler)
+            with opener.open(
                 urllib.request.Request(location, headers={"User-Agent": UA}), timeout=30
             ) as res:
                 return res.read().decode("utf-8", errors="replace")
