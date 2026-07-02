@@ -324,6 +324,11 @@ First implementation slice:
   Node.js/TypeScript.
 - Prints a beginner-facing profile summary and optional external engine plan
   from `appguardrail scan .` while preserving existing CLI behavior.
+- Added `appguardrail_core.external` as the external SAST/DAST planning
+  boundary for Bandit, Ruff, Semgrep, Trivy, and ZAP.
+- Auto mode now produces a tested run/skip plan from detected languages and
+  tool availability; missing optional engines are explained without failing the
+  beginner's first scan, while explicitly forced engines still fail loudly.
 
 Acceptance:
 

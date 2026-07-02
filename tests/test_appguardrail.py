@@ -589,6 +589,25 @@ def test_cmd_scan_prints_beginner_profile_without_user_flags(tmp_path, capsys):
     assert "Optional external engines: bandit, ruff, semgrep, trivy" in out
 
 
+def test_cmd_scan_auto_external_explains_missing_optional_engines(tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\n")
+
+    args = ScanArgs(tmp_path)
+    args.external = "auto"
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []), patch(
+        "scanner.cli.appguardrail._external_tool_available", return_value=None
+    ):
+        assert cmd_scan(args) == 0
+
+    out = capsys.readouterr().out
+    assert "External auto mode:" in out
+    assert "Skipped Bandit: executable not found or not runnable" in out
+    assert "Skipped Ruff security rules: executable not found or not runnable" in out
+    assert "Skipped Semgrep: executable not found or not runnable" in out
+
+
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
     files = [tmp_path / "first.py", tmp_path / "second.py"]
     for file_path in files:

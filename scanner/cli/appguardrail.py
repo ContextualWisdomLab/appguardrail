@@ -48,6 +48,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.language import (
     LANGUAGE_BY_EXTENSION,
     LANGUAGE_EXTENSIONS,
@@ -1185,6 +1186,21 @@ def _external_tool_available(name: str, version_args=("--version",)):
     return executable
 
 
+def _print_external_auto_skips(plan):
+    """Print beginner-safe auto-mode skips without failing the scan."""
+    skipped = [
+        decision
+        for decision in plan.decisions
+        if decision.skip_reason and not decision.forced
+    ]
+    if not skipped:
+        return
+    print("⚙️  External auto mode:")
+    for decision in skipped:
+        print(f"   Skipped {decision.display_name}: {decision.skip_reason}")
+    print()
+
+
 def cmd_scan(args):
     """Run a lightweight security scan."""
     scan_arg = Path(getattr(args, "path", ".") or ".")
@@ -1261,27 +1277,20 @@ def cmd_scan(args):
             print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
         print()
 
-    auto_external = external_mode == "auto"
-    auto_bandit = (
-        auto_external and "python" in languages and _external_tool_available("bandit")
+    external_plan = build_external_scan_plan(
+        languages,
+        external_mode=external_mode,
+        force_trivy=run_trivy,
+        force_bandit=force_bandit,
+        force_ruff=force_ruff,
+        force_semgrep=force_semgrep,
+        zap_baseline_url=zap_baseline_url,
+        force_zap=force_zap,
+        tool_available=_external_tool_available,
     )
-    auto_ruff = (
-        auto_external and "python" in languages and _external_tool_available("ruff")
-    )
-    auto_semgrep = (
-        auto_external
-        and bool(languages & {"java", "javascript", "python", "typescript", "web"})
-        and _external_tool_available("semgrep")
-    )
-    auto_zap = bool(zap_baseline_url) and (
-        auto_external and _external_tool_available("zap-baseline.py", ("-h",))
-    )
-    run_bandit = force_bandit or auto_bandit
-    run_ruff = force_ruff or auto_ruff
-    run_semgrep = force_semgrep or auto_semgrep
-    run_zap = bool(zap_baseline_url) and (force_zap or auto_zap)
+    _print_external_auto_skips(external_plan)
 
-    if run_trivy:
+    if external_plan.trivy.should_run:
         print("🔎 Trivy FS enabled: vuln, secret, misconfig\n")
         try:
             findings.extend(_run_trivy_fs(scan_path))
@@ -1293,62 +1302,65 @@ def cmd_scan(args):
             )
             return 1
 
-    if run_bandit:
+    if external_plan.bandit.should_run:
         print("🐍 Bandit enabled: Python SAST\n")
         try:
             findings.extend(_run_bandit_scan(scan_path))
         except RuntimeError as exc:
-            if auto_bandit and not force_bandit:
+            if external_plan.bandit.auto_selected and not external_plan.bandit.forced:
                 print(f"⚠️  Skipping Bandit auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install Bandit or run without --bandit.",
+                    f"💡 Hint: {external_plan.bandit.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
-    if run_ruff:
+    if external_plan.ruff.should_run:
         print("🐍 Ruff security rules enabled: select S\n")
         try:
             findings.extend(_run_ruff_security_scan(scan_path))
         except RuntimeError as exc:
-            if auto_ruff and not force_ruff:
+            if external_plan.ruff.auto_selected and not external_plan.ruff.forced:
                 print(f"⚠️  Skipping Ruff auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install Ruff or run without --ruff.",
+                    f"💡 Hint: {external_plan.ruff.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
-    if run_semgrep:
+    if external_plan.semgrep.should_run:
         print(f"🔎 Semgrep enabled: config {semgrep_config}\n")
         try:
             findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
         except RuntimeError as exc:
-            if auto_semgrep and not force_semgrep:
+            if (
+                external_plan.semgrep.auto_selected
+                and not external_plan.semgrep.forced
+            ):
                 print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install Semgrep correctly or run with --external off.",
+                    f"💡 Hint: {external_plan.semgrep.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
-    if run_zap:
+    if external_plan.zap.should_run:
         print(f"🌐 OWASP ZAP baseline enabled: {zap_baseline_url}\n")
         try:
             findings.extend(_run_zap_baseline(zap_baseline_url))
         except RuntimeError as exc:
-            if auto_zap and not force_zap:
+            if external_plan.zap.auto_selected and not external_plan.zap.forced:
                 print(f"⚠️  Skipping ZAP auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install zap-baseline.py or run without --zap-baseline.",
+                    f"💡 Hint: {external_plan.zap.hint}",
                     file=sys.stderr,
                 )
                 return 1
