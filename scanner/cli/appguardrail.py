@@ -1695,7 +1695,6 @@ def _get_applicable_rules(ext: str):
                 rule["severity"],
                 rule["message"],
                 rule["pattern"].finditer,
-                rule["pattern"].search,
                 tuple(rule.get("include_paths") or ()),
                 tuple(rule.get("exclude_paths") or ()),
             )
@@ -2086,7 +2085,9 @@ def _run_bandit_scan(scan_path: Path):
 
     if process.returncode not in {0, 1}:
         detail = (process.stderr or process.stdout).strip().splitlines()
-        raise RuntimeError("Bandit scan failed" + (f": {detail[-1]}" if detail else "."))
+        raise RuntimeError(
+            "Bandit scan failed" + (f": {detail[-1]}" if detail else ".")
+        )
 
     try:
         report = json.loads(process.stdout or "{}")
@@ -2185,9 +2186,11 @@ def _semgrep_findings(report: dict, base_path: Path):
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
+        # fmt: off
         path = _sanitize_terminal_output(
             _trivy_target(item.get("path", ""), base_path)
         )
+        # fmt: on
         check_id = item.get("check_id") or "semgrep"
         findings.append(
             _build_finding(
@@ -2429,7 +2432,6 @@ def _scan_file(file_path: Path, base_path: Path):
                 severity,
                 message,
                 finditer,
-                search_method,
                 include_paths,
                 exclude_paths,
             ) in applicable_rules:
@@ -2446,10 +2448,6 @@ def _scan_file(file_path: Path, base_path: Path):
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
                         continue
-                # ⚡ Bolt: Fast path rejection using pre-bound search method
-                if not search_method(content):
-                    continue
-
                 # ⚡ Bolt: Progressive line counting for O(N) instead of O(N*M)
                 # finditer yields matches in order, allowing us to scan for newlines
                 # incrementally from the last known position rather than starting from 0.
