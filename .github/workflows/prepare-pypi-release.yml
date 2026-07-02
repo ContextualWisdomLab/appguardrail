@@ -152,9 +152,67 @@ jobs:
       - name: Validate package build
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check --no-cache-dir -r requirements-release.txt
+          python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-release.txt
+          python -m pip_audit --local --vulnerability-service osv --progress-spinner off
           python -m build
           python -m twine check dist/*
+
+      - name: Generate release SBOM and provenance
+        run: |
+          set -euo pipefail
+          cyclonedx-py environment "$(python -c 'import sys; print(sys.executable)')" --output-reproducible --output-format JSON --output-file release-sbom.cdx.json
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          import sys
+          from pathlib import Path
+
+          def file_record(path: Path) -> dict[str, object]:
+              return {
+                  "path": str(path),
+                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                  "bytes": path.stat().st_size,
+              }
+
+          dist = [file_record(path) for path in sorted(Path("dist").glob("*")) if path.is_file()]
+          if not dist:
+              raise SystemExit("no package distributions were built")
+
+          payload = {
+              "schema": "https://contextualwisdomlab.github.io/appguardrail/release-provenance/v1",
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "workflow": os.environ.get("GITHUB_WORKFLOW"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+              "ref": os.environ.get("GITHUB_REF"),
+              "sha": os.environ.get("GITHUB_SHA"),
+              "actor": os.environ.get("GITHUB_ACTOR"),
+              "python": {
+                  "executable": sys.executable,
+                  "version": sys.version,
+                  "platform": platform.platform(),
+              },
+              "release_requirements": file_record(Path("requirements-release.txt")),
+              "dist": dist,
+          }
+          Path("release-provenance.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload release supply-chain evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-supply-chain-evidence
+          path: |
+            release-sbom.cdx.json
+            release-provenance.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Clean local release artifacts
+        run: |
+          rm -rf build dist *.egg-info release-sbom.cdx.json release-provenance.json
 
       - name: Commit and push release branch
         run: |
