@@ -51,6 +51,10 @@ import tempfile
 from pathlib import Path
 
 from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.findings import (
+    NON_BLOCKING_CONTEXTS,
+    is_deploy_blocking as core_is_deploy_blocking,
+)
 from appguardrail_core.language import (
     LANGUAGE_BY_EXTENSION,
     LANGUAGE_EXTENSIONS,
@@ -960,9 +964,6 @@ SKIP_EXTENSIONS = {
     ".log",
 }
 
-NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
-DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
-
 # ---------------------------------------------------------------------------
 # Review prompt templates
 # ---------------------------------------------------------------------------
@@ -1764,10 +1765,7 @@ def _build_finding(
 
 def _is_deploy_blocking(finding: dict) -> bool:
     """Return whether a finding should fail the deploy gate."""
-    return (
-        finding.get("severity") in DEPLOY_BLOCKING_SEVERITIES
-        and finding.get("context", "app-code") not in NON_BLOCKING_CONTEXTS
-    )
+    return core_is_deploy_blocking(finding)
 
 
 _TRIVY_SEVERITY_MAP = {

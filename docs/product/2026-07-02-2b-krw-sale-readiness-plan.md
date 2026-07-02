@@ -305,6 +305,15 @@ Acceptance:
 - CLI output remains compatible for current users.
 - No Git submodule is introduced.
 
+First implementation slices:
+
+- Added `appguardrail_core.issueops` for redaction, log compression, issue
+  markers, title/body/comment formatting, and duplicate suppression.
+- Added `appguardrail_core.findings` for normalized finding defaults, severity
+  counts, deploy-blocking policy, report-safe snippets, and stable sorting.
+- Kept scanner compatibility wrappers where tests or current CLI behavior import
+  private helpers directly, while moving shared policy into core.
+
 ### WS2: Language Profile Matrix
 
 Deliverables:

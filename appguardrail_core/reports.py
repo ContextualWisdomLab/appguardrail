@@ -6,9 +6,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
 
-SEVERITIES = ("CRITICAL", "HIGH", "WARNING", "INFO")
-DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
-NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
+from appguardrail_core.findings import (
+    SEVERITIES,
+    finding_sort_key,
+    is_deploy_blocking,
+    normalize_finding,
+    severity_counts,
+)
 
 
 @dataclass(frozen=True)
@@ -29,10 +33,10 @@ def render_buyer_diligence_report(
 ) -> str:
     """Render a buyer-diligence markdown report from normalized findings."""
     context = context or ReportContext()
-    normalized = [_normalize_finding(finding) for finding in findings]
-    normalized.sort(key=_finding_sort_key)
-    counts = _severity_counts(normalized)
-    blockers = [finding for finding in normalized if _is_deploy_blocking(finding)]
+    normalized = [normalize_finding(finding) for finding in findings]
+    normalized.sort(key=finding_sort_key)
+    counts = severity_counts(normalized)
+    blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
 
     generated_at = context.generated_at or datetime.now(UTC).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
@@ -93,45 +97,6 @@ def render_buyer_diligence_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _normalize_finding(finding: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(finding)
-    normalized["severity"] = str(normalized.get("severity") or "INFO").upper()
-    normalized["rule_id"] = str(normalized.get("rule_id") or "unknown-rule")
-    normalized["message"] = str(normalized.get("message") or "No message provided.")
-    normalized["file"] = str(normalized.get("file") or "n/a")
-    normalized["line"] = normalized.get("line") or 1
-    normalized["category"] = str(normalized.get("category") or "misconfig")
-    normalized["context"] = str(normalized.get("context") or "app-code")
-    normalized["references"] = tuple(normalized.get("references") or ())
-    normalized["owasp"] = tuple(normalized.get("owasp") or ())
-    normalized["cwe"] = tuple(normalized.get("cwe") or ())
-    normalized["remediation"] = str(
-        normalized.get("remediation")
-        or normalized.get("fix_prompt")
-        or "Review and remediate this finding, then rerun AppGuardrail."
-    )
-    normalized["verification"] = str(
-        normalized.get("verification") or "Rerun AppGuardrail after remediation."
-    )
-    normalized["snippet"] = _safe_report_snippet(str(normalized.get("snippet") or ""))
-    return normalized
-
-
-def _severity_counts(findings: list[dict[str, Any]]) -> dict[str, int]:
-    counts = {severity: 0 for severity in SEVERITIES}
-    for finding in findings:
-        severity = finding["severity"]
-        counts[severity if severity in counts else "INFO"] += 1
-    return counts
-
-
-def _is_deploy_blocking(finding: dict[str, Any]) -> bool:
-    return (
-        finding["severity"] in DEPLOY_BLOCKING_SEVERITIES
-        and finding["context"] not in NON_BLOCKING_CONTEXTS
-    )
-
-
 def _launch_posture(blockers: list[dict[str, Any]]) -> str:
     if any(finding["severity"] == "CRITICAL" for finding in blockers):
         return "Hold pending critical remediation"
@@ -184,24 +149,8 @@ def _finding_detail(index: int, finding: dict[str, Any]) -> list[str]:
     ]
 
 
-def _finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
-    severity_order = {severity: index for index, severity in enumerate(SEVERITIES)}
-    return (
-        severity_order.get(finding["severity"], len(SEVERITIES)),
-        finding["category"],
-        finding["rule_id"],
-    )
-
-
 def _short_title(message: str, max_len: int = 84) -> str:
     title = message.split(".", 1)[0].strip() or "Security finding"
     if len(title) <= max_len:
         return title
     return title[: max_len - 3].rstrip() + "..."
-
-
-def _safe_report_snippet(snippet: str, max_len: int = 400) -> str:
-    snippet = snippet.replace("\r\n", "\n").replace("\r", "\n").strip()
-    if len(snippet) <= max_len:
-        return snippet
-    return snippet[:max_len].rstrip() + "\n...[truncated]"
