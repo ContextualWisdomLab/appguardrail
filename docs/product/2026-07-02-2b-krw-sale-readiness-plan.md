@@ -390,6 +390,18 @@ Deliverables:
 - Founder/agency/fix-pack exports backed by normalized findings.
 - Release, license, dependency, and privacy notes.
 
+First implementation slice:
+
+- Added `appguardrail_core.reports` with
+  `render_buyer_diligence_report(findings, context)`.
+- Generates an executive readout, scope/evidence handling section, findings
+  summary, detailed findings, and buyer follow-up checklist from normalized
+  findings.
+- Uses deploy-blocking context, public taxonomy metadata, remediation, and
+  verification fields without including raw secrets or full logs.
+- Added `reports/templates/buyer-diligence.md` to document the generated report
+  structure expected by the Product Design report-builder surface.
+
 Acceptance:
 
 - A pilot buyer can see what was scanned, what was found, what was fixed, what
