@@ -1,0 +1,59 @@
+name: Org Security Failure Collector
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print planned issue writes without creating/updating issues
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      lookback_hours:
+        description: Completed workflow run lookback window
+        required: false
+        default: "48"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: org-security-failure-collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_hours || '48' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Create org installation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.ORG_SECURITY_FAILURE_APP_ID }}
+          private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-actions: read
+          permission-checks: read
+          permission-issues: write
+
+      - name: Collect security workflow failures
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/collect_org_security_failures.py \
+            --owner "$GITHUB_REPOSITORY_OWNER" \
+            --target-repo "$GITHUB_REPOSITORY" \
+            --lookback-hours "$LOOKBACK_HOURS"
