@@ -50,6 +50,9 @@ appguardrail --help
 Maintainers can prepare PyPI releases with GitHub Actions Bot and OpenCode
 Agent. See [Release Automation](docs/release-automation.md).
 
+For the productization roadmap, see the
+[2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
+
 ### Initialize security rules in your project
 
 ```bash
