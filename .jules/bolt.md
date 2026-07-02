@@ -44,6 +44,6 @@
 **Learning:** In `scanner/cli/appguardrail.py`, the `_scan_file` loop calculates line numbers by calling `count_newlines("\n", 0, start_idx)` for *every* regex match. In files with many matches, this repeatedly scans the string from the beginning, resulting in O(N*M) performance (where N is file length and M is matches). This is a massive bottleneck.
 **Action:** Since `re.finditer` yields matches strictly in order, always calculate line numbers progressively using a tracking variable `current_line` and `current_pos`. Update `current_line += count_newlines("\n", current_pos, start_idx)`. This makes the line calculation strictly O(N), bringing up to a 15x speedup for files with many hits.
 
-## 2024-07-02 - Remove `re.search` fast-path pre-check
+## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
 **Action:** Do not use `re.search` before `re.finditer` for optimization purposes.

@@ -1973,7 +1973,11 @@ def _semgrep_findings(report: dict, base_path: Path):
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
-        path = _sanitize_terminal_output(_trivy_target(item.get("path", ""), base_path))
+        # fmt: off
+        path = _sanitize_terminal_output(
+            _trivy_target(item.get("path", ""), base_path)
+        )
+        # fmt: on
         check_id = item.get("check_id") or "semgrep"
         findings.append(
             _build_finding(
