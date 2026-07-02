@@ -33,22 +33,37 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_hours || '48' }}
+      ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID }}
+      ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Check GitHub App collector configuration
+        id: app-config
+        run: |
+          set -euo pipefail
+          if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping org security failure collection because ORG_SECURITY_FAILURE_APP_ID or ORG_SECURITY_FAILURE_APP_PRIVATE_KEY is not configured."
+          fi
+
       - name: Create org installation token
+        if: steps.app-config.outputs.configured == 'true'
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.ORG_SECURITY_FAILURE_APP_ID }}
-          private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
+          private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           permission-actions: read
           permission-checks: read
           permission-issues: write
 
       - name: Collect security workflow failures
+        if: steps.app-config.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
