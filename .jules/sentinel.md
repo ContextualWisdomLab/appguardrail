@@ -56,3 +56,7 @@
 **Vulnerability:** The CLI file scanner `vibesec scan` lacked detection rules for insecure deserialization, such as `pickle.load` or `yaml.load` in Python, which could lead to arbitrary code execution.
 **Learning:** Adding regular expressions that detect known dangerous serialization libraries prevents severe security vulnerabilities when parsing untrusted data.
 **Prevention:** A new scanner rule `python-insecure-deserialization` was added to `SCAN_RULES` to flag `pickle.load(s)`, `yaml.load`, and `marshal.load(s)`.
+## 2025-02-28 - 🛡️ Sentinel: [CRITICAL] Fix SSRF in job log fetching
+**Vulnerability:** Unsanitized URL passed to urllib.request.urlopen in GitHub.job_log enabled arbitrary file reads or SSRF.
+**Learning:** Following redirect URLs or API-returned URLs blindly is a common SSRF vector.
+**Prevention:** Always validate URL schemes (e.g., http, https) before invoking network fetching functions.
