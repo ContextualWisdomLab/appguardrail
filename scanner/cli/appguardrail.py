@@ -1384,10 +1384,10 @@ def cmd_monitor(args):
     workflow_file.write_text(MONITOR_WORKFLOW)
 
     print("\n✅ AppGuardrail monitor workflow installed!\n")
-    print(f"Created/updated: {workflow_file.relative_to(project_root)}")
+    print(f"✨ Created/updated: {workflow_file.relative_to(project_root)}")
     print()
     print(
-        "This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
+        "🚀 This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
     )
     return 0
 
@@ -1460,10 +1460,10 @@ echo "✅ AppGuardrail scan passed."
     )
     hook_scan_command = f"appguardrail scan{scan_flags} ."
     print(
-        f"This will run '{hook_scan_command}' before every commit and block commits if vulnerabilities are found."
+        f"🚀 This will run '{hook_scan_command}' before every commit and block commits if vulnerabilities are found."
     )
     if run_codegraph:
-        print("CodeGraph mode is enabled for this hook.")
+        print("🧭 CodeGraph mode is enabled for this hook.")
     return 0
 
 
@@ -1873,7 +1873,9 @@ def _run_bandit_scan(scan_path: Path):
 
     if process.returncode not in {0, 1}:
         detail = (process.stderr or process.stdout).strip().splitlines()
-        raise RuntimeError("Bandit scan failed" + (f": {detail[-1]}" if detail else "."))
+        raise RuntimeError(
+            "Bandit scan failed" + (f": {detail[-1]}" if detail else ".")
+        )
 
     try:
         report = json.loads(process.stdout or "{}")
@@ -1972,9 +1974,7 @@ def _semgrep_findings(report: dict, base_path: Path):
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
-        path = _sanitize_terminal_output(
-            _trivy_target(item.get("path", ""), base_path)
-        )
+        path = _sanitize_terminal_output(_trivy_target(item.get("path", ""), base_path))
         check_id = item.get("check_id") or "semgrep"
         findings.append(
             _build_finding(
