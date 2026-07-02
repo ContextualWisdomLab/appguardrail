@@ -34,11 +34,35 @@ UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
+BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
+
+
+class SecureRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_log_download_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _redacted_url(parsed: urllib.parse.ParseResult) -> str:
+    return f"{parsed.scheme}://{parsed.hostname or ''}{parsed.path}"
+
+
+def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise urllib.error.URLError(
+            f"Invalid or dangerous URL scheme in location: {_redacted_url(parsed)}"
+        )
+    if parsed.hostname in BLOCKED_LOG_HOSTS:
+        raise urllib.error.URLError(
+            f"Access to internal address blocked: {_redacted_url(parsed)}"
+        )
+    return parsed
 
 
 class GitHub:
@@ -113,14 +137,18 @@ class GitHub:
                 detail = exc.read().decode("utf-8", errors="replace")
                 return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
         try:
+            _validate_log_download_url(location)
             download_req = urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
                 location, headers={"User-Agent": UA}
             )
-            with urllib.request.urlopen(download_req, timeout=30) as res:  # noqa: S310 - GitHub log redirect URL
+            opener = urllib.request.build_opener(SecureRedirectHandler)
+            with opener.open(download_req, timeout=30) as res:
                 return res.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             return f"Could not fetch job log: GitHub download failed: {exc.code} {detail}"
+        except urllib.error.URLError as exc:
+            return f"Could not fetch job log: {exc.reason}"
 
 
 def utc_now() -> dt.datetime:

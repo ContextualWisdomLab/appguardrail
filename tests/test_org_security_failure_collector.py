@@ -55,6 +55,54 @@ class FakeClient:
         return {"number": 99, "state": "open", "title": data.get("title", ""), "body": data.get("body", "")}
 
 
+class FakeRedirectResponse:
+    def __init__(self, location):
+        self.location = location
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def geturl(self):
+        return self.location
+
+
+class FakeRedirectOpener:
+    def __init__(self, location):
+        self.location = location
+
+    def open(self, request, timeout):
+        return FakeRedirectResponse(self.location)
+
+
+def test_job_log_rejects_dangerous_redirect_scheme(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener("file:///etc/passwd"),
+    )
+
+    assert "Invalid or dangerous URL scheme" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
+
+
+def test_job_log_rejects_internal_redirect_host(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener("http://169.254.169.254/latest/meta-data"),
+    )
+
+    assert "Access to internal address blocked" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
+
+
 def test_publish_skips_duplicate_and_reopens_closed_issue():
     item = finding()
     issue = {
