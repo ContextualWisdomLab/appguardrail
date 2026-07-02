@@ -1,6 +1,7 @@
 from appguardrail_core.org_intelligence import (
     build_org_inventory,
     classify_pr_gate,
+    gate_action_bucket,
     render_org_readiness_report,
     summarize_pr_gates,
 )
@@ -62,6 +63,10 @@ def test_classify_pr_gate_separates_source_work_from_external_waiting():
     assert classify_pr_gate(conflict) == "source-conflict"
     assert classify_pr_gate(changes) == "source-review"
     assert classify_pr_gate(failed) == "ci-failure"
+    assert gate_action_bucket("source-conflict") == "source-work"
+    assert gate_action_bucket("source-review") == "source-work"
+    assert gate_action_bucket("ci-failure") == "ci-failure"
+    assert gate_action_bucket("external-queued") == "external-wait"
 
 
 def test_summarize_pr_gates_and_render_report_include_recommendations():
@@ -90,6 +95,16 @@ def test_summarize_pr_gates_and_render_report_include_recommendations():
             "reviewDecision": "REVIEW_REQUIRED",
             "statusCheckRollup": [{"status": "QUEUED"}],
         },
+        {
+            "repository": {"nameWithOwner": "ContextualWisdomLab/naruon"},
+            "number": 265,
+            "title": "Security process failed",
+            "isDraft": False,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED",
+            "reviewDecision": "",
+            "statusCheckRollup": [{"conclusion": "FAILURE"}],
+        },
     ]
 
     inventory = build_org_inventory(repos, active_repository_target=2)
@@ -100,8 +115,23 @@ def test_summarize_pr_gates_and_render_report_include_recommendations():
         generated_at="2026-07-03T00:00:00Z",
     )
 
-    assert summary.total_pull_requests == 2
-    assert dict(summary.gate_counts) == {"external-queued": 1, "source-conflict": 1}
+    assert summary.total_pull_requests == 3
+    assert dict(summary.gate_counts) == {
+        "ci-failure": 1,
+        "external-queued": 1,
+        "source-conflict": 1,
+    }
+    assert dict(summary.action_bucket_counts) == {
+        "ci-failure": 1,
+        "external-wait": 1,
+        "source-work": 1,
+    }
+    assert summary.top_repositories[0].repository == "ContextualWisdomLab/appguardrail"
+    assert summary.top_repositories[0].source_work == 1
     assert "Unsupported non-fork primary languages: C++." in report
+    assert "## First Actions" in report
+    assert "Fix source conflicts and change-requested PRs first" in report
+    assert "Route CI failures through AppGuardrail IssueOps" in report
+    assert "| ContextualWisdomLab/appguardrail | 2 | 1 | 0 | 1 | 0 | 0 |" in report
     assert "Queued checks or review waiting are tracked as external gates" in report
     assert "Source conflicts and change-requested PRs need separate product work" in report

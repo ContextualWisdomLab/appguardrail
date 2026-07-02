@@ -42,6 +42,17 @@ WAITING_CHECK_STATES = {
     "waiting",
 }
 
+GATE_BUCKETS = {
+    "ci-failure": "ci-failure",
+    "draft": "needs-triage",
+    "external-queued": "external-wait",
+    "merge-ready": "merge-ready",
+    "needs-triage": "needs-triage",
+    "review-required": "external-wait",
+    "source-conflict": "source-work",
+    "source-review": "source-work",
+}
+
 
 @dataclass(frozen=True)
 class OrgInventory:
@@ -60,12 +71,28 @@ class OrgInventory:
 
 
 @dataclass(frozen=True)
+class RepositoryGateSummary:
+    """One repository's PR gates, normalized into buyer-readable buckets."""
+
+    repository: str
+    total: int
+    source_work: int
+    ci_failures: int
+    external_wait: int
+    merge_ready: int
+    needs_triage: int
+    gate_counts: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True)
 class PullRequestGateSummary:
     """PR gate summary that separates source work from external waiting."""
 
     total_pull_requests: int
     gate_counts: tuple[tuple[str, int], ...]
+    action_bucket_counts: tuple[tuple[str, int], ...]
     repository_counts: tuple[tuple[str, int], ...]
+    top_repositories: tuple[RepositoryGateSummary, ...]
 
 
 def build_org_inventory(
@@ -106,15 +133,23 @@ def build_org_inventory(
     )
 
 
-def summarize_pr_gates(prs: Iterable[Mapping[str, Any]]) -> PullRequestGateSummary:
+def summarize_pr_gates(
+    prs: Iterable[Mapping[str, Any]],
+    *,
+    top_repository_limit: int = 10,
+) -> PullRequestGateSummary:
     """Summarize open PR gates by actionable source work versus external wait."""
     pr_list = list(prs)
-    gate_counts = Counter(classify_pr_gate(pr) for pr in pr_list)
+    classified = [(pr, classify_pr_gate(pr)) for pr in pr_list]
+    gate_counts = Counter(gate for _, gate in classified)
+    action_counts = Counter(gate_action_bucket(gate) for _, gate in classified)
     repository_counts = Counter(_pr_repository(pr) for pr in pr_list)
     return PullRequestGateSummary(
         total_pull_requests=len(pr_list),
         gate_counts=_sorted_counts(gate_counts),
+        action_bucket_counts=_sorted_counts(action_counts),
         repository_counts=_sorted_counts(repository_counts),
+        top_repositories=_top_repositories(classified, top_repository_limit),
     )
 
 
@@ -139,6 +174,11 @@ def classify_pr_gate(pr: Mapping[str, Any]) -> str:
     if mergeable == "mergeable" and merge_state in {"clean", "has_hooks", "unstable"}:
         return "merge-ready"
     return "needs-triage"
+
+
+def gate_action_bucket(gate: str) -> str:
+    """Map a detailed PR gate to the action bucket shown to beginners."""
+    return GATE_BUCKETS.get(gate, "needs-triage")
 
 
 def render_org_readiness_report(
@@ -177,6 +217,18 @@ def render_org_readiness_report(
         f"- Open PRs analyzed: {pr_summary.total_pull_requests}",
         "",
         *_table("Gate", pr_summary.gate_counts),
+        "",
+        "## Action Buckets",
+        "",
+        *_table("Action", pr_summary.action_bucket_counts),
+        "",
+        "## Top Repositories By Actionable Work",
+        "",
+        *_repo_gate_table(pr_summary.top_repositories),
+        "",
+        "## First Actions",
+        "",
+        *_first_actions(pr_summary),
         "",
         "## Recommendations",
         "",
@@ -219,6 +271,32 @@ def _recommendations(
     return recommendations or ["- No immediate org readiness recommendations."]
 
 
+def _first_actions(pr_summary: PullRequestGateSummary) -> list[str]:
+    action_counts = dict(pr_summary.action_bucket_counts)
+    actions: list[str] = []
+    if action_counts.get("source-work"):
+        actions.append(
+            "- Fix source conflicts and change-requested PRs first; those are product work, not queue noise."
+        )
+    if action_counts.get("ci-failure"):
+        actions.append(
+            "- Route CI failures through AppGuardrail IssueOps so logs are redacted, compressed, and deduplicated."
+        )
+    if action_counts.get("external-wait"):
+        actions.append(
+            "- Track queued checks and review-required PRs as external gates until source work is needed."
+        )
+    if action_counts.get("merge-ready"):
+        actions.append(
+            "- Batch merge-ready PRs after confirming no unresolved review threads or source conflicts remain."
+        )
+    if action_counts.get("needs-triage"):
+        actions.append(
+            "- Triage unknown or draft PRs before treating them as buyer-ready delivery evidence."
+        )
+    return actions or ["- No PR actions were found in the supplied data."]
+
+
 def _primary_language(repo: Mapping[str, Any]) -> str:
     language = repo.get("primaryLanguage")
     if isinstance(language, Mapping):
@@ -238,6 +316,56 @@ def _pr_repository(pr: Mapping[str, Any]) -> str:
     if isinstance(repo, Mapping):
         return str(repo.get("nameWithOwner") or repo.get("name") or "unknown")
     return str(repo or "unknown")
+
+
+def _top_repositories(
+    classified: list[tuple[Mapping[str, Any], str]],
+    limit: int,
+) -> tuple[RepositoryGateSummary, ...]:
+    by_repo: dict[str, Counter[str]] = {}
+    for pr, gate in classified:
+        by_repo.setdefault(_pr_repository(pr), Counter())[gate] += 1
+    summaries = [
+        _repository_gate_summary(repository, gate_counts)
+        for repository, gate_counts in by_repo.items()
+    ]
+    summaries.sort(
+        key=lambda item: (
+            -item.source_work,
+            -item.ci_failures,
+            -item.needs_triage,
+            -item.total,
+            item.repository,
+        )
+    )
+    return tuple(summaries[: max(0, limit)])
+
+
+def _repository_gate_summary(
+    repository: str,
+    gate_counts: Counter[str],
+) -> RepositoryGateSummary:
+    bucket_counts = Counter(
+        {
+            "source-work": 0,
+            "ci-failure": 0,
+            "external-wait": 0,
+            "merge-ready": 0,
+            "needs-triage": 0,
+        }
+    )
+    for gate, count in gate_counts.items():
+        bucket_counts[gate_action_bucket(gate)] += count
+    return RepositoryGateSummary(
+        repository=repository,
+        total=sum(gate_counts.values()),
+        source_work=bucket_counts["source-work"],
+        ci_failures=bucket_counts["ci-failure"],
+        external_wait=bucket_counts["external-wait"],
+        merge_ready=bucket_counts["merge-ready"],
+        needs_triage=bucket_counts["needs-triage"],
+        gate_counts=_sorted_counts(gate_counts),
+    )
 
 
 def _check_states(pr: Mapping[str, Any]) -> set[str]:
@@ -262,6 +390,22 @@ def _table(label: str, rows: tuple[tuple[str, int], ...]) -> list[str]:
     if not rows:
         return [f"| {label} | Count |", "|---|---:|", "| n/a | 0 |"]
     return [f"| {label} | Count |", "|---|---:|", *[f"| {key} | {count} |" for key, count in rows]]
+
+
+def _repo_gate_table(rows: tuple[RepositoryGateSummary, ...]) -> list[str]:
+    header = (
+        "| Repository | Open PRs | Source work | CI failures | External wait | Merge ready | Needs triage |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    )
+    if not rows:
+        return [*header, "| n/a | 0 | 0 | 0 | 0 | 0 | 0 |"]
+    return [
+        *header,
+        *[
+            f"| {row.repository} | {row.total} | {row.source_work} | {row.ci_failures} | {row.external_wait} | {row.merge_ready} | {row.needs_triage} |"
+            for row in rows
+        ],
+    ]
 
 
 def _yes_no(value: bool) -> str:
