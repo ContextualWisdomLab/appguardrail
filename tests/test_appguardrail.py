@@ -27,6 +27,7 @@ from scanner.cli.appguardrail import (
     _semgrep_findings,
     cmd_init,
     cmd_monitor,
+    cmd_org_bundle,
     cmd_report,
     cmd_scan,
 )
@@ -94,6 +95,18 @@ class ReportArgs:
         self.reviewer = "Demo Agency"
         self.engagement_type = "Pre-launch review"
         self.based_on = "review-123"
+
+
+class OrgBundleArgs:
+    def __init__(self, bundle_dir, repos_json, prs_json):
+        self.owner = "ContextualWisdomLab"
+        self.bundle_dir = str(bundle_dir)
+        self.repos_json = str(repos_json)
+        self.prs_json = str(prs_json)
+        self.prs_repository = "ContextualWisdomLab/appguardrail"
+        self.per_repo_pr_limit = 30
+        self.active_repository_target = 2
+        self.generated_at = "2026-07-03T00:00:00Z"
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -1542,6 +1555,60 @@ def test_cmd_report_rejects_invalid_findings_shape(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "Findings JSON must be an array" in err
     assert "Provide a JSON array" in err
+
+
+def test_cmd_org_bundle_writes_beginner_buyer_bundle(tmp_path, capsys):
+    repos_json = tmp_path / "repos.json"
+    prs_json = tmp_path / "prs.json"
+    bundle_dir = tmp_path / "bundle"
+    repos_json.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "appguardrail",
+                    "isFork": False,
+                    "isPrivate": False,
+                    "primaryLanguage": {"name": "Python"},
+                    "defaultBranchRef": {"name": "develop"},
+                },
+                {
+                    "name": "waf-ids-ai-soc",
+                    "isFork": False,
+                    "isPrivate": True,
+                    "primaryLanguage": {"name": "Rust"},
+                    "defaultBranchRef": {"name": "main"},
+                },
+            ]
+        )
+    )
+    prs_json.write_text(
+        json.dumps(
+            [
+                {
+                    "number": 157,
+                    "title": "Resolve source conflict",
+                    "isDraft": False,
+                    "mergeable": "CONFLICTING",
+                    "mergeStateStatus": "DIRTY",
+                    "reviewDecision": "",
+                    "statusCheckRollup": [{"status": "QUEUED"}],
+                }
+            ]
+        )
+    )
+
+    assert cmd_org_bundle(OrgBundleArgs(bundle_dir, repos_json, prs_json)) == 0
+
+    manifest = json.loads((bundle_dir / "manifest.json").read_text())
+    assert (bundle_dir / "org-readiness.md").exists()
+    assert (bundle_dir / "buyer-evidence.json").exists()
+    assert (bundle_dir / "README.md").exists()
+    assert manifest["source"]["repositories"]["kind"] == "file"
+    assert manifest["summary"]["open_pull_requests"] == 1
+    assert manifest["summary"]["action_bucket_counts"]["source-work"] == 1
+    out = capsys.readouterr().out
+    assert "Buyer evidence bundle written" in out
+    assert "Open PRs analyzed: 1" in out
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):

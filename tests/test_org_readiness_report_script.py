@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import subprocess
 import sys
@@ -90,7 +89,7 @@ def test_render_script_writes_buyer_evidence_bundle(tmp_path):
 
 
 def test_gh_pr_list_records_repo_collection_warnings(monkeypatch, capsys):
-    module = _load_report_script()
+    from appguardrail_core import org_bundle
 
     def fake_gh_json(args):
         repo = args[args.index("--repo") + 1]
@@ -102,9 +101,9 @@ def test_gh_pr_list_records_repo_collection_warnings(monkeypatch, capsys):
             )
         return [{"number": 1, "title": "good"}]
 
-    monkeypatch.setattr(module, "_gh_json", fake_gh_json)
+    monkeypatch.setattr(org_bundle, "gh_json", fake_gh_json)
 
-    pulls, warnings = module._gh_pr_list(
+    pulls, warnings = org_bundle.gh_pr_list(
         "ContextualWisdomLab",
         [
             {"name": "good", "isFork": False},
@@ -124,12 +123,3 @@ def test_gh_pr_list_records_repo_collection_warnings(monkeypatch, capsys):
         "warning: Skipped PR collection for ContextualWisdomLab/bad"
         in capsys.readouterr().err
     )
-
-
-def _load_report_script():
-    path = ROOT / "scripts" / "ci" / "render_org_readiness_report.py"
-    spec = importlib.util.spec_from_file_location("render_org_readiness_report", path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
