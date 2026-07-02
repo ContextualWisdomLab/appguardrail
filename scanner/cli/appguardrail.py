@@ -7,6 +7,7 @@ Usage:
   appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--codegraph] [<path>]
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
+  appguardrail report buyer-diligence --findings <json> [--out <path>]
   appguardrail hook [--codegraph]
   appguardrail --help
   appguardrail --version
@@ -16,6 +17,7 @@ Commands:
   scan      Run a lightweight security scan on a directory
   monitor   Install a GitHub Actions monitor workflow
   review    Generate an AI review prompt for your stack
+  report    Generate product and diligence reports from findings JSON
   hook      Install a pre-commit hook to block vulnerabilities
 
 Options:
@@ -55,6 +57,7 @@ from appguardrail_core.language import (
     detect_language_axes,
     detect_stack_profile,
 )
+from appguardrail_core.reports import ReportContext, render_buyer_diligence_report
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1401,6 +1404,67 @@ def cmd_monitor(args):
     return 0
 
 
+def cmd_report(args):
+    """Generate markdown reports from normalized AppGuardrail findings JSON."""
+    report_type = getattr(args, "report_type", None)
+    if report_type != "buyer-diligence":
+        print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
+        print(
+            "💡 Hint: Use `appguardrail report buyer-diligence --findings findings.json`.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        findings = _load_findings_json(Path(getattr(args, "findings")))
+    except (TypeError, RuntimeError) as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        print(
+            "💡 Hint: Provide a JSON array or an object with a `findings` array.",
+            file=sys.stderr,
+        )
+        return 1
+
+    context = ReportContext(
+        app_name=getattr(args, "app_name", None) or "AppGuardrail scan target",
+        repository=getattr(args, "repository", None) or "n/a",
+        commit=getattr(args, "commit", None) or "n/a",
+        generated_at=getattr(args, "generated_at", None) or "",
+        scan_command=getattr(args, "scan_command", None) or "appguardrail scan .",
+        scope=getattr(args, "scope", None)
+        or "Application source, configuration, and security workflow evidence.",
+    )
+    report = render_buyer_diligence_report(findings, context)
+
+    output_path = getattr(args, "out", None)
+    if output_path:
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(report, encoding="utf-8")
+        print(f"✅ Buyer diligence report written: {target}")
+    else:
+        print(report, end="")
+    return 0
+
+
+def _load_findings_json(path: Path):
+    """Load a findings array from a JSON file or wrapped JSON object."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise RuntimeError(f"Cannot read findings JSON: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Findings JSON is invalid: {exc}") from exc
+
+    if isinstance(data, dict):
+        data = data.get("findings")
+    if not isinstance(data, list):
+        raise RuntimeError("Findings JSON must be an array or contain `findings`.")
+    if not all(isinstance(item, dict) for item in data):
+        raise RuntimeError("Every finding must be a JSON object.")
+    return data
+
+
 def cmd_hook(args):
     """Install a pre-commit hook to block commits with vulnerabilities."""
     project_root = Path(".").resolve()
@@ -2516,6 +2580,35 @@ def main():
     )
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
+    # report
+    report_parser = subparsers.add_parser(
+        "report", help="Generate product and diligence reports from findings JSON"
+    )
+    report_subparsers = report_parser.add_subparsers(dest="report_type")
+    buyer_parser = report_subparsers.add_parser(
+        "buyer-diligence", help="Generate a buyer diligence markdown report"
+    )
+    buyer_parser.add_argument(
+        "--findings",
+        required=True,
+        help="Path to findings JSON array or object with a findings array",
+    )
+    buyer_parser.add_argument(
+        "--out",
+        default=None,
+        help="Write report to this markdown path instead of stdout",
+    )
+    buyer_parser.add_argument("--app-name", default=None, help="Application name")
+    buyer_parser.add_argument("--repository", default=None, help="Repository name")
+    buyer_parser.add_argument("--commit", default=None, help="Commit SHA or version")
+    buyer_parser.add_argument(
+        "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
+    )
+    buyer_parser.add_argument(
+        "--scan-command", default=None, help="Scan command used to produce findings"
+    )
+    buyer_parser.add_argument("--scope", default=None, help="Report scope summary")
+
     # hook
     hook_parser = subparsers.add_parser(
         "hook", help="Install a pre-commit hook to block commits with vulnerabilities"
@@ -2536,6 +2629,8 @@ def main():
         sys.exit(cmd_monitor(args))
     elif args.command == "review":
         cmd_review(args)
+    elif args.command == "report":
+        sys.exit(cmd_report(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
     else:

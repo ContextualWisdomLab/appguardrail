@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import cmd_init, cmd_scan
+from scanner.cli.appguardrail import cmd_init, cmd_report, cmd_scan
 from tests.test_appguardrail import MOCK_RULES
 
 
@@ -367,6 +367,24 @@ def test_main_review(monkeypatch):
     with patch("scanner.cli.appguardrail.cmd_review") as mock_review:
         main()
         mock_review.assert_called_once()
+
+
+def test_main_report(monkeypatch, tmp_path):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text("[]")
+    test_args = [
+        "appguardrail",
+        "report",
+        "buyer-diligence",
+        "--findings",
+        str(findings_file),
+    ]
+    monkeypatch.setattr(sys, "argv", test_args)
+    with patch("scanner.cli.appguardrail.cmd_report", return_value=0) as mock_report:
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+        mock_report.assert_called_once()
 
 
 def test_main_hook(monkeypatch):

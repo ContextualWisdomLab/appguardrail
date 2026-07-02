@@ -417,6 +417,9 @@ First implementation slice:
   verification fields without including raw secrets or full logs.
 - Added `reports/templates/buyer-diligence.md` to document the generated report
   structure expected by the Product Design report-builder surface.
+- Added `appguardrail report buyer-diligence --findings findings.json` so a
+  pilot user or diligence reviewer can generate the markdown export from a
+  findings JSON file without writing Python code.
 
 Acceptance:
 

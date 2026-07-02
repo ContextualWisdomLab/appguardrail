@@ -27,6 +27,7 @@ from scanner.cli.appguardrail import (
     _semgrep_findings,
     cmd_init,
     cmd_monitor,
+    cmd_report,
     cmd_scan,
 )
 
@@ -76,6 +77,19 @@ class ScanArgs:
 
 class MonitorArgs:
     pass
+
+
+class ReportArgs:
+    def __init__(self, findings, out=None):
+        self.report_type = "buyer-diligence"
+        self.findings = str(findings)
+        self.out = str(out) if out else None
+        self.app_name = "Demo SaaS"
+        self.repository = "ContextualWisdomLab/demo"
+        self.commit = "abc123"
+        self.generated_at = "2026-07-02T00:00:00Z"
+        self.scan_command = "appguardrail scan ."
+        self.scope = "Demo app source and workflow evidence."
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -1382,6 +1396,46 @@ def test_cmd_monitor_path_traversal(tmp_path, monkeypatch, capsys):
 
     assert cmd_monitor(MonitorArgs()) == 1
     assert "escapes the project root" in capsys.readouterr().err
+
+
+def test_cmd_report_buyer_diligence_writes_markdown(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(
+        json.dumps(
+            [
+                {
+                    "rule_id": "python-requests-verify-false",
+                    "severity": "HIGH",
+                    "message": "HTTP client disables TLS certificate verification.",
+                    "file": "client.py",
+                    "line": 7,
+                    "snippet": "requests.get(url, verify=False)",
+                    "references": ("CWE-295 - Improper Certificate Validation",),
+                    "remediation": "Keep certificate verification enabled.",
+                }
+            ]
+        )
+    )
+    out_file = tmp_path / "reports" / "buyer-diligence.md"
+
+    assert cmd_report(ReportArgs(findings_file, out_file)) == 0
+
+    report = out_file.read_text()
+    assert "# AppGuardrail Buyer Diligence Report" in report
+    assert "**App:** Demo SaaS" in report
+    assert "python-requests-verify-false" in report
+    assert "Buyer diligence report written" in capsys.readouterr().out
+
+
+def test_cmd_report_rejects_invalid_findings_shape(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(json.dumps({"findings": "not-a-list"}))
+
+    assert cmd_report(ReportArgs(findings_file)) == 1
+
+    err = capsys.readouterr().err
+    assert "Findings JSON must be an array" in err
+    assert "Provide a JSON array" in err
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):

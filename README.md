@@ -118,6 +118,21 @@ documented rule fixtures until the lightweight engine grows structural matching.
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
 
+### Generate a buyer diligence report
+
+```bash
+appguardrail report buyer-diligence \
+  --findings findings.json \
+  --out reports/buyer-diligence.md \
+  --app-name "Demo SaaS" \
+  --repository "ContextualWisdomLab/demo"
+```
+
+`findings.json` can be a JSON array of AppGuardrail findings or an object with a
+`findings` array. The report omits raw secrets and expands normalized metadata
+into a buyer-readable launch posture, finding summary, remediation, and
+verification checklist.
+
 ### Install continuous monitoring
 
 ```bash
