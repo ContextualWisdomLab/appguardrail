@@ -10,6 +10,7 @@ from scanner.cli.appguardrail import (
     SCAN_RULES,
     _bandit_findings,
     _collect_files,
+    _build_finding,
     _detect_scan_languages,
     _load_packaged_regex_rules,
     _path_allowed_by_rule,
@@ -26,6 +27,7 @@ from scanner.cli.appguardrail import (
     _semgrep_findings,
     cmd_init,
     cmd_monitor,
+    cmd_report,
     cmd_scan,
 )
 
@@ -75,6 +77,23 @@ class ScanArgs:
 
 class MonitorArgs:
     pass
+
+
+class ReportArgs:
+    def __init__(self, findings, out=None, report_type="buyer-diligence"):
+        self.report_type = report_type
+        self.findings = str(findings)
+        self.out = str(out) if out else None
+        self.app_name = "Demo SaaS"
+        self.repository = "ContextualWisdomLab/demo"
+        self.commit = "abc123"
+        self.generated_at = "2026-07-02T00:00:00Z"
+        self.scan_command = "appguardrail scan ."
+        self.scope = "Demo app source and workflow evidence."
+        self.client_name = "Demo Client"
+        self.reviewer = "Demo Agency"
+        self.engagement_type = "Pre-launch review"
+        self.based_on = "review-123"
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -575,6 +594,58 @@ def test_cmd_scan_auto_external_uses_detected_language_axes(tmp_path, monkeypatc
     semgrep.assert_called_once_with(tmp_path.resolve(), "auto")
 
 
+def test_cmd_scan_prints_beginner_profile_without_user_flags(tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\n")
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []):
+        assert cmd_scan(ScanArgs(tmp_path)) == 0
+
+    out = capsys.readouterr().out
+    assert "Detected language axes: python" in out
+    assert "Beginner profile: Python web application" in out
+    assert "Optional external engines: bandit, ruff, semgrep, trivy" in out
+
+
+def test_cmd_scan_auto_external_explains_missing_optional_engines(tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\n")
+
+    args = ScanArgs(tmp_path)
+    args.external = "auto"
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []), patch(
+        "scanner.cli.appguardrail._external_tool_available", return_value=None
+    ):
+        assert cmd_scan(args) == 0
+
+    out = capsys.readouterr().out
+    assert "External auto mode:" in out
+    assert "Skipped Bandit: executable not found or not runnable" in out
+    assert "Skipped Ruff security rules: executable not found or not runnable" in out
+    assert "Skipped Semgrep: executable not found or not runnable" in out
+
+
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
+def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
+    test_file = tmp_path / "unsafe.ts"
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n")
+    findings_json = tmp_path / "reports" / "findings.json"
+
+    args = ScanArgs(tmp_path)
+    args.findings_json = str(findings_json)
+
+    assert cmd_scan(args) == 1
+
+    payload = json.loads(findings_json.read_text())
+    assert payload["schema"] == "appguardrail.findings.v1"
+    assert payload["findings"][0]["rule_id"] == "mock-secret"
+    assert payload["findings"][0]["severity"] == "CRITICAL"
+    assert payload["findings"][0]["context"] == "app-code"
+    assert "managed secret storage" in payload["findings"][0]["remediation"]
+    assert "Findings JSON written" in capsys.readouterr().out
+
+
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
     files = [tmp_path / "first.py", tmp_path / "second.py"]
     for file_path in files:
@@ -675,6 +746,26 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     assert findings[0]["context"] == "app-code"
     assert findings[0]["fix_prompt"].startswith("Fix trivy:CVE-2026-0001")
     assert "SHOULD_NOT_PRINT" not in findings[2]["snippet"]
+
+
+def test_build_finding_adds_public_security_metadata():
+    finding = _build_finding(
+        "appguardrail-rule",
+        "python-requests-verify-false",
+        "HIGH",
+        (
+            "HTTP client disables TLS certificate verification. "
+            "[CWE-295 - Improper Certificate Validation]"
+        ),
+        "client.py",
+        3,
+        "requests.get(url, verify=False)",
+    )
+
+    assert finding["cwe"] == ("CWE-295 - Improper Certificate Validation",)
+    assert finding["owasp"] == ("OWASP A05:2021 - Security Misconfiguration",)
+    assert finding["samm_practice"] == "Operations / Environment Management"
+    assert finding["remediation"]
 
 
 def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
@@ -1329,6 +1420,76 @@ def test_cmd_monitor_path_traversal(tmp_path, monkeypatch, capsys):
 
     assert cmd_monitor(MonitorArgs()) == 1
     assert "escapes the project root" in capsys.readouterr().err
+
+
+def test_cmd_report_buyer_diligence_writes_markdown(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(
+        json.dumps(
+            [
+                {
+                    "rule_id": "python-requests-verify-false",
+                    "severity": "HIGH",
+                    "message": "HTTP client disables TLS certificate verification.",
+                    "file": "client.py",
+                    "line": 7,
+                    "snippet": "requests.get(url, verify=False)",
+                    "references": ("CWE-295 - Improper Certificate Validation",),
+                    "remediation": "Keep certificate verification enabled.",
+                }
+            ]
+        )
+    )
+    out_file = tmp_path / "reports" / "buyer-diligence.md"
+
+    assert cmd_report(ReportArgs(findings_file, out_file)) == 0
+
+    report = out_file.read_text()
+    assert "# AppGuardrail Buyer Diligence Report" in report
+    assert "**App:** Demo SaaS" in report
+    assert "python-requests-verify-false" in report
+    assert "Buyer diligence report written" in capsys.readouterr().out
+
+
+def test_cmd_report_fix_pack_writes_markdown(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "rule_id": "python-requests-verify-false",
+                        "severity": "HIGH",
+                        "message": "HTTP client disables TLS certificate verification.",
+                        "file": "client.py",
+                        "line": 7,
+                        "snippet": "requests.get(url, verify=False)",
+                        "remediation": "Keep certificate verification enabled.",
+                    }
+                ]
+            }
+        )
+    )
+    out_file = tmp_path / "reports" / "fix-pack.md"
+
+    assert cmd_report(ReportArgs(findings_file, out_file, "fix-pack")) == 0
+
+    report = out_file.read_text()
+    assert "# AppGuardrail Fix Pack" in report
+    assert "FIX-001" in report
+    assert "python-requests-verify-false" in report
+    assert "Fix pack written" in capsys.readouterr().out
+
+
+def test_cmd_report_rejects_invalid_findings_shape(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(json.dumps({"findings": "not-a-list"}))
+
+    assert cmd_report(ReportArgs(findings_file)) == 1
+
+    err = capsys.readouterr().err
+    assert "Findings JSON must be an array" in err
+    assert "Provide a JSON array" in err
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):
