@@ -270,6 +270,53 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
             ),
             "ids": {"python-absolute-path-traversal-check-missing"},
         },
+        "snowflake.py": {
+            "content": (
+                "parsed = urlparse(authenticator)\n"
+                "if parsed.hostname.endswith('.okta.com'):\n"
+                "    return authenticator\n"
+            ),
+            "ids": {"python-okta-host-endswith-ssrf"},
+        },
+        "slow_process.py": {
+            "content": "subprocess.run(['ffmpeg', '-i', source_path], check=True)\n",
+            "ids": {"python-subprocess-missing-timeout"},
+        },
+        "extract-frames.sh": {
+            "content": 'awk "BEGIN { print $NUM_FRAMES / $DURATION }"\n',
+            "ids": {"shell-awk-variable-injection"},
+        },
+        "auth-flow.ts": {
+            "content": "exec(authUrl)\n",
+            "ids": {"node-exec-url-command-injection"},
+        },
+        "export.ts": {
+            "content": "writeFileSync(output, contents)\n",
+            "ids": {"node-unvalidated-output-path-write"},
+        },
+        "audio_separator.py": {
+            "content": "audio_file = Path(input_path).expanduser()\n",
+            "ids": {"python-expanduser-user-path-traversal"},
+        },
+        "strix.yml": {
+            "content": (
+                "env:\n"
+                "  LLM_API_KEY: ${{ secrets.LLM_API_KEY }}\n"
+                "  REVIEW_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
+            ),
+            "ids": {
+                "github-actions-secret-env-passthrough",
+                "github-actions-secrets-github-token",
+            },
+        },
+        "backup.sh": {
+            "content": 'docker run -e DB_PASS="$DB_PASS" postgres:16\n',
+            "ids": {"docker-cli-secret-env-leak"},
+        },
+        "external.html": {
+            "content": '<a href="https://example.com" target="_blank">external</a>\n',
+            "ids": {"html-target-blank-without-noopener"},
+        },
     }
 
     for name, sample in samples.items():
@@ -784,6 +831,7 @@ def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
     command = run.call_args.args[0]
     assert command[-1] == str(scan_path)
     assert run.call_args.kwargs["shell"] is False
+    assert run.call_args.kwargs["timeout"] == 300
 
 
 def test_run_trivy_fs_requires_trivy(tmp_path):
@@ -1022,6 +1070,8 @@ def test_run_codegraph_index_initializes_when_missing(tmp_path):
 
     assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "init", "-i"]
     assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+    assert run.call_args_list[0].kwargs["timeout"] == 120
+    assert run.call_args_list[1].kwargs["timeout"] == 120
 
 
 def test_run_codegraph_index_syncs_existing_index(tmp_path):
@@ -1044,6 +1094,8 @@ def test_run_codegraph_index_syncs_existing_index(tmp_path):
 
     assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "sync"]
     assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+    assert run.call_args_list[0].kwargs["timeout"] == 120
+    assert run.call_args_list[1].kwargs["timeout"] == 120
 
 
 def test_run_codegraph_index_requires_codegraph(tmp_path):
