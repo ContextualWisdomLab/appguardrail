@@ -1,5 +1,7 @@
 from appguardrail_core.org_intelligence import (
+    build_buyer_evidence_pack,
     build_org_inventory,
+    buyer_evidence_pack_to_dict,
     classify_pr_gate,
     gate_action_bucket,
     render_org_readiness_report,
@@ -135,3 +137,76 @@ def test_summarize_pr_gates_and_render_report_include_recommendations():
     assert "| ContextualWisdomLab/appguardrail | 2 | 1 | 0 | 1 | 0 | 0 |" in report
     assert "Queued checks or review waiting are tracked as external gates" in report
     assert "Source conflicts and change-requested PRs need separate product work" in report
+
+
+def test_buyer_evidence_pack_adds_kpis_json_and_seven_day_plan():
+    repos = [
+        {"name": "appguardrail", "isFork": False, "primaryLanguage": {"name": "Python"}, "defaultBranchRef": {"name": "develop"}},
+        {"name": "clearfolio", "isFork": False, "primaryLanguage": {"name": "Java"}, "defaultBranchRef": {"name": "main"}},
+        {"name": "kaefa", "isFork": False, "primaryLanguage": {"name": "R"}, "defaultBranchRef": {"name": "develop"}},
+    ]
+    prs = [
+        {
+            "repository": {"nameWithOwner": "ContextualWisdomLab/appguardrail"},
+            "isDraft": False,
+            "mergeable": "CONFLICTING",
+            "mergeStateStatus": "DIRTY",
+            "reviewDecision": "",
+            "statusCheckRollup": [],
+        },
+        {
+            "repository": {"nameWithOwner": "ContextualWisdomLab/appguardrail"},
+            "isDraft": False,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED",
+            "reviewDecision": "CHANGES_REQUESTED",
+            "statusCheckRollup": [],
+        },
+        {
+            "repository": {"nameWithOwner": "ContextualWisdomLab/clearfolio"},
+            "isDraft": False,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED",
+            "reviewDecision": "",
+            "statusCheckRollup": [{"conclusion": "FAILURE"}],
+        },
+        {
+            "repository": {"nameWithOwner": "ContextualWisdomLab/clearfolio"},
+            "isDraft": False,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED",
+            "reviewDecision": "REVIEW_REQUIRED",
+            "statusCheckRollup": [{"status": "QUEUED"}],
+        },
+        {
+            "repository": {"nameWithOwner": "ContextualWisdomLab/clearfolio"},
+            "isDraft": False,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "reviewDecision": "",
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        },
+    ]
+
+    inventory = build_org_inventory(repos, active_repository_target=3)
+    summary = summarize_pr_gates(prs)
+    pack = build_buyer_evidence_pack(inventory, summary)
+    payload = buyer_evidence_pack_to_dict(pack)
+    report = render_org_readiness_report(
+        inventory,
+        summary,
+        generated_at="2026-07-03T00:00:00Z",
+    )
+
+    metrics = {metric.id: metric for metric in pack.metrics}
+    assert pack.overall_status == "fail"
+    assert metrics["active_repository_coverage"].status == "pass"
+    assert metrics["supported_language_coverage"].status == "warn"
+    assert metrics["source_work_burden"].status == "fail"
+    assert metrics["ci_failure_burden"].status == "fail"
+    assert payload["overall_status"] == "fail"
+    assert payload["metrics"][0]["id"] == "active_repository_coverage"
+    assert payload["seven_day_plan"][-1].startswith("Day 7:")
+    assert "## Buyer Evidence Pack" in report
+    assert "| Source-work burden | fail | 2/5 PRs (40.0%) | <= 10% pass, <= 35% warn |" in report
+    assert "Day 1-2: Clear source-work in ContextualWisdomLab/appguardrail first" in report

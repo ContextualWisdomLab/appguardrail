@@ -16,6 +16,8 @@ if __package__ in (None, ""):
 
 from appguardrail_core.org_intelligence import (
     build_org_inventory,
+    build_buyer_evidence_pack,
+    buyer_evidence_pack_to_dict,
     render_org_readiness_report,
     summarize_pr_gates,
 )
@@ -31,6 +33,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--prs-json", help="Path to gh search prs JSON output.")
     parser.add_argument("--prs-repository", help="Repository name to attach to PR JSON rows that do not include repository metadata.")
     parser.add_argument("--out", help="Write markdown report to this path.")
+    parser.add_argument("--json-out", help="Write buyer evidence JSON payload to this path.")
     parser.add_argument("--per-repo-pr-limit", type=int, default=100)
     parser.add_argument("--active-repository-target", type=int, default=20)
     return parser.parse_args(argv)
@@ -48,6 +51,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     pr_summary = summarize_pr_gates(prs)
     report = render_org_readiness_report(inventory, pr_summary)
+    if args.json_out:
+        payload = buyer_evidence_pack_to_dict(
+            build_buyer_evidence_pack(inventory, pr_summary)
+        )
+        Path(args.json_out).write_text(json.dumps(payload, indent=2) + "\n")
     if args.out:
         Path(args.out).write_text(report)
     else:

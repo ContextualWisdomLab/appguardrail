@@ -95,6 +95,27 @@ class PullRequestGateSummary:
     top_repositories: tuple[RepositoryGateSummary, ...]
 
 
+@dataclass(frozen=True)
+class BuyerEvidenceMetric:
+    """One due-diligence check with beginner-readable status and context."""
+
+    id: str
+    label: str
+    status: str
+    observed: str
+    target: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class BuyerEvidencePack:
+    """Machine-readable buyer evidence derived from org readiness facts."""
+
+    overall_status: str
+    metrics: tuple[BuyerEvidenceMetric, ...]
+    seven_day_plan: tuple[str, ...]
+
+
 def build_org_inventory(
     repos: Iterable[Mapping[str, Any]],
     *,
@@ -181,6 +202,90 @@ def gate_action_bucket(gate: str) -> str:
     return GATE_BUCKETS.get(gate, "needs-triage")
 
 
+def build_buyer_evidence_pack(
+    inventory: OrgInventory,
+    pr_summary: PullRequestGateSummary,
+) -> BuyerEvidencePack:
+    """Build pass/warn/fail evidence that can be exported for diligence."""
+    action_counts = dict(pr_summary.action_bucket_counts)
+    total_prs = pr_summary.total_pull_requests
+    source_work = action_counts.get("source-work", 0)
+    ci_failures = action_counts.get("ci-failure", 0)
+    supported_ratio = (
+        inventory.supported_nonfork_repositories / inventory.nonfork_repositories
+        if inventory.nonfork_repositories
+        else 0.0
+    )
+    source_ratio = source_work / total_prs if total_prs else 0.0
+    ci_ratio = ci_failures / total_prs if total_prs else 0.0
+    metrics = (
+        BuyerEvidenceMetric(
+            id="active_repository_coverage",
+            label="Active repository coverage",
+            status="pass" if inventory.active_repository_target_met else "fail",
+            observed=f"{inventory.nonfork_repositories}/{inventory.active_repository_target} non-fork repos",
+            target=f">= {inventory.active_repository_target} non-fork repos monitored",
+            detail="Shows there is enough live surface area for weekly buyer evidence.",
+        ),
+        BuyerEvidenceMetric(
+            id="supported_language_coverage",
+            label="Supported language coverage",
+            status=_threshold_status(supported_ratio, pass_at=0.80, warn_at=0.60),
+            observed=f"{inventory.supported_nonfork_repositories}/{inventory.nonfork_repositories} non-fork repos ({_percent(supported_ratio)})",
+            target=">= 80% pass, >= 60% warn",
+            detail="Unsupported languages should start with external engines before built-in rule promotion.",
+        ),
+        BuyerEvidenceMetric(
+            id="source_work_burden",
+            label="Source-work burden",
+            status=_inverse_threshold_status(source_ratio, pass_at=0.10, warn_at=0.35),
+            observed=f"{source_work}/{total_prs} PRs ({_percent(source_ratio)})",
+            target="<= 10% pass, <= 35% warn",
+            detail="Conflicts and change-requested PRs are product work, not review-process noise.",
+        ),
+        BuyerEvidenceMetric(
+            id="ci_failure_burden",
+            label="CI failure burden",
+            status=_inverse_threshold_status(ci_ratio, pass_at=0.05, warn_at=0.15),
+            observed=f"{ci_failures}/{total_prs} PRs ({_percent(ci_ratio)})",
+            target="<= 5% pass, <= 15% warn",
+            detail="CI failures should be routed into redacted, deduplicated IssueOps evidence.",
+        ),
+        BuyerEvidenceMetric(
+            id="reusable_evidence_export",
+            label="Reusable evidence export",
+            status="pass",
+            observed="Markdown report and JSON payload",
+            target="Human and machine-readable due-diligence output",
+            detail="Lets founders, reviewers, and future dashboards consume the same facts.",
+        ),
+    )
+    return BuyerEvidencePack(
+        overall_status=_overall_status(metrics),
+        metrics=metrics,
+        seven_day_plan=tuple(_seven_day_plan(inventory, pr_summary)),
+    )
+
+
+def buyer_evidence_pack_to_dict(pack: BuyerEvidencePack) -> dict[str, Any]:
+    """Convert the buyer evidence pack into stable JSON-friendly data."""
+    return {
+        "overall_status": pack.overall_status,
+        "metrics": [
+            {
+                "id": metric.id,
+                "label": metric.label,
+                "status": metric.status,
+                "observed": metric.observed,
+                "target": metric.target,
+                "detail": metric.detail,
+            }
+            for metric in pack.metrics
+        ],
+        "seven_day_plan": list(pack.seven_day_plan),
+    }
+
+
 def render_org_readiness_report(
     inventory: OrgInventory,
     pr_summary: PullRequestGateSummary,
@@ -189,6 +294,7 @@ def render_org_readiness_report(
 ) -> str:
     """Render a buyer-readable organization readiness report."""
     generated = generated_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    evidence_pack = build_buyer_evidence_pack(inventory, pr_summary)
     lines = [
         "# AppGuardrail Organization Readiness Report",
         "",
@@ -229,6 +335,18 @@ def render_org_readiness_report(
         "## First Actions",
         "",
         *_first_actions(pr_summary),
+        "",
+        "## Buyer Evidence Pack",
+        "",
+        f"- Overall status: {evidence_pack.overall_status}",
+        "",
+        "### Diligence KPI Checks",
+        "",
+        *_buyer_metric_table(evidence_pack.metrics),
+        "",
+        "### 7-Day Execution Plan",
+        "",
+        *[f"- {item}" for item in evidence_pack.seven_day_plan],
         "",
         "## Recommendations",
         "",
@@ -295,6 +413,40 @@ def _first_actions(pr_summary: PullRequestGateSummary) -> list[str]:
             "- Triage unknown or draft PRs before treating them as buyer-ready delivery evidence."
         )
     return actions or ["- No PR actions were found in the supplied data."]
+
+
+def _seven_day_plan(
+    inventory: OrgInventory,
+    pr_summary: PullRequestGateSummary,
+) -> list[str]:
+    action_counts = dict(pr_summary.action_bucket_counts)
+    top_repo = pr_summary.top_repositories[0].repository if pr_summary.top_repositories else "the highest-risk repository"
+    plan: list[str] = []
+    if action_counts.get("source-work"):
+        plan.append(
+            f"Day 1-2: Clear source-work in {top_repo} first, then rerun the report."
+        )
+    if action_counts.get("ci-failure"):
+        plan.append(
+            "Day 3: Route CI failures through the security failure collector and attach redacted issue evidence."
+        )
+    if inventory.unsupported_nonfork_languages:
+        languages = ", ".join(inventory.unsupported_nonfork_languages)
+        plan.append(
+            f"Day 4: Cover {languages} with external-first scans before promoting built-in rules."
+        )
+    if action_counts.get("external-wait"):
+        plan.append(
+            "Day 5: Recheck queued checks and review waits; do not count them as source defects unless they fail."
+        )
+    if action_counts.get("merge-ready"):
+        plan.append(
+            "Day 6: Batch merge-ready PRs after unresolved review thread and source-conflict checks."
+        )
+    plan.append(
+        "Day 7: Regenerate Markdown and JSON evidence, archive it with the buyer diligence packet."
+    )
+    return plan
 
 
 def _primary_language(repo: Mapping[str, Any]) -> str:
@@ -406,6 +558,51 @@ def _repo_gate_table(rows: tuple[RepositoryGateSummary, ...]) -> list[str]:
             for row in rows
         ],
     ]
+
+
+def _buyer_metric_table(rows: tuple[BuyerEvidenceMetric, ...]) -> list[str]:
+    header = (
+        "| KPI | Status | Observed | Target |",
+        "|---|---|---|---|",
+    )
+    if not rows:
+        return [*header, "| n/a | fail | no evidence | evidence pack should include KPI rows |"]
+    return [
+        *header,
+        *[
+            f"| {row.label} | {row.status} | {row.observed} | {row.target} |"
+            for row in rows
+        ],
+    ]
+
+
+def _threshold_status(value: float, *, pass_at: float, warn_at: float) -> str:
+    if value >= pass_at:
+        return "pass"
+    if value >= warn_at:
+        return "warn"
+    return "fail"
+
+
+def _inverse_threshold_status(value: float, *, pass_at: float, warn_at: float) -> str:
+    if value <= pass_at:
+        return "pass"
+    if value <= warn_at:
+        return "warn"
+    return "fail"
+
+
+def _overall_status(metrics: tuple[BuyerEvidenceMetric, ...]) -> str:
+    statuses = {metric.status for metric in metrics}
+    if "fail" in statuses:
+        return "fail"
+    if "warn" in statuses:
+        return "warn"
+    return "pass"
+
+
+def _percent(value: float) -> str:
+    return f"{value:.1%}"
 
 
 def _yes_no(value: bool) -> str:
