@@ -1383,11 +1383,16 @@ def cmd_monitor(args):
         workflow_file.unlink()
     workflow_file.write_text(MONITOR_WORKFLOW)
 
-    print("\n✅ AppGuardrail monitor workflow installed!\n")
-    print(f"✨ Created/updated: {workflow_file.relative_to(project_root)}")
+    no_emoji = os.getenv("APPGUARDRAIL_NO_EMOJI", "0") == "1"
+    sparkles = "" if no_emoji else "✨ "
+    rocket = "" if no_emoji else "🚀 "
+    check = "" if no_emoji else "✅ "
+
+    print(f"\n{check}AppGuardrail monitor workflow installed!\n")
+    print(f"{sparkles}Created/updated: {workflow_file.relative_to(project_root)}")
     print()
     print(
-        "🚀 This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
+        f"{rocket}This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
     )
     return 0
 
@@ -1455,15 +1460,20 @@ echo "✅ AppGuardrail scan passed."
     pre_commit_file.write_text(hook_content)
     pre_commit_file.chmod(pre_commit_file.stat().st_mode | stat.S_IEXEC)
 
+    no_emoji = os.getenv("APPGUARDRAIL_NO_EMOJI", "0") == "1"
+    check = "" if no_emoji else "✅ "
+    rocket = "" if no_emoji else "🚀 "
+    compass = "" if no_emoji else "🧭 "
+
     print(
-        "\n✅ AppGuardrail pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
+        f"\n{check}AppGuardrail pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
     )
     hook_scan_command = f"appguardrail scan{scan_flags} ."
     print(
-        f"🚀 This will run '{hook_scan_command}' before every commit and block commits if vulnerabilities are found."
+        f"{rocket}This will run '{hook_scan_command}' before every commit and block commits if vulnerabilities are found."
     )
     if run_codegraph:
-        print("🧭 CodeGraph mode is enabled for this hook.")
+        print(f"{compass}CodeGraph mode is enabled for this hook.")
     return 0
 
 
