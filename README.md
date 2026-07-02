@@ -160,6 +160,22 @@ any object with a `findings` array. Report types are:
 Reports omit raw secrets and expand normalized metadata into launch posture,
 finding summaries, remediation, and verification checklists.
 
+### Generate an organization buyer evidence bundle
+
+```bash
+appguardrail org-bundle
+```
+
+This writes `appguardrail-buyer-evidence/` with:
+
+- `org-readiness.md`: buyer-readable organization readiness narrative.
+- `buyer-evidence.json`: machine-readable KPI payload.
+- `manifest.json`: source, timestamp, warning, repository, PR, and action bucket metadata.
+- `README.md`: how to use the generated evidence packet.
+
+Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
+need a non-default organization, custom artifact path, or offline snapshot.
+
 ### Install continuous monitoring
 
 ```bash

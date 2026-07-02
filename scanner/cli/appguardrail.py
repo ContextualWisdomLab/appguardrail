@@ -8,6 +8,7 @@ Usage:
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
   appguardrail report {buyer-diligence,founder-friendly,agency,fix-pack} --findings <json> [--out <path>]
+  appguardrail org-bundle [--owner <org>] [--bundle-dir <path>]
   appguardrail hook [--codegraph]
   appguardrail --help
   appguardrail --version
@@ -18,6 +19,7 @@ Commands:
   monitor   Install a GitHub Actions monitor workflow
   review    Generate an AI review prompt for your stack
   report    Generate product and diligence reports from findings JSON
+  org-bundle Generate an organization buyer evidence bundle
   hook      Install a pre-commit hook to block vulnerabilities
 
 Options:
@@ -64,6 +66,16 @@ from appguardrail_core.language import (
     LANGUAGE_EXTENSIONS,
     detect_language_axes,
     detect_stack_profile,
+)
+from appguardrail_core.org_bundle import (
+    OrgBundleError,
+    annotate_missing_pr_repositories,
+    gh_error_message,
+    gh_pr_list,
+    gh_repo_list,
+    load_json as load_org_json,
+    render_org_evidence,
+    write_bundle,
 )
 from appguardrail_core.reports import (
     REPORT_TYPE_LABELS,
@@ -1581,6 +1593,78 @@ def cmd_report(args):
     return 0
 
 
+def cmd_org_bundle(args):
+    """Generate an organization buyer evidence bundle from GitHub state."""
+    owner = getattr(args, "owner", None) or "ContextualWisdomLab"
+    bundle_dir = Path(
+        getattr(args, "bundle_dir", None) or "appguardrail-buyer-evidence"
+    )
+    repos_json = getattr(args, "repos_json", None)
+    prs_json = getattr(args, "prs_json", None)
+    prs_repository = getattr(args, "prs_repository", None)
+    per_repo_pr_limit = getattr(args, "per_repo_pr_limit", 100)
+    active_repository_target = getattr(args, "active_repository_target", 20)
+
+    try:
+        repos = load_org_json(repos_json) if repos_json else gh_repo_list(owner)
+        collection_warnings: list[str] = []
+        if prs_json:
+            prs = load_org_json(prs_json)
+        else:
+            prs, collection_warnings = gh_pr_list(owner, repos, per_repo_pr_limit)
+        if prs_repository:
+            prs = annotate_missing_pr_repositories(prs, prs_repository)
+        generated_at, report, evidence_payload, inventory, pr_summary = render_org_evidence(
+            repos,
+            prs,
+            active_repository_target=active_repository_target,
+            generated_at=getattr(args, "generated_at", None),
+        )
+        manifest = write_bundle(
+            bundle_dir,
+            report=report,
+            evidence_payload=evidence_payload,
+            inventory=inventory,
+            pr_summary=pr_summary,
+            generated_at=generated_at,
+            owner=owner,
+            repos_source=repos_json,
+            prs_source=prs_json,
+            prs_repository_override=prs_repository,
+            per_repo_pr_limit=per_repo_pr_limit,
+            active_repository_target=active_repository_target,
+            collection_warnings=collection_warnings,
+        )
+    except OrgBundleError as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        print(
+            "💡 Hint: Authenticate `gh` or provide --repos-json and --prs-json.",
+            file=sys.stderr,
+        )
+        return 1
+    except subprocess.CalledProcessError as exc:
+        print(f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr)
+        print(
+            "💡 Hint: Retry later or provide --repos-json and --prs-json.",
+            file=sys.stderr,
+        )
+        return 1
+
+    summary = manifest["summary"]
+    print(f"\n✅ Buyer evidence bundle written: {bundle_dir}\n")
+    print("Files:")
+    print("  - org-readiness.md")
+    print("  - buyer-evidence.json")
+    print("  - manifest.json")
+    print("  - README.md")
+    print()
+    print(f"Open PRs analyzed: {summary['open_pull_requests']}")
+    print(f"Buyer evidence status: {summary['buyer_evidence_status']}")
+    if manifest["collection_warnings"]:
+        print(f"Collection warnings: {len(manifest['collection_warnings'])}")
+    return 0
+
+
 def _load_findings_json(path: Path):
     """Load a findings array from a JSON file or wrapped JSON object."""
     try:
@@ -2767,6 +2851,54 @@ def main():
             report_subparsers.add_parser(report_type, help=report_help[report_type])
         )
 
+    # org-bundle
+    org_bundle_parser = subparsers.add_parser(
+        "org-bundle",
+        help="Generate an organization buyer evidence bundle",
+    )
+    org_bundle_parser.add_argument(
+        "--owner",
+        default="ContextualWisdomLab",
+        help="GitHub organization owner (default: ContextualWisdomLab)",
+    )
+    org_bundle_parser.add_argument(
+        "--bundle-dir",
+        default="appguardrail-buyer-evidence",
+        help="Directory to write bundle artifacts",
+    )
+    org_bundle_parser.add_argument(
+        "--repos-json",
+        default=None,
+        help="Use a gh repo list JSON file instead of live GitHub repository lookup",
+    )
+    org_bundle_parser.add_argument(
+        "--prs-json",
+        default=None,
+        help="Use a pull request JSON file instead of live GitHub PR lookup",
+    )
+    org_bundle_parser.add_argument(
+        "--prs-repository",
+        default=None,
+        help="Repository name to attach to PR rows missing repository metadata",
+    )
+    org_bundle_parser.add_argument(
+        "--per-repo-pr-limit",
+        type=int,
+        default=100,
+        help="Maximum open PRs to inspect per non-fork repository",
+    )
+    org_bundle_parser.add_argument(
+        "--active-repository-target",
+        type=int,
+        default=20,
+        help="Non-fork repository target used by buyer evidence KPIs",
+    )
+    org_bundle_parser.add_argument(
+        "--generated-at",
+        default=None,
+        help="Override bundle timestamp in ISO-8601 form",
+    )
+
     # hook
     hook_parser = subparsers.add_parser(
         "hook", help="Install a pre-commit hook to block commits with vulnerabilities"
@@ -2789,6 +2921,8 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
+    elif args.command == "org-bundle":
+        sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
     else:
