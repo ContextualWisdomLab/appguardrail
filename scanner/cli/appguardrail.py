@@ -54,6 +54,7 @@ from appguardrail_core.language import (
     detect_language_axes,
     detect_stack_profile,
 )
+from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
 
@@ -1660,7 +1661,14 @@ def _build_finding(
     """Build the normalized finding dictionary emitted by scan providers."""
     context = _finding_context(file, snippet)
     category = category or _finding_category(rule_id)
-    return {
+    metadata = build_rule_metadata(
+        rule_id,
+        severity,
+        message,
+        category=category,
+        source=source,
+    )
+    finding = {
         "rule_id": rule_id,
         "severity": severity,
         "message": message,
@@ -1674,6 +1682,8 @@ def _build_finding(
         "fix_prompt": f"Fix {rule_id}: {message}",
         "verification": f"Re-run `appguardrail scan` and verify {file}:{line} no longer reports this finding.",
     }
+    finding.update(metadata.as_dict())
+    return finding
 
 
 def _is_deploy_blocking(finding: dict) -> bool:

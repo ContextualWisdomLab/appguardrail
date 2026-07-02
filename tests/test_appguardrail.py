@@ -10,6 +10,7 @@ from scanner.cli.appguardrail import (
     SCAN_RULES,
     _bandit_findings,
     _collect_files,
+    _build_finding,
     _detect_scan_languages,
     _load_packaged_regex_rules,
     _path_allowed_by_rule,
@@ -688,6 +689,26 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     assert findings[0]["context"] == "app-code"
     assert findings[0]["fix_prompt"].startswith("Fix trivy:CVE-2026-0001")
     assert "SHOULD_NOT_PRINT" not in findings[2]["snippet"]
+
+
+def test_build_finding_adds_public_security_metadata():
+    finding = _build_finding(
+        "appguardrail-rule",
+        "python-requests-verify-false",
+        "HIGH",
+        (
+            "HTTP client disables TLS certificate verification. "
+            "[CWE-295 - Improper Certificate Validation]"
+        ),
+        "client.py",
+        3,
+        "requests.get(url, verify=False)",
+    )
+
+    assert finding["cwe"] == ("CWE-295 - Improper Certificate Validation",)
+    assert finding["owasp"] == ("OWASP A05:2021 - Security Misconfiguration",)
+    assert finding["samm_practice"] == "Operations / Environment Management"
+    assert finding["remediation"]
 
 
 def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):

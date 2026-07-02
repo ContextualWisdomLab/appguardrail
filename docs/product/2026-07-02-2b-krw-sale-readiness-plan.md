@@ -330,6 +330,17 @@ Deliverables:
   sources.
 - Add validation tests that block rules without required metadata.
 
+First implementation slice:
+
+- Added `appguardrail_core.rules` with a normalized `RuleMetadata` envelope.
+- Extracts public OWASP/CWE/CVE references already present in rule copy and
+  adds conservative category defaults when rule copy does not yet include an
+  explicit taxonomy reference.
+- Attaches `references`, `owasp`, `cwe`, `samm_practice`, and `remediation` to
+  every normalized finding emitted by scanner providers.
+- Added validation tests so report-generation code can reject findings that
+  lack public taxonomy or remediation metadata.
+
 Acceptance:
 
 - Every built-in rule has traceable metadata.
