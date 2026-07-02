@@ -51,6 +51,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import (
     NON_BLOCKING_CONTEXTS,
@@ -58,7 +61,6 @@ from appguardrail_core.findings import (
     normalize_findings,
 )
 from appguardrail_core.language import (
-    LANGUAGE_BY_EXTENSION,
     LANGUAGE_EXTENSIONS,
     detect_language_axes,
     detect_stack_profile,

@@ -1,10 +1,8 @@
-import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import cmd_init, cmd_report, cmd_scan
+from scanner.cli.appguardrail import cmd_init, cmd_scan
 from tests.test_appguardrail import MOCK_RULES
 
 
@@ -229,10 +227,6 @@ from scanner.cli.appguardrail import _collect_files, _scan_file
 
 
 def test_collect_files_oserror_on_scandir(tmp_path):
-    import os
-
-    original_scandir = os.scandir
-
     def mock_scandir(path):
         raise PermissionError("Mock permission error")
 
@@ -242,10 +236,6 @@ def test_collect_files_oserror_on_scandir(tmp_path):
 
 
 def test_collect_files_oserror_on_entry(tmp_path):
-    import os
-
-    original_scandir = os.scandir
-
     class MockEntry:
         def __init__(self, is_dir_val, is_file_val, is_symlink_val):
             self._is_dir = is_dir_val
@@ -280,8 +270,6 @@ def test_collect_files_oserror_on_entry(tmp_path):
 
 
 def test_scan_file_lstat_oserror(tmp_path):
-    import os
-
     test_file = tmp_path / "test.ts"
 
     with patch("os.lstat", side_effect=OSError("Mock OS Error")):
@@ -289,8 +277,6 @@ def test_scan_file_lstat_oserror(tmp_path):
 
 
 def test_scan_file_large_file(tmp_path):
-    import os
-
     test_file = tmp_path / "large.ts"
 
     class MockStat:
@@ -302,7 +288,6 @@ def test_scan_file_large_file(tmp_path):
 
 
 def test_scan_file_not_regular(tmp_path):
-    import os
     import stat
 
     test_file = tmp_path / "fifo"
