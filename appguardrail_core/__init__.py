@@ -30,8 +30,10 @@ from appguardrail_core.metrics import (
 from appguardrail_core.org_intelligence import (
     OrgInventory,
     PullRequestGateSummary,
+    RepositoryGateSummary,
     build_org_inventory,
     classify_pr_gate,
+    gate_action_bucket,
     render_org_readiness_report,
     summarize_pr_gates,
 )
@@ -53,6 +55,7 @@ __all__ = [
     "NON_BLOCKING_CONTEXTS",
     "OrgInventory",
     "PullRequestGateSummary",
+    "RepositoryGateSummary",
     "SEVERITIES",
     "SaleReadinessInputs",
     "SaleReadinessScore",
@@ -65,6 +68,7 @@ __all__ = [
     "detect_stack_profile",
     "extract_public_references",
     "finding_sort_key",
+    "gate_action_bucket",
     "is_deploy_blocking",
     "normalize_finding",
     "normalize_findings",
