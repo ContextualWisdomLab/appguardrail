@@ -575,6 +575,19 @@ def test_cmd_scan_auto_external_uses_detected_language_axes(tmp_path, monkeypatc
     semgrep.assert_called_once_with(tmp_path.resolve(), "auto")
 
 
+def test_cmd_scan_prints_beginner_profile_without_user_flags(tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\n")
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []):
+        assert cmd_scan(ScanArgs(tmp_path)) == 0
+
+    out = capsys.readouterr().out
+    assert "Detected language axes: python" in out
+    assert "Beginner profile: Python web application" in out
+    assert "Optional external engines: bandit, ruff, semgrep, trivy" in out
+
+
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
     files = [tmp_path / "first.py", tmp_path / "second.py"]
     for file_path in files:

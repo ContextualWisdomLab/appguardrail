@@ -302,6 +302,18 @@ Deliverables:
 - Python web, Java, JavaScript/TypeScript, and mixed-stack profile tests.
 - External engine availability report in scan output.
 
+First implementation slice:
+
+- Added `appguardrail_core.language` as the reusable zero-config profile
+  boundary.
+- Detects language axes from both source files and common manifests, so a
+  beginner does not have to choose `python`, `java`, or `typescript` before the
+  first scan.
+- Covers the requested first profiles: Python web, Java-only, and Java +
+  Node.js/TypeScript.
+- Prints a beginner-facing profile summary and optional external engine plan
+  from `appguardrail scan .` while preserving existing CLI behavior.
+
 Acceptance:
 
 - `appguardrail scan .` works without flags for Python web, Java-only, and

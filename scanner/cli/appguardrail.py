@@ -48,6 +48,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+from appguardrail_core.language import (
+    LANGUAGE_BY_EXTENSION,
+    LANGUAGE_EXTENSIONS,
+    detect_language_axes,
+    detect_stack_profile,
+)
+
 __version__ = "0.1.1"
 
 # ---------------------------------------------------------------------------
@@ -748,21 +755,6 @@ SCAN_RULES = [
     },
 ]
 
-LANGUAGE_EXTENSIONS = {
-    "javascript": [".js", ".jsx", ".mjs", ".cjs"],
-    "typescript": [".ts", ".tsx", ".mts", ".cts"],
-    "java": [".java"],
-    "python": [".py"],
-    "web": [".html", ".htm"],
-}
-
-LANGUAGE_BY_EXTENSION = {
-    extension: language
-    for language, extensions in LANGUAGE_EXTENSIONS.items()
-    for extension in extensions
-}
-
-
 def _unquote_rule_scalar(value: str) -> str:
     """Return a simple YAML scalar value from the controlled rule files."""
     value = value.strip()
@@ -1168,12 +1160,7 @@ def _print_supabase_reminder():
 
 def _detect_scan_languages(files):
     """Return language axes found in a scan target without requiring a profile."""
-    languages = set()
-    for file_path in files:
-        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
-        if language:
-            languages.add(language)
-    return languages
+    return detect_language_axes(files)
 
 
 def _external_tool_available(name: str, version_args=("--version",)):
@@ -1246,23 +1233,32 @@ def cmd_scan(args):
 
     findings = []
     files_scanned = 0
+    scanned_files = []
 
     if scan_path.is_file():
         files_to_scan = [scan_path]
     else:
         files_to_scan = _collect_files(scan_path)
 
-    languages = set()
     for file_path in files_to_scan:
-        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
-        if language:
-            languages.add(language)
+        scanned_files.append(file_path)
         files_scanned += 1
         file_findings = _scan_file(file_path, scan_path)
         findings.extend(file_findings)
 
-    if languages:
-        print(f"🧩 Detected language axes: {', '.join(sorted(languages))}\n")
+    profile = detect_stack_profile(scanned_files)
+    languages = set(profile.languages)
+    if profile.languages:
+        print(f"🧩 Detected language axes: {', '.join(profile.languages)}")
+        print(f"🧭 Beginner profile: {profile.display_name}")
+        print(f"   {profile.beginner_summary}")
+        if profile.frameworks:
+            print(f"   Framework signals: {', '.join(profile.frameworks)}")
+        if profile.external_tools:
+            print(f"   Optional external engines: {', '.join(profile.external_tools)}")
+        if profile.zap_recommended:
+            print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
+        print()
 
     auto_external = external_mode == "auto"
     auto_bandit = (
