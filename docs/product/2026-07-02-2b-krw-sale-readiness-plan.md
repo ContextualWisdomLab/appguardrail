@@ -429,6 +429,9 @@ First implementation slice:
 - Added `appguardrail report buyer-diligence --findings findings.json` so a
   pilot user or diligence reviewer can generate the markdown export from a
   findings JSON file without writing Python code.
+- Added `appguardrail scan --findings-json reports/findings.json` so scan
+  evidence can feed diligence reports and future dashboards without manual JSON
+  assembly.
 
 Acceptance:
 

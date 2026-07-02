@@ -4,7 +4,7 @@ appguardrail - Security guardrails for AI-built apps
 
 Usage:
   appguardrail init [--tool <tool>] [--stack <stack>]
-  appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--codegraph] [<path>]
+  appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--findings-json <path>] [--codegraph] [<path>]
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
   appguardrail report buyer-diligence --findings <json> [--out <path>]
@@ -31,6 +31,7 @@ Options:
   --ruff  Force-run Ruff Bandit-compatible security rules
   --semgrep  Force-run Semgrep multi-language SAST
   --zap-baseline  Run OWASP ZAP baseline scan against a URL
+  --findings-json  Write normalized findings JSON for reports or dashboards
   --codegraph  Initialize or sync a CodeGraph index before scanning
   --help    Show this help message
   --version Show version
@@ -54,6 +55,7 @@ from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import (
     NON_BLOCKING_CONTEXTS,
     is_deploy_blocking as core_is_deploy_blocking,
+    normalize_findings,
 )
 from appguardrail_core.language import (
     LANGUAGE_BY_EXTENSION,
@@ -1220,6 +1222,7 @@ def cmd_scan(args):
     zap_baseline_url = getattr(args, "zap_baseline", None) or os.environ.get(
         "APPGUARDRAIL_TARGET_URL"
     )
+    findings_json = getattr(args, "findings_json", None)
     force_zap = bool(getattr(args, "zap_baseline", None))
     run_codegraph = getattr(args, "codegraph", False)
 
@@ -1369,10 +1372,39 @@ def cmd_scan(args):
                 )
                 return 1
 
+    if findings_json:
+        try:
+            _write_findings_json(findings, Path(findings_json))
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            print(
+                "💡 Hint: Check the output path and directory permissions.",
+                file=sys.stderr,
+            )
+            return 1
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
     return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
+
+
+def _write_findings_json(findings, output_path: Path):
+    """Write normalized findings JSON for report builders and dashboards."""
+    normalized = normalize_findings(findings)
+    payload = {
+        "schema": "appguardrail.findings.v1",
+        "findings": list(normalized),
+    }
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
+    print(f"🧾 Findings JSON written: {output_path}")
 
 
 def cmd_monitor(args):
@@ -2555,6 +2587,11 @@ def main():
         "--zap-baseline",
         default=None,
         help="Run OWASP ZAP baseline scan against this http(s) URL",
+    )
+    scan_parser.add_argument(
+        "--findings-json",
+        default=None,
+        help="Write normalized findings JSON for report builders and dashboards",
     )
     scan_parser.add_argument(
         "--codegraph",

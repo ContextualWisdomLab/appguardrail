@@ -97,6 +97,9 @@ APPGUARDRAIL_TARGET_URL=https://your-authorized-test-host.example appguardrail s
 
 # If CodeGraph is installed, prepare structural context for deeper review
 appguardrail scan --codegraph .
+
+# Save normalized findings for report generation or dashboard ingestion
+appguardrail scan --findings-json reports/findings.json .
 ```
 
 Detects:
@@ -122,16 +125,17 @@ and scanner fixtures stay visible but do not fail the deploy gate by default.
 
 ```bash
 appguardrail report buyer-diligence \
-  --findings findings.json \
+  --findings reports/findings.json \
   --out reports/buyer-diligence.md \
   --app-name "Demo SaaS" \
   --repository "ContextualWisdomLab/demo"
 ```
 
-`findings.json` can be a JSON array of AppGuardrail findings or an object with a
-`findings` array. The report omits raw secrets and expands normalized metadata
-into a buyer-readable launch posture, finding summary, remediation, and
-verification checklist.
+`appguardrail scan --findings-json` writes the normalized findings envelope that
+the report command accepts. You can also pass a raw JSON array of findings or
+any object with a `findings` array. The report omits raw secrets and expands
+normalized metadata into a buyer-readable launch posture, finding summary,
+remediation, and verification checklist.
 
 ### Install continuous monitoring
 

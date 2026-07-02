@@ -622,6 +622,26 @@ def test_cmd_scan_auto_external_explains_missing_optional_engines(tmp_path, caps
     assert "Skipped Semgrep: executable not found or not runnable" in out
 
 
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
+def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
+    test_file = tmp_path / "unsafe.ts"
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n")
+    findings_json = tmp_path / "reports" / "findings.json"
+
+    args = ScanArgs(tmp_path)
+    args.findings_json = str(findings_json)
+
+    assert cmd_scan(args) == 1
+
+    payload = json.loads(findings_json.read_text())
+    assert payload["schema"] == "appguardrail.findings.v1"
+    assert payload["findings"][0]["rule_id"] == "mock-secret"
+    assert payload["findings"][0]["severity"] == "CRITICAL"
+    assert payload["findings"][0]["context"] == "app-code"
+    assert "managed secret storage" in payload["findings"][0]["remediation"]
+    assert "Findings JSON written" in capsys.readouterr().out
+
+
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
     files = [tmp_path / "first.py", tmp_path / "second.py"]
     for file_path in files:
