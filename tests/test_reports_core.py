@@ -1,8 +1,16 @@
-from appguardrail_core.reports import ReportContext, render_buyer_diligence_report
+from appguardrail_core.reports import (
+    ReportContext,
+    render_agency_report,
+    render_buyer_diligence_report,
+    render_fix_pack,
+    render_founder_friendly_report,
+    render_report,
+    supported_report_types,
+)
 
 
-def test_render_buyer_diligence_report_groups_findings_by_risk():
-    findings = [
+def sample_findings():
+    return [
         {
             "rule_id": "python-requests-verify-false",
             "severity": "HIGH",
@@ -31,6 +39,9 @@ def test_render_buyer_diligence_report_groups_findings_by_risk():
             "references": ("CWE-798 - Use of Hard-coded Credentials",),
         },
     ]
+
+
+def test_render_buyer_diligence_report_groups_findings_by_risk():
     context = ReportContext(
         app_name="Demo SaaS",
         repository="ContextualWisdomLab/demo",
@@ -38,7 +49,7 @@ def test_render_buyer_diligence_report_groups_findings_by_risk():
         generated_at="2026-07-02T00:00:00Z",
     )
 
-    report = render_buyer_diligence_report(findings, context)
+    report = render_buyer_diligence_report(sample_findings(), context)
 
     assert "# AppGuardrail Buyer Diligence Report" in report
     assert "**App:** Demo SaaS" in report
@@ -84,3 +95,84 @@ def test_render_buyer_diligence_report_handles_empty_findings():
     assert "**Launch posture:** No deploy-blocking findings in supplied evidence" in report
     assert "No findings were provided for this report." in report
     assert "No detailed findings." in report
+
+
+def test_render_founder_friendly_report_creates_plain_language_fix_prompts():
+    report = render_founder_friendly_report(
+        sample_findings(),
+        ReportContext(
+            app_name="Demo SaaS",
+            commit="abc123",
+            generated_at="2026-07-02T00:00:00Z",
+        ),
+    )
+
+    assert "# AppGuardrail Security Review Report" in report
+    assert "**Overall Status:** Launch only after high-risk items are fixed" in report
+    assert "## What We Checked" in report
+    assert "Fix AppGuardrail finding `python-requests-verify-false`" in report
+    assert "Fix `python-requests-verify-false` before launch" in report
+
+
+def test_render_agency_report_groups_by_severity_and_priority():
+    report = render_agency_report(
+        sample_findings(),
+        ReportContext(
+            app_name="Demo SaaS",
+            client_name="Demo Client",
+            reviewer="Demo Agency",
+            engagement_type="Retainer review",
+            repository="ContextualWisdomLab/demo",
+            commit="abc123",
+            generated_at="2026-07-02T00:00:00Z",
+        ),
+    )
+
+    assert "# AppGuardrail Agency Security Review Report" in report
+    assert "**Client:** Demo Client" in report
+    assert "**Recommendation:** Approved for launch only after high findings are resolved" in report
+    assert "### High Findings" in report
+    assert "| AG-002 | HTTP client disables TLS certificate verifica... | High | Review | Before launch |" in report
+    assert "### Informational Findings" in report
+
+
+def test_render_fix_pack_outputs_only_actionable_findings():
+    report = render_fix_pack(
+        [
+            *sample_findings(),
+            {
+                "rule_id": "info-only",
+                "severity": "INFO",
+                "message": "Document useful context.",
+                "file": "README.md",
+                "line": 1,
+            },
+        ],
+        ReportContext(
+            app_name="Demo SaaS",
+            generated_at="2026-07-02T00:00:00Z",
+            based_on="review-123",
+        ),
+    )
+
+    assert "# AppGuardrail Fix Pack" in report
+    assert "**Based on review:** review-123" in report
+    assert "FIX-001" in report
+    assert "python-requests-verify-false" in report
+    assert "info-only" not in report
+
+
+def test_render_report_dispatches_supported_report_types():
+    assert set(supported_report_types()) == {
+        "buyer-diligence",
+        "founder-friendly",
+        "agency",
+        "fix-pack",
+    }
+    report = render_report(
+        "fix-pack",
+        sample_findings(),
+        ReportContext(generated_at="2026-07-02T00:00:00Z"),
+    )
+
+    assert "# AppGuardrail Fix Pack" in report

@@ -49,7 +49,7 @@ class GitHub:
     def request(self, method: str, path: str, data: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> Any:
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310 - GitHub API URL
             f"{self.api}{path}{query}",
             data=body,
             method=method,
@@ -62,7 +62,7 @@ class GitHub:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as res:
+            with urllib.request.urlopen(req, timeout=30) as res:  # noqa: S310 - GitHub API URL
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
@@ -93,7 +93,7 @@ class GitHub:
 
     def job_log(self, repo: str, job_id: int) -> str:
         path = f"/repos/{repo}/actions/jobs/{job_id}/logs"
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310 - GitHub API URL
             f"{self.api}{path}",
             method="GET",
             headers={
@@ -113,7 +113,10 @@ class GitHub:
                 detail = exc.read().decode("utf-8", errors="replace")
                 return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
         try:
-            with urllib.request.urlopen(urllib.request.Request(location, headers={"User-Agent": UA}), timeout=30) as res:
+            download_req = urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
+                location, headers={"User-Agent": UA}
+            )
+            with urllib.request.urlopen(download_req, timeout=30) as res:  # noqa: S310 - GitHub log redirect URL
                 return res.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")

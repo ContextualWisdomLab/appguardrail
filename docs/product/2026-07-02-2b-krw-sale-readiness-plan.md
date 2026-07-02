@@ -432,6 +432,13 @@ First implementation slice:
 - Added `appguardrail scan --findings-json reports/findings.json` so scan
   evidence can feed diligence reports and future dashboards without manual JSON
   assembly.
+- Added `appguardrail report founder-friendly`, `agency`, and `fix-pack`
+  exports backed by the same normalized findings JSON contract:
+  - founder-friendly: plain-language launch readiness and copy/paste fix
+    prompts for non-security founders.
+  - agency: client-ready methodology, severity sections, priority matrix, and
+    retest notes.
+  - fix-pack: AI-ready remediation work items and verification tests.
 
 Acceptance:
 

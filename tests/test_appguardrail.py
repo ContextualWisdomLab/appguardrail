@@ -80,8 +80,8 @@ class MonitorArgs:
 
 
 class ReportArgs:
-    def __init__(self, findings, out=None):
-        self.report_type = "buyer-diligence"
+    def __init__(self, findings, out=None, report_type="buyer-diligence"):
+        self.report_type = report_type
         self.findings = str(findings)
         self.out = str(out) if out else None
         self.app_name = "Demo SaaS"
@@ -90,6 +90,10 @@ class ReportArgs:
         self.generated_at = "2026-07-02T00:00:00Z"
         self.scan_command = "appguardrail scan ."
         self.scope = "Demo app source and workflow evidence."
+        self.client_name = "Demo Client"
+        self.reviewer = "Demo Agency"
+        self.engagement_type = "Pre-launch review"
+        self.based_on = "review-123"
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -1445,6 +1449,36 @@ def test_cmd_report_buyer_diligence_writes_markdown(tmp_path, capsys):
     assert "**App:** Demo SaaS" in report
     assert "python-requests-verify-false" in report
     assert "Buyer diligence report written" in capsys.readouterr().out
+
+
+def test_cmd_report_fix_pack_writes_markdown(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "rule_id": "python-requests-verify-false",
+                        "severity": "HIGH",
+                        "message": "HTTP client disables TLS certificate verification.",
+                        "file": "client.py",
+                        "line": 7,
+                        "snippet": "requests.get(url, verify=False)",
+                        "remediation": "Keep certificate verification enabled.",
+                    }
+                ]
+            }
+        )
+    )
+    out_file = tmp_path / "reports" / "fix-pack.md"
+
+    assert cmd_report(ReportArgs(findings_file, out_file, "fix-pack")) == 0
+
+    report = out_file.read_text()
+    assert "# AppGuardrail Fix Pack" in report
+    assert "FIX-001" in report
+    assert "python-requests-verify-false" in report
+    assert "Fix pack written" in capsys.readouterr().out
 
 
 def test_cmd_report_rejects_invalid_findings_shape(tmp_path, capsys):

@@ -134,7 +134,7 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
         display_name = "Python web application"
         summary = (
             "Python web markers detected; AppGuardrail will prioritize web auth, "
-            "deserialization, TLS, CORS, template, and dependency-adjacent checks."
+            "deserialization, TLS, CORS, rendering, and dependency review."
         )
         next_steps = (
             "Review critical/high findings before deployment.",

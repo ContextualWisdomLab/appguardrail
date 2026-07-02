@@ -7,7 +7,7 @@ Usage:
   appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--findings-json <path>] [--codegraph] [<path>]
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
-  appguardrail report buyer-diligence --findings <json> [--out <path>]
+  appguardrail report {buyer-diligence,founder-friendly,agency,fix-pack} --findings <json> [--out <path>]
   appguardrail hook [--codegraph]
   appguardrail --help
   appguardrail --version
@@ -63,7 +63,12 @@ from appguardrail_core.language import (
     detect_language_axes,
     detect_stack_profile,
 )
-from appguardrail_core.reports import ReportContext, render_buyer_diligence_report
+from appguardrail_core.reports import (
+    REPORT_TYPE_LABELS,
+    ReportContext,
+    render_report,
+    supported_report_types,
+)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1177,7 +1182,7 @@ def _external_tool_available(name: str, version_args=("--version",)):
     if not executable:
         return None
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - executable resolved with shutil.which
             [executable, *version_args],
             shell=False,
             capture_output=True,
@@ -1440,10 +1445,11 @@ def cmd_monitor(args):
 def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
-    if report_type != "buyer-diligence":
+    if report_type not in supported_report_types():
         print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
         print(
-            "💡 Hint: Use `appguardrail report buyer-diligence --findings findings.json`.",
+            "💡 Hint: Supported report types are: "
+            + ", ".join(supported_report_types()),
             file=sys.stderr,
         )
         return 1
@@ -1466,15 +1472,20 @@ def cmd_report(args):
         scan_command=getattr(args, "scan_command", None) or "appguardrail scan .",
         scope=getattr(args, "scope", None)
         or "Application source, configuration, and security workflow evidence.",
+        client_name=getattr(args, "client_name", None) or "n/a",
+        reviewer=getattr(args, "reviewer", None) or "AppGuardrail",
+        engagement_type=getattr(args, "engagement_type", None)
+        or "Pre-launch review",
+        based_on=getattr(args, "based_on", None) or "AppGuardrail findings JSON",
     )
-    report = render_buyer_diligence_report(findings, context)
+    report = render_report(report_type, findings, context)
 
     output_path = getattr(args, "out", None)
     if output_path:
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(report, encoding="utf-8")
-        print(f"✅ Buyer diligence report written: {target}")
+        print(f"✅ {REPORT_TYPE_LABELS[report_type]} written: {target}")
     else:
         print(report, end="")
     return 0
@@ -1897,7 +1908,7 @@ def _run_trivy_fs(scan_path: Path):
         )
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Trivy path resolved with shutil.which
             [
                 trivy,
                 "fs",
@@ -1972,7 +1983,7 @@ def _run_bandit_scan(scan_path: Path):
         command.append(str(scan_path))
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Bandit path resolved with shutil.which
             command,
             shell=False,
             capture_output=True,
@@ -2031,7 +2042,7 @@ def _run_ruff_security_scan(scan_path: Path):
         raise RuntimeError("ruff executable not found.")
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Ruff path resolved with shutil.which
             [
                 ruff,
                 "check",
@@ -2110,7 +2121,7 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
             [
                 semgrep,
                 "scan",
@@ -2190,7 +2201,7 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(
+            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
                 [zap, "-t", target_url, "-J", str(report_path), "-I"],
                 shell=False,
                 capture_output=True,
@@ -2237,7 +2248,7 @@ def _run_codegraph_command(command, cwd: Path, action: str):
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - command is checked against allowlist
             command,
             cwd=cwd,
             capture_output=True,
@@ -2620,29 +2631,53 @@ def main():
         "report", help="Generate product and diligence reports from findings JSON"
     )
     report_subparsers = report_parser.add_subparsers(dest="report_type")
-    buyer_parser = report_subparsers.add_parser(
-        "buyer-diligence", help="Generate a buyer diligence markdown report"
-    )
-    buyer_parser.add_argument(
-        "--findings",
-        required=True,
-        help="Path to findings JSON array or object with a findings array",
-    )
-    buyer_parser.add_argument(
-        "--out",
-        default=None,
-        help="Write report to this markdown path instead of stdout",
-    )
-    buyer_parser.add_argument("--app-name", default=None, help="Application name")
-    buyer_parser.add_argument("--repository", default=None, help="Repository name")
-    buyer_parser.add_argument("--commit", default=None, help="Commit SHA or version")
-    buyer_parser.add_argument(
-        "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
-    )
-    buyer_parser.add_argument(
-        "--scan-command", default=None, help="Scan command used to produce findings"
-    )
-    buyer_parser.add_argument("--scope", default=None, help="Report scope summary")
+
+    def add_report_arguments(parser):
+        parser.add_argument(
+            "--findings",
+            required=True,
+            help="Path to findings JSON array or object with a findings array",
+        )
+        parser.add_argument(
+            "--out",
+            default=None,
+            help="Write report to this markdown path instead of stdout",
+        )
+        parser.add_argument("--app-name", default=None, help="Application name")
+        parser.add_argument("--repository", default=None, help="Repository name")
+        parser.add_argument(
+            "--commit", default=None, help="Commit SHA or version"
+        )
+        parser.add_argument(
+            "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
+        )
+        parser.add_argument(
+            "--scan-command", default=None, help="Scan command used to produce findings"
+        )
+        parser.add_argument("--scope", default=None, help="Report scope summary")
+        parser.add_argument("--client-name", default=None, help="Agency client name")
+        parser.add_argument("--reviewer", default=None, help="Reviewer or agency name")
+        parser.add_argument(
+            "--engagement-type",
+            default=None,
+            help="Agency engagement type, such as pre-launch review",
+        )
+        parser.add_argument(
+            "--based-on",
+            default=None,
+            help="Review ID, issue, PR, or scan artifact this report is based on",
+        )
+
+    report_help = {
+        "buyer-diligence": "Generate a buyer diligence markdown report",
+        "founder-friendly": "Generate a plain-language founder report",
+        "agency": "Generate an agency/client security review report",
+        "fix-pack": "Generate AI-ready remediation prompts and verification steps",
+    }
+    for report_type in supported_report_types():
+        add_report_arguments(
+            report_subparsers.add_parser(report_type, help=report_help[report_type])
+        )
 
     # hook
     hook_parser = subparsers.add_parser(

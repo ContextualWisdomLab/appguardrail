@@ -121,7 +121,7 @@ documented rule fixtures until the lightweight engine grows structural matching.
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
 
-### Generate a buyer diligence report
+### Generate reports from findings
 
 ```bash
 appguardrail report buyer-diligence \
@@ -129,13 +129,36 @@ appguardrail report buyer-diligence \
   --out reports/buyer-diligence.md \
   --app-name "Demo SaaS" \
   --repository "ContextualWisdomLab/demo"
+
+appguardrail report founder-friendly \
+  --findings reports/findings.json \
+  --out reports/founder-security-review.md \
+  --app-name "Demo SaaS"
+
+appguardrail report agency \
+  --findings reports/findings.json \
+  --out reports/agency-security-review.md \
+  --app-name "Demo SaaS" \
+  --client-name "Demo Client" \
+  --reviewer "Demo Agency"
+
+appguardrail report fix-pack \
+  --findings reports/findings.json \
+  --out reports/fix-pack.md \
+  --based-on "pre-launch-review-001"
 ```
 
 `appguardrail scan --findings-json` writes the normalized findings envelope that
 the report command accepts. You can also pass a raw JSON array of findings or
-any object with a `findings` array. The report omits raw secrets and expands
-normalized metadata into a buyer-readable launch posture, finding summary,
-remediation, and verification checklist.
+any object with a `findings` array. Report types are:
+
+- `buyer-diligence`: buyer-readable launch posture and evidence checklist.
+- `founder-friendly`: plain-language summary for non-security founders.
+- `agency`: client-ready technical review and retest notes.
+- `fix-pack`: AI-ready remediation prompts and verification steps.
+
+Reports omit raw secrets and expand normalized metadata into launch posture,
+finding summaries, remediation, and verification checklists.
 
 ### Install continuous monitoring
 
