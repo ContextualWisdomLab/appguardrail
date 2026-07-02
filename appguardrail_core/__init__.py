@@ -5,6 +5,12 @@ from appguardrail_core.language import (
     detect_language_axes,
     detect_stack_profile,
 )
+from appguardrail_core.metrics import (
+    MetricResult,
+    SaleReadinessInputs,
+    SaleReadinessScore,
+    score_sale_readiness,
+)
 from appguardrail_core.rules import (
     RuleMetadata,
     build_rule_metadata,
@@ -16,11 +22,15 @@ from appguardrail_core.reports import ReportContext, render_buyer_diligence_repo
 __all__ = [
     "ReportContext",
     "RuleMetadata",
+    "MetricResult",
+    "SaleReadinessInputs",
+    "SaleReadinessScore",
     "StackProfile",
     "build_rule_metadata",
     "detect_language_axes",
     "detect_stack_profile",
     "extract_public_references",
     "render_buyer_diligence_report",
+    "score_sale_readiness",
     "validate_rule_metadata",
 ]

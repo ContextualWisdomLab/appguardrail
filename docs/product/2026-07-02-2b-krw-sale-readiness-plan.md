@@ -240,6 +240,17 @@ Commercial readiness metrics:
 - 10 founder-friendly reports generated from real scans.
 - 5 buyer-diligence exports generated without manual editing.
 
+First implementation slice:
+
+- Added `appguardrail_core.metrics` as the reusable KPI scoring boundary.
+- Encodes activation, detection quality, and commercial readiness targets from
+  this plan in `score_sale_readiness(inputs)`.
+- Returns `sale-ready`, `pilot-ready`, or `not-ready` plus unmet KPI detail so
+  the future dashboard, reports, and release checks can share one contract.
+- Treats time-to-first-finding, zero-config scans, fixture precision, redaction,
+  and buyer diligence exports as critical gaps that block sale-readiness even
+  when most softer metrics pass.
+
 ## Packaging And Pricing Hypotheses
 
 Open-source base:
@@ -406,6 +417,29 @@ Acceptance:
 
 - A pilot buyer can see what was scanned, what was found, what was fixed, what
   remains accepted risk, and how evidence maps to OWASP/CWE/SAMM.
+
+### WS6.5: Product Metrics And Diligence Scorecard
+
+Deliverables:
+
+- Add a core KPI model for activation, quality, and commercial readiness.
+- Expose a sale-readiness score that can feed reports, dashboards, and release
+  discipline without copying thresholds into each surface.
+- Keep analytics privacy-preserving by accepting aggregate counts and rates
+  instead of raw code, raw logs, or user-identifying event streams.
+
+First implementation slice:
+
+- Added `SaleReadinessInputs`, `MetricResult`, `SaleReadinessScore`, and
+  `score_sale_readiness` in `appguardrail_core.metrics`.
+- Added tests for all-pass sale readiness, pilot-ready noncritical gaps,
+  critical buyer/readiness gaps, and strict threshold behavior.
+
+Acceptance:
+
+- Product readiness can be measured with a deterministic, tested API.
+- KPI gaps are explicit enough for a founder, pilot buyer, or diligence reviewer
+  to see what blocks the 2B KRW sale-readiness argument.
 
 ### WS7: Merge And Release Discipline
 
