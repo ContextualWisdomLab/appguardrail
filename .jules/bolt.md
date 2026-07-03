@@ -47,3 +47,7 @@
 ## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
 **Action:** Do not use `re.search` before `re.finditer` for optimization purposes.
+
+## 2024-07-03 - Defer expensive pathlib operations
+**Learning:** Path.is_dir() and Path.resolve() trigger costly stat() system calls. Executing them unconditionally for every file scanned in a hot path causes significant overhead.
+**Action:** Defer these calls using lazy evaluation (initializing to None and computing only when needed) to avoid overhead for files that don't match any rules.
