@@ -1,0 +1,4376 @@
+
+AppGuardrail scanning: /app
+
+Detected language axes: python
+Beginner profile: Generic code scan
+   Code files detected; AppGuardrail will run applicable built-in rules.
+   Framework signals: templates
+   Optional external engines: bandit, ruff, semgrep
+   ZAP baseline: provide --zap-baseline <url> for authorized DAST
+
+External auto mode:
+   Skipped Bandit: executable not found or not runnable
+   Skipped Semgrep: executable not found or not runnable
+
+Ruff security rules enabled: select S
+
+[CRITICAL] scanner/rules/supabase.yml:16
+  Rule:    next-public-secret
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/rules/supabase.yml:16
+  Rule:    nextjs-env-secret-client-prefix
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
+in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
+only referenced in server-side code.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/rules/nextjs.yml:63
+  Rule:    stripe-secret-key-client-exposure
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+secret key must only be used server-side.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/rules/stripe.yml:62
+  Rule:    next-public-secret
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/rules/stripe.yml:62
+  Rule:    nextjs-env-secret-client-prefix
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
+in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
+only referenced in server-side code.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/rules/stripe.yml:62
+  Rule:    stripe-secret-key-client-exposure
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+secret key must only be used server-side.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/rules/stripe.yml:63
+  Rule:    stripe-secret-key-client-exposure
+  Details: appguardrail-rule | secrets | scanner-fixture
+  Message: Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+secret key must only be used server-side.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] scanner/cli/appguardrail.py:441
+  Rule:    dangerous-eval
+  Details: appguardrail-rule | injection | scanner-fixture
+  Message: Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]
+  Code:    "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A
+  Gate:    non-blocking context
+
+[CRITICAL] examples/vulnerable-vibe-app/README.md:54
+  Rule:    next-public-secret
+  Details: appguardrail-rule | secrets | example
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] examples/vulnerable-vibe-app/README.md:54
+  Rule:    nextjs-env-secret-client-prefix
+  Details: appguardrail-rule | secrets | example
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
+in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
+only referenced in server-side code.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] checklists/secrets.md:65
+  Rule:    next-public-secret
+  Details: appguardrail-rule | secrets | doc
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] checklists/secrets.md:65
+  Rule:    nextjs-env-secret-client-prefix
+  Details: appguardrail-rule | secrets | doc
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
+in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
+only referenced in server-side code.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] checklists/secrets.md:65
+  Rule:    stripe-secret-key-client-exposure
+  Details: appguardrail-rule | secrets | doc
+  Message: Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+secret key must only be used server-side.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] checklists/secrets.md:65
+  Rule:    stripe-secret-key-client-exposure
+  Details: appguardrail-rule | secrets | doc
+  Message: Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+secret key must only be used server-side.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] checklists/stripe.md:62
+  Rule:    stripe-secret-key-client-exposure
+  Details: appguardrail-rule | secrets | doc
+  Message: Stripe secret key appears to use NEXT_PUBLIC_ prefix, which exposes it
+to the browser. Remove the NEXT_PUBLIC_ prefix immediately. The Stripe
+secret key must only be used server-side.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_coverage_edge_cases.py:267
+  Rule:    hardcoded-api-credential
+  Details: appguardrail-rule | secrets | test
+  Message: Hardcoded API credential detected. Move credentials to secret storage and rotate any committed value. [OWASP A07:2021 - Identification and Authentication Failures]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:1662
+  Rule:    python-insecure-deserialization
+  Details: appguardrail-rule | misconfig | test
+  Message: Insecure deserialization detected. Loading untrusted data with pickle, marshal, yaml.load, or yaml.unsafe_load can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]
+  Code:    "pickle.loads(data)\n"
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:1663
+  Rule:    python-insecure-deserialization
+  Details: appguardrail-rule | misconfig | test
+  Message: Insecure deserialization detected. Loading untrusted data with pickle, marshal, yaml.load, or yaml.unsafe_load can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]
+  Code:    "yaml.load(raw_config)\n"
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:1664
+  Rule:    python-insecure-deserialization
+  Details: appguardrail-rule | misconfig | test
+  Message: Insecure deserialization detected. Loading untrusted data with pickle, marshal, yaml.load, or yaml.unsafe_load can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]
+  Code:    "yaml.unsafe_load(raw_config)\n"
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:1666
+  Rule:    python-insecure-deserialization
+  Details: appguardrail-rule | misconfig | test
+  Message: Insecure deserialization detected. Loading untrusted data with pickle, marshal, yaml.load, or yaml.unsafe_load can lead to arbitrary code execution. [OWASP A08:2021 - Software and Data Integrity Failures]
+  Code:    "marshal.load(stream)\n"
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:477
+  Rule:    next-public-secret
+  Details: appguardrail-rule | secrets | test
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix — this exposes it to the browser bundle. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:1228
+  Rule:    dangerous-eval
+  Details: appguardrail-rule | injection | test
+  Message: Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]
+  Code:    (scanner_cli / "appguardrail.py").write_text('"message": "Use eval() detected"\n')
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:1254
+  Rule:    dangerous-eval
+  Details: appguardrail-rule | injection | test
+  Message: Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]
+  Code:    scanner_file.write_text('"message": "Use eval() detected"\n')
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:200
+  Rule:    python-dynamic-sql
+  Details: appguardrail-rule | injection | test
+  Message: Dynamic SQL query construction detected. Use parameterized queries or query-builder binding instead of string formatting or concatenation. [OWASP A03:2021 - Injection]
+  Code:    "content": 'cursor.execute(f"SELECT * FROM users WHERE name = {name}")\n',
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:205
+  Rule:    tool-execute-parameters-passthrough
+  Details: appguardrail-rule | misconfig | test
+  Message: Tool execution endpoint appears to pass request parameters directly into a registry or handler. Validate the tool code allowlist and parameter schema before dispatch. [OWASP A03:2021 - Injection]
+  Code:    "@router.post('/tools/{code}/execute')\n"
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:196
+  Rule:    python-jwt-decode-without-algorithms
+  Details: appguardrail-rule | authz | test
+  Message: JWT decode call does not appear to pin accepted algorithms. Explicitly require expected algorithms and validate issuer, audience, expiry, and key id. [OWASP A07:2021 - Identification and Authentication Failures]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:252
+  Rule:    hardcoded-api-credential
+  Details: appguardrail-rule | secrets | test
+  Message: Hardcoded API credential detected. Move credentials to secret storage and rotate any committed value. [OWASP A07:2021 - Identification and Authentication Failures]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[CRITICAL] tests/test_appguardrail.py:477
+  Rule:    nextjs-env-secret-client-prefix
+  Details: appguardrail-rule | secrets | test
+  Message: Secret environment variable uses NEXT_PUBLIC_ prefix, which exposes it
+in the browser bundle. Remove the NEXT_PUBLIC_ prefix and ensure it is
+only referenced in server-side code.
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:382
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]
+  Code:    "id": "todo-skip-auth",
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:384
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]
+  Code:    r"(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)",
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:1144
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]
+  Code:    6. **AI Patterns**: Are there TODO comments that defer security checks?
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:820
+  Rule:    python-django-csrf-exempt
+  Details: appguardrail-rule | misconfig | scanner-fixture
+  Message: Django CSRF protection is explicitly disabled on a view. Require CSRF protection or document a safe non-browser authentication boundary. [CWE-352 - Cross-Site Request Forgery]
+  Code:    "pattern": re.compile(r"@csrf_exempt\b", re.MULTILINE),
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:382
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    "id": "todo-skip-auth",
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:384
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    r"(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)",
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:1144
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    6. **AI Patterns**: Are there TODO comments that defer security checks?
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:378
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWA
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:382
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    "id": "todo-skip-auth",
+  Gate:    non-blocking context
+
+[HIGH] scanner/cli/appguardrail.py:901
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | scanner-fixture
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    "message": "Cookie Secure flag is explicitly disabled. Session and auth cookies should be restricted to HTTPS transport.
+  Gate:    non-blocking context
+
+[HIGH] tests/test_reports_core.py:20
+  Rule:    python-requests-verify-false
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]
+  Code:    "snippet": "requests.get(url, verify=False)",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_coverage_edge_cases.py:92
+  Rule:    hardcoded-password
+  Details: appguardrail-rule | secrets | test
+  Message: Possible hardcoded password detected. [OWASP A07:2021 - Identification and Authentication Failures]
+  Code:    [REDACTED: sensitive match suppressed]
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:45
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | test
+  Message: Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]
+  Code:    "pattern": re.compile(r"TODO: fix auth"),
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:153
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | test
+  Message: Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]
+  Code:    "const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:188
+  Rule:    upload-filename-path-traversal-risk
+  Details: appguardrail-rule | injection | test
+  Message: Uploaded filename is used in a filesystem path. Sanitize with a strict allowlist and verify the resolved path stays inside the intended directory. [OWASP A01:2021 - Broken Access Control]
+  Code:    "content": "target = os.path.join(tmpdir, upload.filename)\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:230
+  Rule:    python-subprocess-string-command
+  Details: appguardrail-rule | injection | test
+  Message: Subprocess command is built as a formatted or concatenated string. Pass an argument list and validate attacker-controlled command arguments. [OWASP A03:2021 - Injection]
+  Code:    "content": 'subprocess.run(f"ffmpeg -i {source_path}")\n',
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:192
+  Rule:    python-permissive-cors
+  Details: appguardrail-rule | misconfig | test
+  Message: CORS allows every origin. Restrict authenticated APIs to known origins. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    "content": "app.add_middleware(CORSMiddleware, allow_origins=['*'])\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:239
+  Rule:    python-subprocess-user-controlled-args
+  Details: appguardrail-rule | injection | test
+  Message: Subprocess argument list includes high-risk user-controlled media or filename parameters. Validate each argument with strict allowlists and bounds before invoking external tools. [OWASP A03:2021 - Injection]
+  Code:    "subprocess.run(['ffmpeg', '-i', source_path, '-fs', str(target_bytes)])\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:295
+  Rule:    python-subprocess-user-controlled-args
+  Details: appguardrail-rule | injection | test
+  Message: Subprocess argument list includes high-risk user-controlled media or filename parameters. Validate each argument with strict allowlists and bounds before invoking external tools. [OWASP A03:2021 - Injection]
+  Code:    "content": "subprocess.run(['ffmpeg', '-i', source_path], check=True)\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:239
+  Rule:    python-target-bytes-missing-upper-bound
+  Details: appguardrail-rule | misconfig | test
+  Message: target_bytes is checked only for a lower bound. Add a server-side upper bound to prevent resource exhaustion in media processing. [OWASP A04:2021 - Insecure Design]
+  Code:    "subprocess.run(['ffmpeg', '-i', source_path, '-fs', str(target_bytes)])\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:265
+  Rule:    pydantic-bounding-box-unconstrained
+  Details: appguardrail-rule | misconfig | test
+  Message: Bounding box schema fields are unconstrained numeric values. Add min/max bounds to reject invalid coordinates before document processing. [OWASP A04:2021 - Insecure Design]
+  Code:    "class BoundingBox(BaseModel):\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:265
+  Rule:    pydantic-unbounded-nested-list
+  Details: appguardrail-rule | misconfig | test
+  Message: Pydantic model accepts nested lists without an obvious size or depth bound. Add max_length/depth validation for untrusted recursive structures. [OWASP A04:2021 - Insecure Design]
+  Code:    "class BoundingBox(BaseModel):\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:280
+  Rule:    python-absolute-path-traversal-check-missing
+  Details: appguardrail-rule | injection | test
+  Message: Path validation checks '..' parts but does not reject absolute paths nearby. Reject absolute paths and verify resolved paths stay under the allowed root. [OWASP A01:2021 - Broken Access Control]
+  Code:    "candidate = Path(input_path)\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:288
+  Rule:    python-okta-host-endswith-ssrf
+  Details: appguardrail-rule | misconfig | test
+  Message: Okta/Snowflake authenticator host validation uses a suffix check. Parse the URL hostname and allow only exact Okta domains or verified subdomains to prevent SSRF bypasses. [OWASP A10:2021 - Server-Side Request Forgery]
+  Code:    "parsed = urlparse(authenticator)\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:230
+  Rule:    python-subprocess-missing-timeout
+  Details: appguardrail-rule | injection | test
+  Message: External process call has no timeout. Add a bounded timeout and handle TimeoutExpired to prevent worker exhaustion. [OWASP A04:2021 - Insecure Design]
+  Code:    "content": 'subprocess.run(f"ffmpeg -i {source_path}")\n',
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:295
+  Rule:    python-subprocess-missing-timeout
+  Details: appguardrail-rule | injection | test
+  Message: External process call has no timeout. Add a bounded timeout and handle TimeoutExpired to prevent worker exhaustion. [OWASP A04:2021 - Insecure Design]
+  Code:    "content": "subprocess.run(['ffmpeg', '-i', source_path], check=True)\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:311
+  Rule:    python-expanduser-user-path-traversal
+  Details: appguardrail-rule | injection | test
+  Message: User-controlled path is expanded before containment validation. Reject traversal and verify resolved paths stay under the allowed root. [OWASP A01:2021 - Broken Access Control]
+  Code:    "content": "audio_file = Path(input_path).expanduser()\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:345
+  Rule:    python-requests-verify-false
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]
+  Code:    "content": "requests.get('https://api.example.test', verify=False)\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:822
+  Rule:    python-requests-verify-false
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]
+  Code:    "requests.get(url, verify=False)",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:881
+  Rule:    python-requests-verify-false
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]
+  Code:    "code": "requests.get(url, verify=False)",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:1501
+  Rule:    python-requests-verify-false
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]
+  Code:    "snippet": "requests.get(url, verify=False)",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:1531
+  Rule:    python-requests-verify-false
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTP client disables TLS certificate verification. Keep verification enabled or pin a trusted CA bundle. [CWE-295 - Improper Certificate Validation]
+  Code:    "snippet": "requests.get(url, verify=False)",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:349
+  Rule:    python-tempfile-mktemp
+  Details: appguardrail-rule | misconfig | test
+  Message: tempfile.mktemp creates predictable names without opening the file atomically. Use NamedTemporaryFile or mkstemp. [CWE-377 - Insecure Temporary File]
+  Code:    "content": "name = tempfile.mktemp()\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:353
+  Rule:    python-flask-debug-true
+  Details: appguardrail-rule | misconfig | test
+  Message: Debug mode is enabled in application code. Disable active debug code before deployment. [CWE-489 - Active Debug Code]
+  Code:    "content": "app.run(host='0.0.0.0', debug=True)\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:902
+  Rule:    python-flask-debug-true
+  Details: appguardrail-rule | misconfig | test
+  Message: Debug mode is enabled in application code. Disable active debug code before deployment. [CWE-489 - Active Debug Code]
+  Code:    "issue_text": "Flask app run with debug=True",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:903
+  Rule:    python-flask-debug-true
+  Details: appguardrail-rule | misconfig | test
+  Message: Debug mode is enabled in application code. Disable active debug code before deployment. [CWE-489 - Active Debug Code]
+  Code:    "code": "app.run(debug=True)",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:946
+  Rule:    python-flask-debug-true
+  Details: appguardrail-rule | misconfig | test
+  Message: Debug mode is enabled in application code. Disable active debug code before deployment. [CWE-489 - Active Debug Code]
+  Code:    "message": "flask app with debug=True",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:357
+  Rule:    python-jinja-autoescape-disabled
+  Details: appguardrail-rule | misconfig | test
+  Message: Jinja2 autoescaping is disabled. Keep autoescape enabled for HTML templates to reduce XSS risk. [CWE-79 - Cross-site Scripting]
+  Code:    "content": "env = jinja2.Environment(loader=loader, autoescape=False)\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:361
+  Rule:    python-django-csrf-exempt
+  Details: appguardrail-rule | misconfig | test
+  Message: Django CSRF protection is explicitly disabled on a view. Require CSRF protection or document a safe non-browser authentication boundary. [CWE-352 - Cross-Site Request Forgery]
+  Code:    "content": "@csrf_exempt\ndef update_profile(request):\n    return HttpResponse('ok')\n",
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:45
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | test
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    "pattern": re.compile(r"TODO: fix auth"),
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:153
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | test
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    "const key = MOCK_SECRET_KEY;\n// TODO: fix auth checks here\n"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:685
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | test
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    assert "Skipped Ruff security rules: executable not found or not runnable" in out
+  Gate:    non-blocking context
+
+[HIGH] tests/test_appguardrail.py:811
+  Rule:    todo-skip-auth
+  Details: appguardrail-rule | authz | test
+  Message: Comment suggests authentication or security check was intentionally skipped
+or deferred. This is a common pattern in AI-generated code. Review and ensure
+proper authentication and authorization are in place before deploying.
+  Code:    def test_build_finding_adds_public_security_metadata():
+  Gate:    non-blocking context
+
+[HIGH] tests/test_issueops_core.py:39
+  Rule:    ruff:S105
+  Details: ruff | misconfig | test
+  Message: Possible hardcoded password assigned to: "secret_log"
+  Code:    Possible hardcoded password assigned to: "secret_log"
+  Gate:    non-blocking context
+
+[HIGH] tests/test_org_readiness_report_script.py:50
+  Rule:    ruff:S603
+  Details: ruff | misconfig | test
+  Message: `subprocess` call: check for execution of untrusted input
+  Code:    `subprocess` call: check for execution of untrusted input
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:234
+  Rule:    http-exception-chains-internal-error
+  Details: appguardrail-rule | misconfig | test
+  Message: HTTPException is chained from an internal exception. Avoid leaking implementation details in API error responses. [OWASP A05:2021 - Security Misconfiguration]
+  Code:    "content": "raise HTTPException(status_code=500) from exc\n",
+  Gate:    non-blocking context
+
+[WARNING] scripts/ci/collect_org_security_failures.py:37
+  Rule:    ruff:S104
+  Details: ruff | misconfig | app-code
+  Message: Possible binding to all interfaces
+  Code:    Possible binding to all interfaces
+
+[WARNING] tests/test_appguardrail.py:126
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:129
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:136
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:145
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:146
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:158
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:159
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:160
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:339
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:420
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:429
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:437
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:447
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:454
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:462
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:463
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:464
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:468
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:469
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:470
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:471
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:482
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:509
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:514
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:538
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:539
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:540
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:541
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:542
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:555
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:556
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:570
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:571
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:578
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:595
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:605
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:614
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:615
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:622
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:624
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:625
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:650
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:662
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:665
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:666
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:667
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:680
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:683
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:684
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:685
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:686
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:698
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:701
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:702
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:703
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:704
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:705
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:706
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:727
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:729
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:744
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:745
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:794
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:795
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:800
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:801
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:802
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:803
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:804
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:805
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:806
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:807
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:808
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:825
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:826
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:827
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:828
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:842
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:845
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:846
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:847
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:863
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:888
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:889
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:890
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:891
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:916
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:917
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:918
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:919
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:934
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:935
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:936
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:937
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:958
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:964
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:985
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:986
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:987
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:988
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1015
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1022
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1023
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1057
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1062
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1063
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1064
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1082
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1084
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1085
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1086
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1087
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1106
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1108
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1109
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1110
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1111
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1153
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1155
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1156
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1157
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1164
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1166
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1167
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1214
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1218
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1219
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1220
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1221
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1222
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1240
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1243
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1244
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1266
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1269
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1270
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1271
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1278
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1279
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1280
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1281
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1298
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1299
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1300
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1301
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1302
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1303
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1304
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1324
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1325
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1326
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1343
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1344
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1345
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1391
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1392
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1393
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1394
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1395
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1402
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1403
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1405
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1406
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1413
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1414
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1425
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1426
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1427
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1437
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1439
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1440
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1447
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1448
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1449
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1457
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1458
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1459
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1461
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1462
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1468
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1472
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1473
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1474
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1475
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1486
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1487
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1510
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1513
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1514
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1515
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1516
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1540
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1543
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1544
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1545
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1546
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1553
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1556
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1557
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1600
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1603
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1604
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1605
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1606
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1607
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1608
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1610
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1611
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1620
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1622
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1623
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1634
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1635
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1642
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1643
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1646
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1649
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1650
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1653
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1675
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1676
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1677
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1678
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1679
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1680
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1681
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1691
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1693
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1694
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1708
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail.py:1709
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:45
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:46
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:47
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:48
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:59
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:60
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:68
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:69
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:70
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:71
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:72
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:73
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:74
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:82
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:83
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:92
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:93
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:110
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:112
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:113
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:134
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:136
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:137
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:150
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:151
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:159
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:162
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:164
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:165
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:166
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:169
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:171
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:182
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:186
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:187
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:188
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:203
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:205
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:206
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:222
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:223
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:235
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:269
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:276
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:287
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:300
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:318
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:319
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:320
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:326
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:327
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:345
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:371
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:381
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:390
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:391
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:399
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:408
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:415
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:458
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:466
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:469
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:470
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_appguardrail_coverage.py:473
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:42
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:45
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:48
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:51
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:54
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:57
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:60
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:63
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:66
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:67
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:68
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:71
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:72
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:75
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:78
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:84
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:89
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:107
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:108
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:122
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:124
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:125
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:143
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:145
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:146
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:158
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:161
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:162
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:166
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:167
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:168
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:169
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:170
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:173
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:174
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:175
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:213
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:214
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:215
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:216
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:219
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:220
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:221
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:222
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:225
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:226
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:227
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:228
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:234
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:284
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_coverage_edge_cases.py:285
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:21
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:22
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:23
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:24
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:25
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:26
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:36
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:37
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:38
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:39
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:40
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:41
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:57
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:58
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:59
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:69
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:70
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:71
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_external_core.py:72
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:24
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:25
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:26
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:27
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:28
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:29
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:40
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:41
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:54
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:58
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:59
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:60
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:61
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:74
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:78
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_findings_core.py:79
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:26
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:27
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:28
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:29
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:30
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:34
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:44
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:45
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:46
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:60
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:61
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:62
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:63
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:64
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:70
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:71
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:72
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:73
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:76
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:81
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:82
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:83
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:85
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_issueops_core.py:86
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:11
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:30
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:31
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:32
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:33
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:34
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:35
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:47
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:48
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:49
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:50
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:67
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:68
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:69
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:70
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:71
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:80
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:81
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_language_core.py:82
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:26
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:27
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:28
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:29
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:41
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:42
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:43
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:58
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:59
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_metrics_core.py:75
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:23
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:24
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:25
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:26
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:27
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:28
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:29
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:30
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:31
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:64
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:65
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:66
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:67
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:68
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:69
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:70
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:71
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:120
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:121
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:126
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:131
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:132
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:133
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:134
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:135
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:136
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:137
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:138
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:139
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:202
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:203
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:204
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:205
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:206
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:207
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:208
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:209
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:210
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:211
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_intelligence_core.py:212
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:80
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:81
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:82
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:83
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:84
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:85
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:86
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:87
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:88
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:116
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:119
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_readiness_report_script.py:122
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:12
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:37
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:38
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:39
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:88
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:101
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:116
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:124
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:125
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:126
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:138
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:139
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:140
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_org_security_failure_collector.py:141
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:54
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:55
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:56
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:57
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:58
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:59
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:60
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:61
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:62
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:63
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:81
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:82
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:95
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:96
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:97
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:110
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:111
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:112
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:113
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:114
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:131
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:132
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:133
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:134
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:135
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:136
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:158
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:159
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:160
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:161
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:162
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:166
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_reports_core.py:178
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:14
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:28
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:31
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:32
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:33
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:34
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:48
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+[WARNING] tests/test_rules_core.py:49
+  Rule:    ruff:S101
+  Details: ruff | misconfig | test
+  Message: Use of `assert` detected
+  Code:    Use of `assert` detected
+  Gate:    non-blocking context
+
+────────────────────────────────────────────────────────────
+Scanned 100 files  |  Deploy blockers: 0 critical issues  0 high issues  1 warning  0 info issues
+Non-blocking findings in docs/tests/examples/fixtures: 615
+
+No deploy-blocking critical or high issues found.
+
+Run 'appguardrail review' to get an AI prompt for fixing these issues.
