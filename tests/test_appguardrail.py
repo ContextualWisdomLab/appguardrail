@@ -10,6 +10,7 @@ from scanner.cli.appguardrail import (
     SCAN_RULES,
     _bandit_findings,
     _collect_files,
+    _build_finding,
     _detect_scan_languages,
     _load_packaged_regex_rules,
     _path_allowed_by_rule,
@@ -26,6 +27,8 @@ from scanner.cli.appguardrail import (
     _semgrep_findings,
     cmd_init,
     cmd_monitor,
+    cmd_org_bundle,
+    cmd_report,
     cmd_scan,
 )
 
@@ -75,6 +78,35 @@ class ScanArgs:
 
 class MonitorArgs:
     pass
+
+
+class ReportArgs:
+    def __init__(self, findings, out=None, report_type="buyer-diligence"):
+        self.report_type = report_type
+        self.findings = str(findings)
+        self.out = str(out) if out else None
+        self.app_name = "Demo SaaS"
+        self.repository = "ContextualWisdomLab/demo"
+        self.commit = "abc123"
+        self.generated_at = "2026-07-02T00:00:00Z"
+        self.scan_command = "appguardrail scan ."
+        self.scope = "Demo app source and workflow evidence."
+        self.client_name = "Demo Client"
+        self.reviewer = "Demo Agency"
+        self.engagement_type = "Pre-launch review"
+        self.based_on = "review-123"
+
+
+class OrgBundleArgs:
+    def __init__(self, bundle_dir, repos_json, prs_json):
+        self.owner = "ContextualWisdomLab"
+        self.bundle_dir = str(bundle_dir)
+        self.repos_json = str(repos_json)
+        self.prs_json = str(prs_json)
+        self.prs_repository = "ContextualWisdomLab/appguardrail"
+        self.per_repo_pr_limit = 30
+        self.active_repository_target = 2
+        self.generated_at = "2026-07-03T00:00:00Z"
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -250,6 +282,53 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
                 "    raise ValueError('bad path')\n"
             ),
             "ids": {"python-absolute-path-traversal-check-missing"},
+        },
+        "snowflake.py": {
+            "content": (
+                "parsed = urlparse(authenticator)\n"
+                "if parsed.hostname.endswith('.okta.com'):\n"
+                "    return authenticator\n"
+            ),
+            "ids": {"python-okta-host-endswith-ssrf"},
+        },
+        "slow_process.py": {
+            "content": "subprocess.run(['ffmpeg', '-i', source_path], check=True)\n",
+            "ids": {"python-subprocess-missing-timeout"},
+        },
+        "extract-frames.sh": {
+            "content": 'awk "BEGIN { print $NUM_FRAMES / $DURATION }"\n',
+            "ids": {"shell-awk-variable-injection"},
+        },
+        "auth-flow.ts": {
+            "content": "exec(authUrl)\n",
+            "ids": {"node-exec-url-command-injection"},
+        },
+        "export.ts": {
+            "content": "writeFileSync(output, contents)\n",
+            "ids": {"node-unvalidated-output-path-write"},
+        },
+        "audio_separator.py": {
+            "content": "audio_file = Path(input_path).expanduser()\n",
+            "ids": {"python-expanduser-user-path-traversal"},
+        },
+        "strix.yml": {
+            "content": (
+                "env:\n"
+                "  LLM_API_KEY: ${{ secrets.LLM_API_KEY }}\n"
+                "  REVIEW_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
+            ),
+            "ids": {
+                "github-actions-secret-env-passthrough",
+                "github-actions-secrets-github-token",
+            },
+        },
+        "backup.sh": {
+            "content": 'docker run -e DB_PASS="$DB_PASS" postgres:16\n',
+            "ids": {"docker-cli-secret-env-leak"},
+        },
+        "external.html": {
+            "content": '<a href="https://example.com" target="_blank">external</a>\n',
+            "ids": {"html-target-blank-without-noopener"},
         },
     }
 
@@ -575,6 +654,58 @@ def test_cmd_scan_auto_external_uses_detected_language_axes(tmp_path, monkeypatc
     semgrep.assert_called_once_with(tmp_path.resolve(), "auto")
 
 
+def test_cmd_scan_prints_beginner_profile_without_user_flags(tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\n")
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []):
+        assert cmd_scan(ScanArgs(tmp_path)) == 0
+
+    out = capsys.readouterr().out
+    assert "Detected language axes: python" in out
+    assert "Beginner profile: Python web application" in out
+    assert "Optional external engines: bandit, ruff, semgrep, trivy" in out
+
+
+def test_cmd_scan_auto_external_explains_missing_optional_engines(tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["fastapi"]\n')
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\n")
+
+    args = ScanArgs(tmp_path)
+    args.external = "auto"
+
+    with patch("scanner.cli.appguardrail.SCAN_RULES", []), patch(
+        "scanner.cli.appguardrail._external_tool_available", return_value=None
+    ):
+        assert cmd_scan(args) == 0
+
+    out = capsys.readouterr().out
+    assert "External auto mode:" in out
+    assert "Skipped Bandit: executable not found or not runnable" in out
+    assert "Skipped Ruff security rules: executable not found or not runnable" in out
+    assert "Skipped Semgrep: executable not found or not runnable" in out
+
+
+@patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
+def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
+    test_file = tmp_path / "unsafe.ts"
+    test_file.write_text("const key = MOCK_SECRET_KEY;\n")
+    findings_json = tmp_path / "reports" / "findings.json"
+
+    args = ScanArgs(tmp_path)
+    args.findings_json = str(findings_json)
+
+    assert cmd_scan(args) == 1
+
+    payload = json.loads(findings_json.read_text())
+    assert payload["schema"] == "appguardrail.findings.v1"
+    assert payload["findings"][0]["rule_id"] == "mock-secret"
+    assert payload["findings"][0]["severity"] == "CRITICAL"
+    assert payload["findings"][0]["context"] == "app-code"
+    assert "managed secret storage" in payload["findings"][0]["remediation"]
+    assert "Findings JSON written" in capsys.readouterr().out
+
+
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
     files = [tmp_path / "first.py", tmp_path / "second.py"]
     for file_path in files:
@@ -677,6 +808,26 @@ def test_run_trivy_fs_maps_json_findings(tmp_path):
     assert "SHOULD_NOT_PRINT" not in findings[2]["snippet"]
 
 
+def test_build_finding_adds_public_security_metadata():
+    finding = _build_finding(
+        "appguardrail-rule",
+        "python-requests-verify-false",
+        "HIGH",
+        (
+            "HTTP client disables TLS certificate verification. "
+            "[CWE-295 - Improper Certificate Validation]"
+        ),
+        "client.py",
+        3,
+        "requests.get(url, verify=False)",
+    )
+
+    assert finding["cwe"] == ("CWE-295 - Improper Certificate Validation",)
+    assert finding["owasp"] == ("OWASP A05:2021 - Security Misconfiguration",)
+    assert finding["samm_practice"] == "Operations / Environment Management"
+    assert finding["remediation"]
+
+
 def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
     scan_path = tmp_path / "literal;touch INJECTED"
     scan_path.mkdir()
@@ -693,6 +844,7 @@ def test_run_trivy_fs_passes_scan_path_as_literal_argument(tmp_path):
     command = run.call_args.args[0]
     assert command[-1] == str(scan_path)
     assert run.call_args.kwargs["shell"] is False
+    assert run.call_args.kwargs["timeout"] == 300
 
 
 def test_run_trivy_fs_requires_trivy(tmp_path):
@@ -931,6 +1083,8 @@ def test_run_codegraph_index_initializes_when_missing(tmp_path):
 
     assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "init", "-i"]
     assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+    assert run.call_args_list[0].kwargs["timeout"] == 120
+    assert run.call_args_list[1].kwargs["timeout"] == 120
 
 
 def test_run_codegraph_index_syncs_existing_index(tmp_path):
@@ -953,6 +1107,8 @@ def test_run_codegraph_index_syncs_existing_index(tmp_path):
 
     assert run.call_args_list[0].args[0] == ["/usr/bin/codegraph", "sync"]
     assert run.call_args_list[1].args[0] == ["/usr/bin/codegraph", "status"]
+    assert run.call_args_list[0].kwargs["timeout"] == 120
+    assert run.call_args_list[1].kwargs["timeout"] == 120
 
 
 def test_run_codegraph_index_requires_codegraph(tmp_path):
@@ -1329,6 +1485,130 @@ def test_cmd_monitor_path_traversal(tmp_path, monkeypatch, capsys):
 
     assert cmd_monitor(MonitorArgs()) == 1
     assert "escapes the project root" in capsys.readouterr().err
+
+
+def test_cmd_report_buyer_diligence_writes_markdown(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(
+        json.dumps(
+            [
+                {
+                    "rule_id": "python-requests-verify-false",
+                    "severity": "HIGH",
+                    "message": "HTTP client disables TLS certificate verification.",
+                    "file": "client.py",
+                    "line": 7,
+                    "snippet": "requests.get(url, verify=False)",
+                    "references": ("CWE-295 - Improper Certificate Validation",),
+                    "remediation": "Keep certificate verification enabled.",
+                }
+            ]
+        )
+    )
+    out_file = tmp_path / "reports" / "buyer-diligence.md"
+
+    assert cmd_report(ReportArgs(findings_file, out_file)) == 0
+
+    report = out_file.read_text()
+    assert "# AppGuardrail Buyer Diligence Report" in report
+    assert "**App:** Demo SaaS" in report
+    assert "python-requests-verify-false" in report
+    assert "Buyer diligence report written" in capsys.readouterr().out
+
+
+def test_cmd_report_fix_pack_writes_markdown(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "rule_id": "python-requests-verify-false",
+                        "severity": "HIGH",
+                        "message": "HTTP client disables TLS certificate verification.",
+                        "file": "client.py",
+                        "line": 7,
+                        "snippet": "requests.get(url, verify=False)",
+                        "remediation": "Keep certificate verification enabled.",
+                    }
+                ]
+            }
+        )
+    )
+    out_file = tmp_path / "reports" / "fix-pack.md"
+
+    assert cmd_report(ReportArgs(findings_file, out_file, "fix-pack")) == 0
+
+    report = out_file.read_text()
+    assert "# AppGuardrail Fix Pack" in report
+    assert "FIX-001" in report
+    assert "python-requests-verify-false" in report
+    assert "Fix pack written" in capsys.readouterr().out
+
+
+def test_cmd_report_rejects_invalid_findings_shape(tmp_path, capsys):
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(json.dumps({"findings": "not-a-list"}))
+
+    assert cmd_report(ReportArgs(findings_file)) == 1
+
+    err = capsys.readouterr().err
+    assert "Findings JSON must be an array" in err
+    assert "Provide a JSON array" in err
+
+
+def test_cmd_org_bundle_writes_beginner_buyer_bundle(tmp_path, capsys):
+    repos_json = tmp_path / "repos.json"
+    prs_json = tmp_path / "prs.json"
+    bundle_dir = tmp_path / "bundle"
+    repos_json.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "appguardrail",
+                    "isFork": False,
+                    "isPrivate": False,
+                    "primaryLanguage": {"name": "Python"},
+                    "defaultBranchRef": {"name": "develop"},
+                },
+                {
+                    "name": "waf-ids-ai-soc",
+                    "isFork": False,
+                    "isPrivate": True,
+                    "primaryLanguage": {"name": "Rust"},
+                    "defaultBranchRef": {"name": "main"},
+                },
+            ]
+        )
+    )
+    prs_json.write_text(
+        json.dumps(
+            [
+                {
+                    "number": 157,
+                    "title": "Resolve source conflict",
+                    "isDraft": False,
+                    "mergeable": "CONFLICTING",
+                    "mergeStateStatus": "DIRTY",
+                    "reviewDecision": "",
+                    "statusCheckRollup": [{"status": "QUEUED"}],
+                }
+            ]
+        )
+    )
+
+    assert cmd_org_bundle(OrgBundleArgs(bundle_dir, repos_json, prs_json)) == 0
+
+    manifest = json.loads((bundle_dir / "manifest.json").read_text())
+    assert (bundle_dir / "org-readiness.md").exists()
+    assert (bundle_dir / "buyer-evidence.json").exists()
+    assert (bundle_dir / "README.md").exists()
+    assert manifest["source"]["repositories"]["kind"] == "file"
+    assert manifest["summary"]["open_pull_requests"] == 1
+    assert manifest["summary"]["action_bucket_counts"]["source-work"] == 1
+    out = capsys.readouterr().out
+    assert "Buyer evidence bundle written" in out
+    assert "Open PRs analyzed: 1" in out
 
 
 def test_cmd_init_unknown_tool(tmp_path, monkeypatch, capsys):

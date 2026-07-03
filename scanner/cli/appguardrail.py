@@ -4,9 +4,11 @@ appguardrail - Security guardrails for AI-built apps
 
 Usage:
   appguardrail init [--tool <tool>] [--stack <stack>]
-  appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--codegraph] [<path>]
+  appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--findings-json <path>] [--codegraph] [<path>]
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
+  appguardrail report {buyer-diligence,founder-friendly,agency,fix-pack} --findings <json> [--out <path>]
+  appguardrail org-bundle [--owner <org>] [--bundle-dir <path>]
   appguardrail hook [--codegraph]
   appguardrail --help
   appguardrail --version
@@ -16,6 +18,8 @@ Commands:
   scan      Run a lightweight security scan on a directory
   monitor   Install a GitHub Actions monitor workflow
   review    Generate an AI review prompt for your stack
+  report    Generate product and diligence reports from findings JSON
+  org-bundle Generate an organization buyer evidence bundle
   hook      Install a pre-commit hook to block vulnerabilities
 
 Options:
@@ -29,6 +33,7 @@ Options:
   --ruff  Force-run Ruff Bandit-compatible security rules
   --semgrep  Force-run Semgrep multi-language SAST
   --zap-baseline  Run OWASP ZAP baseline scan against a URL
+  --findings-json  Write normalized findings JSON for reports or dashboards
   --codegraph  Initialize or sync a CodeGraph index before scanning
   --help    Show this help message
   --version Show version
@@ -47,6 +52,27 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import \
+    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import normalize_findings
+from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
+                                        detect_language_axes,
+                                        detect_stack_profile)
+from appguardrail_core.org_bundle import (OrgBundleError,
+                                          annotate_missing_pr_repositories,
+                                          gh_error_message, gh_pr_list,
+                                          gh_repo_list)
+from appguardrail_core.org_bundle import load_json as load_org_json
+from appguardrail_core.org_bundle import render_org_evidence, write_bundle
+from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
+                                       render_report, supported_report_types)
+from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
 
@@ -604,6 +630,94 @@ SCAN_RULES = [
         "extensions": [".py"],
     },
     {
+        "id": "python-okta-host-endswith-ssrf",
+        "pattern": re.compile(
+            r"(?is)\b(?:authenticator|hostname|netloc|parsed_url|parsed)\b(?:(?!\n\s*\n).){0,500}\.endswith\s*\(\s*(?:\([^\)]*)?[\"']\.?(?:okta|oktapreview)\.com[\"']"
+        ),
+        "severity": "HIGH",
+        "message": "Okta/Snowflake authenticator host validation uses a suffix check. Parse the URL hostname and allow only exact Okta domains or verified subdomains to prevent SSRF bypasses. [OWASP A10:2021 - Server-Side Request Forgery]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "python-subprocess-missing-timeout",
+        "pattern": re.compile(
+            r"(?is)(?:subprocess\.(?:run|Popen|call|check_call|check_output)\s*\((?!(?:(?!\n\s*\)\s*(?:\n|$)).)*timeout\s*=)(?:(?!\n\s*\)\s*(?:\n|$)).){0,1200}\n\s*\)|subprocess\.(?:run|Popen|call|check_call|check_output)\s*\((?:(?!timeout\s*=)[^\n])+\))"
+        ),
+        "severity": "HIGH",
+        "message": "External process call has no timeout. Add a bounded timeout and handle TimeoutExpired to prevent worker exhaustion. [OWASP A04:2021 - Insecure Design]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "shell-awk-variable-injection",
+        "pattern": re.compile(
+            r"(?is)\bawk\s+(?:[\"'][^\"'\n]{0,300}\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^\"'\n]{0,300}[\"']|[\"'][^\"'\n]{0,300}[\"']\s*\"\$[A-Za-z_][A-Za-z0-9_]*\")"
+        ),
+        "severity": "CRITICAL",
+        "message": "Shell variable is interpolated into an awk program. Validate input and pass values with awk -v instead of embedding shell variables in the awk script. [OWASP A03:2021 - Injection]",
+        "extensions": [".sh", ".bash"],
+    },
+    {
+        "id": "node-exec-url-command-injection",
+        "pattern": re.compile(
+            r"(?i)\bexec(?:Sync)?\s*\(\s*(?:authUrl|browserUrl|openUrl|url|command)\b"
+        ),
+        "severity": "CRITICAL",
+        "message": "child_process.exec is called with a URL or command variable. Use spawn/execFile with argument arrays and validate allowed URL protocols. [OWASP A03:2021 - Injection]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "node-unvalidated-output-path-write",
+        "pattern": re.compile(
+            r"(?i)\b(?:writeFile|writeFileSync|createWriteStream)\s*\(\s*(?:output|outputPath|filePath|dest|destination|exportPath)\b"
+        ),
+        "severity": "HIGH",
+        "message": "File write uses a caller-controlled output path. Resolve the target and verify it stays inside the allowed project root before writing. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    },
+    {
+        "id": "python-expanduser-user-path-traversal",
+        "pattern": re.compile(
+            r"(?i)\bPath\s*\([^)]*(?:input|output|file|path)[^)]*\)\.expanduser\s*\("
+        ),
+        "severity": "HIGH",
+        "message": "User-controlled path is expanded before containment validation. Reject traversal and verify resolved paths stay under the allowed root. [OWASP A01:2021 - Broken Access Control]",
+        "extensions": [".py"],
+    },
+    {
+        "id": "github-actions-secret-env-passthrough",
+        "pattern": re.compile(
+            r"(?is)\b(?:LLM_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|DB_PASS|DATABASE_URL|PRIVATE_KEY|ACCESS_TOKEN)\s*:\s*\$\{\{\s*secrets\."
+        ),
+        "severity": "HIGH",
+        "message": "GitHub Actions passes a high-risk secret directly through environment variables. Prefer file-based secret handoff or a scoped platform token. [OWASP A03:2021 - Injection]",
+        "extensions": [".yml", ".yaml"],
+    },
+    {
+        "id": "github-actions-secrets-github-token",
+        "pattern": re.compile(r"\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}", re.IGNORECASE),
+        "severity": "HIGH",
+        "message": "Workflow references secrets.GITHUB_TOKEN. Use github.token with least job permissions instead of secret-context token interpolation. [OWASP A05:2021 - Security Misconfiguration]",
+        "extensions": [".yml", ".yaml"],
+    },
+    {
+        "id": "docker-cli-secret-env-leak",
+        "pattern": re.compile(
+            r"(?i)\bdocker\s+(?:run|exec|compose)[^\n]*(?:-e|--env)\s+(?:DB_PASS|DATABASE_URL|PASSWORD|TOKEN|[A-Z0-9_]*SECRET)[A-Z0-9_]*="
+        ),
+        "severity": "HIGH",
+        "message": "Docker command passes a secret through CLI environment flags where it can leak through process listings. Use --env-file or secret mounts. [OWASP A07:2021 - Identification and Authentication Failures]",
+        "extensions": [".sh", ".bash", ".yml", ".yaml"],
+    },
+    {
+        "id": "html-target-blank-without-noopener",
+        "pattern": re.compile(
+            r"(?i)<a\b(?=[^>\n]*target\s*=\s*[\"']_blank[\"'])(?![^>\n]*rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer))[^>\n]*href\s*=\s*[\"']https?://"
+        ),
+        "severity": "WARNING",
+        "message": 'External target=_blank link is missing rel="noopener noreferrer". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]',
+        "extensions": [".html", ".htm"],
+    },
+    {
         "id": "python-requests-verify-false",
         "pattern": re.compile(
             r"(?is)\b(?:requests|httpx)\.(?:request|get|post|put|patch|delete)\s*\((?:(?!\n\s*\)).){0,500}verify\s*=\s*False"
@@ -747,20 +861,6 @@ SCAN_RULES = [
         "extensions": None,
     },
 ]
-
-LANGUAGE_EXTENSIONS = {
-    "javascript": [".js", ".jsx", ".mjs", ".cjs"],
-    "typescript": [".ts", ".tsx", ".mts", ".cts"],
-    "java": [".java"],
-    "python": [".py"],
-    "web": [".html", ".htm"],
-}
-
-LANGUAGE_BY_EXTENSION = {
-    extension: language
-    for language, extensions in LANGUAGE_EXTENSIONS.items()
-    for extension in extensions
-}
 
 
 def _unquote_rule_scalar(value: str) -> str:
@@ -962,9 +1062,6 @@ SKIP_EXTENSIONS = {
     ".map",
     ".log",
 }
-
-NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
-DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
 
 # ---------------------------------------------------------------------------
 # Review prompt templates
@@ -1168,12 +1265,7 @@ def _print_supabase_reminder():
 
 def _detect_scan_languages(files):
     """Return language axes found in a scan target without requiring a profile."""
-    languages = set()
-    for file_path in files:
-        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
-        if language:
-            languages.add(language)
-    return languages
+    return detect_language_axes(files)
 
 
 def _external_tool_available(name: str, version_args=("--version",)):
@@ -1182,7 +1274,7 @@ def _external_tool_available(name: str, version_args=("--version",)):
     if not executable:
         return None
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - executable resolved with shutil.which
             [executable, *version_args],
             shell=False,
             capture_output=True,
@@ -1195,6 +1287,21 @@ def _external_tool_available(name: str, version_args=("--version",)):
     if process.returncode != 0:
         return None
     return executable
+
+
+def _print_external_auto_skips(plan):
+    """Print beginner-safe auto-mode skips without failing the scan."""
+    skipped = [
+        decision
+        for decision in plan.decisions
+        if decision.skip_reason and not decision.forced
+    ]
+    if not skipped:
+        return
+    print("⚙️  External auto mode:")
+    for decision in skipped:
+        print(f"   Skipped {decision.display_name}: {decision.skip_reason}")
+    print()
 
 
 def cmd_scan(args):
@@ -1212,6 +1319,7 @@ def cmd_scan(args):
     zap_baseline_url = getattr(args, "zap_baseline", None) or os.environ.get(
         "APPGUARDRAIL_TARGET_URL"
     )
+    findings_json = getattr(args, "findings_json", None)
     force_zap = bool(getattr(args, "zap_baseline", None))
     run_codegraph = getattr(args, "codegraph", False)
 
@@ -1246,45 +1354,47 @@ def cmd_scan(args):
 
     findings = []
     files_scanned = 0
+    scanned_files = []
 
     if scan_path.is_file():
         files_to_scan = [scan_path]
     else:
         files_to_scan = _collect_files(scan_path)
 
-    languages = set()
     for file_path in files_to_scan:
-        language = LANGUAGE_BY_EXTENSION.get(file_path.suffix.lower())
-        if language:
-            languages.add(language)
+        scanned_files.append(file_path)
         files_scanned += 1
         file_findings = _scan_file(file_path, scan_path)
         findings.extend(file_findings)
 
-    if languages:
-        print(f"🧩 Detected language axes: {', '.join(sorted(languages))}\n")
+    profile = detect_stack_profile(scanned_files)
+    languages = set(profile.languages)
+    if profile.languages:
+        print(f"🧩 Detected language axes: {', '.join(profile.languages)}")
+        print(f"🧭 Beginner profile: {profile.display_name}")
+        print(f"   {profile.beginner_summary}")
+        if profile.frameworks:
+            print(f"   Framework signals: {', '.join(profile.frameworks)}")
+        if profile.external_tools:
+            print(f"   Optional external engines: {', '.join(profile.external_tools)}")
+        if profile.zap_recommended:
+            print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
+        print()
 
-    auto_external = external_mode == "auto"
-    auto_bandit = (
-        auto_external and "python" in languages and _external_tool_available("bandit")
+    external_plan = build_external_scan_plan(
+        languages,
+        external_mode=external_mode,
+        force_trivy=run_trivy,
+        force_bandit=force_bandit,
+        force_ruff=force_ruff,
+        force_semgrep=force_semgrep,
+        zap_baseline_url=zap_baseline_url,
+        force_zap=force_zap,
+        tool_available=_external_tool_available,
     )
-    auto_ruff = (
-        auto_external and "python" in languages and _external_tool_available("ruff")
-    )
-    auto_semgrep = (
-        auto_external
-        and bool(languages & {"java", "javascript", "python", "typescript", "web"})
-        and _external_tool_available("semgrep")
-    )
-    auto_zap = bool(zap_baseline_url) and (
-        auto_external and _external_tool_available("zap-baseline.py", ("-h",))
-    )
-    run_bandit = force_bandit or auto_bandit
-    run_ruff = force_ruff or auto_ruff
-    run_semgrep = force_semgrep or auto_semgrep
-    run_zap = bool(zap_baseline_url) and (force_zap or auto_zap)
+    _print_external_auto_skips(external_plan)
 
-    if run_trivy:
+    if external_plan.trivy.should_run:
         print("🔎 Trivy FS enabled: vuln, secret, misconfig\n")
         try:
             findings.extend(_run_trivy_fs(scan_path))
@@ -1296,70 +1406,99 @@ def cmd_scan(args):
             )
             return 1
 
-    if run_bandit:
+    if external_plan.bandit.should_run:
         print("🐍 Bandit enabled: Python SAST\n")
         try:
             findings.extend(_run_bandit_scan(scan_path))
         except RuntimeError as exc:
-            if auto_bandit and not force_bandit:
+            if external_plan.bandit.auto_selected and not external_plan.bandit.forced:
                 print(f"⚠️  Skipping Bandit auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install Bandit or run without --bandit.",
+                    f"💡 Hint: {external_plan.bandit.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
-    if run_ruff:
+    if external_plan.ruff.should_run:
         print("🐍 Ruff security rules enabled: select S\n")
         try:
             findings.extend(_run_ruff_security_scan(scan_path))
         except RuntimeError as exc:
-            if auto_ruff and not force_ruff:
+            if external_plan.ruff.auto_selected and not external_plan.ruff.forced:
                 print(f"⚠️  Skipping Ruff auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install Ruff or run without --ruff.",
+                    f"💡 Hint: {external_plan.ruff.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
-    if run_semgrep:
+    if external_plan.semgrep.should_run:
         print(f"🔎 Semgrep enabled: config {semgrep_config}\n")
         try:
             findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
         except RuntimeError as exc:
-            if auto_semgrep and not force_semgrep:
+            if external_plan.semgrep.auto_selected and not external_plan.semgrep.forced:
                 print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install Semgrep correctly or run with --external off.",
+                    f"💡 Hint: {external_plan.semgrep.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
-    if run_zap:
+    if external_plan.zap.should_run:
         print(f"🌐 OWASP ZAP baseline enabled: {zap_baseline_url}\n")
         try:
             findings.extend(_run_zap_baseline(zap_baseline_url))
         except RuntimeError as exc:
-            if auto_zap and not force_zap:
+            if external_plan.zap.auto_selected and not external_plan.zap.forced:
                 print(f"⚠️  Skipping ZAP auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
-                    "💡 Hint: Install zap-baseline.py or run without --zap-baseline.",
+                    f"💡 Hint: {external_plan.zap.hint}",
                     file=sys.stderr,
                 )
                 return 1
+
+    if findings_json:
+        try:
+            _write_findings_json(findings, Path(findings_json))
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            print(
+                "💡 Hint: Check the output path and directory permissions.",
+                file=sys.stderr,
+            )
+            return 1
 
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
     return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
+
+
+def _write_findings_json(findings, output_path: Path):
+    """Write normalized findings JSON for report builders and dashboards."""
+    normalized = normalize_findings(findings)
+    payload = {
+        "schema": "appguardrail.findings.v1",
+        "findings": list(normalized),
+    }
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
+    print(f"🧾 Findings JSON written: {output_path}")
 
 
 def cmd_monitor(args):
@@ -1395,6 +1534,148 @@ def cmd_monitor(args):
         f"{rocket}This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
     )
     return 0
+
+
+def cmd_report(args):
+    """Generate markdown reports from normalized AppGuardrail findings JSON."""
+    report_type = getattr(args, "report_type", None)
+    if report_type not in supported_report_types():
+        print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
+        print(
+            "💡 Hint: Supported report types are: "
+            + ", ".join(supported_report_types()),
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        findings = _load_findings_json(Path(getattr(args, "findings")))
+    except (TypeError, RuntimeError) as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        print(
+            "💡 Hint: Provide a JSON array or an object with a `findings` array.",
+            file=sys.stderr,
+        )
+        return 1
+
+    context = ReportContext(
+        app_name=getattr(args, "app_name", None) or "AppGuardrail scan target",
+        repository=getattr(args, "repository", None) or "n/a",
+        commit=getattr(args, "commit", None) or "n/a",
+        generated_at=getattr(args, "generated_at", None) or "",
+        scan_command=getattr(args, "scan_command", None) or "appguardrail scan .",
+        scope=getattr(args, "scope", None)
+        or "Application source, configuration, and security workflow evidence.",
+        client_name=getattr(args, "client_name", None) or "n/a",
+        reviewer=getattr(args, "reviewer", None) or "AppGuardrail",
+        engagement_type=getattr(args, "engagement_type", None) or "Pre-launch review",
+        based_on=getattr(args, "based_on", None) or "AppGuardrail findings JSON",
+    )
+    report = render_report(report_type, findings, context)
+
+    output_path = getattr(args, "out", None)
+    if output_path:
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(report, encoding="utf-8")
+        print(f"✅ {REPORT_TYPE_LABELS[report_type]} written: {target}")
+    else:
+        print(report, end="")
+    return 0
+
+
+def cmd_org_bundle(args):
+    """Generate an organization buyer evidence bundle from GitHub state."""
+    owner = getattr(args, "owner", None) or "ContextualWisdomLab"
+    bundle_dir = Path(
+        getattr(args, "bundle_dir", None) or "appguardrail-buyer-evidence"
+    )
+    repos_json = getattr(args, "repos_json", None)
+    prs_json = getattr(args, "prs_json", None)
+    prs_repository = getattr(args, "prs_repository", None)
+    per_repo_pr_limit = getattr(args, "per_repo_pr_limit", 100)
+    active_repository_target = getattr(args, "active_repository_target", 20)
+
+    try:
+        repos = load_org_json(repos_json) if repos_json else gh_repo_list(owner)
+        collection_warnings: list[str] = []
+        if prs_json:
+            prs = load_org_json(prs_json)
+        else:
+            prs, collection_warnings = gh_pr_list(owner, repos, per_repo_pr_limit)
+        if prs_repository:
+            prs = annotate_missing_pr_repositories(prs, prs_repository)
+        generated_at, report, evidence_payload, inventory, pr_summary = (
+            render_org_evidence(
+                repos,
+                prs,
+                active_repository_target=active_repository_target,
+                generated_at=getattr(args, "generated_at", None),
+            )
+        )
+        manifest = write_bundle(
+            bundle_dir,
+            report=report,
+            evidence_payload=evidence_payload,
+            inventory=inventory,
+            pr_summary=pr_summary,
+            generated_at=generated_at,
+            owner=owner,
+            repos_source=repos_json,
+            prs_source=prs_json,
+            prs_repository_override=prs_repository,
+            per_repo_pr_limit=per_repo_pr_limit,
+            active_repository_target=active_repository_target,
+            collection_warnings=collection_warnings,
+        )
+    except OrgBundleError as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        print(
+            "💡 Hint: Authenticate `gh` or provide --repos-json and --prs-json.",
+            file=sys.stderr,
+        )
+        return 1
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr
+        )
+        print(
+            "💡 Hint: Retry later or provide --repos-json and --prs-json.",
+            file=sys.stderr,
+        )
+        return 1
+
+    summary = manifest["summary"]
+    print(f"\n✅ Buyer evidence bundle written: {bundle_dir}\n")
+    print("Files:")
+    print("  - org-readiness.md")
+    print("  - buyer-evidence.json")
+    print("  - manifest.json")
+    print("  - README.md")
+    print()
+    print(f"Open PRs analyzed: {summary['open_pull_requests']}")
+    print(f"Buyer evidence status: {summary['buyer_evidence_status']}")
+    if manifest["collection_warnings"]:
+        print(f"Collection warnings: {len(manifest['collection_warnings'])}")
+    return 0
+
+
+def _load_findings_json(path: Path):
+    """Load a findings array from a JSON file or wrapped JSON object."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise RuntimeError(f"Cannot read findings JSON: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Findings JSON is invalid: {exc}") from exc
+
+    if isinstance(data, dict):
+        data = data.get("findings")
+    if not isinstance(data, list):
+        raise RuntimeError("Findings JSON must be an array or contain `findings`.")
+    if not all(isinstance(item, dict) for item in data):
+        raise RuntimeError("Every finding must be a JSON object.")
+    return data
 
 
 def cmd_hook(args):
@@ -1498,7 +1779,6 @@ def _get_applicable_rules(ext: str):
                 rule["severity"],
                 rule["message"],
                 rule["pattern"].finditer,
-                rule["pattern"].search,
                 tuple(rule.get("include_paths") or ()),
                 tuple(rule.get("exclude_paths") or ()),
             )
@@ -1674,7 +1954,14 @@ def _build_finding(
     """Build the normalized finding dictionary emitted by scan providers."""
     context = _finding_context(file, snippet)
     category = category or _finding_category(rule_id)
-    return {
+    metadata = build_rule_metadata(
+        rule_id,
+        severity,
+        message,
+        category=category,
+        source=source,
+    )
+    finding = {
         "rule_id": rule_id,
         "severity": severity,
         "message": message,
@@ -1688,14 +1975,13 @@ def _build_finding(
         "fix_prompt": f"Fix {rule_id}: {message}",
         "verification": f"Re-run `appguardrail scan` and verify {file}:{line} no longer reports this finding.",
     }
+    finding.update(metadata.as_dict())
+    return finding
 
 
 def _is_deploy_blocking(finding: dict) -> bool:
     """Return whether a finding should fail the deploy gate."""
-    return (
-        finding.get("severity") in DEPLOY_BLOCKING_SEVERITIES
-        and finding.get("context", "app-code") not in NON_BLOCKING_CONTEXTS
-    )
+    return core_is_deploy_blocking(finding)
 
 
 _TRIVY_SEVERITY_MAP = {
@@ -1795,7 +2081,7 @@ def _run_trivy_fs(scan_path: Path):
         )
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Trivy path resolved with shutil.which
             [
                 trivy,
                 "fs",
@@ -1870,7 +2156,7 @@ def _run_bandit_scan(scan_path: Path):
         command.append(str(scan_path))
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Bandit path resolved with shutil.which
             command,
             shell=False,
             capture_output=True,
@@ -1931,7 +2217,7 @@ def _run_ruff_security_scan(scan_path: Path):
         raise RuntimeError("ruff executable not found.")
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - Ruff path resolved with shutil.which
             [
                 ruff,
                 "check",
@@ -1984,7 +2270,11 @@ def _semgrep_findings(report: dict, base_path: Path):
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
-        path = _sanitize_terminal_output(_trivy_target(item.get("path", ""), base_path))
+        # fmt: off
+        path = _sanitize_terminal_output(
+            _trivy_target(item.get("path", ""), base_path)
+        )
+        # fmt: on
         check_id = item.get("check_id") or "semgrep"
         findings.append(
             _build_finding(
@@ -2008,20 +2298,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2088,13 +2380,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -2135,7 +2429,7 @@ def _run_codegraph_command(command, cwd: Path, action: str):
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
     try:
-        process = subprocess.run(
+        process = subprocess.run(  # noqa: S603 - command is checked against allowlist
             command,
             cwd=cwd,
             capture_output=True,
@@ -2226,7 +2520,6 @@ def _scan_file(file_path: Path, base_path: Path):
                 severity,
                 message,
                 finditer,
-                search_method,
                 include_paths,
                 exclude_paths,
             ) in applicable_rules:
@@ -2243,10 +2536,6 @@ def _scan_file(file_path: Path, base_path: Path):
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
                         continue
-                # ⚡ Bolt: Fast path rejection using pre-bound search method
-                if not search_method(content):
-                    continue
-
                 # ⚡ Bolt: Progressive line counting for O(N) instead of O(N*M)
                 # finditer yields matches in order, allowing us to scan for newlines
                 # incrementally from the last known position rather than starting from 0.
@@ -2487,6 +2776,11 @@ def main():
         help="Run OWASP ZAP baseline scan against this http(s) URL",
     )
     scan_parser.add_argument(
+        "--findings-json",
+        default=None,
+        help="Write normalized findings JSON for report builders and dashboards",
+    )
+    scan_parser.add_argument(
         "--codegraph",
         action="store_true",
         help="Initialize or sync CodeGraph before scanning for structural review context",
@@ -2508,6 +2802,105 @@ def main():
     )
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
+    # report
+    report_parser = subparsers.add_parser(
+        "report", help="Generate product and diligence reports from findings JSON"
+    )
+    report_subparsers = report_parser.add_subparsers(dest="report_type")
+
+    def add_report_arguments(parser):
+        parser.add_argument(
+            "--findings",
+            required=True,
+            help="Path to findings JSON array or object with a findings array",
+        )
+        parser.add_argument(
+            "--out",
+            default=None,
+            help="Write report to this markdown path instead of stdout",
+        )
+        parser.add_argument("--app-name", default=None, help="Application name")
+        parser.add_argument("--repository", default=None, help="Repository name")
+        parser.add_argument("--commit", default=None, help="Commit SHA or version")
+        parser.add_argument(
+            "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
+        )
+        parser.add_argument(
+            "--scan-command", default=None, help="Scan command used to produce findings"
+        )
+        parser.add_argument("--scope", default=None, help="Report scope summary")
+        parser.add_argument("--client-name", default=None, help="Agency client name")
+        parser.add_argument("--reviewer", default=None, help="Reviewer or agency name")
+        parser.add_argument(
+            "--engagement-type",
+            default=None,
+            help="Agency engagement type, such as pre-launch review",
+        )
+        parser.add_argument(
+            "--based-on",
+            default=None,
+            help="Review ID, issue, PR, or scan artifact this report is based on",
+        )
+
+    report_help = {
+        "buyer-diligence": "Generate a buyer diligence markdown report",
+        "founder-friendly": "Generate a plain-language founder report",
+        "agency": "Generate an agency/client security review report",
+        "fix-pack": "Generate AI-ready remediation prompts and verification steps",
+    }
+    for report_type in supported_report_types():
+        add_report_arguments(
+            report_subparsers.add_parser(report_type, help=report_help[report_type])
+        )
+
+    # org-bundle
+    org_bundle_parser = subparsers.add_parser(
+        "org-bundle",
+        help="Generate an organization buyer evidence bundle",
+    )
+    org_bundle_parser.add_argument(
+        "--owner",
+        default="ContextualWisdomLab",
+        help="GitHub organization owner (default: ContextualWisdomLab)",
+    )
+    org_bundle_parser.add_argument(
+        "--bundle-dir",
+        default="appguardrail-buyer-evidence",
+        help="Directory to write bundle artifacts",
+    )
+    org_bundle_parser.add_argument(
+        "--repos-json",
+        default=None,
+        help="Use a gh repo list JSON file instead of live GitHub repository lookup",
+    )
+    org_bundle_parser.add_argument(
+        "--prs-json",
+        default=None,
+        help="Use a pull request JSON file instead of live GitHub PR lookup",
+    )
+    org_bundle_parser.add_argument(
+        "--prs-repository",
+        default=None,
+        help="Repository name to attach to PR rows missing repository metadata",
+    )
+    org_bundle_parser.add_argument(
+        "--per-repo-pr-limit",
+        type=int,
+        default=100,
+        help="Maximum open PRs to inspect per non-fork repository",
+    )
+    org_bundle_parser.add_argument(
+        "--active-repository-target",
+        type=int,
+        default=20,
+        help="Non-fork repository target used by buyer evidence KPIs",
+    )
+    org_bundle_parser.add_argument(
+        "--generated-at",
+        default=None,
+        help="Override bundle timestamp in ISO-8601 form",
+    )
+
     # hook
     hook_parser = subparsers.add_parser(
         "hook", help="Install a pre-commit hook to block commits with vulnerabilities"
@@ -2528,6 +2921,10 @@ def main():
         sys.exit(cmd_monitor(args))
     elif args.command == "review":
         cmd_review(args)
+    elif args.command == "report":
+        sys.exit(cmd_report(args))
+    elif args.command == "org-bundle":
+        sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
     else:

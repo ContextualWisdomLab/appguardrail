@@ -50,6 +50,9 @@ appguardrail --help
 Maintainers can prepare PyPI releases with GitHub Actions Bot and OpenCode
 Agent. See [Release Automation](docs/release-automation.md).
 
+For the productization roadmap, see the
+[2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
+
 ### Initialize security rules in your project
 
 ```bash
@@ -94,6 +97,9 @@ APPGUARDRAIL_TARGET_URL=https://your-authorized-test-host.example appguardrail s
 
 # If CodeGraph is installed, prepare structural context for deeper review
 appguardrail scan --codegraph .
+
+# Save normalized findings for report generation or dashboard ingestion
+appguardrail scan --findings-json reports/findings.json .
 ```
 
 Detects:
@@ -114,6 +120,61 @@ documented rule fixtures until the lightweight engine grows structural matching.
 
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
+
+### Generate reports from findings
+
+```bash
+appguardrail report buyer-diligence \
+  --findings reports/findings.json \
+  --out reports/buyer-diligence.md \
+  --app-name "Demo SaaS" \
+  --repository "ContextualWisdomLab/demo"
+
+appguardrail report founder-friendly \
+  --findings reports/findings.json \
+  --out reports/founder-security-review.md \
+  --app-name "Demo SaaS"
+
+appguardrail report agency \
+  --findings reports/findings.json \
+  --out reports/agency-security-review.md \
+  --app-name "Demo SaaS" \
+  --client-name "Demo Client" \
+  --reviewer "Demo Agency"
+
+appguardrail report fix-pack \
+  --findings reports/findings.json \
+  --out reports/fix-pack.md \
+  --based-on "pre-launch-review-001"
+```
+
+`appguardrail scan --findings-json` writes the normalized findings envelope that
+the report command accepts. You can also pass a raw JSON array of findings or
+any object with a `findings` array. Report types are:
+
+- `buyer-diligence`: buyer-readable launch posture and evidence checklist.
+- `founder-friendly`: plain-language summary for non-security founders.
+- `agency`: client-ready technical review and retest notes.
+- `fix-pack`: AI-ready remediation prompts and verification steps.
+
+Reports omit raw secrets and expand normalized metadata into launch posture,
+finding summaries, remediation, and verification checklists.
+
+### Generate an organization buyer evidence bundle
+
+```bash
+appguardrail org-bundle
+```
+
+This writes `appguardrail-buyer-evidence/` with:
+
+- `org-readiness.md`: buyer-readable organization readiness narrative.
+- `buyer-evidence.json`: machine-readable KPI payload.
+- `manifest.json`: source, timestamp, warning, repository, PR, and action bucket metadata.
+- `README.md`: how to use the generated evidence packet.
+
+Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
+need a non-default organization, custom artifact path, or offline snapshot.
 
 ### Install continuous monitoring
 

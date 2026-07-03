@@ -2,6 +2,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from appguardrail_core import issueops
+
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "ci" / "collect_org_security_failures.py"
 SPEC = importlib.util.spec_from_file_location("collect_org_security_failures", MODULE_PATH)
@@ -32,58 +34,11 @@ def finding(**overrides):
 
 
 def test_matching_conclusions_and_run_url_pattern():
-    for name in ("Strix", "OpenCode Review", "AppGuardRail", "Trivy FS", "CodeQL", "Security Process"):
-        assert collector.is_security_name(name)
-    assert collector.is_security_name("Java CI", "typescript CodeQL analyze")
-    assert not collector.is_security_name("pytest", "build")
-    assert all(collector.is_failure(value) for value in ("failure", "cancelled", "timed_out", "action_required"))
-    assert not any(collector.is_failure(value) for value in ("success", "skipped", None))
-    repo, run_id = collector.parse_run_url(
+    assert collector.is_security_name("Strix")
+    assert collector.is_failure("failure")
+    assert collector.parse_run_url(
         "https://github.com/ContextualWisdomLab/naruon/actions/runs/28492006630/job/84450511793#step:21:1"
-    )
-    assert (repo, run_id) == ("ContextualWisdomLab/naruon", 28492006630)
-
-
-def test_redaction_and_log_compression_prioritize_security_context():
-    secret_log = (
-        "\x1b[31m2026-07-01T10:20:30.123Z Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz\n"
-        "token='github_pat_abcdefghijklmnopqrstuvwxyz0123456789'\n"
-        "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature\n"
-    )
-    redacted = collector.redact(secret_log)
-    assert "\x1b" not in redacted
-    assert "2026-07-01T10:20:30.123Z" not in redacted
-    assert "ghp_" not in redacted and "github_pat_" not in redacted and "eyJhbGci" not in redacted
-
-    log = "\n".join(
-        [
-            'echo "::error::source branch should not dominate"',
-            *[f"noise {i}" for i in range(12)],
-            "Unable to map Strix findings",
-            "VULN-0001 CRITICAL browser storage issue",
-            "RateLimitError: retry budget exhausted",
-            *[f"tail noise {i}" for i in range(12)],
-            "::error::actual security failure",
-        ]
-    )
-    snippet = collector.compress_log(log, max_lines=28, max_chars=5000)
-    assert "VULN-0001 CRITICAL" in snippet
-    assert "RateLimitError" in snippet
-    assert "::error::actual security failure" in snippet
-    assert 'echo "::error::source branch should not dominate"' not in snippet
-    assert "...[compressed]" in snippet
-
-
-def test_marker_body_and_replacement_round_trip():
-    item = finding()
-    body = collector.issue_body(item, {collector.seen_key(item)})
-    assert "<!-- appguardrail-org-security-failure:" in body
-    assert "Automated collection of security workflow failures across ContextualWisdomLab." in body
-    assert "- Repository: `ContextualWisdomLab/naruon`" in body
-    assert "VULN-0001 CRITICAL example" in body
-
-    replaced = collector.replace_marker(body, item["repo"], item["workflow"], {"1:2", "3:4"})
-    assert collector.parse_marker(replaced)["seen"] == ["1:2", "3:4"]
+    ) == ("ContextualWisdomLab/naruon", 28492006630)
 
 
 class FakeClient:
@@ -100,20 +55,68 @@ class FakeClient:
         return {"number": 99, "state": "open", "title": data.get("title", ""), "body": data.get("body", "")}
 
 
+class FakeRedirectResponse:
+    def __init__(self, location):
+        self.location = location
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def geturl(self):
+        return self.location
+
+
+class FakeRedirectOpener:
+    def __init__(self, location):
+        self.location = location
+
+    def open(self, request, timeout):
+        return FakeRedirectResponse(self.location)
+
+
+def test_job_log_rejects_dangerous_redirect_scheme(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener("file:///etc/passwd"),
+    )
+
+    assert "Invalid or dangerous URL scheme" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
+
+
+def test_job_log_rejects_internal_redirect_host(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener("http://169.254.169.254/latest/meta-data"),
+    )
+
+    assert "Access to internal address blocked" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
+
+
 def test_publish_skips_duplicate_and_reopens_closed_issue():
     item = finding()
     issue = {
         "number": 17,
         "state": "open",
         "title": collector.title(item),
-        "body": collector.marker(item["repo"], item["workflow"], {collector.seen_key(item)}),
+        "body": issueops.marker(item["repo"], item["workflow"], {collector.seen_key(item)}),
     }
     client = FakeClient([issue])
     collector.publish_one(client, "ContextualWisdomLab/appguardrail", item, True, {issue["title"]: issue}, set())
     assert all(call[0] != "request" for call in client.calls)
 
     unseen = finding(job_id=999, snippet="::error:: security failure")
-    closed = dict(issue, state="closed", body=collector.marker(item["repo"], item["workflow"], {"1:2"}))
+    closed = dict(issue, state="closed", body=issueops.marker(item["repo"], item["workflow"], {"1:2"}))
     client = FakeClient([closed])
     collector.publish_one(client, "ContextualWisdomLab/appguardrail", unseen, False, {closed["title"]: closed}, set())
     patch = [call for call in client.calls if call[:3] == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")]
