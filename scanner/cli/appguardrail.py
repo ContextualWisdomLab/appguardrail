@@ -2621,11 +2621,9 @@ def _print_scan_results(findings, files_scanned):
     info_word = "info issue" if counts["INFO"] == 1 else "info issues"
 
     print(
-        f"Scanned {files_scanned} {files_word}  |  Deploy blockers: "
-        f"🔴 {counts['CRITICAL']} {critical_word}  "
-        f"🟠 {counts['HIGH']} {high_word}  "
-        f"🟡 {counts['WARNING']} {warnings_word}  "
-        f"🔵 {counts['INFO']} {info_word}"
+        f"Scanned {files_scanned} {files_word}  |  "
+        f"Deploy blockers: 🔴 {counts['CRITICAL']} {critical_word}  🟠 {counts['HIGH']} {high_word}  |  "
+        f"Other: 🟡 {counts['WARNING']} {warnings_word}  🔵 {counts['INFO']} {info_word}"
     )
     if non_blocking:
         finding_word = "finding" if non_blocking == 1 else "findings"
