@@ -5,3 +5,4 @@
 ## 2026-06-30 - Added Emojis to CLI Output Messages
 **Learning:** Adding subtle emojis to informative CLI output headers (like "Created/updated files" and "Next steps") provides clearer visual cues for developers scanning long CLI output.
 **Action:** Always include relevant emojis in summary output text to make success and informational messages more visually distinguishable from routine command logs.
+## 2026-07-06 - Added Emojis to CLI Warning Messages\n**Learning:** Just like errors, warnings in CLIs benefit from visual cues like emojis to draw attention without being as harsh as an error.\n**Action:** When adding or modifying warning messages in the CLI, use '⚠️  Warning: [Message]' format.

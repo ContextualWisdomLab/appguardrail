@@ -282,7 +282,7 @@ def gh_pr_list(
         except subprocess.CalledProcessError as exc:
             warning = f"Skipped PR collection for {full_name}: {gh_error_message(exc)}"
             warnings.append(warning)
-            print(f"warning: {warning}", file=sys.stderr)
+            print(f"⚠️  Warning: {warning}", file=sys.stderr)
             continue
         for pull in repo_pulls:
             pull["repository"] = {"nameWithOwner": full_name}

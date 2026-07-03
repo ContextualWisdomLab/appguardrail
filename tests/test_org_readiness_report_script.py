@@ -120,6 +120,6 @@ def test_gh_pr_list_records_repo_collection_warnings(monkeypatch, capsys):
         "Skipped PR collection for ContextualWisdomLab/bad: HTTP 502: Bad Gateway"
     ]
     assert (
-        "warning: Skipped PR collection for ContextualWisdomLab/bad"
+        "⚠️  Warning: Skipped PR collection for ContextualWisdomLab/bad"
         in capsys.readouterr().err
     )
