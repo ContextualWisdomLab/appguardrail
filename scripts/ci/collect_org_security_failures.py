@@ -69,6 +69,10 @@ class GitHub:
     def __init__(self, token: str, api: str = API):
         self.token = token
         self.api = api.rstrip("/")
+        # Security concern: Prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI)
+        # by ensuring the API base URL only uses secure, safe HTTP schemes before opening connections.
+        if not self.api.startswith(("http://", "https://")):
+            raise ValueError("API URL must start with http:// or https://")
 
     def request(self, method: str, path: str, data: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> Any:
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
