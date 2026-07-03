@@ -47,3 +47,7 @@
 ## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
 **Action:** Do not use `re.search` before `re.finditer` for optimization purposes.
+
+## 2024-07-03 - Optimize set deduplication with dict.fromkeys
+**Learning:** In Python, iterating over a list to maintain insertion-order uniqueness (e.g. `if ref not in seen: seen.append(ref)`) requires O(N) lookup time, resulting in O(N^2) complexity overall.
+**Action:** Use `dict.fromkeys(iterator)` which leverages Python's highly optimized, insertion-ordered C dictionary implementation to achieve fast deduplication in O(N) total time.
