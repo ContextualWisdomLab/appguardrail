@@ -1,0 +1,35 @@
+--- scanner/cli/appguardrail.py
++++ scanner/cli/appguardrail.py
+@@ -1072,10 +1072,10 @@
+         print("\n⚠️  No files were scanned. Are you in the right directory?")
+     elif counts["CRITICAL"] > 0:
+         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
+-        print(f"\n❌ Critical {issue_word} found. Fix before deploying.")
++        print(f"\n❌ {counts['CRITICAL']} critical {issue_word} found. Fix before deploying.")
+     elif counts["HIGH"] > 0:
+         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
+-        print(f"\n⚠️  High-severity {issue_word} found. Review before deploying.")
++        print(f"\n⚠️  {counts['HIGH']} high-severity {issue_word} found. Review before deploying.")
+     elif not findings:
+         print("\n✅ No issues found in this scan.")
+     else:
+--- tests/test_appguardrail.py
++++ tests/test_appguardrail.py
+@@ -835,7 +835,7 @@
+     assert "Found a critical issue" in captured.out
+     assert "Code:    const secret = 'abc';" in captured.out
+     assert "🔴 1 critical issue" in captured.out
+-    assert "❌ Critical issue found. Fix before deploying." in captured.out
++    assert "❌ 1 critical issue found. Fix before deploying." in captured.out
+     assert (
+         "💡 Run 'appguardrail review' to get an AI prompt for fixing this issue."
+         in captured.out
+@@ -854,7 +854,7 @@
+
+     assert "[🟠 HIGH] app/api/route.ts:5" in captured.out
+     assert "🟠 1 high issue" in captured.out
+-    assert "⚠️  High-severity issue found. Review before deploying." in captured.out
++    assert "⚠️  1 high-severity issue found. Review before deploying." in captured.out
+
+
+ def test_print_scan_results_warnings_only(capsys):
