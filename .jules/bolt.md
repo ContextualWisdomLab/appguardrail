@@ -47,3 +47,7 @@
 ## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
 **Action:** Do not use `re.search` before `re.finditer` for optimization purposes.
+
+## 2025-02-12 - pathlib.Path relative_to optimization (revisited)
+**Learning:** `pathlib.Path.relative_to` is a massive bottleneck in `_scan_file` because it is called inside a hot loop (once for filtering, once for matching) on every file. However, replacing it naively with `startswith` string slicing breaks when `file_path == base_path` (e.g., when a user passes a single file directly to `scan`), since `relative_to` returns `.` in that case. Also `is_file()` must be cached and not called conditionally as it causes slow I/O.
+**Action:** Replace `file_path.relative_to(resolved_base_path)` in `_scan_file` with string prefix checking/slicing, specifically handle the `fp_str == bp_str` case to correctly return `.`. Cache `base_path.is_file()` to prevent I/O hits.

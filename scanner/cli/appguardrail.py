@@ -2502,6 +2502,13 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_for_filters = None
     build_finding = _build_finding
 
+    # Pre-calculate strings for fast relative path computation
+    resolved_base_str = str(resolved_base_path)
+    resolved_base_prefix = resolved_base_str if resolved_base_str.endswith(os.sep) else resolved_base_str + os.sep
+    file_path_str = str(file_path)
+    base_is_file = base_path.is_file()
+    file_name = file_path.name
+
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -2521,12 +2528,12 @@ def _scan_file(file_path: Path, base_path: Path):
             ) in applicable_rules:
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
-                            )
+                        if file_path_str == resolved_base_str:
+                            rel_path = "."
+                        elif file_path_str.startswith(resolved_base_prefix):
+                            rel_path = file_path_str[len(resolved_base_prefix):]
+                        else:
+                            rel_path = file_name if base_is_file else file_path_str
                         rel_path_for_filters = str(rel_path)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
@@ -2540,12 +2547,12 @@ def _scan_file(file_path: Path, base_path: Path):
 
                 for match in finditer(content):
                     if rel_path_str is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
-                            )
+                        if file_path_str == resolved_base_str:
+                            rel_path = "."
+                        elif file_path_str.startswith(resolved_base_prefix):
+                            rel_path = file_path_str[len(resolved_base_prefix):]
+                        else:
+                            rel_path = file_name if base_is_file else file_path_str
                         rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
