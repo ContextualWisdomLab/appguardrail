@@ -2686,8 +2686,13 @@ def cmd_review(args):
 
 
 def dashboard_index_path():
-    """Locate the static dashboard entry point shipped with the repo."""
-    return Path(__file__).resolve().parents[2] / "dashboard" / "index.html"
+    """Locate the static dashboard entry point shipped inside the package.
+
+    Works both from a source checkout and a pip-installed wheel because the
+    asset lives under ``scanner/dashboard/`` and is resolved via
+    importlib.resources.
+    """
+    return Path(str(resources.files("scanner").joinpath("dashboard", "index.html")))
 
 
 def make_dashboard_server(host, port, index_bytes, findings_path):

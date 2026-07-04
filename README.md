@@ -179,8 +179,9 @@ appguardrail dashboard --port 8899                       # custom port
 appguardrail dashboard --no-open                          # don't launch a browser
 ```
 
-No build step or dependencies — the dashboard is a single static page under
-`dashboard/`. You can also open it manually and drag a `findings.json` onto it.
+No build step or dependencies — the dashboard is a single static page shipped
+with the package (`scanner/dashboard/index.html`), so it also works from a
+`pip install`. You can open it manually and drag a `findings.json` onto it.
 
 ### Generate an organization buyer evidence bundle
 

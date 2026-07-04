@@ -2,6 +2,7 @@ include README.md
 include LICENSE
 include CHANGELOG.md
 recursive-include scanner/rules *.yml
+recursive-include scanner/dashboard *.html
 recursive-include checklists *.md
 recursive-include docs *.md
 recursive-include prompts *.md
