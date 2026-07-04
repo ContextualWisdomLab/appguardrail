@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 추가
+- `appguardrail dashboard` 명령을 추가했습니다. `scan --findings-json`이 생성한 `appguardrail.findings.v1` 파일을 로컬 웹 대시보드로 렌더링합니다. severity 요약, deploy-blocking 게이트, 카테고리별 findings, 그리고 finding별 상세(AppGuardrail Fix Format: Problem / Fix Prompt / Verification)를 보여줍니다.
+  - 옵션: `--findings`, `--port`, `--host`, `--no-open`.
+  - 대시보드는 프레임워크·빌드 단계가 없는 단일 정적 페이지(`scanner/dashboard/index.html`)이며, wheel에 포함되어 `pip install` 설치본에서도 동작합니다.
+  - findings 파일을 `/findings.json`으로 직접 서빙하여 실행 위치(cwd)와 무관하게 로드됩니다.
+
+### 검증
+- `tests/test_dashboard_core.py`: 정적 자산 동봉 여부, HTTP 라우트(`/`, `/findings.json`, 404) 테스트를 추가했습니다.
+- 격리된 venv에 wheel을 설치해 소스 트리 밖에서 `appguardrail dashboard`가 대시보드를 서빙함을 확인했습니다.
+
 ## [0.1.1] - 2026-06-25
 
 ### 변경
