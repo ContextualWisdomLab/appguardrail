@@ -159,7 +159,7 @@ def test_cmd_scan_codegraph_prints_status(tmp_path, monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "indexed" in out
-    assert "No files were scanned" in out
+    assert "Warning: No files were scanned" in out
 
 
 def test_trivy_severity():
