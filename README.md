@@ -160,6 +160,28 @@ any object with a `findings` array. Report types are:
 Reports omit raw secrets and expand normalized metadata into launch posture,
 finding summaries, remediation, and verification checklists.
 
+### View findings in a dashboard
+
+```bash
+# Generate findings, then open the local dashboard in your browser
+appguardrail scan --findings-json reports/findings.json .
+appguardrail dashboard
+```
+
+`appguardrail dashboard` serves a self-contained web dashboard that renders the
+`appguardrail.findings.v1` file produced by `scan --findings-json`. It shows
+severity counts, the deploy-blocking gate, findings by category, and a per-finding
+detail view with the AppGuardrail Fix Format (Problem / Fix Prompt / Verification).
+
+```bash
+appguardrail dashboard --findings reports/findings.json  # custom findings path
+appguardrail dashboard --port 8899                       # custom port
+appguardrail dashboard --no-open                          # don't launch a browser
+```
+
+No build step or dependencies — the dashboard is a single static page under
+`dashboard/`. You can also open it manually and drag a `findings.json` onto it.
+
 ### Generate an organization buyer evidence bundle
 
 ```bash

@@ -2685,6 +2685,97 @@ def cmd_review(args):
     print()
 
 
+def dashboard_index_path():
+    """Locate the static dashboard entry point shipped with the repo."""
+    return Path(__file__).resolve().parents[2] / "dashboard" / "index.html"
+
+
+def make_dashboard_server(host, port, index_bytes, findings_path):
+    """Build (but do not start) an HTTP server that serves the dashboard.
+
+    Serves the dashboard HTML at ``/`` and the findings file at
+    ``/findings.json`` so the page loads regardless of the caller's cwd.
+    """
+    import http.server
+
+    findings_path = Path(findings_path)
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, body, content_type):
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            path = self.path.split("?", 1)[0]
+            if path in ("/", "/index.html", "/dashboard/", "/dashboard/index.html"):
+                self._send(index_bytes, "text/html; charset=utf-8")
+            elif path in ("/findings.json", "/reports/findings.json"):
+                if findings_path.is_file():
+                    self._send(findings_path.read_bytes(), "application/json")
+                else:
+                    self.send_error(404, "findings.json not found")
+            else:
+                self.send_error(404)
+
+        def log_message(self, *_args):  # keep the console quiet
+            pass
+
+    return http.server.HTTPServer((host, port), _Handler)
+
+
+def cmd_dashboard(args):
+    """Serve the local AppGuardrail findings dashboard in a browser."""
+    import webbrowser
+
+    index = dashboard_index_path()
+    if not index.is_file():
+        print(f"❌ Dashboard assets not found at {index}", file=sys.stderr)
+        print(
+            "💡 Run 'appguardrail dashboard' from an AppGuardrail source checkout "
+            "that includes dashboard/index.html.",
+            file=sys.stderr,
+        )
+        return 1
+
+    findings_path = Path(getattr(args, "findings", None) or "reports/findings.json")
+    if not findings_path.is_file():
+        print(f"ℹ️  No findings file at {findings_path}.")
+        print(
+            "   Generate one with: "
+            "appguardrail scan --findings-json reports/findings.json ."
+        )
+        print("   The dashboard opens with instructions — reload after generating.\n")
+
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8787)
+    try:
+        server = make_dashboard_server(host, port, index.read_bytes(), findings_path)
+    except OSError as exc:
+        print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
+        print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
+        return 1
+
+    actual_port = server.server_address[1]
+    url = f"http://{host}:{actual_port}/"
+    print(f"🛡️  AppGuardrail dashboard: {url}")
+    print("   Press Ctrl+C to stop.")
+    if not getattr(args, "no_open", False):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n👋 Dashboard stopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -2909,6 +3000,25 @@ def main():
         help="Install the hook in CodeGraph mode so commits also refresh structural context",
     )
 
+    # dashboard
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="Serve the findings dashboard in your browser"
+    )
+    dashboard_parser.add_argument(
+        "--findings",
+        default="reports/findings.json",
+        help="Path to a findings JSON file (default: reports/findings.json)",
+    )
+    dashboard_parser.add_argument(
+        "--port", type=int, default=8787, help="Port to serve on (default: 8787)"
+    )
+    dashboard_parser.add_argument(
+        "--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)"
+    )
+    dashboard_parser.add_argument(
+        "--no-open", action="store_true", help="Do not open a browser automatically"
+    )
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -2925,6 +3035,8 @@ def main():
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
+    elif args.command == "dashboard":
+        sys.exit(cmd_dashboard(args))
     else:
         parser.print_help()
         sys.exit(0)
