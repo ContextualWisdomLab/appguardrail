@@ -92,15 +92,40 @@ def _parse_root_vars(css_text):
 
 
 def test_inline_fallback_matches_token_source():
-    """The hardcoded :root fallback in index.html must not drift from tokens.json."""
+    """Every var in the index.html fallback must match tokens.json (no drift).
+
+    Direction is fallback ⊆ source: the served tokens.css may expose more
+    (full scales); the inline fallback only needs the vars the page consumes,
+    and each must equal the canonical value.
+    """
     html = dashboard_index_path().read_text()
     fallback = _parse_root_vars(html)
     source = _parse_root_vars(
         render_tokens_css(_json.loads(dashboard_tokens_path().read_text()))
     )
-    for var, val in source.items():
-        assert var in fallback, f"fallback missing {var}"
-        assert fallback[var] == val, f"{var} drift: fallback {fallback[var]} != tokens.json {val}"
+    for var, val in fallback.items():
+        assert var in source, f"fallback var {var} not in tokens.json source"
+        assert source[var] == val, f"{var} drift: fallback {val} != tokens.json {source[var]}"
+
+
+def test_tokens_include_full_scales():
+    data = _json.loads(dashboard_tokens_path().read_text())
+    # radius scale sourced from Figma
+    for k, v in {"none": "0", "sm": "4px", "md": "8px", "lg": "12px", "xl": "16px"}.items():
+        assert data["radius"][k]["value"] == v
+    # spacing scale
+    for k in ("0", "4", "8", "16", "24", "64"):
+        assert k in data["space"]
+    # sizes incl. WCAG touch target
+    assert data["size"]["touch-target"]["value"] == "44px"
+
+
+def test_render_tokens_css_emits_scales():
+    css = render_tokens_css(_json.loads(dashboard_tokens_path().read_text()))
+    for var in ("--radius-md", "--radius-full", "--space-16", "--size-touch-target"):
+        assert var in css, f"missing scale var {var}"
+    # --radius alias resolves to the card-alias (lg = 12px)
+    assert "--radius: 12px;" in css
 
 
 def test_tokens_include_high_contrast_mode():
