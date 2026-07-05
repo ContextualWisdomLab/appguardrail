@@ -103,6 +103,10 @@ appguardrail scan --findings-json reports/findings.json .
 
 # Emit SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools
 appguardrail scan --sarif appguardrail.sarif .
+
+# Adopt on a repo with existing debt: accept a baseline, then gate only NEW findings
+appguardrail scan --findings-json .appguardrail-baseline.json .   # once, to snapshot
+appguardrail scan --baseline .appguardrail-baseline.json .        # in CI thereafter
 ```
 
 The SARIF output feeds GitHub code scanning

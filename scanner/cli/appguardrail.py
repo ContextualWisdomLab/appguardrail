@@ -62,6 +62,7 @@ from appguardrail_core.findings import (
     NON_BLOCKING_CONTEXTS,
     is_deploy_blocking as core_is_deploy_blocking,
     normalize_findings,
+    partition_new_findings,
 )
 from appguardrail_core.language import (
     LANGUAGE_EXTENSIONS,
@@ -1537,6 +1538,23 @@ def cmd_scan(args):
             notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
         print(f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else ""))
 
+    # Baseline mode: only findings new since the baseline reach the gate.
+    gate_findings = findings
+    baseline_path = getattr(args, "baseline", None)
+    if baseline_path:
+        try:
+            baseline = _load_findings_json(Path(baseline_path))
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            print("💡 Hint: Create one with 'appguardrail scan --findings-json <path> .'", file=sys.stderr)
+            return 1
+        gate_findings, baselined = partition_new_findings(findings, baseline)
+        print(
+            f"📋 Baseline: {len(baselined)} known finding(s) suppressed, "
+            f"{len(gate_findings)} new."
+        )
+
+    # Config threshold + rule excludes apply on top of the baselined set.
     blocking = config.get("blocking_severities")
     excluded = config.get("exclude_rules") or set()
 
@@ -1545,7 +1563,7 @@ def cmd_scan(args):
             return False
         return core_is_deploy_blocking(finding, blocking)
 
-    return 1 if any(_gates(f) for f in findings) else 0
+    return 1 if any(_gates(f) for f in gate_findings) else 0
 
 
 def _write_findings_json(findings, output_path: Path):
@@ -3093,6 +3111,12 @@ def main():
         "--sarif",
         default=None,
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
+    )
+    scan_parser.add_argument(
+        "--baseline",
+        default=None,
+        help="Only fail the deploy gate on findings new since this baseline "
+        "(a findings JSON from a prior --findings-json run)",
     )
     scan_parser.add_argument(
         "--codegraph",

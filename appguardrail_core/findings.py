@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Iterable
 
 SEVERITIES = ("CRITICAL", "HIGH", "WARNING", "INFO")
@@ -52,6 +53,29 @@ def normalize_findings(
         normalize_finding(finding, snippet_max_len=snippet_max_len)
         for finding in findings
     )
+
+
+def finding_fingerprint(finding: dict[str, Any]) -> str:
+    """Stable, line-independent identity for baseline diffing.
+
+    Keyed on rule + file + content (snippet, else message) so unrelated edits
+    that shift line numbers don't resurface an already-accepted finding.
+    """
+    f = normalize_finding(finding)
+    content = f["snippet"] or f["message"]
+    digest = hashlib.sha256(content.strip().encode("utf-8")).hexdigest()[:16]
+    return f"{f['rule_id']}:{f['file']}:{digest}"
+
+
+def partition_new_findings(
+    findings: Iterable[dict[str, Any]], baseline: Iterable[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split findings into (new, baselined) against a baseline finding set."""
+    known = {finding_fingerprint(b) for b in baseline}
+    new, baselined = [], []
+    for f in findings:
+        (baselined if finding_fingerprint(f) in known else new).append(f)
+    return new, baselined
 
 
 def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
