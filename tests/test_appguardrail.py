@@ -1471,7 +1471,9 @@ def test_cmd_monitor_installs_github_actions_workflow(tmp_path, monkeypatch, cap
     workflow_text = workflow.read_text()
     assert workflow.exists()
     assert "name: AppGuardrail Monitor" in workflow_text
-    assert "appguardrail scan ." in workflow_text
+    assert "appguardrail scan --sarif appguardrail.sarif ." in workflow_text
+    assert "github/codeql-action/upload-sarif" in workflow_text
+    assert "security-events: write" in workflow_text
     assert "appguardrail-monitor.yml" in capsys.readouterr().out
 
 

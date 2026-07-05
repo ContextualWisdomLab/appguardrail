@@ -100,7 +100,17 @@ appguardrail scan --codegraph .
 
 # Save normalized findings for report generation or dashboard ingestion
 appguardrail scan --findings-json reports/findings.json .
+
+# Emit SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools
+appguardrail scan --sarif appguardrail.sarif .
 ```
+
+The SARIF output feeds GitHub code scanning
+(`github/codeql-action/upload-sarif`), the VS Code SARIF viewer, and any other
+SARIF consumer — findings appear in the GitHub **Security** tab and as inline PR
+annotations, ranked by `security-severity`. `appguardrail monitor` installs a
+workflow that emits and uploads SARIF automatically while preserving the deploy
+gate.
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
