@@ -1,0 +1,13 @@
+rules:
+  - id: insecure-random-security-token
+    patterns:
+      - pattern-regex: '(?i)\b(?:token|secret|api[_-]?key|otp|nonce|salt|password|passwd|session[_-]?id|reset[_-]?(?:code|token)|verif\w*code|uuid|guid)\w*\s*[=:]\s*[^\n=]{0,60}Math\.random\s*\('
+    message: |
+      Math.random() is used to generate a security-sensitive value (token, secret,
+      password, session id, etc.). Math.random() is not cryptographically secure
+      and is predictable. Use crypto.randomBytes / crypto.randomUUID / the Web
+      Crypto API instead.
+    severity: HIGH
+    languages: [javascript, typescript]
+    cwe: [CWE-338]
+    owasp: [A02:2021]
