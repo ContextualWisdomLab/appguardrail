@@ -2695,11 +2695,85 @@ def dashboard_index_path():
     return Path(str(resources.files("scanner").joinpath("dashboard", "index.html")))
 
 
-def make_dashboard_server(host, port, index_bytes, findings_path):
+def dashboard_tokens_path():
+    """Locate the canonical design-token source shipped with the package."""
+    return Path(str(resources.files("scanner").joinpath("dashboard", "tokens.json")))
+
+
+# Map canonical color token names (tokens.json) to the CSS custom properties the
+# dashboard stylesheet consumes. Scales (radius/space/size) are emitted
+# generically. Keeps tokens.json the single source of truth.
+_COLOR_CSS_VARS = {
+    "background": "--bg",
+    "surface": "--surface",
+    "text-default": "--text",
+    "text-muted": "--muted",
+    "border": "--border",
+    "divider": "--divider",
+    "primary": "--primary",
+    "on-primary": "--on-primary",
+    "critical": "--crit",
+    "high": "--high",
+    "warning": "--warn",
+    "info": "--info",
+}
+
+
+def render_tokens_css(tokens: dict) -> str:
+    """Render CSS custom properties from the design-token source dict.
+
+    Emits colors (mapped to the dashboard's var names), the radius/space/size
+    scales (as ``--radius-*`` / ``--space-*`` / ``--size-*``, plus a ``--radius``
+    alias for the default card radius), and a ``@media (prefers-contrast: more)``
+    color override so the dashboard adapts to the user's contrast preference.
+    """
+    color = tokens.get("color") or {}
+    radius = tokens.get("radius") or {}
+    space = tokens.get("space") or {}
+    size = tokens.get("size") or {}
+
+    lines = [":root{"]
+    for key, css_var in _COLOR_CSS_VARS.items():
+        entry = color.get(key)
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  {css_var}: {entry['value']};")
+    # radius scale + --radius alias (default card radius)
+    for key, entry in radius.items():
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  --radius-{key}: {entry['value']};")
+    alias = radius.get("card-alias")
+    if alias and isinstance(radius.get(alias), dict):
+        lines.append(f"  --radius: {radius[alias]['value']};")
+    for key, entry in space.items():
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  --space-{key}: {entry['value']};")
+    for key, entry in size.items():
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  --size-{key}: {entry['value']};")
+    lines.append("}")
+
+    hc = tokens.get("high-contrast") or {}
+    hc_lines = [
+        f"    {css_var}: {hc[key]['value']};"
+        for key, css_var in _COLOR_CSS_VARS.items()
+        if isinstance(hc.get(key), dict) and "value" in hc[key]
+    ]
+    if hc_lines:
+        lines.append("@media (prefers-contrast: more){")
+        lines.append("  :root{")
+        lines.extend(hc_lines)
+        lines.append("  }")
+        lines.append("}")
+
+    return "\n".join(lines) + "\n"
+
+
+def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_bytes=b""):
     """Build (but do not start) an HTTP server that serves the dashboard.
 
-    Serves the dashboard HTML at ``/`` and the findings file at
-    ``/findings.json`` so the page loads regardless of the caller's cwd.
+    Serves the dashboard HTML at ``/``, the design tokens at ``/tokens.css``,
+    and the findings file at ``/findings.json`` so the page loads regardless
+    of the caller's cwd.
     """
     import http.server
 
@@ -2717,6 +2791,8 @@ def make_dashboard_server(host, port, index_bytes, findings_path):
             path = self.path.split("?", 1)[0]
             if path in ("/", "/index.html", "/dashboard/", "/dashboard/index.html"):
                 self._send(index_bytes, "text/html; charset=utf-8")
+            elif path in ("/tokens.css", "/dashboard/tokens.css"):
+                self._send(tokens_css_bytes, "text/css; charset=utf-8")
             elif path in ("/findings.json", "/reports/findings.json"):
                 if findings_path.is_file():
                     self._send(findings_path.read_bytes(), "application/json")
@@ -2754,10 +2830,22 @@ def cmd_dashboard(args):
         )
         print("   The dashboard opens with instructions — reload after generating.\n")
 
+    tokens_css = b""
+    tokens_file = dashboard_tokens_path()
+    if tokens_file.is_file():
+        try:
+            tokens_css = render_tokens_css(
+                json.loads(tokens_file.read_text(encoding="utf-8"))
+            ).encode("utf-8")
+        except (ValueError, OSError) as exc:
+            print(f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.", file=sys.stderr)
+
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8787)
     try:
-        server = make_dashboard_server(host, port, index.read_bytes(), findings_path)
+        server = make_dashboard_server(
+            host, port, index.read_bytes(), findings_path, tokens_css
+        )
     except OSError as exc:
         print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
         print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
