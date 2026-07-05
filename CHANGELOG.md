@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- `appguardrail report compliance` — findings를 OWASP Top 10(2021) → SOC 2 신뢰 서비스 기준·ISO/IEC 27001 Annex A 통제로 매핑한 compliance 증빙 리포트를 생성합니다. 통제 커버리지 표(카테고리별 findings 수·Gap/Observed 상태)와 통제별 상세를 포함하며, OWASP 매핑이 없는 findings 수도 별도 표기합니다. 인증서가 아니라 감사(audit) 지원용 remediation 증빙입니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

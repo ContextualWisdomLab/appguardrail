@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
@@ -36,6 +38,7 @@ REPORT_TYPE_LABELS = {
     "founder-friendly": "Founder-friendly report",
     "agency": "Agency report",
     "fix-pack": "Fix pack",
+    "compliance": "Compliance evidence report",
 }
 
 
@@ -55,6 +58,7 @@ def render_report(
         "founder-friendly": render_founder_friendly_report,
         "agency": render_agency_report,
         "fix-pack": render_fix_pack,
+        "compliance": render_compliance_report,
     }
     try:
         renderer = renderers[report_type]
@@ -615,3 +619,96 @@ def _fix_status_table(findings: list[dict[str, Any]]) -> list[str]:
 
 def _references(finding: dict[str, Any]) -> str:
     return ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"
+
+
+_OWASP_CONTROLS = {
+    "A01": ("Broken Access Control", "SOC 2 CC6.1, CC6.3", "ISO 27001 A.9 Access Control"),
+    "A02": ("Cryptographic Failures", "SOC 2 CC6.7", "ISO 27001 A.10 Cryptography"),
+    "A03": ("Injection", "SOC 2 CC7.1", "ISO 27001 A.14.2 Secure Development"),
+    "A04": ("Insecure Design", "SOC 2 CC3.2", "ISO 27001 A.14.2.1 Secure Development Policy"),
+    "A05": ("Security Misconfiguration", "SOC 2 CC7.1", "ISO 27001 A.12.1 Operational Security"),
+    "A06": ("Vulnerable & Outdated Components", "SOC 2 CC7.1", "ISO 27001 A.12.6 Technical Vulnerability Mgmt"),
+    "A07": ("Identification & Authentication Failures", "SOC 2 CC6.1", "ISO 27001 A.9.4 System Access Control"),
+    "A08": ("Software & Data Integrity Failures", "SOC 2 CC7.1, CC8.1", "ISO 27001 A.14.2.4 Change Control"),
+    "A09": ("Security Logging & Monitoring Failures", "SOC 2 CC7.2", "ISO 27001 A.12.4 Logging & Monitoring"),
+    "A10": ("Server-Side Request Forgery", "SOC 2 CC6.6", "ISO 27001 A.13.1 Network Security"),
+}
+
+
+def _owasp_code(value: Any) -> "str | None":
+    """Extract the OWASP category code (A01..A10) from a reference string."""
+    match = re.search(r"A(\d{2})", str(value))
+    return f"A{match.group(1)}" if match else None
+
+
+def render_compliance_report(
+    findings: Iterable[dict[str, Any]],
+    context: "ReportContext | None" = None,
+) -> str:
+    """Map findings to OWASP Top 10 (2021) -> SOC 2 / ISO 27001 controls."""
+    context = context or ReportContext()
+    normalized = [normalize_finding(finding) for finding in findings]
+    normalized.sort(key=finding_sort_key)
+    generated_at = context.generated_at or datetime.now(UTC).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+    by_code: dict[str, list[dict[str, Any]]] = {}
+    for finding in normalized:
+        codes = {c for c in (_owasp_code(o) for o in finding.get("owasp") or ()) if c}
+        for code in codes:
+            by_code.setdefault(code, []).append(finding)
+
+    lines = [
+        "# AppGuardrail Compliance Evidence Report",
+        "",
+        f"**App:** {context.app_name}",
+        f"**Repository:** {context.repository}",
+        f"**Generated:** {generated_at}",
+        f"**Scan command:** `{context.scan_command}`",
+        "",
+        "Maps AppGuardrail findings to OWASP Top 10 (2021) categories and the",
+        "corresponding SOC 2 Trust Services Criteria and ISO/IEC 27001 Annex A",
+        "controls. This is remediation evidence to support an audit, not a",
+        "certification of compliance.",
+        "",
+        "## Control coverage",
+        "",
+        "| OWASP | Category | SOC 2 | ISO 27001 | Findings | Status |",
+        "|---|---|---|---|---|---|",
+    ]
+    for code in sorted(_OWASP_CONTROLS):
+        name, soc2, iso = _OWASP_CONTROLS[code]
+        matched = by_code.get(code, [])
+        blocking = [f for f in matched if is_deploy_blocking(f)]
+        if not matched:
+            status = "No findings"
+        elif blocking:
+            status = f"Gap - {len(blocking)} blocking"
+        else:
+            status = "Observed (non-blocking)"
+        lines.append(
+            f"| {code} | {name} | {soc2} | {iso} | {len(matched)} | {status} |"
+        )
+
+    mapped_ids = {id(f) for group in by_code.values() for f in group}
+    unmapped = [f for f in normalized if id(f) not in mapped_ids]
+    lines += [
+        "",
+        f"**Findings without an OWASP mapping:** {len(unmapped)} (review manually).",
+        "",
+        "## Findings by control",
+        "",
+    ]
+    for code in sorted(by_code):
+        name, soc2, iso = _OWASP_CONTROLS.get(code, (code, "n/a", "n/a"))
+        lines += [f"### {code} - {name}", f"*Maps to:* {soc2} - {iso}", ""]
+        for finding in by_code[code]:
+            lines.append(
+                f"- **{finding['severity']}** `{finding['rule_id']}` - "
+                f"{_short_title(finding['message'])} "
+                f"({finding['file']}:{finding['line']})"
+            )
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"

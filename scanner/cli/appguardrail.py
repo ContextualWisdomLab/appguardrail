@@ -3163,6 +3163,7 @@ def main():
         "founder-friendly": "Generate a plain-language founder report",
         "agency": "Generate an agency/client security review report",
         "fix-pack": "Generate AI-ready remediation prompts and verification steps",
+        "compliance": "Generate an OWASP->SOC2/ISO 27001 compliance evidence report",
     }
     for report_type in supported_report_types():
         add_report_arguments(

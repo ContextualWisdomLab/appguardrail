@@ -168,6 +168,7 @@ def test_render_report_dispatches_supported_report_types():
         "founder-friendly",
         "agency",
         "fix-pack",
+        "compliance",
     }
     report = render_report(
         "fix-pack",

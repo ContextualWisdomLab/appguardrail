@@ -201,6 +201,7 @@ any object with a `findings` array. Report types are:
 - `founder-friendly`: plain-language summary for non-security founders.
 - `agency`: client-ready technical review and retest notes.
 - `fix-pack`: AI-ready remediation prompts and verification steps.
+- `compliance`: OWASP Top 10 -> SOC 2 / ISO 27001 control-mapping evidence for audits.
 
 Reports omit raw secrets and expand normalized metadata into launch posture,
 finding summaries, remediation, and verification checklists.
