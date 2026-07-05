@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- CI/CD 보안 탐지 룰 3종(`scanner/rules/cicd.yml`) — GitHub Actions 공급망/파이프라인 위험: `github-action-mutable-ref`(action을 @main/@master 이동 브랜치에 고정), `github-actions-pull-request-target`(fork PR 컨텍스트에서 secrets 접근), `github-actions-script-injection`(공격자 제어 `github.event.*`를 표현식에 인라인). 각각 SHA 고정·트리거 검토·env 경유 참조를 권고합니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
