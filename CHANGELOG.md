@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### 추가
+- pre-commit 프레임워크 지원 — 저장소 루트에 `.pre-commit-hooks.yaml`을 추가했습니다. 이제 사용자는 자신의 `.pre-commit-config.yaml`에 AppGuardrail을 등록해 커밋마다 자동 스캔할 수 있습니다.
+  - 훅 `id: appguardrail`, `entry: appguardrail scan`, `language: python`, `pass_filenames: false`(개별 파일이 아니라 저장소 전체를 스캔). pre-commit이 격리 환경에 패키지를 빌드해 콘솔 스크립트를 실행합니다.
+  - 기존 `appguardrail hook`(프레임워크 없이 설치하는 독립 git pre-commit 훅)과는 별개입니다. 거대한 pre-commit 생태계로 도입 경로를 넓힙니다.
+  - `tests/test_precommit_hooks.py`: 파일 존재 여부와 필수 필드(`id`, `entry`, `language`, `pass_filenames`)를 표준 라이브러리만으로 검증합니다(pyyaml 무의존).
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

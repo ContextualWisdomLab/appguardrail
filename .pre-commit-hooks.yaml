@@ -1,0 +1,7 @@
+-   id: appguardrail
+    name: AppGuardrail security scan
+    description: Scan the repository for secrets, auth gaps, and misconfigurations in AI-built apps.
+    entry: appguardrail scan
+    language: python
+    pass_filenames: false
+    always_run: false

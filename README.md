@@ -269,6 +269,30 @@ for authorization, webhook, secret-handling, and other security-sensitive flows.
 The repository Security Process workflow also runs AppGuardrail with CodeGraph
 enabled, so pull requests get the same structural security context in CI.
 
+### Use with pre-commit
+
+If your project already uses the [pre-commit](https://pre-commit.com) framework,
+add AppGuardrail to your `.pre-commit-config.yaml`:
+
+```yaml
+-   repo: https://github.com/ContextualWisdomLab/appguardrail
+    rev: v0.1.1
+    hooks:
+    -   id: appguardrail
+```
+
+Then install and run it:
+
+```bash
+pre-commit install       # run AppGuardrail on every commit
+pre-commit run appguardrail --all-files
+```
+
+pre-commit builds the package in an isolated environment and runs
+`appguardrail scan` over the repository (the hook scans the whole repo, not just
+staged files). This is distinct from `appguardrail hook`, which installs a
+standalone git pre-commit hook without the pre-commit framework.
+
 ### Generate a security review prompt
 
 ```bash
