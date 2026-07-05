@@ -165,6 +165,18 @@ transform adds `rel="noopener noreferrer"` to external `target="_blank"` links
 (reverse-tabnabbing). Behavior-changing fixes (moving a secret to an env var,
 flipping TLS verification) stay as reviewable prompts — see
 `appguardrail report fix-pack`. This closes the scan → fix → verify loop safely.
+### Generate a CycloneDX SBOM
+
+```bash
+# Inventory dependencies as a CycloneDX 1.5 SBOM
+appguardrail sbom . --out sbom.json
+```
+
+Parses `package-lock.json`/`package.json` and `requirements.txt` into a
+CycloneDX software bill of materials — the component inventory buyers and
+auditors expect for supply-chain diligence. Versions are resolved from the
+lockfile when present, otherwise taken from the manifest (recorded per
+component). No third-party dependency.
 
 ### Generate reports from findings
 
