@@ -57,21 +57,33 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.external import build_external_scan_plan
-from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
-from appguardrail_core.findings import \
-    is_deploy_blocking as core_is_deploy_blocking
-from appguardrail_core.findings import normalize_findings
-from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
-                                        detect_language_axes,
-                                        detect_stack_profile)
-from appguardrail_core.org_bundle import (OrgBundleError,
-                                          annotate_missing_pr_repositories,
-                                          gh_error_message, gh_pr_list,
-                                          gh_repo_list)
-from appguardrail_core.org_bundle import load_json as load_org_json
-from appguardrail_core.org_bundle import render_org_evidence, write_bundle
-from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
-                                       render_report, supported_report_types)
+from appguardrail_core.config import load_config
+from appguardrail_core.findings import (
+    NON_BLOCKING_CONTEXTS,
+    is_deploy_blocking as core_is_deploy_blocking,
+    normalize_findings,
+)
+from appguardrail_core.language import (
+    LANGUAGE_EXTENSIONS,
+    detect_language_axes,
+    detect_stack_profile,
+)
+from appguardrail_core.org_bundle import (
+    OrgBundleError,
+    annotate_missing_pr_repositories,
+    gh_error_message,
+    gh_pr_list,
+    gh_repo_list,
+    load_json as load_org_json,
+    render_org_evidence,
+    write_bundle,
+)
+from appguardrail_core.reports import (
+    REPORT_TYPE_LABELS,
+    ReportContext,
+    render_report,
+    supported_report_types,
+)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1507,7 +1519,31 @@ def cmd_scan(args):
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
-    return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
+
+    # Optional .appguardrail.json tunes the gate (fail_on threshold, rule excludes).
+    config_dir = scan_path if scan_path.is_dir() else scan_path.parent
+    try:
+        config = load_config([config_dir, Path.cwd()])
+    except RuntimeError as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        return 1
+    if config.get("_path"):
+        notes = []
+        if config.get("fail_on"):
+            notes.append(f"fail_on={config['fail_on']}")
+        if config.get("exclude_rules"):
+            notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
+        print(f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else ""))
+
+    blocking = config.get("blocking_severities")
+    excluded = config.get("exclude_rules") or set()
+
+    def _gates(finding):
+        if finding.get("rule_id") in excluded:
+            return False
+        return core_is_deploy_blocking(finding, blocking)
+
+    return 1 if any(_gates(f) for f in findings) else 0
 
 
 def _write_findings_json(findings, output_path: Path):

@@ -131,6 +131,24 @@ documented rule fixtures until the lightweight engine grows structural matching.
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
 
+#### Tune the gate with `.appguardrail.json` (optional)
+
+Commit a `.appguardrail.json` at the repo root to configure the deploy gate for
+the whole team — no CLI flags needed:
+
+```json
+{
+  "fail_on": "HIGH",
+  "exclude_rules": ["some-noisy-rule-id"]
+}
+```
+
+- `fail_on` — minimum severity that fails the gate (`CRITICAL`, `HIGH`,
+  `WARNING`, or `INFO`). Default gate blocks `CRITICAL` and `HIGH`.
+- `exclude_rules` — rule ids to drop from the gate (findings still show, but
+  don't fail the build). An invalid config fails the scan loudly rather than
+  silently passing.
+
 ### Generate reports from findings
 
 ```bash
