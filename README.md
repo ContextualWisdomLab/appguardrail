@@ -188,6 +188,10 @@ curl -X POST http://localhost:8788/api/v1/scans \
 curl http://localhost:8788/api/v1/scans -H "Authorization: Bearer $APPGUARDRAIL_API_KEY"
 ```
 
+Open the **org console** at `http://localhost:8788/` — a single static page that
+connects with your API key and shows scan history, the deploy-blocking trend,
+and per-scan detail.
+
 Endpoints: `POST /api/v1/scans`, `GET /api/v1/scans`, `GET /api/v1/scans/{id}`,
 `GET /api/v1/health`. Tenant-isolated by API key. Stdlib + SQLite (swap for a
 managed database behind the same functions at scale).

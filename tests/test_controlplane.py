@@ -118,3 +118,11 @@ def test_bad_body_400(server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         _req("POST", f"{base}/api/v1/scans", key, {"findings": "not-a-list"})
     assert exc.value.code == 400
+
+
+def test_console_served_at_root(server):
+    base, _ = server
+    with closing(urllib.request.urlopen(base + "/", timeout=5)) as resp:
+        body = resp.read()
+    assert resp.status == 200
+    assert b"AppGuardrail Console" in body  # served the org console HTML

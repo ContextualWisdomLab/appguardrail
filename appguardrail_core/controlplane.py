@@ -17,6 +17,7 @@ import json
 import re
 import secrets
 import sqlite3
+from importlib import resources
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -160,6 +161,15 @@ def get_scan(conn: sqlite3.Connection, org_id: int, scan_id: int) -> "dict[str, 
 
 
 
+def console_html() -> bytes:
+    """Return the packaged org-console HTML, or a minimal fallback."""
+    try:
+        path = resources.files("scanner").joinpath("dashboard", "console.html")
+        return path.read_bytes()
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return b"<!doctype html><title>AppGuardrail Console</title><p>Console asset missing.</p>"
+
+
 def make_control_plane_server(host: str, port: int, db_path: str):
     """Build an HTTP API for scan ingest + history, scoped by API key.
 
@@ -176,6 +186,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     conn.commit()
+    console = console_html()
 
     class _Handler(http.server.BaseHTTPRequestHandler):
         def _json(self, code, obj):
@@ -193,6 +204,13 @@ def make_control_plane_server(host: str, port: int, db_path: str):
 
         def do_GET(self):
             path = self.path.split("?", 1)[0]
+            if path in ("/", "/console", "/index.html"):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(console)))
+                self.end_headers()
+                self.wfile.write(console)
+                return
             if path == "/api/v1/health":
                 return self._json(200, {"status": "ok"})
             org = self._org()
