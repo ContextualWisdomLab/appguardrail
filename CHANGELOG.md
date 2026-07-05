@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- `appguardrail scan --exclude <glob>` — 스캔에서 특정 경로/파일을 제외합니다(반복 지정 가능). glob은 스캔 루트 기준 상대 경로와 파일명 양쪽에 매칭됩니다(예: `--exclude 'vendor/*' --exclude '*.min.js'`). vendored/generated 코드를 건너뛰어 노이즈를 줄입니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

@@ -85,6 +85,9 @@ This creates:
 ```bash
 appguardrail scan .
 
+# Skip vendored/generated paths (repeatable glob)
+appguardrail scan --exclude 'vendor/*' --exclude '*.min.js' .
+
 # Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
 appguardrail scan --trivy .
 

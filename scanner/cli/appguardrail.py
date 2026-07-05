@@ -1387,6 +1387,19 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    exclude_globs = getattr(args, "exclude", None) or []
+    if exclude_globs:
+        def _excluded(fp):
+            try:
+                rel = fp.relative_to(scan_path).as_posix()
+            except ValueError:
+                rel = fp.name
+            return any(
+                fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(fp.name, g)
+                for g in exclude_globs
+            )
+        files_to_scan = (f for f in files_to_scan if not _excluded(f))
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -3093,6 +3106,13 @@ def main():
         "--sarif",
         default=None,
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
+    )
+    scan_parser.add_argument(
+        "--exclude",
+        action="append",
+        default=None,
+        metavar="GLOB",
+        help="Skip files matching this glob (repeatable)",
     )
     scan_parser.add_argument(
         "--codegraph",
