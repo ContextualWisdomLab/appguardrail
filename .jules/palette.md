@@ -1,3 +1,3 @@
-## 2024-05-19 - Init Command UX Improvement
-**Learning:** CLI outputs with inline repetitive warnings (e.g. `already contains rules — skipping`) can clutter terminal visibility and diminish developer experience.
-**Action:** Group skipped/unchanged files separately from modified ones (e.g., in a single `Skipped (already configured):` section) to create clean, scannable terminal output.
+## 2024-07-05 - Dashboard Accessibility Enhancements
+**Learning:** The static HTML dashboard (`scanner/dashboard/index.html`) lacked native keyboard navigation for its interactive findings table and detail dialog. Without `tabindex` and keydown listeners, keyboard-only users could not select rows, and the dialog required precise clicking to close.
+**Action:** When adding interactive elements (like rows that act as buttons or dialogs), always explicitly handle `keydown` events (Enter/Space) and add `:focus-visible` styles to provide clear visual feedback without disrupting mouse users. Additionally, attaching a backdrop click-to-close listener to `<dialog>` elements significantly improves micro-UX.
