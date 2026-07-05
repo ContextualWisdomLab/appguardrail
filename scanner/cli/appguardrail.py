@@ -2770,8 +2770,10 @@ def cmd_dashboard(args):
     if not getattr(args, "no_open", False):
         try:
             webbrowser.open(url)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Non-fatal: the server is already serving; just tell the user to
+            # open the URL themselves instead of failing the command.
+            print(f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
