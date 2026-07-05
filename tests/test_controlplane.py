@@ -18,6 +18,9 @@ from appguardrail_core.controlplane import (
     list_scans,
     make_control_plane_server,
     org_for_key,
+    create_key,
+    role_for_key,
+    has_role,
     set_webhook,
 )
 
@@ -177,3 +180,45 @@ def test_api_set_webhook(server):
     base, key = server
     status, body = _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"})
     assert status == 200 and body["webhook_url"] == "http://hook.example/y"
+
+
+def test_roles_and_key_scoping():
+    conn = connect(":memory:")
+    oid, owner_key = create_org(conn, "Acme")
+    # bootstrap key is an owner
+    assert role_for_key(conn, owner_key) == (oid, "owner")
+    _, mk = create_key(conn, oid, "member", "ci")
+    _, vk = create_key(conn, oid, "viewer")
+    assert role_for_key(conn, mk) == (oid, "member")
+    assert role_for_key(conn, vk) == (oid, "viewer")
+    assert role_for_key(conn, "agk_bad") is None
+    assert has_role("owner", "member") and has_role("member", "member")
+    assert not has_role("viewer", "member") and not has_role("member", "owner")
+
+
+def test_api_role_enforcement(server):
+    base, owner_key = server
+    # forge member + viewer keys directly in the fixture DB via a fresh connect
+    # (the server shares the same file); simplest: create via the owner API.
+    status, mk = _req("POST", f"{base}/api/v1/keys", owner_key, {"role": "member"})
+    assert status == 201 and mk["role"] == "member"
+    status, vk = _req("POST", f"{base}/api/v1/keys", owner_key, {"role": "viewer"})
+    assert status == 201 and vk["role"] == "viewer"
+    member, viewer = mk["api_key"], vk["api_key"]
+
+    F = {"findings": [{"severity": "CRITICAL", "rule_id": "x", "context": "app-code"}]}
+    # viewer: read yes, ingest no, keys no
+    assert _req("GET", f"{base}/api/v1/scans", viewer)[0] == 200
+    for method, path, body in [("POST", "/api/v1/scans", F),
+                               ("POST", "/api/v1/keys", {"role": "member"}),
+                               ("POST", "/api/v1/webhook", {"url": "http://x"})]:
+        with pytest.raises(urllib.error.HTTPError) as e:
+            _req(method, f"{base}{path}", viewer, body)
+        assert e.value.code == 403
+    # member: ingest yes, keys/webhook no
+    assert _req("POST", f"{base}/api/v1/scans", member, F)[0] == 201
+    with pytest.raises(urllib.error.HTTPError) as e:
+        _req("POST", f"{base}/api/v1/webhook", member, {"url": "http://x"})
+    assert e.value.code == 403
+    # owner: all yes
+    assert _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://x"})[0] == 200

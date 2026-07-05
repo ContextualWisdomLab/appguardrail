@@ -45,6 +45,15 @@ CREATE TABLE IF NOT EXISTS scans (
     FOREIGN KEY (org_id) REFERENCES orgs (id)
 );
 CREATE INDEX IF NOT EXISTS idx_scans_org ON scans (org_id, id DESC);
+CREATE TABLE IF NOT EXISTS keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL DEFAULT 'member',
+    label TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (org_id) REFERENCES orgs (id)
+);
 """
 
 
@@ -72,8 +81,13 @@ def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
         "INSERT INTO orgs (name, api_key_hash, created_at) VALUES (?, ?, ?)",
         (name, _hash_key(api_key), _now()),
     )
+    org_id = cur.lastrowid
+    conn.execute(
+        "INSERT INTO keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
+        (org_id, _hash_key(api_key), "owner", "owner (bootstrap)", _now()),
+    )
     conn.commit()
-    return cur.lastrowid, api_key
+    return org_id, api_key
 
 
 def org_for_key(conn: sqlite3.Connection, api_key: str) -> "int | None":
@@ -113,6 +127,45 @@ def _send_alert(url: str, payload: dict[str, Any]) -> bool:
         return True
     except (urllib.error.URLError, OSError, ValueError):
         return False
+
+
+ROLES = ("viewer", "member", "owner")
+_ROLE_RANK = {role: rank for rank, role in enumerate(ROLES)}
+
+
+def has_role(role: "str | None", minimum: str) -> bool:
+    """True if ``role`` is at or above ``minimum`` in the viewer<member<owner order."""
+    return _ROLE_RANK.get(role or "", -1) >= _ROLE_RANK.get(minimum, 99)
+
+
+def create_key(
+    conn: sqlite3.Connection, org_id: int, role: str = "member", label: "str | None" = None
+) -> "tuple[int, str]":
+    """Issue a new API key for an org with a role. Returns (key_id, api_key)."""
+    role = role if role in _ROLE_RANK else "member"
+    api_key = "agk_" + secrets.token_urlsafe(32)
+    cur = conn.execute(
+        "INSERT INTO keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
+        (org_id, _hash_key(api_key), role, label, _now()),
+    )
+    conn.commit()
+    return cur.lastrowid, api_key
+
+
+def role_for_key(conn: sqlite3.Connection, api_key: str) -> "tuple[int, str] | None":
+    """Return (org_id, role) for a presented key, or None."""
+    if not api_key:
+        return None
+    row = conn.execute(
+        "SELECT org_id, role FROM keys WHERE key_hash = ?", (_hash_key(api_key),)
+    ).fetchone()
+    if row:
+        return (row["org_id"], row["role"])
+    # legacy/bootstrap key stored on orgs is an owner key
+    row = conn.execute(
+        "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
+    ).fetchone()
+    return (row["id"], "owner") if row else None
 
 
 def add_scan(
@@ -267,10 +320,10 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             self.end_headers()
             self.wfile.write(body)
 
-        def _org(self):
+        def _auth(self):
             hdr = self.headers.get("Authorization", "")
             key = hdr[7:] if hdr.startswith("Bearer ") else ""
-            return org_for_key(conn, key)
+            return role_for_key(conn, key)
 
         def do_GET(self):
             path = self.path.split("?", 1)[0]
@@ -283,9 +336,10 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return
             if path == "/api/v1/health":
                 return self._json(200, {"status": "ok"})
-            org = self._org()
-            if org is None:
+            auth = self._auth()
+            if auth is None:
                 return self._json(401, {"error": "invalid or missing API key"})
+            org, _role = auth
             if path == "/api/v1/scans":
                 return self._json(200, {"scans": list_scans(conn, org)})
             m = re.match(r"^/api/v1/scans/(\d+)$", path)
@@ -294,25 +348,44 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return self._json(200, scan) if scan else self._json(404, {"error": "not found"})
             self._json(404, {"error": "not found"})
 
+        def _body(self):
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                return json.loads(self.rfile.read(length) or b"{}")
+            except (ValueError, TypeError):
+                return None
+
         def do_POST(self):
             path = self.path.split("?", 1)[0]
-            if path not in ("/api/v1/scans", "/api/v1/webhook"):
+            if path not in ("/api/v1/scans", "/api/v1/webhook", "/api/v1/keys"):
                 return self._json(404, {"error": "not found"})
-            org = self._org()
-            if org is None:
+            auth = self._auth()
+            if auth is None:
                 return self._json(401, {"error": "invalid or missing API key"})
+            org, role = auth
+
             if path == "/api/v1/webhook":
-                try:
-                    length = int(self.headers.get("Content-Length", 0))
-                    body = json.loads(self.rfile.read(length) or b"{}")
-                except (ValueError, TypeError):
+                if not has_role(role, "owner"):
+                    return self._json(403, {"error": "owner role required"})
+                body = self._body()
+                if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
                 set_webhook(conn, org, (body or {}).get("url"))
                 return self._json(200, {"webhook_url": (body or {}).get("url")})
-            try:
-                length = int(self.headers.get("Content-Length", 0))
-                data = json.loads(self.rfile.read(length) or b"{}")
-            except (ValueError, TypeError):
+
+            if path == "/api/v1/keys":
+                if not has_role(role, "owner"):
+                    return self._json(403, {"error": "owner role required"})
+                body = self._body()
+                if body is None:
+                    return self._json(400, {"error": "invalid JSON body"})
+                new_role = (body or {}).get("role", "member")
+                _kid, new_key = create_key(conn, org, new_role, (body or {}).get("label"))
+                return self._json(201, {"api_key": new_key, "role": new_role if new_role in ROLES else "member"})
+            if not has_role(role, "member"):
+                return self._json(403, {"error": "member role required to ingest scans"})
+            data = self._body()
+            if data is None:
                 return self._json(400, {"error": "invalid JSON body"})
             findings = data.get("findings") if isinstance(data, dict) else data
             if not isinstance(findings, list):
