@@ -75,6 +75,34 @@ def test_render_tokens_css_emits_dashboard_vars():
     assert "#256EF4" in css  # primary
 
 
+def _norm_color(v):
+    v = v.strip().lower()
+    if v.startswith("#") and len(v) == 4:  # #abc -> #aabbcc
+        v = "#" + "".join(c * 2 for c in v[1:])
+    return v
+
+
+def _parse_root_vars(css_text):
+    root = css_text[css_text.index(":root{") + len(":root{"):]
+    root = root[: root.index("}")]
+    return {
+        m.group(1): _norm_color(m.group(2))
+        for m in __import__("re").finditer(r"--([\w-]+)\s*:\s*([^;]+);", root)
+    }
+
+
+def test_inline_fallback_matches_token_source():
+    """The hardcoded :root fallback in index.html must not drift from tokens.json."""
+    html = dashboard_index_path().read_text()
+    fallback = _parse_root_vars(html)
+    source = _parse_root_vars(
+        render_tokens_css(_json.loads(dashboard_tokens_path().read_text()))
+    )
+    for var, val in source.items():
+        assert var in fallback, f"fallback missing {var}"
+        assert fallback[var] == val, f"{var} drift: fallback {fallback[var]} != tokens.json {val}"
+
+
 def test_tokens_include_high_contrast_mode():
     data = _json.loads(dashboard_tokens_path().read_text())
     hc = data["high-contrast"]
