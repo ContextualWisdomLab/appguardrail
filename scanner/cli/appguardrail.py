@@ -2720,13 +2720,34 @@ _TOKEN_CSS_VARS = {
 
 
 def render_tokens_css(tokens: dict) -> str:
-    """Render :root CSS custom properties from the design-token source dict."""
+    """Render CSS custom properties from the design-token source dict.
+
+    Emits base tokens under ``:root`` and, when present, a ``high-contrast``
+    override under ``@media (prefers-contrast: more)`` so the dashboard adapts
+    to the user's contrast preference automatically.
+    """
     lines = [":root{"]
     for (group, key), css_var in _TOKEN_CSS_VARS.items():
         entry = (tokens.get(group) or {}).get(key)
         if isinstance(entry, dict) and "value" in entry:
             lines.append(f"  {css_var}: {entry['value']};")
     lines.append("}")
+
+    hc = tokens.get("high-contrast") or {}
+    hc_lines = []
+    for (group, key), css_var in _TOKEN_CSS_VARS.items():
+        if group != "color":
+            continue
+        entry = hc.get(key)
+        if isinstance(entry, dict) and "value" in entry:
+            hc_lines.append(f"    {css_var}: {entry['value']};")
+    if hc_lines:
+        lines.append("@media (prefers-contrast: more){")
+        lines.append("  :root{")
+        lines.extend(hc_lines)
+        lines.append("  }")
+        lines.append("}")
+
     return "\n".join(lines) + "\n"
 
 

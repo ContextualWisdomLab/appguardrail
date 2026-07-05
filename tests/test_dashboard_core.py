@@ -75,6 +75,24 @@ def test_render_tokens_css_emits_dashboard_vars():
     assert "#256EF4" in css  # primary
 
 
+def test_tokens_include_high_contrast_mode():
+    data = _json.loads(dashboard_tokens_path().read_text())
+    hc = data["high-contrast"]
+    # HC must override the key state colors with maximal-contrast values
+    assert hc["text-default"]["value"] == "#000000"
+    assert hc["border"]["value"] == "#000000"
+    assert hc["primary"]["value"].startswith("#")
+
+
+def test_render_tokens_css_emits_high_contrast_media_query():
+    css = render_tokens_css(_json.loads(dashboard_tokens_path().read_text()))
+    assert "@media (prefers-contrast: more)" in css
+    # HC primary value present inside the media block
+    assert "#0038A8" in css
+    # base still first
+    assert css.index(":root{") < css.index("@media")
+
+
 def test_server_serves_tokens_css(tmp_path):
     findings = tmp_path / "f.json"
     findings.write_text('{"findings":[]}')
