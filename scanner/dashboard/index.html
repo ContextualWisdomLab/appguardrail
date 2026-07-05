@@ -12,6 +12,9 @@
   ponytail: no framework, no build step. Renders the schema in appguardrail_core/findings.py verbatim.
 -->
 <style>
+  /* Fallback tokens — keep the page styled if /tokens.css is unavailable.
+     The canonical source is scanner/dashboard/tokens.json, served at
+     /tokens.css (linked after this block so served values win). */
   :root{
     --bg:#F4F5F7; --surface:#FFFFFF; --text:#1A1D24; --muted:#5B6472;
     --border:#D6DAE0; --divider:#E7EAEF; --primary:#256EF4; --on-primary:#fff;
@@ -72,6 +75,9 @@
   .drop{margin-top:14px}
   a{color:var(--primary)}
 </style>
+<!-- Canonical design tokens (scanner/dashboard/tokens.json) served at /tokens.css;
+     loaded last so served values override the inline fallback above. -->
+<link rel="stylesheet" href="tokens.css">
 </head>
 <body>
 <header>

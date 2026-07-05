@@ -2695,11 +2695,47 @@ def dashboard_index_path():
     return Path(str(resources.files("scanner").joinpath("dashboard", "index.html")))
 
 
-def make_dashboard_server(host, port, index_bytes, findings_path):
+def dashboard_tokens_path():
+    """Locate the canonical design-token source shipped with the package."""
+    return Path(str(resources.files("scanner").joinpath("dashboard", "tokens.json")))
+
+
+# Map canonical token names (tokens.json) to the CSS custom properties the
+# dashboard stylesheet consumes. Keeps the JSON the single source of truth.
+_TOKEN_CSS_VARS = {
+    ("color", "background"): "--bg",
+    ("color", "surface"): "--surface",
+    ("color", "text-default"): "--text",
+    ("color", "text-muted"): "--muted",
+    ("color", "border"): "--border",
+    ("color", "divider"): "--divider",
+    ("color", "primary"): "--primary",
+    ("color", "on-primary"): "--on-primary",
+    ("color", "critical"): "--crit",
+    ("color", "high"): "--high",
+    ("color", "warning"): "--warn",
+    ("color", "info"): "--info",
+    ("radius", "base"): "--radius",
+}
+
+
+def render_tokens_css(tokens: dict) -> str:
+    """Render :root CSS custom properties from the design-token source dict."""
+    lines = [":root{"]
+    for (group, key), css_var in _TOKEN_CSS_VARS.items():
+        entry = (tokens.get(group) or {}).get(key)
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  {css_var}: {entry['value']};")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_bytes=b""):
     """Build (but do not start) an HTTP server that serves the dashboard.
 
-    Serves the dashboard HTML at ``/`` and the findings file at
-    ``/findings.json`` so the page loads regardless of the caller's cwd.
+    Serves the dashboard HTML at ``/``, the design tokens at ``/tokens.css``,
+    and the findings file at ``/findings.json`` so the page loads regardless
+    of the caller's cwd.
     """
     import http.server
 
@@ -2717,6 +2753,8 @@ def make_dashboard_server(host, port, index_bytes, findings_path):
             path = self.path.split("?", 1)[0]
             if path in ("/", "/index.html", "/dashboard/", "/dashboard/index.html"):
                 self._send(index_bytes, "text/html; charset=utf-8")
+            elif path in ("/tokens.css", "/dashboard/tokens.css"):
+                self._send(tokens_css_bytes, "text/css; charset=utf-8")
             elif path in ("/findings.json", "/reports/findings.json"):
                 if findings_path.is_file():
                     self._send(findings_path.read_bytes(), "application/json")
@@ -2754,10 +2792,22 @@ def cmd_dashboard(args):
         )
         print("   The dashboard opens with instructions — reload after generating.\n")
 
+    tokens_css = b""
+    tokens_file = dashboard_tokens_path()
+    if tokens_file.is_file():
+        try:
+            tokens_css = render_tokens_css(
+                json.loads(tokens_file.read_text(encoding="utf-8"))
+            ).encode("utf-8")
+        except (ValueError, OSError) as exc:
+            print(f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.", file=sys.stderr)
+
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8787)
     try:
-        server = make_dashboard_server(host, port, index.read_bytes(), findings_path)
+        server = make_dashboard_server(
+            host, port, index.read_bytes(), findings_path, tokens_css
+        )
     except OSError as exc:
         print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
         print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
