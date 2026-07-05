@@ -57,32 +57,21 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.external import build_external_scan_plan
-from appguardrail_core.findings import (
-    NON_BLOCKING_CONTEXTS,
-    is_deploy_blocking as core_is_deploy_blocking,
-    normalize_findings,
-)
-from appguardrail_core.language import (
-    LANGUAGE_EXTENSIONS,
-    detect_language_axes,
-    detect_stack_profile,
-)
-from appguardrail_core.org_bundle import (
-    OrgBundleError,
-    annotate_missing_pr_repositories,
-    gh_error_message,
-    gh_pr_list,
-    gh_repo_list,
-    load_json as load_org_json,
-    render_org_evidence,
-    write_bundle,
-)
-from appguardrail_core.reports import (
-    REPORT_TYPE_LABELS,
-    ReportContext,
-    render_report,
-    supported_report_types,
-)
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import \
+    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import normalize_findings
+from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
+                                        detect_language_axes,
+                                        detect_stack_profile)
+from appguardrail_core.org_bundle import (OrgBundleError,
+                                          annotate_missing_pr_repositories,
+                                          gh_error_message, gh_pr_list,
+                                          gh_repo_list)
+from appguardrail_core.org_bundle import load_json as load_org_json
+from appguardrail_core.org_bundle import render_org_evidence, write_bundle
+from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
+                                       render_report, supported_report_types)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -740,7 +729,7 @@ SCAN_RULES = [
             r"(?i)<a\b(?=[^>\n]*target\s*=\s*[\"']_blank[\"'])(?![^>\n]*rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer))[^>\n]*href\s*=\s*[\"']https?://"
         ),
         "severity": "WARNING",
-        "message": "External target=_blank link is missing rel=\"noopener noreferrer\". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]",
+        "message": 'External target=_blank link is missing rel="noopener noreferrer". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]',
         "extensions": [".html", ".htm"],
     },
     {
@@ -887,6 +876,7 @@ SCAN_RULES = [
         "extensions": None,
     },
 ]
+
 
 def _unquote_rule_scalar(value: str) -> str:
     """Return a simple YAML scalar value from the controlled rule files."""
@@ -1466,10 +1456,7 @@ def cmd_scan(args):
         try:
             findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
         except RuntimeError as exc:
-            if (
-                external_plan.semgrep.auto_selected
-                and not external_plan.semgrep.forced
-            ):
+            if external_plan.semgrep.auto_selected and not external_plan.semgrep.forced:
                 print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
@@ -1618,8 +1605,7 @@ def cmd_report(args):
         or "Application source, configuration, and security workflow evidence.",
         client_name=getattr(args, "client_name", None) or "n/a",
         reviewer=getattr(args, "reviewer", None) or "AppGuardrail",
-        engagement_type=getattr(args, "engagement_type", None)
-        or "Pre-launch review",
+        engagement_type=getattr(args, "engagement_type", None) or "Pre-launch review",
         based_on=getattr(args, "based_on", None) or "AppGuardrail findings JSON",
     )
     report = render_report(report_type, findings, context)
@@ -1656,11 +1642,13 @@ def cmd_org_bundle(args):
             prs, collection_warnings = gh_pr_list(owner, repos, per_repo_pr_limit)
         if prs_repository:
             prs = annotate_missing_pr_repositories(prs, prs_repository)
-        generated_at, report, evidence_payload, inventory, pr_summary = render_org_evidence(
-            repos,
-            prs,
-            active_repository_target=active_repository_target,
-            generated_at=getattr(args, "generated_at", None),
+        generated_at, report, evidence_payload, inventory, pr_summary = (
+            render_org_evidence(
+                repos,
+                prs,
+                active_repository_target=active_repository_target,
+                generated_at=getattr(args, "generated_at", None),
+            )
         )
         manifest = write_bundle(
             bundle_dir,
@@ -1685,7 +1673,9 @@ def cmd_org_bundle(args):
         )
         return 1
     except subprocess.CalledProcessError as exc:
-        print(f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr)
+        print(
+            f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr
+        )
         print(
             "💡 Hint: Retry later or provide --repos-json and --prs-json.",
             file=sys.stderr,
@@ -1895,6 +1885,11 @@ def _sanitize_terminal_output(text: str) -> str:
     that could hide scanner findings by removing or escaping non-printable characters.
     """
     if not isinstance(text, str):
+        return text
+    # ⚡ Bolt: Fast-path for completely printable strings (no ANSI, no control chars)
+    # This completely bypasses the slow generator expression for the vast majority
+    # of normal paths and snippets.
+    if text.replace("\t", "").isprintable():
         return text
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
@@ -2340,20 +2335,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2420,13 +2417,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -2880,7 +2879,10 @@ def cmd_dashboard(args):
                 json.loads(tokens_file.read_text(encoding="utf-8"))
             ).encode("utf-8")
         except (ValueError, OSError) as exc:
-            print(f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.", file=sys.stderr)
+            print(
+                f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.",
+                file=sys.stderr,
+            )
 
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8787)
@@ -2903,7 +2905,9 @@ def cmd_dashboard(args):
         except Exception as exc:
             # Non-fatal: the server is already serving; just tell the user to
             # open the URL themselves instead of failing the command.
-            print(f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr)
+            print(
+                f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr
+            )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -3050,9 +3054,7 @@ def main():
         )
         parser.add_argument("--app-name", default=None, help="Application name")
         parser.add_argument("--repository", default=None, help="Repository name")
-        parser.add_argument(
-            "--commit", default=None, help="Commit SHA or version"
-        )
+        parser.add_argument("--commit", default=None, help="Commit SHA or version")
         parser.add_argument(
             "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
         )
