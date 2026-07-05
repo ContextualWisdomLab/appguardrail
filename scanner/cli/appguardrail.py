@@ -1422,7 +1422,7 @@ def cmd_scan(args):
             findings.extend(_run_bandit_scan(scan_path))
         except RuntimeError as exc:
             if external_plan.bandit.auto_selected and not external_plan.bandit.forced:
-                print(f"⚠️  Skipping Bandit auto integration: {exc}\n")
+                print(f"⚠️  Warning: Skipping Bandit auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
@@ -1437,7 +1437,7 @@ def cmd_scan(args):
             findings.extend(_run_ruff_security_scan(scan_path))
         except RuntimeError as exc:
             if external_plan.ruff.auto_selected and not external_plan.ruff.forced:
-                print(f"⚠️  Skipping Ruff auto integration: {exc}\n")
+                print(f"⚠️  Warning: Skipping Ruff auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
@@ -1455,7 +1455,7 @@ def cmd_scan(args):
                 external_plan.semgrep.auto_selected
                 and not external_plan.semgrep.forced
             ):
-                print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
+                print(f"⚠️  Warning: Skipping Semgrep auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
@@ -1470,7 +1470,7 @@ def cmd_scan(args):
             findings.extend(_run_zap_baseline(zap_baseline_url))
         except RuntimeError as exc:
             if external_plan.zap.auto_selected and not external_plan.zap.forced:
-                print(f"⚠️  Skipping ZAP auto integration: {exc}\n")
+                print(f"⚠️  Warning: Skipping ZAP auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
                 print(
@@ -1652,11 +1652,11 @@ def cmd_org_bundle(args):
 
     summary = manifest["summary"]
     print(f"\n✅ Buyer evidence bundle written: {bundle_dir}\n")
-    print("Files:")
-    print("  - org-readiness.md")
-    print("  - buyer-evidence.json")
-    print("  - manifest.json")
-    print("  - README.md")
+    print("📄 Files:")
+    print("📄  - org-readiness.md")
+    print("📄  - buyer-evidence.json")
+    print("📄  - manifest.json")
+    print("📄  - README.md")
     print()
     print(f"Open PRs analyzed: {summary['open_pull_requests']}")
     print(f"Buyer evidence status: {summary['buyer_evidence_status']}")
@@ -2634,13 +2634,14 @@ def _print_scan_results(findings, files_scanned):
         )
 
     if files_scanned == 0:
-        print("\n⚠️  No files were scanned. Are you in the right directory?")
+        print("\n⚠️  Warning: No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
-        print(f"\n❌ Critical {issue_word} found. Fix before deploying.")
+        print(f"\n❌ Error: Critical {issue_word} found. Fix before deploying.")
+        print("💡 Hint: Review the critical issues and apply fixes before deploying.")
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        print(f"\n⚠️  High-severity {issue_word} found. Review before deploying.")
+        print(f"\n⚠️  Warning: High-severity {issue_word} found. Review before deploying.")
     elif not findings:
         print("\n✅ No issues found in this scan.")
     else:
