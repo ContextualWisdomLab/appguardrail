@@ -79,3 +79,28 @@ rules:
       pattern or ensure redirect is the final statement.
     severity: WARNING
     languages: [typescript, javascript]
+
+  - id: node-open-redirect-user-input
+    patterns:
+      - pattern-regex: '\bres\.redirect\s*\(\s*(?:\d{3}\s*,\s*)?req\.(?:query|body|params)\b'
+    message: |
+      Open redirect: res.redirect() is called with an unvalidated value taken
+      directly from the request (query/body/params). An attacker can redirect
+      users to a phishing site. Validate the target against an allowlist of paths
+      or origins before redirecting.
+    severity: HIGH
+    languages: [javascript, typescript]
+    cwe: [CWE-601]
+    owasp: [A01:2021]
+
+  - id: wildcard-postmessage-target
+    patterns:
+      - pattern-regex: '\.postMessage\s*\([^,)]+,\s*[''"]\*[''"]\s*\)'
+    message: |
+      postMessage() is called with a wildcard target origin ('*'). Any origin can
+      receive this message, leaking data to malicious frames. Specify the exact
+      target origin (e.g. 'https://yourdomain.com') instead of '*'.
+    severity: WARNING
+    languages: [javascript, typescript]
+    cwe: [CWE-346]
+    owasp: [A05:2021]
