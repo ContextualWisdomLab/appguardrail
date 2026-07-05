@@ -63,11 +63,27 @@ def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
-def is_deploy_blocking(finding: dict[str, Any]) -> bool:
-    """Return whether a finding should fail a deploy gate."""
+def is_deploy_blocking(
+    finding: dict[str, Any],
+    blocking_severities: "set[str] | None" = None,
+) -> bool:
+    """Return whether a finding should fail a deploy gate.
+
+    ``blocking_severities`` overrides the default CRITICAL/HIGH set, letting a
+    config raise or lower the gate threshold (see ``severities_at_or_above``).
+    """
+    severities = blocking_severities or DEPLOY_BLOCKING_SEVERITIES
     severity = str(finding.get("severity") or "INFO").upper()
     context = str(finding.get("context") or "app-code")
-    return severity in DEPLOY_BLOCKING_SEVERITIES and context not in NON_BLOCKING_CONTEXTS
+    return severity in severities and context not in NON_BLOCKING_CONTEXTS
+
+
+def severities_at_or_above(min_severity: str) -> set[str]:
+    """Severity names at or above ``min_severity`` (CRITICAL is highest)."""
+    idx = _SEVERITY_ORDER.get(str(min_severity).upper())
+    if idx is None:
+        return set(DEPLOY_BLOCKING_SEVERITIES)
+    return {sev for sev, order in _SEVERITY_ORDER.items() if order <= idx}
 
 
 def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:

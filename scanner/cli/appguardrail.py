@@ -56,6 +56,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
 from appguardrail_core.findings import \
@@ -881,8 +882,6 @@ SCAN_RULES = [
 def _print_dx(*args, **kwargs):
     """Print function that conditionally strips non-ASCII emojis/visual cues."""
     import builtins
-    import os
-    import re
 
     if os.getenv("APPGUARDRAIL_NO_EMOJI"):
         new_args = []
@@ -939,6 +938,7 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
     path_mode = None
 
     def finish_rule():
+        """Finalize the current rule by storing it in the rules list."""
         if not current:
             return
         message = "\n".join(current.pop("message_lines", [])).strip()
@@ -1531,7 +1531,34 @@ def cmd_scan(args):
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
-    return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
+
+    # Optional .appguardrail.json tunes the gate (fail_on threshold, rule excludes).
+    config_dir = scan_path if scan_path.is_dir() else scan_path.parent
+    try:
+        config = load_config([config_dir, Path.cwd()])
+    except RuntimeError as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        return 1
+    if config.get("_path"):
+        notes = []
+        if config.get("fail_on"):
+            notes.append(f"fail_on={config['fail_on']}")
+        if config.get("exclude_rules"):
+            notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
+        print(
+            f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
+        )
+
+    blocking = config.get("blocking_severities")
+    excluded = config.get("exclude_rules") or set()
+
+    def _gates(finding):
+        """Evaluate if a finding is deploy-blocking."""
+        if finding.get("rule_id") in excluded:
+            return False
+        return core_is_deploy_blocking(finding, blocking)
+
+    return 1 if any(_gates(f) for f in findings) else 0
 
 
 def _write_findings_json(findings, output_path: Path):
@@ -2844,7 +2871,10 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
     findings_path = Path(findings_path)
 
     class _Handler(http.server.BaseHTTPRequestHandler):
+        """Custom HTTP handler to serve the dashboard and local findings."""
+
         def _send(self, body, content_type):
+            """Send an HTTP response with the specified body and content type."""
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
@@ -2852,6 +2882,7 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             self.wfile.write(body)
 
         def do_GET(self):
+            """Handle GET requests by routing to the appropriate static asset."""
             path = self.path.split("?", 1)[0]
             if path in ("/", "/index.html", "/dashboard/", "/dashboard/index.html"):
                 self._send(index_bytes, "text/html; charset=utf-8")
@@ -2866,6 +2897,7 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
                 self.send_error(404)
 
         def log_message(self, *_args):  # keep the console quiet
+            """Suppress standard HTTP request logging output."""
             pass
 
     return http.server.HTTPServer((host, port), _Handler)
@@ -3069,6 +3101,7 @@ def main():
     report_subparsers = report_parser.add_subparsers(dest="report_type")
 
     def add_report_arguments(parser):
+        """Attach common reporting arguments to a subcommand parser."""
         parser.add_argument(
             "--findings",
             required=True,
