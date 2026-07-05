@@ -21,6 +21,7 @@ from appguardrail_core.controlplane import (
     create_key,
     role_for_key,
     has_role,
+    scan_trend,
     set_webhook,
 )
 
@@ -222,3 +223,32 @@ def test_api_role_enforcement(server):
     assert e.value.code == 403
     # owner: all yes
     assert _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://x"})[0] == 200
+
+
+def test_pagination_and_trend():
+    conn = connect(":memory:")
+    oid, _ = create_org(conn, "Acme")
+    for i in range(5):
+        add_scan(conn, oid, [{"severity": "CRITICAL", "rule_id": f"r{i}",
+                              "file": "a", "line": i, "message": "m", "context": "app-code"}],
+                 repo="acme/app")
+    # list is newest-first; offset skips
+    p1 = list_scans(conn, oid, limit=2, offset=0)
+    p2 = list_scans(conn, oid, limit=2, offset=2)
+    assert [s["id"] for s in p1] == [5, 4]
+    assert [s["id"] for s in p2] == [3, 2]
+    # trend is oldest-first with the right length
+    t = scan_trend(conn, oid, limit=10)
+    assert len(t) == 5
+    assert t[0]["created_at"] <= t[-1]["created_at"]
+    assert all("deploy_blocking" in x and "new_blocking" in x for x in t)
+
+
+def test_api_pagination_and_trend(server):
+    base, key = server
+    for i in range(4):
+        _req("POST", f"{base}/api/v1/scans", key, {"repo": "r", "findings": []})
+    _, page = _req("GET", f"{base}/api/v1/scans?limit=2&offset=1", key)
+    assert len(page["scans"]) == 2
+    _, tr = _req("GET", f"{base}/api/v1/scans/trend?limit=3", key)
+    assert len(tr["trend"]) == 3
