@@ -123,6 +123,7 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Container/IaC misconfigurations in Dockerfiles and Compose files (`USER root`, `:latest` base images, `ADD` from remote URLs, `curl … | sh`, `privileged: true`, Docker socket bind-mounts)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain

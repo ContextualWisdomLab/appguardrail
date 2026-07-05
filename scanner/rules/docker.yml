@@ -1,0 +1,107 @@
+rules:
+  - id: dockerfile-user-root
+    patterns:
+      - pattern-regex: '(?i)^\s*USER\s+root\s*$'
+    message: |
+      This Dockerfile explicitly runs the container as the root user (USER root).
+      A process that is compromised then has root inside the container, which
+      widens the blast radius of any container escape. Create an unprivileged
+      user (RUN adduser --disabled-password app) and end the Dockerfile with
+      USER app. If root is only needed to install packages, drop back to a
+      non-root USER before the final stage. [CWE-250] [OWASP A05:2021 - Security Misconfiguration]
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include:
+        - "**/Dockerfile*"
+        - "**/dockerfile*"
+        - "**/*.dockerfile"
+        - "**/*.Dockerfile"
+
+  - id: dockerfile-base-image-latest
+    patterns:
+      - pattern-regex: '(?i)^\s*FROM\s+\S+:latest\b'
+    message: |
+      This Dockerfile pins a base image to the ":latest" tag. "latest" is a
+      moving target: rebuilds silently pull a different image, which makes builds
+      non-reproducible and can drag in a vulnerable or backdoored image without
+      warning. Pin an explicit version and, ideally, a digest
+      (for example FROM node:20.11-alpine@sha256:...). [CWE-1104] [OWASP A05:2021 - Security Misconfiguration]
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include:
+        - "**/Dockerfile*"
+        - "**/dockerfile*"
+        - "**/*.dockerfile"
+        - "**/*.Dockerfile"
+
+  - id: dockerfile-add-remote-url
+    patterns:
+      - pattern-regex: '(?i)^\s*ADD\s+(?:--\S+\s+)*https?://'
+    message: |
+      This Dockerfile uses ADD with a remote URL. ADD fetches the URL with no
+      integrity or TLS-failure check, so a compromised or MITM'd host can inject
+      arbitrary files into your image. Prefer COPY for local files, or RUN curl
+      with an explicit checksum verification (sha256sum -c) for remote artifacts.
+      [CWE-494] [OWASP A08:2021 - Software and Data Integrity Failures]
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include:
+        - "**/Dockerfile*"
+        - "**/dockerfile*"
+        - "**/*.dockerfile"
+        - "**/*.Dockerfile"
+
+  - id: dockerfile-curl-pipe-shell
+    patterns:
+      - pattern-regex: '(?i)\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba)?sh\b'
+    message: |
+      This Dockerfile pipes a downloaded script straight into a shell
+      (curl ... | sh). The remote content is executed with no integrity check,
+      so a compromised or hijacked URL runs arbitrary code inside your build.
+      Download the script to a file, verify its checksum or signature, review it,
+      and only then execute it. [CWE-494] [OWASP A08:2021 - Software and Data Integrity Failures]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/Dockerfile*"
+        - "**/dockerfile*"
+        - "**/*.dockerfile"
+        - "**/*.Dockerfile"
+
+  - id: compose-privileged-true
+    patterns:
+      - pattern-regex: '(?i)^\s*privileged:\s*(?:true|yes)\b'
+    message: |
+      This Compose service runs with privileged: true, which disables most
+      container isolation: the container gets access to all host devices and
+      nearly full host capabilities, so a compromise is effectively host root.
+      Remove privileged and grant only the specific capabilities you need with
+      cap_add, or the specific devices with the devices: mapping.
+      [CWE-250] [OWASP A05:2021 - Security Misconfiguration]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/docker-compose*.y*ml"
+        - "**/compose*.y*ml"
+
+  - id: docker-socket-bind-mount
+    patterns:
+      - pattern-regex: '/var/run/docker\.sock\b'
+    message: |
+      This Compose service bind-mounts the Docker socket (/var/run/docker.sock)
+      into a container. Anyone who can reach that socket can start privileged
+      containers and mount the host filesystem, so it is equivalent to giving the
+      container full root on the host. Avoid mounting the socket; if a container
+      truly must manage Docker, use a hardened proxy (such as docker-socket-proxy)
+      that restricts the allowed API calls. [CWE-250] [OWASP A05:2021 - Security Misconfiguration]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/docker-compose*.y*ml"
+        - "**/compose*.y*ml"

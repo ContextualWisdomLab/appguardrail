@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### 추가
+- 컨테이너·IaC 오구성 탐지 룰팩 `scanner/rules/docker.yml` 6종 추가(고정밀, 안전 설정 오탐 0 검증). vibe-coding으로 만든 앱이 흔히 함께 배포하는 Dockerfile·Compose 파일을 대상으로 하며, `languages: [generic]` + 경로 필터로 Dockerfile(확장자 없음)과 `docker-compose*.yml`/`compose*.yml`에서만 발화합니다.
+  - `dockerfile-user-root` — `USER root`로 컨테이너를 root로 실행(컨테이너 탈출 시 피해 확대). WARNING.
+  - `dockerfile-base-image-latest` — 베이스 이미지 `:latest` 태그 고정(재현 불가·취약 이미지 유입). WARNING.
+  - `dockerfile-add-remote-url` — 원격 URL을 `ADD`(무결성 검증 없음; COPY 또는 체크섬 검증 권장). WARNING.
+  - `dockerfile-curl-pipe-shell` — `curl … | sh` 다운로드 스크립트 직접 실행(공급망 위험). HIGH.
+  - `compose-privileged-true` — Compose 서비스 `privileged: true`(격리 무력화, 사실상 호스트 root). HIGH.
+  - `docker-socket-bind-mount` — Docker 소켓(`/var/run/docker.sock`) 바인드 마운트(호스트 root 상당). HIGH.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
