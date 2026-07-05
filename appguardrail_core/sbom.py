@@ -20,6 +20,16 @@ from typing import Any
 _RANGE_PREFIX = re.compile(r"^[\^~>=<\s]+")
 # name==1.2.3 style; capture name and pinned version if present.
 _REQ_LINE = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:==\s*([A-Za-z0-9._+!-]+))?")
+# poetry.lock: a package block is delimited by [[package]]; the package's own
+# name/version are the first line-anchored ``name =``/``version =`` keys.
+_POETRY_NAME = re.compile(r'^name\s*=\s*"([^"]+)"', re.MULTILINE)
+_POETRY_VERSION = re.compile(r'^version\s*=\s*"([^"]+)"', re.MULTILINE)
+# pnpm-lock.yaml package keys: "/name@version:" (v6+) and "/name/version:" (v5),
+# scoped as "/@scope/name@version:" — trailing "(peer)" suffixes are ignored.
+_PNPM_AT = re.compile(r"^\s+/(@?[^@\s/]+(?:/[^@\s/]+)?)@([^:@\s()]+)")
+_PNPM_SLASH = re.compile(r"^\s+/(@[^/\s]+/[^/\s]+|[^/@\s]+)/([^:/\s()]+)")
+# yarn.lock: a ``version "x"`` line inside an entry block.
+_YARN_VERSION = re.compile(r'^\s+version\s+"?([^"\s]+)"?')
 
 
 def _clean_version(value: str) -> str:
@@ -83,18 +93,101 @@ def parse_requirements(path: Path) -> list[dict[str, Any]]:
     return out
 
 
+def parse_poetry_lock(path: Path) -> list[dict[str, Any]]:
+    """poetry.lock -> components with resolved versions (hand-parsed TOML).
+
+    Python 3.9 has no ``tomllib`` and we avoid third-party toml libs, so we
+    scan ``[[package]]`` blocks for their first line-anchored ``name``/
+    ``version`` keys (sub-tables like ``[package.dependencies]`` use the dep
+    name as the key, never ``name =``/``version =`` at column 0).
+    """
+    text = path.read_text(encoding="utf-8")
+    out: dict[str, dict[str, Any]] = {}
+    # First chunk is the file preamble (before any [[package]]); skip it.
+    for block in text.split("[[package]]")[1:]:
+        nm = _POETRY_NAME.search(block)
+        vm = _POETRY_VERSION.search(block)
+        if nm and vm:
+            name, version = nm.group(1), vm.group(1)
+            out.setdefault(name, _component(name, version, "pypi", resolved=True))
+    return list(out.values())
+
+
+def parse_pnpm_lock(path: Path) -> list[dict[str, Any]]:
+    """pnpm-lock.yaml -> components with resolved versions (hand-parsed).
+
+    Package keys under ``packages:`` look like ``/name@version:`` (v6+) or
+    ``/name/version:`` (v5), scoped as ``/@scope/name@...``. Peer-dependency
+    suffixes such as ``(react@18.0.0)`` are excluded by the regexes.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        m = _PNPM_AT.match(raw) or _PNPM_SLASH.match(raw)
+        if not m:
+            continue
+        name, version = m.group(1), m.group(2)
+        if name and version:
+            out.setdefault(name, _component(name, version, "npm", resolved=True))
+    return list(out.values())
+
+
+def parse_yarn_lock(path: Path) -> list[dict[str, Any]]:
+    """yarn.lock -> components with resolved versions (hand-parsed).
+
+    Each entry starts with an unindented header of comma-separated
+    ``"name@range"`` specs, followed by an indented ``version "1.2.3"`` line.
+    The package name is the header spec with its trailing ``@range`` removed
+    (scoped ``@scope/name`` is preserved).
+    """
+    out: dict[str, dict[str, Any]] = {}
+    current: str | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        if not raw[0].isspace():
+            current = None
+            header = raw.rstrip()
+            if not header.endswith(":"):
+                continue
+            first = header[:-1].split(",")[0].strip().strip('"')
+            # Require an ``@range`` separator (beyond a leading scope ``@``) so
+            # metadata blocks like ``__metadata:`` are ignored.
+            if "@" not in first[1:]:
+                continue
+            name = first.rsplit("@", 1)[0]
+            current = name or None
+        elif current:
+            vm = _YARN_VERSION.match(raw)
+            if vm:
+                out.setdefault(current, _component(current, vm.group(1), "npm", resolved=True))
+                current = None
+    return list(out.values())
+
+
 def collect_components(base: Path) -> list[dict[str, Any]]:
     """Collect components, preferring lockfiles over manifests."""
     components: list[dict[str, Any]] = []
+    # npm side: prefer a lockfile (resolved) over the manifest (declared);
+    # among lockfiles npm > pnpm > yarn, then fall back to package.json.
     lock = base / "package-lock.json"
+    pnpm = base / "pnpm-lock.yaml"
+    yarn = base / "yarn.lock"
     pkg = base / "package.json"
     if lock.is_file():
         components += parse_package_lock(lock)
+    elif pnpm.is_file():
+        components += parse_pnpm_lock(pnpm)
+    elif yarn.is_file():
+        components += parse_yarn_lock(yarn)
     elif pkg.is_file():
         components += parse_package_json(pkg)
+    # python side: requirements.txt plus poetry.lock (additive; de-duped below).
     req = base / "requirements.txt"
     if req.is_file():
         components += parse_requirements(req)
+    poetry = base / "poetry.lock"
+    if poetry.is_file():
+        components += parse_poetry_lock(poetry)
     # de-dupe by (name, version)
     seen, unique = set(), []
     for c in components:

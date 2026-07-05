@@ -172,11 +172,12 @@ flipping TLS verification) stay as reviewable prompts — see
 appguardrail sbom . --out sbom.json
 ```
 
-Parses `package-lock.json`/`package.json` and `requirements.txt` into a
-CycloneDX software bill of materials — the component inventory buyers and
-auditors expect for supply-chain diligence. Versions are resolved from the
-lockfile when present, otherwise taken from the manifest (recorded per
-component). No third-party dependency.
+Parses `package-lock.json`/`package.json`, `pnpm-lock.yaml`, `yarn.lock`,
+`requirements.txt`, and `poetry.lock` into a CycloneDX software bill of
+materials — the component inventory buyers and auditors expect for
+supply-chain diligence. Versions are resolved from the lockfile when present,
+otherwise taken from the manifest (recorded per component). No third-party
+dependency.
 
 ### Generate reports from findings
 
