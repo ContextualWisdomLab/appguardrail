@@ -240,6 +240,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   scan:
@@ -256,8 +257,22 @@ jobs:
       - name: Install AppGuardrail
         run: python -m pip install --disable-pip-version-check appguardrail
 
-      - name: Run AppGuardrail deploy gate
-        run: appguardrail scan .
+      - name: Run AppGuardrail (SARIF + deploy gate)
+        id: scan
+        continue-on-error: true
+        run: appguardrail scan --sarif appguardrail.sarif .
+
+      - name: Upload results to GitHub code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: appguardrail.sarif
+
+      - name: Enforce deploy gate
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "AppGuardrail found deploy-blocking findings — see the Security tab."
+          exit 1
 """
 
 # ---------------------------------------------------------------------------
@@ -1490,6 +1505,18 @@ def cmd_scan(args):
             )
             return 1
 
+    sarif_path = getattr(args, "sarif", None)
+    if sarif_path:
+        try:
+            _write_sarif(findings, Path(sarif_path))
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            print(
+                "💡 Hint: Check the output path and directory permissions.",
+                file=sys.stderr,
+            )
+            return 1
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
@@ -1512,6 +1539,21 @@ def _write_findings_json(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     print(f"🧾 Findings JSON written: {output_path}")
+
+
+def _write_sarif(findings, output_path: Path):
+    """Write SARIF 2.1.0 for GitHub code scanning and other SARIF consumers."""
+    from appguardrail_core.sarif import findings_to_sarif
+
+    log = findings_to_sarif(findings, tool_version=__version__)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(log, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
+    print(f"🛡️  SARIF written: {output_path}")
 
 
 def cmd_monitor(args):
@@ -2961,6 +3003,11 @@ def main():
         "--findings-json",
         default=None,
         help="Write normalized findings JSON for report builders and dashboards",
+    )
+    scan_parser.add_argument(
+        "--sarif",
+        default=None,
+        help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
     )
     scan_parser.add_argument(
         "--codegraph",
