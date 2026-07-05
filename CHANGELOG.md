@@ -9,6 +9,7 @@
   - 인증: `Authorization: Bearer <api_key>`. `--create-org <name>`으로 org·키 발급, 빈 DB면 기본 org를 부트스트랩합니다.
   - **org console** — control-plane 서버가 `/`에서 서빙하는 단일 정적 페이지(`scanner/dashboard/console.html`). API 키로 연결해 스캔 히스토리, deploy-blocking 추이, 스캔 상세를 봅니다(프레임워크·빌드 단계 없음).
   - **drift 감지** — 인제스트 시 같은 org+repo의 직전 스캔 대비 **신규 deploy-blocking** 수(`new_blocking`)를 계산합니다(line-독립 지문). console과 API 응답에 노출됩니다.
+  - **RBAC / 멀티유저** — org별 다중 API 키에 역할(viewer/member/owner)을 부여합니다. viewer=읽기, member=스캔 인제스트, owner=webhook·키 발급 포함 전체. `POST /api/v1/keys`(owner)로 역할 지정 키를 발급합니다. 부트스트랩 키는 owner입니다.
   - **drift 알림 webhook** — org에 webhook URL을 설정하면(`POST /api/v1/webhook`) `new_blocking > 0`인 스캔에서 알림을 POST합니다(best-effort, 인제스트 실패 안 함). detect→alert 루프를 닫습니다.
   - `appguardrail scan --push <url>` — 스캔 후 findings를 control-plane에 POST합니다(키는 `APPGUARDRAIL_API_KEY`, repo/commit은 `GITHUB_REPOSITORY`/`GITHUB_SHA`에서 자동). CI가 매 스캔을 플랫폼에 밀어넣어 continuous-monitoring 루프를 닫습니다.
   - `appguardrail monitor` 워크플로가 `APPGUARDRAIL_CONTROL_PLANE_URL` secret이 설정된 경우 스캔을 control-plane에 자동 push합니다(`APPGUARDRAIL_API_KEY` secret 사용). 미설정 시 기존 SARIF+게이트 동작 그대로.

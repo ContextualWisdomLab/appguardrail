@@ -197,6 +197,10 @@ scan. Open the **org console** at `http://localhost:8788/` — a single static p
 connects with your API key and shows scan history, the deploy-blocking trend,
 and per-scan detail.
 
+Issue role-scoped API keys with `POST /api/v1/keys` (owner only): `viewer`
+(read), `member` (ingest scans), or `owner` (full). The bootstrap key is an
+owner.
+
 Set a drift-alert webhook (`POST /api/v1/webhook` with `{"url":"…"}`) and the
 control plane notifies it whenever a scan introduces new deploy-blocking
 findings.
