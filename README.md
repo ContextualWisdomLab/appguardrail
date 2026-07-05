@@ -165,6 +165,32 @@ transform adds `rel="noopener noreferrer"` to external `target="_blank"` links
 (reverse-tabnabbing). Behavior-changing fixes (moving a secret to an env var,
 flipping TLS verification) stay as reviewable prompts — see
 `appguardrail report fix-pack`. This closes the scan → fix → verify loop safely.
+### Run the control-plane API (scan history)
+
+```bash
+# Provision an org + API key
+appguardrail serve --db cp.db --create-org "Acme"
+
+# Run the API (bootstraps a default org + key on an empty DB)
+appguardrail serve --db cp.db --port 8788
+```
+
+`appguardrail serve` turns AppGuardrail from a one-shot CLI into a persistent,
+multi-tenant surface: CI pushes each scan and the org queries its history.
+
+```bash
+# From CI, after `appguardrail scan --findings-json findings.json .`
+curl -X POST http://localhost:8788/api/v1/scans \
+  -H "Authorization: Bearer $APPGUARDRAIL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @findings.json     # or {"repo":"...","commit":"...","findings":[...]}
+
+curl http://localhost:8788/api/v1/scans -H "Authorization: Bearer $APPGUARDRAIL_API_KEY"
+```
+
+Endpoints: `POST /api/v1/scans`, `GET /api/v1/scans`, `GET /api/v1/scans/{id}`,
+`GET /api/v1/health`. Tenant-isolated by API key. Stdlib + SQLite (swap for a
+managed database behind the same functions at scale).
 
 ### Generate reports from findings
 

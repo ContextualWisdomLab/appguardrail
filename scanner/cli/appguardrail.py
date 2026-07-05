@@ -2934,6 +2934,46 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
     return http.server.HTTPServer((host, port), _Handler)
 
 
+def cmd_serve(args):
+    """Run the AppGuardrail control-plane API (scan ingest + history)."""
+    from appguardrail_core import controlplane as cp
+
+    db = getattr(args, "db", None) or "appguardrail-control-plane.db"
+    conn = cp.connect(db)
+    create = getattr(args, "create_org", None)
+    if create:
+        oid, key = cp.create_org(conn, create)
+        conn.close()
+        print(f"✅ Created org '{create}' (id {oid}).")
+        print(f"🔑 API key (store it now — shown only once): {key}")
+        return 0
+    if conn.execute("SELECT COUNT(*) AS c FROM orgs").fetchone()["c"] == 0:
+        _oid, key = cp.create_org(conn, "default")
+        print("ℹ️  No orgs yet — created 'default'.")
+        print(f"🔑 API key (store it now — shown only once): {key}\n")
+    conn.close()
+
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8788)
+    try:
+        server = cp.make_control_plane_server(host, port, db)
+    except OSError as exc:
+        print(f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr)
+        print("💡 Pass a free port with --port.", file=sys.stderr)
+        return 1
+    actual = server.server_address[1]
+    print(f"🛰️  AppGuardrail control plane on http://{host}:{actual}")
+    print("   POST /api/v1/scans · GET /api/v1/scans · GET /api/v1/scans/{id} · GET /api/v1/health")
+    print("   Auth: Authorization: Bearer <api_key>. Ctrl+C to stop.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n👋 Control plane stopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
 def cmd_dashboard(args):
     """Serve the local AppGuardrail findings dashboard in a browser."""
     import webbrowser
@@ -3238,6 +3278,13 @@ def main():
         "--apply", action="store_true",
         help="Write fixes to disk (default: show a dry-run diff)",
     )
+    serve_parser = subparsers.add_parser(
+        "serve", help="Run the control-plane API (multi-tenant scan ingest + history)"
+    )
+    serve_parser.add_argument("--db", default=None, help="SQLite database path (default: appguardrail-control-plane.db)")
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
+    serve_parser.add_argument("--port", type=int, default=8788, help="Bind port")
+    serve_parser.add_argument("--create-org", default=None, metavar="NAME", help="Create an org, print its API key, and exit")
     dashboard_parser = subparsers.add_parser(
         "dashboard", help="Serve the findings dashboard in your browser"
     )
@@ -3274,6 +3321,8 @@ def main():
         sys.exit(cmd_hook(args))
     elif args.command == "fix":
         sys.exit(cmd_fix(args))
+    elif args.command == "serve":
+        sys.exit(cmd_serve(args))
     elif args.command == "dashboard":
         sys.exit(cmd_dashboard(args))
     else:
