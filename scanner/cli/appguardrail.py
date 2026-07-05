@@ -246,6 +246,8 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    env:
+      CP_URL: ${{ secrets.APPGUARDRAIL_CONTROL_PLANE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -258,10 +260,15 @@ jobs:
       - name: Install AppGuardrail
         run: python -m pip install --disable-pip-version-check appguardrail
 
-      - name: Run AppGuardrail (SARIF + deploy gate)
+      - name: Run AppGuardrail (SARIF + deploy gate; push to control plane if configured)
         id: scan
         continue-on-error: true
-        run: appguardrail scan --sarif appguardrail.sarif .
+        env:
+          APPGUARDRAIL_API_KEY: ${{ secrets.APPGUARDRAIL_API_KEY }}
+        run: |
+          PUSH=""
+          if [ -n "$CP_URL" ]; then PUSH="--push $CP_URL"; fi
+          appguardrail scan --sarif appguardrail.sarif $PUSH .
 
       - name: Upload results to GitHub code scanning
         if: always()

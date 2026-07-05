@@ -110,7 +110,9 @@ The SARIF output feeds GitHub code scanning
 SARIF consumer — findings appear in the GitHub **Security** tab and as inline PR
 annotations, ranked by `security-severity`. `appguardrail monitor` installs a
 workflow that emits and uploads SARIF automatically while preserving the deploy
-gate.
+gate. Set the `APPGUARDRAIL_CONTROL_PLANE_URL` and `APPGUARDRAIL_API_KEY`
+repository secrets and that workflow also pushes every scan to your control
+plane for history and drift tracking.
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
