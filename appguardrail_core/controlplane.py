@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS scans (
     total INTEGER NOT NULL,
     deploy_blocking INTEGER NOT NULL,
     severity_counts TEXT NOT NULL,
+    new_blocking INTEGER NOT NULL DEFAULT 0,
     findings TEXT NOT NULL,
     FOREIGN KEY (org_id) REFERENCES orgs (id)
 );
@@ -84,6 +85,11 @@ def org_for_key(conn: sqlite3.Connection, api_key: str) -> "int | None":
     return row["id"] if row else None
 
 
+def _drift_fp(finding: dict[str, Any]) -> str:
+    """Coarse identity for drift: rule + file + message head (line-independent)."""
+    return f"{finding.get('rule_id')}|{finding.get('file')}|{str(finding.get('message', ''))[:80]}"
+
+
 def add_scan(
     conn: sqlite3.Connection,
     org_id: int,
@@ -94,11 +100,27 @@ def add_scan(
     """Store a scan for an org, computing counts from the findings."""
     normalized = list(normalize_findings(findings))
     counts = severity_counts(normalized)
-    blocking = sum(1 for f in normalized if is_deploy_blocking(f))
+    blocking_findings = [f for f in normalized if is_deploy_blocking(f)]
+    blocking = len(blocking_findings)
+
+    # Drift: deploy-blocking findings new since this org+repo's previous scan.
+    prev = conn.execute(
+        "SELECT findings FROM scans WHERE org_id = ? AND IFNULL(repo, '') = IFNULL(?, '') "
+        "ORDER BY id DESC LIMIT 1",
+        (org_id, repo),
+    ).fetchone()
+    prev_fps = set()
+    if prev:
+        prev_fps = {
+            _drift_fp(f) for f in json.loads(prev["findings"]) if is_deploy_blocking(f)
+        }
+    new_blocking = sum(1 for f in blocking_findings if _drift_fp(f) not in prev_fps)
+
     created_at = _now()
     cur = conn.execute(
         "INSERT INTO scans (org_id, created_at, repo, commit_sha, total, "
-        "deploy_blocking, severity_counts, findings) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "deploy_blocking, severity_counts, new_blocking, findings) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             org_id,
             created_at,
@@ -107,6 +129,7 @@ def add_scan(
             len(normalized),
             blocking,
             json.dumps(counts),
+            new_blocking,
             json.dumps(normalized),
         ),
     )
@@ -116,6 +139,7 @@ def add_scan(
         "created_at": created_at,
         "total": len(normalized),
         "deploy_blocking": blocking,
+        "new_blocking": new_blocking,
         "severity_counts": counts,
     }
 
@@ -123,7 +147,7 @@ def add_scan(
 def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100) -> list[dict[str, Any]]:
     """Return scan summaries for an org, newest first."""
     rows = conn.execute(
-        "SELECT id, created_at, repo, commit_sha, total, deploy_blocking, severity_counts "
+        "SELECT id, created_at, repo, commit_sha, total, deploy_blocking, new_blocking, severity_counts "
         "FROM scans WHERE org_id = ? ORDER BY id DESC LIMIT ?",
         (org_id, limit),
     ).fetchall()
@@ -135,6 +159,7 @@ def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100) -> list[
             "commit": r["commit_sha"],
             "total": r["total"],
             "deploy_blocking": r["deploy_blocking"],
+            "new_blocking": r["new_blocking"],
             "severity_counts": json.loads(r["severity_counts"]),
         }
         for r in rows
@@ -155,6 +180,7 @@ def get_scan(conn: sqlite3.Connection, org_id: int, scan_id: int) -> "dict[str, 
         "commit": r["commit_sha"],
         "total": r["total"],
         "deploy_blocking": r["deploy_blocking"],
+        "new_blocking": r["new_blocking"],
         "severity_counts": json.loads(r["severity_counts"]),
         "findings": json.loads(r["findings"]),
     }

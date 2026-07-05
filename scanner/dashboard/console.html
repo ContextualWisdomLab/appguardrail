@@ -65,7 +65,7 @@
     </div>
     <div class="card">
       <strong>Scan history</strong>
-      <table id="history"><thead><tr><th>When</th><th>Repo</th><th>Commit</th><th>Total</th><th>Blocking</th></tr></thead><tbody></tbody></table>
+      <table id="history"><thead><tr><th>When</th><th>Repo</th><th>Commit</th><th>Total</th><th>Blocking</th><th>New</th></tr></thead><tbody></tbody></table>
     </div>
     <div class="card hidden" id="detail"></div>
   </div>
@@ -94,7 +94,8 @@ async function load(){
     const c=latest.severity_counts||{};
     $("#stats").innerHTML=[
       ["Latest deploy-blocking",latest.deploy_blocking||0],
-      ["Critical",c.CRITICAL||0],["High",c.HIGH||0],
+      ["New since last scan",latest.new_blocking||0],
+      ["Critical",c.CRITICAL||0],
       ["Scans stored",scans.length],
     ].map(([l,n])=>`<div class="stat"><div class="l">${l}</div><div class="n">${n}</div></div>`).join("");
     // trend: oldest->newest deploy-blocking
@@ -106,7 +107,7 @@ async function load(){
     // table
     $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}">
       <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
-      <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td></tr>`).join("")||'<tr><td colspan="5" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
+      <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
     document.querySelectorAll("tr.scan").forEach(tr=>tr.onclick=()=>detail(tr.dataset.id));
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
     $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }

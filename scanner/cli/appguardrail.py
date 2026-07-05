@@ -1518,6 +1518,10 @@ def cmd_scan(args):
             )
             return 1
 
+    push_url = getattr(args, "push", None)
+    if push_url:
+        _push_findings(push_url, findings)
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
@@ -1564,6 +1568,39 @@ def _write_findings_json(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     print(f"🧾 Findings JSON written: {output_path}")
+
+
+def _push_findings(url, findings):
+    """POST normalized findings to a control-plane /api/v1/scans endpoint."""
+    import urllib.error
+    import urllib.request
+
+    api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
+    if not api_key:
+        print("⚠️  --push set but APPGUARDRAIL_API_KEY is empty; skipping push.", file=sys.stderr)
+        return
+    payload = {
+        "findings": list(normalize_findings(findings)),
+        "repo": os.environ.get("GITHUB_REPOSITORY"),
+        "commit": os.environ.get("GITHUB_SHA"),
+    }
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read() or b"{}")
+        drift = body.get("new_blocking")
+        extra = f", {drift} newly deploy-blocking" if drift else ""
+        print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
+    except urllib.error.HTTPError as exc:
+        print(f"⚠️  Control-plane push failed ({exc.code}); scan still completed.", file=sys.stderr)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"⚠️  Control-plane push failed ({exc}); scan still completed.", file=sys.stderr)
 
 
 def _write_sarif(findings, output_path: Path):
@@ -3133,6 +3170,12 @@ def main():
         "--sarif",
         default=None,
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
+    )
+    scan_parser.add_argument(
+        "--push",
+        default=None,
+        metavar="URL",
+        help="POST findings to a control-plane URL (key from APPGUARDRAIL_API_KEY)",
     )
     scan_parser.add_argument(
         "--codegraph",

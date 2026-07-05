@@ -126,3 +126,20 @@ def test_console_served_at_root(server):
         body = resp.read()
     assert resp.status == 200
     assert b"AppGuardrail Console" in body  # served the org console HTML
+
+
+def test_drift_new_blocking():
+    conn = connect(":memory:")
+    oid, _ = create_org(conn, "Acme")
+    crit = {"severity": "CRITICAL", "rule_id": "secret", "file": "a.ts", "line": 3,
+            "message": "hardcoded key", "context": "app-code"}
+    other = {"severity": "HIGH", "rule_id": "rls", "file": "b.sql", "line": 1,
+             "message": "RLS off", "context": "app-code"}
+    s1 = add_scan(conn, oid, [crit], repo="acme/app")
+    assert s1["new_blocking"] == 1  # first scan: all blocking are new
+    s2 = add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")
+    assert s2["new_blocking"] == 0  # same finding, line moved -> not new
+    s3 = add_scan(conn, oid, [crit, other], repo="acme/app")
+    assert s3["deploy_blocking"] == 2 and s3["new_blocking"] == 1  # one newly introduced
+    s4 = add_scan(conn, oid, [crit], repo="acme/other")
+    assert s4["new_blocking"] == 1  # different repo -> independent baseline

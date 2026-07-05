@@ -188,7 +188,10 @@ curl -X POST http://localhost:8788/api/v1/scans \
 curl http://localhost:8788/api/v1/scans -H "Authorization: Bearer $APPGUARDRAIL_API_KEY"
 ```
 
-Open the **org console** at `http://localhost:8788/` — a single static page that
+Push scans from CI with `appguardrail scan --push http://your-control-plane .`
+(key from `APPGUARDRAIL_API_KEY`). The control plane computes **drift** — the
+number of deploy-blocking findings newly introduced since the repo's previous
+scan. Open the **org console** at `http://localhost:8788/` — a single static page that
 connects with your API key and shows scan history, the deploy-blocking trend,
 and per-scan detail.
 
