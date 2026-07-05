@@ -1,0 +1,89 @@
+rules:
+  # AI/LLM-specific detections. These target vulnerability classes unique to
+  # apps that integrate LLMs and agent frameworks (LangChain, LlamaIndex, the
+  # OpenAI SDK, MCP tool servers) that generic scanners do not model.
+
+  - id: langchain-allow-dangerous-flags
+    patterns:
+      - pattern-regex: '(?i)allow_dangerous_(?:deserialization|code|requests|tools)\s*=\s*True'
+    message: |
+      A LangChain "allow_dangerous_*" safety gate is explicitly enabled.
+      allow_dangerous_deserialization=True unpickles arbitrary data (FAISS/vector
+      store loads become remote code execution if the index is attacker-supplied);
+      allow_dangerous_code/requests/tools let an LLM run Python, make arbitrary
+      HTTP calls, or invoke unrestricted tools. Remove the flag, or only enable it
+      for indexes and tools you fully control and never load untrusted artifacts.
+    severity: CRITICAL
+    languages: [python]
+    cwe: [CWE-502]
+    owasp: [A08:2021]
+
+  - id: langchain-llm-code-execution-tool
+    patterns:
+      - pattern-regex: '(?:PythonREPLTool|PythonAstREPLTool|\bPALChain\b|load_tools\s*\(\s*\[[^\]]*[\x27"]python_repl)'
+    message: |
+      An LLM-driven code-execution construct was found (PythonREPLTool,
+      PythonAstREPLTool, the python_repl tool, or PALChain). These hand the model
+      an arbitrary-Python execution surface, so a prompt-injected or adversarial
+      instruction becomes remote code execution on your host. Avoid these tools in
+      production; if unavoidable, run them in a locked-down sandbox (no filesystem,
+      network, or secrets) and constrain them with strict tool allowlists.
+    severity: CRITICAL
+    languages: [python]
+    cwe: [CWE-94]
+    owasp: [A03:2021]
+
+  - id: prompt-injection-user-input-python
+    patterns:
+      - pattern-regex: '(?i)(?:system_prompt|system_message|user_prompt|prompt|messages|instructions)\s*=\s*f["\x27][^"\x27\n]*\{\s*(?:request|req|user_input|user_message|user_query|user_content|body|params|query_params|form)\b'
+    message: |
+      User-controlled request data is interpolated directly into an LLM prompt or
+      system message via an f-string. This is a prompt-injection sink: the user can
+      override your instructions, exfiltrate the system prompt, or drive connected
+      tools. Keep untrusted input in a clearly delimited user-role message (never
+      the system prompt), and validate/escape it before templating.
+    severity: HIGH
+    languages: [python]
+    cwe: [CWE-94]
+    owasp: [A03:2021]
+
+  - id: prompt-injection-user-input-js
+    patterns:
+      - pattern-regex: '(?i)(?:system_?prompt|user_?prompt|prompt|instructions)\s*[:=]\s*`[^`\n]*\$\{[^}\n]*\b(?:req|request|user_?input|user_?message|user_?query|body|params|searchParams|ctx\.request)\b'
+    message: |
+      User-controlled request data is interpolated directly into an LLM prompt or
+      system message via a template literal. This is a prompt-injection sink: the
+      user can override your instructions, exfiltrate the system prompt, or drive
+      connected tools. Keep untrusted input in a clearly delimited user-role
+      message (never the system prompt), and validate it before templating.
+    severity: HIGH
+    languages: [javascript, typescript]
+    cwe: [CWE-94]
+    owasp: [A03:2021]
+
+  - id: hardcoded-ai-provider-key
+    patterns:
+      - pattern-regex: '(?:hf_[A-Za-z0-9]{34,}|r8_[A-Za-z0-9]{37,}|gsk_[A-Za-z0-9]{48,}|xai-[A-Za-z0-9]{20,})'
+    message: |
+      A hardcoded AI provider API token was detected (HuggingFace hf_, Replicate
+      r8_, Groq gsk_, or xAI xai-). These grant billable access to hosted models.
+      Rotate the key with the provider immediately and load it from an environment
+      variable instead of committing it to source.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-798]
+    owasp: [A07:2021]
+
+  - id: llm-response-to-code-execution
+    patterns:
+      - pattern-regex: '(?:\bexec|\beval)\s*\(\s*[^)\n]*\.choices\s*\[\s*0\s*\]\s*\.\s*(?:message\s*\.\s*content|text)'
+    message: |
+      An LLM completion (OpenAI-style .choices[0].message.content / .text) is passed
+      straight into exec()/eval(). Model output is untrusted and prompt-injectable,
+      so this is remote code execution driven by whatever text the model returns.
+      Never execute model output. If the model must produce actions, constrain it to
+      a validated, allowlisted command/argument schema and dispatch explicitly.
+    severity: CRITICAL
+    languages: [python]
+    cwe: [CWE-94]
+    owasp: [A03:2021]
