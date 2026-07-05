@@ -18,6 +18,7 @@ import re
 import secrets
 import sqlite3
 from importlib import resources
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -241,12 +242,12 @@ def add_scan(
     }
 
 
-def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100) -> list[dict[str, Any]]:
+def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
     """Return scan summaries for an org, newest first."""
     rows = conn.execute(
         "SELECT id, created_at, repo, commit_sha, total, deploy_blocking, new_blocking, severity_counts "
-        "FROM scans WHERE org_id = ? ORDER BY id DESC LIMIT ?",
-        (org_id, limit),
+        "FROM scans WHERE org_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+        (org_id, limit, max(0, offset)),
     ).fetchall()
     return [
         {
@@ -260,6 +261,20 @@ def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100) -> list[
             "severity_counts": json.loads(r["severity_counts"]),
         }
         for r in rows
+    ]
+
+
+def scan_trend(conn: sqlite3.Connection, org_id: int, limit: int = 30) -> list[dict[str, Any]]:
+    """Oldest->newest deploy_blocking/new_blocking series for charting."""
+    rows = conn.execute(
+        "SELECT created_at, deploy_blocking, new_blocking FROM scans "
+        "WHERE org_id = ? ORDER BY id DESC LIMIT ?",
+        (org_id, max(1, limit)),
+    ).fetchall()
+    return [
+        {"created_at": r["created_at"], "deploy_blocking": r["deploy_blocking"],
+         "new_blocking": r["new_blocking"]}
+        for r in reversed(rows)
     ]
 
 
@@ -326,7 +341,16 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             return role_for_key(conn, key)
 
         def do_GET(self):
-            path = self.path.split("?", 1)[0]
+            parsed = urlparse(self.path)
+            path = parsed.path
+            qs = parse_qs(parsed.query)
+
+            def _qint(name, default):
+                try:
+                    return int(qs.get(name, [default])[0])
+                except (ValueError, TypeError):
+                    return default
+
             if path in ("/", "/console", "/index.html"):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -341,7 +365,9 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return self._json(401, {"error": "invalid or missing API key"})
             org, _role = auth
             if path == "/api/v1/scans":
-                return self._json(200, {"scans": list_scans(conn, org)})
+                return self._json(200, {"scans": list_scans(conn, org, _qint("limit", 100), _qint("offset", 0))})
+            if path == "/api/v1/scans/trend":
+                return self._json(200, {"trend": scan_trend(conn, org, _qint("limit", 30))})
             m = re.match(r"^/api/v1/scans/(\d+)$", path)
             if m:
                 scan = get_scan(conn, org, int(m.group(1)))
