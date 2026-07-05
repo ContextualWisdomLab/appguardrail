@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### 추가
+- 저장소 루트에 재사용 가능한 GitHub Composite Action(`action.yml`)을 추가했습니다. 어떤 프로젝트든 한 줄(`uses: ContextualWisdomLab/appguardrail@v1`)로 CI에 AppGuardrail을 도입할 수 있습니다. 액션은 Python을 설정하고 게시된 `appguardrail` 패키지를 설치한 뒤 `appguardrail scan`을 실행합니다.
+  - 입력: `path`(스캔 대상, 기본 `.`), `sarif`(선택 SARIF 2.1.0 출력 경로), `args`(스캐너로 전달되는 추가 인자), `python-version`(기본 `3.x`).
+  - `branding`(shield/green) 아이콘·색상을 포함해 GitHub Marketplace 표시에 대응합니다.
+  - README에 "Use as a GitHub Action" 섹션과 `github/codeql-action/upload-sarif` 연동 예시 워크플로를 추가했습니다.
+
+### 검증
+- `tests/test_action_yaml.py`: 무의존성(표준 라이브러리)으로 `action.yml`을 파싱해 composite 러너, 기대 입력(`path`/`sarif`/`args`), branding, `appguardrail scan` 참조를 검증합니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

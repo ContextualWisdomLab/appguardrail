@@ -244,6 +244,49 @@ This writes `appguardrail-buyer-evidence/` with:
 Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
 need a non-default organization, custom artifact path, or offline snapshot.
 
+### Use as a GitHub Action
+
+Add AppGuardrail to any repository's CI in one line with the composite action:
+
+```yaml
+- uses: ContextualWisdomLab/appguardrail@v1
+  with:
+    path: "."
+    sarif: "appguardrail.sarif"
+```
+
+The action sets up Python, installs the published `appguardrail` package, and
+runs `appguardrail scan` against `path`. Set `sarif` to write a SARIF 2.1.0
+report you can hand to `github/codeql-action/upload-sarif` for the Security tab.
+Use `args` to pass extra flags through to the scanner. A minimal workflow:
+
+```yaml
+name: AppGuardrail
+on: [push, pull_request]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ContextualWisdomLab/appguardrail@v1
+        with:
+          sarif: "appguardrail.sarif"
+      - if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: appguardrail.sarif
+```
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `path` | `.` | Directory or file to scan. |
+| `sarif` | *(empty)* | Optional SARIF 2.1.0 output path. Leave empty to skip. |
+| `args` | *(empty)* | Extra arguments passed through to `appguardrail scan` (e.g. `--trivy`). |
+| `python-version` | `3.x` | Python version used to install and run AppGuardrail. |
+
 ### Install continuous monitoring
 
 ```bash

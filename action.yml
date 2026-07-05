@@ -1,0 +1,57 @@
+name: "AppGuardrail"
+description: "Scan AI-built apps for security issues and emit SARIF for GitHub code scanning."
+author: "ContextualWisdomLab"
+
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  path:
+    description: "Directory or file to scan."
+    required: false
+    default: "."
+  sarif:
+    description: "Optional output path for a SARIF 2.1.0 report (e.g. appguardrail.sarif). Leave empty to skip SARIF output."
+    required: false
+    default: ""
+  args:
+    description: "Extra arguments passed through to `appguardrail scan` (e.g. --trivy)."
+    required: false
+    default: ""
+  python-version:
+    description: "Python version used to install and run AppGuardrail."
+    required: false
+    default: "3.x"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install AppGuardrail
+      shell: bash
+      run: python -m pip install --disable-pip-version-check appguardrail
+
+    - name: Run AppGuardrail scan
+      shell: bash
+      env:
+        APPGUARDRAIL_PATH: ${{ inputs.path }}
+        APPGUARDRAIL_SARIF: ${{ inputs.sarif }}
+        APPGUARDRAIL_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+        cmd=(appguardrail scan)
+        if [ -n "${APPGUARDRAIL_SARIF}" ]; then
+          cmd+=(--sarif "${APPGUARDRAIL_SARIF}")
+        fi
+        if [ -n "${APPGUARDRAIL_ARGS}" ]; then
+          # shellcheck disable=SC2206
+          cmd+=(${APPGUARDRAIL_ARGS})
+        fi
+        cmd+=("${APPGUARDRAIL_PATH}")
+        echo "Running: ${cmd[*]}"
+        "${cmd[@]}"
