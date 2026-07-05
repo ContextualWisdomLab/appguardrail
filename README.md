@@ -197,8 +197,12 @@ scan. Open the **org console** at `http://localhost:8788/` — a single static p
 connects with your API key and shows scan history, the deploy-blocking trend,
 and per-scan detail.
 
+Set a drift-alert webhook (`POST /api/v1/webhook` with `{"url":"…"}`) and the
+control plane notifies it whenever a scan introduces new deploy-blocking
+findings.
+
 Endpoints: `POST /api/v1/scans`, `GET /api/v1/scans`, `GET /api/v1/scans/{id}`,
-`GET /api/v1/health`. Tenant-isolated by API key. Stdlib + SQLite (swap for a
+`POST /api/v1/webhook`, `GET /api/v1/health`. Tenant-isolated by API key. Stdlib + SQLite (swap for a
 managed database behind the same functions at scale).
 
 ### Generate reports from findings

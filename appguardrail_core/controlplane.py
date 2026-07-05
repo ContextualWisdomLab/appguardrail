@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS orgs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     api_key_hash TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    webhook_url TEXT
 );
 CREATE TABLE IF NOT EXISTS scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,6 +91,30 @@ def _drift_fp(finding: dict[str, Any]) -> str:
     return f"{finding.get('rule_id')}|{finding.get('file')}|{str(finding.get('message', ''))[:80]}"
 
 
+def set_webhook(conn: sqlite3.Connection, org_id: int, url: "str | None") -> None:
+    """Set (or clear) the org's drift-alert webhook URL."""
+    conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url or None, org_id))
+    conn.commit()
+
+
+def _send_alert(url: str, payload: dict[str, Any]) -> bool:
+    """Best-effort POST of a drift alert. Never raises; returns delivery success."""
+    import urllib.error
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+        return True
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
 def add_scan(
     conn: sqlite3.Connection,
     org_id: int,
@@ -134,6 +159,25 @@ def add_scan(
         ),
     )
     conn.commit()
+
+    # Drift alert: notify the org's webhook when new blockers were introduced.
+    if new_blocking > 0:
+        row = conn.execute(
+            "SELECT webhook_url FROM orgs WHERE id = ?", (org_id,)
+        ).fetchone()
+        hook = row["webhook_url"] if row else None
+        if hook:
+            _send_alert(hook, {
+                "event": "drift.new_blocking",
+                "org_id": org_id,
+                "scan_id": cur.lastrowid,
+                "repo": repo,
+                "commit": commit_sha,
+                "new_blocking": new_blocking,
+                "deploy_blocking": blocking,
+                "created_at": created_at,
+            })
+
     return {
         "id": cur.lastrowid,
         "created_at": created_at,
@@ -251,11 +295,20 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             self._json(404, {"error": "not found"})
 
         def do_POST(self):
-            if self.path.split("?", 1)[0] != "/api/v1/scans":
+            path = self.path.split("?", 1)[0]
+            if path not in ("/api/v1/scans", "/api/v1/webhook"):
                 return self._json(404, {"error": "not found"})
             org = self._org()
             if org is None:
                 return self._json(401, {"error": "invalid or missing API key"})
+            if path == "/api/v1/webhook":
+                try:
+                    length = int(self.headers.get("Content-Length", 0))
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                except (ValueError, TypeError):
+                    return self._json(400, {"error": "invalid JSON body"})
+                set_webhook(conn, org, (body or {}).get("url"))
+                return self._json(200, {"webhook_url": (body or {}).get("url")})
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 data = json.loads(self.rfile.read(length) or b"{}")

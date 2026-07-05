@@ -8,6 +8,8 @@ from contextlib import closing
 
 import pytest
 
+import appguardrail_core.controlplane as cp
+
 from appguardrail_core.controlplane import (
     add_scan,
     connect,
@@ -16,6 +18,7 @@ from appguardrail_core.controlplane import (
     list_scans,
     make_control_plane_server,
     org_for_key,
+    set_webhook,
 )
 
 FINDINGS = [
@@ -143,3 +146,34 @@ def test_drift_new_blocking():
     assert s3["deploy_blocking"] == 2 and s3["new_blocking"] == 1  # one newly introduced
     s4 = add_scan(conn, oid, [crit], repo="acme/other")
     assert s4["new_blocking"] == 1  # different repo -> independent baseline
+
+
+def test_webhook_alerts_on_drift(monkeypatch):
+    sent = []
+    monkeypatch.setattr(cp, "_send_alert", lambda url, payload: sent.append((url, payload)) or True)
+    conn = connect(":memory:")
+    oid, _ = create_org(conn, "Acme")
+    set_webhook(conn, oid, "http://hook.example/x")
+    crit = {"severity": "CRITICAL", "rule_id": "s", "file": "a.ts", "line": 1,
+            "message": "k", "context": "app-code"}
+    add_scan(conn, oid, [crit], repo="acme/app")             # 1 new -> alert
+    add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")  # 0 new -> no alert
+    assert len(sent) == 1
+    url, payload = sent[0]
+    assert url == "http://hook.example/x"
+    assert payload["event"] == "drift.new_blocking" and payload["new_blocking"] == 1
+
+
+def test_no_webhook_no_alert(monkeypatch):
+    sent = []
+    monkeypatch.setattr(cp, "_send_alert", lambda url, payload: sent.append(1))
+    conn = connect(":memory:")
+    oid, _ = create_org(conn, "Acme")  # no webhook set
+    add_scan(conn, oid, [{"severity": "CRITICAL", "rule_id": "s", "file": "a", "line": 1, "context": "app-code"}])
+    assert sent == []  # no webhook -> no delivery attempt
+
+
+def test_api_set_webhook(server):
+    base, key = server
+    status, body = _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"})
+    assert status == 200 and body["webhook_url"] == "http://hook.example/y"
