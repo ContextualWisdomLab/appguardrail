@@ -1,0 +1,28 @@
+rules:
+  # Command injection and TLS-disable are already covered by the built-in
+  # node-command-injection / node-tls-validation-disabled rules. Keep this file
+  # to injection classes those don't reach.
+  - id: sql-injection-raw-unsafe
+    patterns:
+      - pattern-regex: '\$(?:query|execute)RawUnsafe\s*\('
+    message: |
+      Prisma raw "Unsafe" query detected. $queryRawUnsafe/$executeRawUnsafe do
+      not parameterize input and are SQL-injectable if any argument is
+      user-controlled. Use the tagged-template $queryRaw/$executeRaw, which
+      parameterizes interpolated values.
+    severity: CRITICAL
+    languages: [javascript, typescript]
+    cwe: [CWE-89]
+    owasp: [A03:2021]
+
+  - id: react-dangerously-set-inner-html
+    patterns:
+      - pattern-regex: 'dangerouslySetInnerHTML'
+    message: |
+      React dangerouslySetInnerHTML bypasses JSX escaping and can introduce XSS
+      if the HTML contains any user-controlled data. Render text normally, or
+      sanitize the HTML with a vetted sanitizer (e.g. DOMPurify) before use.
+    severity: HIGH
+    languages: [javascript, typescript]
+    cwe: [CWE-79]
+    owasp: [A03:2021]
