@@ -2502,6 +2502,23 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_for_filters = None
     build_finding = _build_finding
 
+    file_path_s = str(file_path)
+    base_path_s = str(resolved_base_path)
+
+    # ⚡ Bolt: Helper to optimize relative path resolution
+    # By using string slicing instead of Path.relative_to(), we bypass
+    # expensive internal logic. This string manipulation handles common
+    # cases precisely.
+    def get_rel_path():
+        if file_path_s.startswith(base_path_s):
+            if len(base_path_s) == len(file_path_s):
+                return "."
+            elif base_path_s.endswith(os.sep):
+                return file_path_s[len(base_path_s):]
+            elif file_path_s[len(base_path_s)] == os.sep:
+                return file_path_s[len(base_path_s) + 1:]
+        return file_path.name if base_path.is_file() else file_path_s
+
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -2521,13 +2538,7 @@ def _scan_file(file_path: Path, base_path: Path):
             ) in applicable_rules:
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
-                            )
-                        rel_path_for_filters = str(rel_path)
+                        rel_path_for_filters = str(get_rel_path())
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2540,13 +2551,7 @@ def _scan_file(file_path: Path, base_path: Path):
 
                 for match in finditer(content):
                     if rel_path_str is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
-                            )
-                        rel_path_str = _sanitize_terminal_output(str(rel_path))
+                        rel_path_str = _sanitize_terminal_output(str(get_rel_path()))
 
                     start_idx = match.start()
 
