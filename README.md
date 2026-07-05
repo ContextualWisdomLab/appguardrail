@@ -149,6 +149,23 @@ the whole team — no CLI flags needed:
   don't fail the build). An invalid config fails the scan loudly rather than
   silently passing.
 
+### Auto-fix safe issues
+
+```bash
+# Preview safe, deterministic fixes (dry-run diff)
+appguardrail fix .
+
+# Apply them
+appguardrail fix --apply .
+```
+
+`appguardrail fix` applies only **purely additive, semantics-preserving**
+fixes — it will not silently rewrite behavior-changing code. The first
+transform adds `rel="noopener noreferrer"` to external `target="_blank"` links
+(reverse-tabnabbing). Behavior-changing fixes (moving a secret to an env var,
+flipping TLS verification) stay as reviewable prompts — see
+`appguardrail report fix-pack`. This closes the scan → fix → verify loop safely.
+
 ### Generate reports from findings
 
 ```bash

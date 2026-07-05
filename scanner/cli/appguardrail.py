@@ -1581,6 +1581,66 @@ def _write_sarif(findings, output_path: Path):
     print(f"🛡️  SARIF written: {output_path}")
 
 
+def cmd_fix(args):
+    """Apply safe, deterministic auto-fixes (dry-run by default)."""
+    import difflib
+
+    from appguardrail_core.autofix import apply_safe_fixes, fixable_extensions
+
+    base = Path(getattr(args, "path", ".") or ".")
+    if not base.exists():
+        print(f"❌ Path not found: {base}", file=sys.stderr)
+        return 1
+
+    apply = getattr(args, "apply", False)
+    exts = fixable_extensions()
+    files = [base] if base.is_file() else _collect_files(base)
+
+    total_fixes = 0
+    changed_files = 0
+    for f in files:
+        if f.suffix.lower() not in exts:
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        new_text, count = apply_safe_fixes(text, f.suffix)
+        if count == 0:
+            continue
+        total_fixes += count
+        changed_files += 1
+        if apply:
+            try:
+                f.write_text(new_text, encoding="utf-8")
+                print(f"✅ Fixed {count} issue(s) in {f}")
+            except OSError as exc:
+                print(f"❌ Could not write {f}: {exc}", file=sys.stderr)
+                return 1
+        else:
+            sys.stdout.writelines(
+                difflib.unified_diff(
+                    text.splitlines(True),
+                    new_text.splitlines(True),
+                    fromfile=str(f),
+                    tofile=f"{f} (fixed)",
+                )
+            )
+
+    if total_fixes == 0:
+        print("✨ No safe auto-fixes to apply.")
+        return 0
+    if apply:
+        print(f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s).")
+    else:
+        print(
+            f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
+            "Re-run with --apply to write them."
+        )
+        print("   Other findings need review — see 'appguardrail report fix-pack'.")
+    return 0
+
+
 def cmd_monitor(args):
     """Install a GitHub Actions workflow that runs AppGuardrail on changes."""
     project_root = Path(".").resolve()
@@ -3168,6 +3228,16 @@ def main():
     )
 
     # dashboard
+    fix_parser = subparsers.add_parser(
+        "fix", help="Apply safe, deterministic auto-fixes (dry-run by default)"
+    )
+    fix_parser.add_argument(
+        "path", nargs="?", default=".", help="File or directory to fix"
+    )
+    fix_parser.add_argument(
+        "--apply", action="store_true",
+        help="Write fixes to disk (default: show a dry-run diff)",
+    )
     dashboard_parser = subparsers.add_parser(
         "dashboard", help="Serve the findings dashboard in your browser"
     )
@@ -3202,6 +3272,8 @@ def main():
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
+    elif args.command == "fix":
+        sys.exit(cmd_fix(args))
     elif args.command == "dashboard":
         sys.exit(cmd_dashboard(args))
     else:
