@@ -103,6 +103,9 @@ appguardrail scan --findings-json reports/findings.json .
 
 # Emit SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools
 appguardrail scan --sarif appguardrail.sarif .
+
+# Emit JUnit XML so any CI shows findings in its test summary panel
+appguardrail scan --junit appguardrail-junit.xml .
 ```
 
 The SARIF output feeds GitHub code scanning

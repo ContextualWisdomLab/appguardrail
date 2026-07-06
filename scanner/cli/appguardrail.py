@@ -1518,6 +1518,14 @@ def cmd_scan(args):
             )
             return 1
 
+    junit_path = getattr(args, "junit", None)
+    if junit_path:
+        try:
+            _write_junit(findings, Path(junit_path))
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            return 1
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
@@ -1579,6 +1587,18 @@ def _write_sarif(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
     print(f"🛡️  SARIF written: {output_path}")
+
+
+def _write_junit(findings, output_path: Path):
+    """Write a JUnit XML report for CI test summaries."""
+    from appguardrail_core.junit import findings_to_junit
+
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(findings_to_junit(findings), encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Cannot write JUnit XML: {output_path}") from exc
+    print(f"🧪 JUnit XML written: {output_path}")
 
 
 def cmd_fix(args):
@@ -3093,6 +3113,12 @@ def main():
         "--sarif",
         default=None,
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
+    )
+    scan_parser.add_argument(
+        "--junit",
+        default=None,
+        metavar="PATH",
+        help="Write a JUnit XML report (one testcase per finding) for CI test panels",
     )
     scan_parser.add_argument(
         "--codegraph",

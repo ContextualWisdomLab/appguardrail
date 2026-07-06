@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- `appguardrail scan --junit <path>` — findings를 JUnit XML로 출력합니다(finding당 testcase 1개, deploy-blocking이면 `<failure>`). GitLab·Jenkins·CircleCI·Azure Pipelines 등 대부분의 CI가 이를 test 요약 패널로 렌더링합니다. 무의존성(stdlib), 메시지는 XML 이스케이프됩니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
