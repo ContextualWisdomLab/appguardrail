@@ -117,6 +117,9 @@ Detects:
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
+- AWS CloudFormation template misconfigurations (public S3 ACLs, world-open
+  security groups, `*:*` IAM policies, public/unencrypted databases, secret
+  parameter defaults)
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)

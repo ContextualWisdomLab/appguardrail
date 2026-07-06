@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### 추가
+- AWS CloudFormation 템플릿 misconfiguration 룰팩 `scanner/rules/cloudformation.yml`을 추가했습니다(정밀 룰 6종, YAML/JSON/`.template` 대상). Terraform-AWS는 기존 엔진이 커버하지만 raw CFN 템플릿은 공백이었습니다. 모든 패턴을 CFN 고유 컨텍스트(`AWS::` 리소스 타입, PascalCase 속성명)에 앵커링해 Kubernetes 매니페스트·docker-compose·GitHub Actions 워크플로 같은 YAML 유사 파일에서는 발화하지 않음을 테스트로 검증했습니다.
+  - `cfn-iam-policy-star-star` — IAM 정책이 `Action`·`Resource` 모두 와일드카드(사실상 계정 전체 관리자 권한). Statement 경계를 넘는 오탐 차단. CRITICAL.
+  - `cfn-s3-bucket-public-acl` — S3 버킷 `AccessControl`이 PublicRead/PublicReadWrite(전 세계 공개). HIGH.
+  - `cfn-security-group-open-world` — 보안 그룹 ingress가 `0.0.0.0/0`·`::/0`에 개방(기본값인 open egress는 오탐 없이 통과). HIGH.
+  - `cfn-rds-publicly-accessible` — `PubliclyAccessible: true`(DB 인스턴스 인터넷 직접 노출). HIGH.
+  - `cfn-storage-unencrypted` — RDS `StorageEncrypted: false` 또는 EBS 볼륨 `Encrypted: false`(저장 데이터 미암호화). HIGH.
+  - `cfn-secret-parameter-default` — 시크릿 성격 이름의 Parameter에 리터럴 `Default` 값 커밋(`{{resolve:...}}` 동적 참조는 안전으로 통과). HIGH.
+- `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
