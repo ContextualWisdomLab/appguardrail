@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- **pre-commit 프레임워크 통합**(`.pre-commit-hooks.yaml`, 리포지토리 루트) — https://pre-commit.com 사용자 리포가 `.pre-commit-config.yaml`에 3줄만 추가하면 커밋마다 AppGuardrail 스캔이 실행되고, deploy-blocking 발견 시 커밋이 차단됩니다. 기존 `appguardrail hook`(직접 git hook 설치)과 상호 보완적입니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
