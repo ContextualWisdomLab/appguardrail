@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### 추가
+- Kotlin / Android 네이티브 룰 팩 `scanner/rules/kotlin-android.yml` — `.kt`/`.kts` 소스 전용 고정밀 룰 6종을 추가했습니다. 기존 팩이 다루지 않던 Kotlin 소스 사각지대를 메우며, `paths.include`로 Kotlin 파일에만 적용되어 다른 스택에 오탐을 만들지 않습니다.
+  - `kotlin-webview-universal-file-access` — WebView `allowUniversalAccessFromFileURLs`/`allowFileAccessFromFileURLs` 활성화(로컬 파일 탈취 경로). CRITICAL.
+  - `kotlin-sql-injection-raw` — `rawQuery`/`execSQL`에 문자열 템플릿(`$var`) 또는 `+` 연결로 SQL 조립. CRITICAL.
+  - `kotlin-hardcoded-encryption-key` — `SecretKeySpec("리터럴".toByteArray(...))`로 암호화 키를 APK에 하드코딩. CRITICAL.
+  - `kotlin-trust-all-certs` — `checkServerTrusted` 빈 구현(모든 TLS 인증서 수용, MITM 허용). HIGH.
+  - `kotlin-world-accessible-prefs` — `MODE_WORLD_READABLE`/`MODE_WORLD_WRITEABLE` 사용(타 앱에 데이터 노출). HIGH.
+  - `kotlin-log-sensitive-data` — `Log.*`에 password/token/secret 값 로깅(logcat 유출). WARNING.
+  - 검증: `tests/test_kotlin_android_rules.py` — 룰별 양성/음성, severity, Kotlin 경로 스코핑, `_scan_file` end-to-end(발화·비발화) 테스트 18건.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

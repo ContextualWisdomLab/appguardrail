@@ -123,6 +123,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Kotlin/Android-native risks in `.kt`/`.kts` sources (raw SQL interpolation,
+  trust-all TLS, WebView file-URL access, hardcoded encryption keys,
+  world-accessible prefs, sensitive logcat logging)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
