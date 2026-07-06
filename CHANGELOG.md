@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### 추가
+- 모바일 앱(React Native / Expo / iOS / Android) 보안 룰팩 `scanner/rules/mobile.yml`을 추가했습니다(고정밀 6종, 안전 코드 오탐 0 검증):
+  - `react-native-asyncstorage-sensitive-data` — 토큰·시크릿·비밀번호를 평문 `AsyncStorage`에 저장(SecureStore/Keychain 권장). HIGH.
+  - `android-cleartext-traffic-enabled` — `AndroidManifest.xml`의 `android:usesCleartextTraffic="true"`(HTTP 평문 통신 허용). HIGH.
+  - `android-debuggable-enabled` — 매니페스트에 `android:debuggable="true"` 하드코딩(릴리스 빌드에 디버거 부착 가능). HIGH.
+  - `android-allow-backup-enabled` — `android:allowBackup="true"`(adb/클라우드 백업으로 앱 데이터 유출 가능). WARNING.
+  - `ios-ats-arbitrary-loads-enabled` — `Info.plist`·Expo `app.json`의 `NSAllowsArbitraryLoads` 활성화(iOS ATS 전역 해제). HIGH.
+  - `react-native-webview-wildcard-origin` — WebView `originWhitelist={['*']}`(모든 오리진 허용). WARNING.
+  - Android 매니페스트·plist 룰은 include 경로 필터로 해당 설정 파일에서만 발화하여 문서·예제 오탐을 차단합니다. `tests/test_mobile_rules.py`에서 룰별 양성·음성 케이스와 임시 프로젝트 end-to-end 스캔으로 검증했습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

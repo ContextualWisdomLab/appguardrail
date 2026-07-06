@@ -1,0 +1,97 @@
+rules:
+  - id: react-native-asyncstorage-sensitive-data
+    patterns:
+      - pattern-regex: '(?i)\bAsyncStorage\s*\.\s*setItem\s*\(\s*[''"`][^''"`\n]*(?:token|secret|password|passwd|credential|api[_-]?key|private[_-]?key|jwt|session[_-]?id)'
+    message: |
+      Sensitive data (token, secret, password, credential) is written to
+      AsyncStorage. AsyncStorage stores values as plaintext on the device and
+      is readable on rooted/jailbroken phones and from device backups. Store
+      secrets in the platform secure enclave instead: expo-secure-store
+      (SecureStore.setItemAsync), react-native-keychain, or EncryptedSharedPreferences.
+    severity: HIGH
+    languages: [javascript, typescript]
+    cwe: [CWE-922]
+    owasp: [A04:2021]
+
+  - id: android-cleartext-traffic-enabled
+    patterns:
+      - pattern-regex: 'android:usesCleartextTraffic\s*=\s*"true"'
+    message: |
+      AndroidManifest.xml enables cleartext (HTTP) traffic for the entire app.
+      Credentials and session tokens can be intercepted on any shared network.
+      Remove android:usesCleartextTraffic="true" and serve all endpoints over
+      HTTPS. If a single dev host truly needs HTTP, scope it with a
+      networkSecurityConfig domain-config instead of a global opt-out.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-319]
+    owasp: [A02:2021]
+    paths:
+      include:
+        - "**/AndroidManifest.xml"
+
+  - id: android-debuggable-enabled
+    patterns:
+      - pattern-regex: 'android:debuggable\s*=\s*"true"'
+    message: |
+      AndroidManifest.xml hardcodes android:debuggable="true". A debuggable
+      release build lets anyone with device access attach a debugger, dump
+      memory (including tokens), and invoke internal components. Remove the
+      attribute and let the build system set it only for debug variants.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-489]
+    owasp: [A05:2021]
+    paths:
+      include:
+        - "**/AndroidManifest.xml"
+
+  - id: android-allow-backup-enabled
+    patterns:
+      - pattern-regex: 'android:allowBackup\s*=\s*"true"'
+    message: |
+      AndroidManifest.xml sets android:allowBackup="true", so the app's private
+      data (databases, shared preferences, cached tokens) can be extracted via
+      `adb backup` or cloud backups. Set android:allowBackup="false", or define
+      android:fullBackupContent / dataExtractionRules to exclude sensitive files.
+    severity: WARNING
+    languages: [generic]
+    cwe: [CWE-530]
+    owasp: [A05:2021]
+    paths:
+      include:
+        - "**/AndroidManifest.xml"
+
+  - id: ios-ats-arbitrary-loads-enabled
+    patterns:
+      - pattern-regex: '<key>\s*NSAllowsArbitraryLoads\s*</key>\s*<true\s*/>'
+      - pattern-regex: '"NSAllowsArbitraryLoads"\s*:\s*true\b'
+    message: |
+      App Transport Security is disabled (NSAllowsArbitraryLoads = true), so the
+      iOS app may load any endpoint over plaintext HTTP with no certificate
+      checks. Remove the global opt-out and, if one legacy host requires it,
+      use a scoped NSExceptionDomains entry for that domain only.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-319]
+    owasp: [A02:2021]
+    paths:
+      include:
+        - "**/*.plist"
+        - "**/app.json"
+        - "**/app.config.js"
+        - "**/app.config.ts"
+
+  - id: react-native-webview-wildcard-origin
+    patterns:
+      - pattern-regex: 'originWhitelist\s*=\s*\{\s*\[\s*[''"`]\*[''"`]'
+    message: |
+      A React Native WebView is rendered with originWhitelist={['*']}, allowing
+      navigation to any origin inside the app. Combined with injected JavaScript
+      or postMessage bridges, a malicious page can exfiltrate app data or spoof
+      your UI. Whitelist only the origins the WebView must load, e.g.
+      originWhitelist={['https://yourdomain.com']}.
+    severity: WARNING
+    languages: [javascript, typescript]
+    cwe: [CWE-346]
+    owasp: [A01:2021]

@@ -123,6 +123,10 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Mobile app misconfigurations (React Native / Expo / iOS / Android): secrets in
+  `AsyncStorage`, cleartext traffic / `debuggable` / `allowBackup` in
+  `AndroidManifest.xml`, disabled iOS ATS (`NSAllowsArbitraryLoads`), and
+  wildcard WebView `originWhitelist`
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
