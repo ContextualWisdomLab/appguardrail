@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### 추가
+- Kubernetes 매니페스트 오구성 탐지 룰 5종 추가(`scanner/rules/kubernetes.yml`, 고정밀·저 오탐). 패턴을 Kubernetes 파드/컨테이너 `securityContext`·`podSpec`에만 등장하는 키로 한정해 일반 YAML(CI 설정, docker-compose 등)에서는 발화하지 않습니다.
+  - `k8s-privileged-container` — `privileged: true`(특권 컨테이너, 노드 탈출 위험). HIGH.
+  - `k8s-host-namespace-shared` — `hostNetwork`/`hostPID`/`hostIPC: true`(호스트 네임스페이스 공유로 파드 격리 붕괴). HIGH.
+  - `k8s-run-as-non-root-disabled` — `runAsNonRoot: false`(root 실행 허용). HIGH.
+  - `k8s-run-as-root-user` — `runAsUser: 0`(UID 0 root 실행). HIGH.
+  - `k8s-allow-privilege-escalation` — `allowPrivilegeEscalation: true`(권한 상승 허용). WARNING.
+
+### 검증
+- `tests/test_kubernetes_rules.py`: 룰별 positive/negative 매칭과 severity를 검증합니다. 하드닝된 값(`privileged: false`, `runAsNonRoot: true`, `runAsUser: 1000` 등)은 발화하지 않음을 확인했습니다.
+- 임시 Kubernetes 매니페스트(`kind: Pod`)에 대한 end-to-end 스캔으로 5종 룰이 모두 발화하고, 하드닝 매니페스트·일반 CI YAML에서는 오탐 0임을 확인했습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

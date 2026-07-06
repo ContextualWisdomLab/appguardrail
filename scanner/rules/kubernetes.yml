@@ -1,0 +1,69 @@
+rules:
+  # Kubernetes manifest (kind: Pod/Deployment/DaemonSet/...) misconfigurations.
+  # Patterns intentionally target keys that only appear in a Kubernetes pod/
+  # container securityContext or podSpec, so they do not fire on arbitrary YAML
+  # (e.g. CI configs, docker-compose). Values are lowercase per YAML semantics
+  # and matched case-sensitively.
+  - id: k8s-privileged-container
+    patterns:
+      - pattern-regex: 'privileged:\s*true'
+    message: |
+      Kubernetes container runs privileged (securityContext.privileged: true).
+      A privileged container gets almost all host capabilities and can escape to
+      the node, defeating pod isolation. Set privileged: false and grant only the
+      specific Linux capabilities the workload needs.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-250]
+    owasp: [A05:2021]
+
+  - id: k8s-host-namespace-shared
+    patterns:
+      - pattern-regex: 'host(?:Network|PID|IPC):\s*true'
+    message: |
+      Kubernetes pod shares a host namespace (hostNetwork/hostPID/hostIPC: true).
+      Sharing the node network, process, or IPC namespace breaks pod isolation and
+      exposes host services and processes to the container. Remove the host* flag
+      unless the workload genuinely requires node-level access.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-668]
+    owasp: [A05:2021]
+
+  - id: k8s-allow-privilege-escalation
+    patterns:
+      - pattern-regex: 'allowPrivilegeEscalation:\s*true'
+    message: |
+      Kubernetes container allows privilege escalation
+      (securityContext.allowPrivilegeEscalation: true). This lets a process gain
+      more privileges than its parent (e.g. via setuid binaries). Set
+      allowPrivilegeEscalation: false for defense in depth.
+    severity: WARNING
+    languages: [generic]
+    cwe: [CWE-250]
+    owasp: [A05:2021]
+
+  - id: k8s-run-as-non-root-disabled
+    patterns:
+      - pattern-regex: 'runAsNonRoot:\s*false'
+    message: |
+      Kubernetes securityContext explicitly permits running as root
+      (runAsNonRoot: false). Containers running as UID 0 amplify the impact of a
+      container breakout. Set runAsNonRoot: true and run as a dedicated non-root
+      user.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-250]
+    owasp: [A05:2021]
+
+  - id: k8s-run-as-root-user
+    patterns:
+      - pattern-regex: 'runAsUser:\s*0(?:\s|$)'
+    message: |
+      Kubernetes securityContext runs the container as root (runAsUser: 0).
+      Running as UID 0 grants root inside the container and increases blast radius
+      on a breakout. Set runAsUser to a non-zero UID and enable runAsNonRoot: true.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-250]
+    owasp: [A05:2021]

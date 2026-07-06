@@ -121,6 +121,7 @@ Detects:
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
 - Missing Stripe webhook signature verification
+- Kubernetes manifest misconfigurations (privileged containers, host namespace sharing, `runAsNonRoot: false`)
 - Unprotected admin routes
 - Risky file upload handlers
 
