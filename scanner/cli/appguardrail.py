@@ -1981,7 +1981,10 @@ def _sanitize_terminal_output(text: str) -> str:
     """
     if not isinstance(text, str):
         return text
-    return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
+    # ⚡ Bolt: Fast-path for printable strings to avoid generator overhead
+    if text.replace('	', '').isprintable():
+        return text
+    return "".join(c if c.isprintable() or c == "	" else repr(c)[1:-1] for c in text)
 
 
 _SENSITIVE_RULE_TOKENS = (
