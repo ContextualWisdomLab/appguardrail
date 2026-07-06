@@ -117,6 +117,7 @@ Detects:
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
+- PHP/WordPress risks (SQL concatenation with superglobals, `unserialize()`/`include`/shell-exec on request input, `eval()`, `WP_DEBUG` enabled)
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)

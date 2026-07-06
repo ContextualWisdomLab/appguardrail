@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### 추가
+- PHP / WordPress 룰팩 `scanner/rules/php-wordpress.yml` 추가 — 바이브 코딩·에이전시 산출물에 많은 PHP/WordPress 코드를 처음으로 커버합니다. 기존 내장 eval/SQL 룰은 `.js`/`.py` 확장자에만 적용되어 `.php` 파일은 사각지대였습니다. 6종 모두 `**/*.php` 경로로 스코프되며, 안전 코드(prepared statement, `$wpdb->prepare()`, 상수 include 등) 오탐 0을 테스트로 검증했습니다.
+  - `php-sql-concat` — `mysqli_query()`/`$wpdb->query()` 등에 `$_GET`/`$_POST`/`$_REQUEST`/`$_COOKIE`를 직접 연결·보간(SQL 주입, CWE-89). CRITICAL.
+  - `php-unserialize-user-input` — 요청 입력을 `unserialize()`(PHP object injection, CWE-502). CRITICAL.
+  - `php-include-user-input` — 요청 입력 기반 `include`/`require`(LFI/RFI, CWE-98). CRITICAL.
+  - `php-exec-user-input` — 요청 입력이 들어간 `exec`/`system`/`shell_exec`/`passthru`(OS 명령 주입, CWE-78). CRITICAL.
+  - `php-eval-usage` — PHP `eval()` 사용(CWE-95). HIGH.
+  - `wordpress-debug-enabled` — `WP_DEBUG` true(프로덕션 정보 노출, CWE-489). WARNING.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
