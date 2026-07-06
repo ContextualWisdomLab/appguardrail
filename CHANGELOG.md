@@ -17,6 +17,12 @@
   - `hardcoded-aws-access-key-id`(AKIA/ASIA), `hardcoded-github-token`(ghp_/github_pat_), `hardcoded-google-api-key`(AIza), `hardcoded-private-key-block`(PEM) — 모두 CRITICAL.
   - `supabase-auth-admin-client-usage`(auth.admin.* 클라이언트 노출), `node-open-redirect-user-input`(req 입력 redirect), `insecure-random-security-token`(토큰에 Math.random) — HIGH.
   - `wildcard-postmessage-target`(postMessage 대상 '*') — WARNING.
+- Java/Spring 보안 룰팩 `scanner/rules/java-spring.yml` 추가(고정밀 5종, 내장 Java 룰과 중복 없음):
+  - `java-sql-injection-concat` — `createQuery`/`prepareStatement`/`executeQuery`에 문자열 리터럴 + 변수 연결로 SQL/JPQL 조립. CRITICAL.
+  - `java-runtime-exec-concat` — `Runtime.getRuntime().exec`/`ProcessBuilder`에 문자열 연결로 OS 명령 조립. CRITICAL.
+  - `java-xxe-unsafe-parser` — 외부 엔티티/DTD를 명시적으로 허용하는 XML 파서 설정(`external-*-entities=true`, `disallow-doctype-decl=false`, `SUPPORT_DTD=true`). HIGH.
+  - `java-trustall-trustmanager` — `checkServerTrusted` 본문이 비어 있는 trust-all `X509TrustManager`(TLS 검증 무력화). HIGH.
+  - `spring-actuator-exposed` — `management.endpoints.web.exposure.include=*`(properties·yml 중첩 표기 모두 탐지, `application*` 설정 파일로 경로 스코프). HIGH.
 
 ### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.

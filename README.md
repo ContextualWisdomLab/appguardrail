@@ -123,6 +123,8 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Java/Spring pitfalls (SQL/command concat injection, XXE parser flags,
+  trust-all `X509TrustManager`, wide-open Spring Boot Actuator exposure)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
