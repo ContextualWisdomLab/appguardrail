@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- `.appguardrailignore`(선택) — 스캔 루트에 gitignore 스타일 glob(한 줄당 하나, `#` 주석)을 두면 vendored 코드·생성물·서드파티 번들을 스캔에서 제외합니다. 이름만 쓰면(`vendor/`) 트리 어디서든 매칭되고, `*.min.js` 같은 glob·`docs/generated` 같은 경로도 지원합니다. 제외 건수를 스캔 출력에 표시해 조용히 빠지는 일이 없습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

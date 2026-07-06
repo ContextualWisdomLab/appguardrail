@@ -1387,6 +1387,21 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    ignore_patterns = _load_ignore_patterns(scan_path)
+    ignored_count = 0
+    if ignore_patterns:
+        kept = []
+        for file_path in files_to_scan:
+            if _is_ignored(file_path, scan_path, ignore_patterns):
+                ignored_count += 1
+            else:
+                kept.append(file_path)
+        files_to_scan = kept
+        print(
+            f"🙈 .appguardrailignore: {len(ignore_patterns)} pattern(s), "
+            f"{ignored_count} file(s) skipped\n"
+        )
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -1939,6 +1954,40 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
     return True
+
+
+def _load_ignore_patterns(scan_root: Path) -> list:
+    """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
+    ignore_file = (scan_root if scan_root.is_dir() else scan_root.parent) / ".appguardrailignore"
+    patterns = []
+    try:
+        for line in ignore_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                patterns.append(line.rstrip("/"))
+    except (OSError, UnicodeDecodeError):
+        return []
+    return patterns
+
+
+def _is_ignored(file_path: Path, scan_root: Path, patterns: list) -> bool:
+    """Match a scanned file's relative path against .appguardrailignore globs."""
+    if not patterns:
+        return False
+    try:
+        rel = file_path.relative_to(scan_root).as_posix()
+    except ValueError:
+        rel = file_path.as_posix()
+    for pattern in patterns:
+        # A bare name (no slash/glob) also ignores that file/dir anywhere in the tree.
+        if (
+            _path_matches_glob(rel, pattern)
+            or _path_matches_glob(rel, f"{pattern}/**")
+            or _path_matches_glob(rel, f"**/{pattern}")
+            or _path_matches_glob(rel, f"**/{pattern}/**")
+        ):
+            return True
+    return False
 
 
 def _collect_files(base_path: Path):
