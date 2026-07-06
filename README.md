@@ -121,6 +121,7 @@ Detects:
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
 - Missing Stripe webhook signature verification
+- GraphQL API misconfigurations (introspection/GraphiQL/Playground exposed, Apollo CSRF prevention off, stack traces in errors)
 - Unprotected admin routes
 - Risky file upload handlers
 
@@ -312,7 +313,8 @@ appguardrail/
 │   │   ├── supabase.yml
 │   │   ├── firebase.yml
 │   │   ├── nextjs.yml
-│   │   └── stripe.yml
+│   │   ├── stripe.yml
+│   │   └── graphql.yml
 │   └── cli/
 │       └── appguardrail.py
 ├── reports/                      # Report templates

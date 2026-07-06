@@ -1,0 +1,61 @@
+rules:
+  - id: graphql-introspection-enabled-production
+    patterns:
+      - pattern-regex: 'introspection:\s*true\b'
+    message: |
+      GraphQL introspection appears to be explicitly enabled (introspection: true).
+      In production this lets attackers enumerate your entire schema, including
+      types, fields, and mutations, making targeted attacks far easier. Disable
+      introspection outside development, e.g. introspection: process.env.NODE_ENV
+      !== 'production'. (CWE-200: Exposure of Sensitive Information; OWASP API8:2023
+      Security Misconfiguration)
+    severity: WARNING
+    languages: [generic]
+
+  - id: apollo-csrf-prevention-disabled
+    patterns:
+      - pattern-regex: 'csrfPrevention:\s*false\b'
+    message: |
+      Apollo Server CSRF prevention is disabled (csrfPrevention: false). This
+      re-opens the "simple request" CSRF/XS-Search vector that Apollo enables by
+      default. Remove this override or set csrfPrevention: true so cross-site
+      requests without a preflight are rejected. (CWE-352: Cross-Site Request
+      Forgery; OWASP API8:2023 Security Misconfiguration)
+    severity: WARNING
+    languages: [generic]
+
+  - id: graphql-graphiql-enabled
+    patterns:
+      - pattern-regex: 'graphiql:\s*true\b'
+    message: |
+      The GraphiQL in-browser IDE is enabled (graphiql: true). Shipping GraphiQL
+      to production exposes an interactive query console and full schema
+      exploration to anyone who reaches the endpoint. Gate it behind a
+      development-only flag. (CWE-489: Active Debug Code; OWASP API8:2023
+      Security Misconfiguration)
+    severity: WARNING
+    languages: [generic]
+
+  - id: graphql-playground-enabled
+    patterns:
+      - pattern-regex: 'playground:\s*true\b'
+    message: |
+      The GraphQL Playground IDE is enabled (playground: true). Like GraphiQL,
+      Playground exposes an interactive query explorer and the full schema to
+      any client. Disable it in production and rely on introspection controls.
+      (CWE-489: Active Debug Code; OWASP API8:2023 Security Misconfiguration)
+    severity: WARNING
+    languages: [generic]
+
+  - id: apollo-stacktrace-in-error-responses
+    patterns:
+      - pattern-regex: 'includeStacktraceInErrorResponses:\s*true\b'
+    message: |
+      Apollo Server is configured to return stack traces in error responses
+      (includeStacktraceInErrorResponses: true). This leaks server file paths,
+      library versions, and internal logic to clients. Leave it disabled in
+      production so only sanitized error messages are returned. (CWE-209:
+      Generation of Error Message Containing Sensitive Information; OWASP
+      API8:2023 Security Misconfiguration)
+    severity: HIGH
+    languages: [generic]

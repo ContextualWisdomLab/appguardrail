@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### 추가
+- GraphQL API 보안 설정 오류 탐지 룰 5종 추가(GraphQL 전용 키워드에 앵커링, 고정밀·저 오탐):
+  - `graphql-introspection-enabled-production` — `introspection: true`(프로덕션에서 스키마 전체 열람 노출). WARNING.
+  - `apollo-csrf-prevention-disabled` — Apollo Server `csrfPrevention: false`(기본 CSRF/XS-Search 보호 해제). WARNING.
+  - `graphql-graphiql-enabled` — `graphiql: true`(GraphiQL IDE 프로덕션 노출). WARNING.
+  - `graphql-playground-enabled` — `playground: true`(GraphQL Playground IDE 노출). WARNING.
+  - `apollo-stacktrace-in-error-responses` — Apollo `includeStacktraceInErrorResponses: true`(스택 트레이스로 내부 정보 유출). HIGH.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
