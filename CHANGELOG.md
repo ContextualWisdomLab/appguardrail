@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### 추가
+- Ruby on Rails 보안 룰 팩 `scanner/rules/rails.yml` — 내장 룰이 다루지 않던 `.rb`/`.erb` 소스를 경로 글롭으로 스코핑해 탐지합니다. 모든 인젝션 룰은 실제 Ruby 문자열 보간(`#{...}`)이나 명백히 위험한 API를 요구하는 고정밀 설계로, 파라미터 바인딩 등 안전한 Rails 관용구는 매치하지 않습니다(안전 코드 오탐 0 검증).
+  - `rails-sql-injection-interpolation` — `where`/`find_by_sql`/`order` 등에 보간 문자열로 SQL 조립(CWE-89). CRITICAL.
+  - `rails-command-injection` — `system`/`exec`/`IO.popen`/`Open3.*`의 보간 문자열 셸 실행, `params`·`request`를 보간한 백틱 실행(CWE-78). CRITICAL.
+  - `rails-secrets-in-code` — `secret_key_base` 하드코딩(세션 서명 키 유출로 세션 위조 가능, CWE-798). CRITICAL.
+  - `rails-raw-html-output` — `raw(...)`/`.html_safe`로 HTML 이스케이프 우회 출력(XSS, CWE-79). HIGH.
+  - `rails-mass-assignment-permit-all` — `params.permit!` 전체 파라미터 허용(대량 할당, CWE-915). HIGH.
+  - `rails-skip-csrf` — `skip_before_action :verify_authenticity_token`으로 CSRF 보호 해제(CWE-352). HIGH.
+
+### 검증
+- `tests/test_rails_rules.py`: 룰별 positive/negative 스니펫·severity 검증, 임시 Rails 앱 파일 대상 end-to-end 스캔 발화 테스트, 그리고 안전한 컨트롤러와 비 Ruby 경로에서는 침묵하는지 확인하는 테스트를 추가했습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
