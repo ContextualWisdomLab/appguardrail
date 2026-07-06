@@ -32,6 +32,24 @@ def _tags(finding: dict[str, Any]) -> list[str]:
     return tags
 
 
+def _safe_line(value: Any) -> int:
+    """SARIF startLine must be a positive int; external tools emit ranges
+    ("12-14") or "n/a", so coerce defensively — one bad line must not sink
+    the whole report."""
+    try:
+        return max(1, int(value))
+    except (ValueError, TypeError):
+        return 1
+
+
+def _first_line(message: str) -> str:
+    """First non-empty line of a message, capped; never IndexErrors on blanks."""
+    for line in message.splitlines():
+        if line.strip():
+            return line.strip()[:200]
+    return message.strip()[:200] or "Security finding"
+
+
 def findings_to_sarif(
     findings: Iterable[dict[str, Any]], *, tool_version: str = "0.0.0"
 ) -> dict[str, Any]:
@@ -45,10 +63,11 @@ def findings_to_sarif(
         severity = f["severity"]
         refs = f.get("references") or ()
         if rule_id not in rules:
+            rule_index = len(rules)
             rule: dict[str, Any] = {
                 "id": rule_id,
                 "name": rule_id,
-                "shortDescription": {"text": f["message"].strip().splitlines()[0][:200]},
+                "shortDescription": {"text": _first_line(f["message"])},
                 "fullDescription": {"text": f["message"].strip()},
                 "helpUri": refs[0] if refs else "https://github.com/ContextualWisdomLab/appguardrail",
                 "defaultConfiguration": {"level": _LEVEL.get(severity, "note")},
@@ -57,19 +76,20 @@ def findings_to_sarif(
                     "security-severity": _SECURITY_SEVERITY.get(severity, "2.0"),
                 },
             }
+            rule["_index"] = rule_index
             rules[rule_id] = rule
 
         results.append(
             {
                 "ruleId": rule_id,
-                "ruleIndex": list(rules).index(rule_id),
+                "ruleIndex": rules[rule_id]["_index"],
                 "level": _LEVEL.get(severity, "note"),
                 "message": {"text": f["message"].strip()},
                 "locations": [
                     {
                         "physicalLocation": {
                             "artifactLocation": {"uri": f["file"]},
-                            "region": {"startLine": max(1, int(f["line"] or 1))},
+                            "region": {"startLine": _safe_line(f["line"])},
                         }
                     }
                 ],
@@ -96,7 +116,7 @@ def findings_to_sarif(
                         "name": "AppGuardrail",
                         "informationUri": "https://github.com/ContextualWisdomLab/appguardrail",
                         "version": tool_version,
-                        "rules": list(rules.values()),
+                        "rules": [{k: v for k, v in r.items() if k != "_index"} for r in rules.values()],
                     }
                 },
                 "results": results,

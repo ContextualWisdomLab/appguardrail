@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 수정
+- SARIF 출력 견고성: (1) `startLine`을 방어적으로 coerce합니다 — 외부 엔진(Trivy 등)이 `"12-14"`·`"n/a"` 같은 비정수 line을 내면 `int()`가 던져 리포트 전체가 크래시했습니다(불량 finding 1개 → 리포트 전멸). (2) 공백만 있는 message의 shortDescription 추출 시 IndexError를 방지합니다. (3) `ruleIndex` 계산을 O(n²)에서 O(1)로 바꿨습니다(대량 finding 성능).
+
 ### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
