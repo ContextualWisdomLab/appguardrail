@@ -254,6 +254,14 @@ This installs `.github/workflows/appguardrail-monitor.yml`, which runs
 `appguardrail scan .` on pull requests, pushes to common default branches, and
 manual workflow dispatches.
 
+### CI integration (GitLab CI, CircleCI)
+
+Non-GitHub users can copy a ready-made pipeline config from
+[`ci-templates/`](./ci-templates/) — a GitLab CI (`.gitlab-ci.yml`) and a
+CircleCI (`.circleci/config.yml`) job that runs the scanner, saves a SARIF
+report, and fails the pipeline on deploy-blocking findings. See
+[`ci-templates/README.md`](./ci-templates/README.md).
+
 ### Install the pre-commit hook
 
 ```bash

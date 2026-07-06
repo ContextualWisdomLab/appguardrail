@@ -1,0 +1,38 @@
+# AppGuardrail security scan for CircleCI
+#
+# Copy this file to your repository as `.circleci/config.yml` (or merge the
+# `security-scan` job and the `security` workflow into your existing config).
+#
+# What it does:
+#   - Installs AppGuardrail from PyPI on a Python image.
+#   - Scans the whole checkout and writes a SARIF 2.1.0 report.
+#   - Fails the job when AppGuardrail finds deploy-blocking (CRITICAL/HIGH)
+#     issues, because `scan` exits non-zero in that case.
+#
+# The SARIF file is stored as an artifact so you can download it from the
+# CircleCI job page or feed it into any SARIF-aware viewer.
+
+version: 2.1
+
+jobs:
+  security-scan:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install AppGuardrail
+          command: python -m pip install --disable-pip-version-check appguardrail
+      - run:
+          name: Run AppGuardrail (SARIF + deploy gate)
+          # Exit code is 0 when clean, non-zero on deploy-blocking findings,
+          # which fails the step. The SARIF report is written either way.
+          command: python -m scanner.cli.appguardrail scan --sarif appguardrail.sarif .
+      - store_artifacts:
+          path: appguardrail.sarif
+          destination: appguardrail.sarif
+
+workflows:
+  security:
+    jobs:
+      - security-scan

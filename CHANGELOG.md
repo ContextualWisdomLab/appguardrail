@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### 추가
+- GitLab CI·CircleCI용 CI 통합 템플릿(`ci-templates/`) — GitHub 외 파이프라인에서도 AppGuardrail을 그대로 실행할 수 있습니다(GitHub은 `appguardrail monitor`로 이미 지원). 각 템플릿은 PyPI에서 AppGuardrail을 설치하고 체크아웃 전체를 스캔한 뒤 SARIF 2.1.0 리포트를 아티팩트로 남기며, deploy-blocking(기본 CRITICAL·HIGH) 발견 시 scan이 non-zero로 종료하므로 파이프라인이 실패합니다.
+  - `ci-templates/gitlab-ci.yml` → 저장소 루트에 `.gitlab-ci.yml`로 복사(SARIF는 build artifact).
+  - `ci-templates/circleci-config.yml` → `.circleci/config.yml`로 복사(`security-scan` job + `security` workflow, SARIF는 `store_artifacts`).
+  - `ci-templates/README.md` → 어떤 파일을 어디에 복사하는지, 무엇이 파이프라인을 실패시키는지 안내.
+  - `tests/test_ci_templates.py`: 템플릿 존재·비어있지 않음·실제 scan 호출(`scanner.cli.appguardrail scan`) 포함 여부를 표준 라이브러리만으로 검증합니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
