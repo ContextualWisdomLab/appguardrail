@@ -120,6 +120,7 @@ Detects:
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
+- Serverless Framework / AWS SAM misconfigurations (wildcard IAM `Action`/`Resource`, `AdministratorAccess`, Function URL `AuthType: NONE`, plaintext env secrets, `cors: true`)
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers

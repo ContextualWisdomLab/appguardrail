@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### 추가
+- Serverless Framework / AWS SAM 오구성 탐지 룰팩 추가(`scanner/rules/serverless.yml`, 고정밀·저 오탐). `serverless.yml`·`template.yaml` 파일에만 스코프되어(경로 include) 다른 YAML 오탐을 방지합니다:
+  - `serverless-lambda-iam-wildcard` — `iamRoleStatements`(또는 SAM `Policies`)의 와일드카드 `Action: '*'`/`Resource: '*'`. 최소 권한 위반. HIGH.
+  - `serverless-admin-managed-policy` — 함수 역할에 `AdministratorAccess` 관리형 정책(또는 그 ARN) 부여. 계정 전체 관리 권한 노출. HIGH.
+  - `serverless-function-url-auth-none` — Lambda Function URL/API에 `AuthType: NONE`(인증·IAM 인가 없이 공개). HIGH.
+  - `serverless-plaintext-secret-env` — `environment` 블록의 `PASSWORD`/`SECRET`/`API_KEY` 키에 평문 리터럴 값(`${ssm:...}`·`${env:...}` 참조는 제외). HIGH.
+  - `serverless-http-cors-wildcard` — http/httpApi 이벤트의 전체 오리진 허용 CORS(`cors: true`/`cors: '*'`). WARNING.
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

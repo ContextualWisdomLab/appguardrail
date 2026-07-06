@@ -1,0 +1,98 @@
+rules:
+  - id: serverless-lambda-iam-wildcard
+    patterns:
+      - pattern-regex: '(?im)^\s*(?:-\s*)?(?:Action|Resource)\s*:\s*(?:''\*''|"\*"|\*)\s*$'
+    message: |
+      Serverless Framework / AWS SAM IAM statement grants a wildcard
+      Action or Resource ('*'). This gives the Lambda execution role
+      permission to perform any action on any resource, violating least
+      privilege. Scope iamRoleStatements (or SAM Policies) to the exact
+      actions and resource ARNs the function needs.
+      [CWE-284: Improper Access Control]
+      [OWASP A01:2021 - Broken Access Control]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/serverless.yml"
+        - "**/serverless.yaml"
+        - "**/template.yaml"
+        - "**/template.yml"
+
+  - id: serverless-admin-managed-policy
+    patterns:
+      - pattern-regex: '(?i)(?:arn:aws:iam::aws:policy/AdministratorAccess|Policies\s*:\s*[''"]?AdministratorAccess[''"]?)'
+    message: |
+      AWS SAM / Serverless function attaches the AdministratorAccess
+      managed policy. This grants full administrative control over the
+      entire AWS account to the function role. Replace it with a scoped,
+      least-privilege policy that lists only the required actions.
+      [CWE-269: Improper Privilege Management]
+      [OWASP A01:2021 - Broken Access Control]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/serverless.yml"
+        - "**/serverless.yaml"
+        - "**/template.yaml"
+        - "**/template.yml"
+
+  - id: serverless-function-url-auth-none
+    patterns:
+      - pattern-regex: '(?im)^\s*(?:-\s*)?AuthType\s*:\s*[''"]?NONE[''"]?\s*$'
+    message: |
+      Lambda Function URL / API is configured with AuthType: NONE,
+      exposing the endpoint publicly with no authentication or IAM
+      authorization. Anyone on the internet can invoke it. Use
+      AuthType: AWS_IAM (or an authorizer) unless the endpoint is
+      intentionally public and rate-limited.
+      [CWE-306: Missing Authentication for Critical Function]
+      [OWASP A01:2021 - Broken Access Control]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/serverless.yml"
+        - "**/serverless.yaml"
+        - "**/template.yaml"
+        - "**/template.yml"
+
+  - id: serverless-plaintext-secret-env
+    patterns:
+      - pattern-regex: '(?im)^\s*[A-Z0-9_]*(?:PASSWORD|SECRET|API_?KEY|ACCESS_KEY)[A-Z0-9_]*\s*:\s*(?![''"]?\$\{)[''"]?[^\s''"$#][^\n''"#]*[''"]?\s*$'
+    message: |
+      A secret-looking key (PASSWORD / SECRET / API_KEY / ACCESS_KEY) in a
+      Serverless / SAM environment block appears to hold a plaintext literal
+      value. Committed secrets leak through source control and the deployed
+      Lambda config. Reference a secret store instead, e.g. ${ssm:/path},
+      ${env:NAME}, or a Secrets Manager ARN.
+      [CWE-798: Use of Hard-coded Credentials]
+      [OWASP A05:2021 - Security Misconfiguration]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/serverless.yml"
+        - "**/serverless.yaml"
+        - "**/template.yaml"
+        - "**/template.yml"
+
+  - id: serverless-http-cors-wildcard
+    patterns:
+      - pattern-regex: '(?im)^\s*cors\s*:\s*(?:true|''\*''|"\*"|\*)\s*$'
+    message: |
+      A Serverless Framework http/httpApi event enables CORS for all
+      origins (cors: true or cors: '*'). This lets any website call the
+      endpoint from a browser. Restrict cors.origin to the specific
+      trusted origins your frontend uses.
+      [CWE-942: Permissive Cross-domain Policy with Untrusted Domains]
+      [OWASP A05:2021 - Security Misconfiguration]
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include:
+        - "**/serverless.yml"
+        - "**/serverless.yaml"
+        - "**/template.yaml"
+        - "**/template.yml"
