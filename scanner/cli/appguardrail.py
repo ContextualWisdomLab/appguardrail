@@ -2495,14 +2495,12 @@ def _scan_file(file_path: Path, base_path: Path):
     if not applicable_rules:
         return findings
 
-    # ⚡ Bolt: Compute relative paths efficiently once instead of repeatedly calling
-    # Path.relative_to() in the rule matching inner loops. Use standard string manipulations
-    # for fast prefix removal to avoid expensive stat/Path instantiations.
+    # ⚡ Bolt: Defer expensive Pathlib operations (like relative_to) and string
+    # sanitization until a match is actually found. This avoids significant overhead
+    # for the vast majority of files that have no vulnerabilities.
     rel_path_str = None
+    rel_path_for_filters = None
     build_finding = _build_finding
-
-    base_path_str = str(resolved_base_path) + os.sep if not str(resolved_base_path).endswith(os.sep) else str(resolved_base_path)
-    file_path_str = str(file_path)
 
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -2522,41 +2520,33 @@ def _scan_file(file_path: Path, base_path: Path):
                 exclude_paths,
             ) in applicable_rules:
                 if include_paths or exclude_paths:
-                    if rel_path_str is None:
-                        if file_path_str.startswith(base_path_str):
-                            rel_path_str = file_path_str[len(base_path_str):]
-                        elif file_path_str == str(resolved_base_path):
-                            rel_path_str = "."
-                        else:
-                            try:
-                                rel_path = file_path.relative_to(resolved_base_path)
-                            except ValueError:
-                                rel_path = file_path.name if base_path.is_file() else file_path
-                            rel_path_str = str(rel_path)
+                    if rel_path_for_filters is None:
+                        try:
+                            rel_path = file_path.relative_to(resolved_base_path)
+                        except ValueError:
+                            rel_path = (
+                                file_path.name if base_path.is_file() else file_path
+                            )
+                        rel_path_for_filters = str(rel_path)
                     if not _path_allowed_by_rule(
-                        rel_path_str, include_paths, exclude_paths
+                        rel_path_for_filters, include_paths, exclude_paths
                     ):
                         continue
-
-                # We do not want to iterate and do line counting if there are no matches,
-                # but we need to create the iterator anyway.
-                # Finditer is lazy, so if there are no matches, the body isn't executed.
-                matches = finditer(content)
+                # ⚡ Bolt: Progressive line counting for O(N) instead of O(N*M)
+                # finditer yields matches in order, allowing us to scan for newlines
+                # incrementally from the last known position rather than starting from 0.
                 current_line = 1
                 current_pos = 0
 
-                for match in matches:
+                for match in finditer(content):
                     if rel_path_str is None:
-                        if file_path_str.startswith(base_path_str):
-                            rel_path_str = file_path_str[len(base_path_str):]
-                        elif file_path_str == str(resolved_base_path):
-                            rel_path_str = "."
-                        else:
-                            try:
-                                rel_path = file_path.relative_to(resolved_base_path)
-                            except ValueError:
-                                rel_path = file_path.name if base_path.is_file() else file_path
-                            rel_path_str = str(rel_path)
+                        try:
+                            rel_path = file_path.relative_to(resolved_base_path)
+                        except ValueError:
+                            rel_path = (
+                                file_path.name if base_path.is_file() else file_path
+                            )
+                        rel_path_str = _sanitize_terminal_output(str(rel_path))
 
                     start_idx = match.start()
 
@@ -2580,7 +2570,7 @@ def _scan_file(file_path: Path, base_path: Path):
                             rule_id,
                             severity,
                             message,
-                            _sanitize_terminal_output(rel_path_str),
+                            rel_path_str,
                             line_num,
                             snippet,
                         )
