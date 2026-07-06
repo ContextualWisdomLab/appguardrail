@@ -124,6 +124,13 @@ Detects:
 - Unprotected admin routes
 - Risky file upload handlers
 
+List everything the scanner checks for:
+
+```bash
+appguardrail rules          # human-readable, severity-sorted
+appguardrail rules --json   # machine-readable (appguardrail.rules.v1)
+```
+
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
 documented rule fixtures until the lightweight engine grows structural matching.

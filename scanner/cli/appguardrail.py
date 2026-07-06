@@ -1671,6 +1671,39 @@ def cmd_monitor(args):
     return 0
 
 
+def cmd_rules(args):
+    """List every loaded detection rule (built-in + packaged YAML)."""
+    severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
+    rules = sorted(
+        SCAN_RULES,
+        key=lambda r: (severity_order.get(r.get("severity", "INFO"), 9), r.get("id", "")),
+    )
+    if getattr(args, "json", False):
+        payload = [
+            {
+                "id": r.get("id"),
+                "severity": r.get("severity"),
+                "extensions": r.get("extensions"),
+                "message": r.get("message"),
+            }
+            for r in rules
+        ]
+        print(json.dumps({"schema": "appguardrail.rules.v1", "count": len(payload), "rules": payload}, indent=2))
+        return 0
+
+    counts = {}
+    for r in rules:
+        counts[r.get("severity", "INFO")] = counts.get(r.get("severity", "INFO"), 0) + 1
+    print(f"🛡️  {len(rules)} detection rules loaded")
+    print("   " + " · ".join(f"{k} {v}" for k, v in sorted(counts.items(), key=lambda kv: severity_order.get(kv[0], 9))))
+    print()
+    for r in rules:
+        exts = r.get("extensions")
+        scope = ",".join(sorted(exts)) if exts else "all files"
+        print(f"  [{r.get('severity','INFO'):8}] {r.get('id')}  ({scope})")
+    return 0
+
+
 def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
@@ -3117,6 +3150,13 @@ def main():
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # report
+    rules_parser = subparsers.add_parser(
+        "rules", help="List all loaded detection rules (built-in + packaged YAML)"
+    )
+    rules_parser.add_argument(
+        "--json", action="store_true", help="Machine-readable JSON output"
+    )
+
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3268,6 +3308,8 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
+    elif args.command == "rules":
+        sys.exit(cmd_rules(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
