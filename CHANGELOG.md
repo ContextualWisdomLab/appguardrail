@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### 추가
+- `appguardrail report … --html` 플래그 — 4종 리포트(buyer-diligence, founder-friendly, agency, fix-pack)를 외부 자산 없이 단일 파일로 열리는 self-contained HTML 문서로 출력합니다. 마크다운보다 공유가 쉬워 바이어·감사자에게 그대로 전달할 수 있습니다.
+  - `appguardrail_core.reports.render_html()` 추가: 기존 마크다운 렌더러 출력을 소형 내장 변환기(제목/굵게/인라인 코드/코드 펜스/표/목록/문단)로 HTML화하며, 모든 텍스트를 HTML 이스케이프해 finding 메시지에 포함된 `<script>` 같은 악성 콘텐츠가 실행되지 않습니다. 라이트/다크 테마 CSS 내장, 의존성 없음.
+  - `--out` 경로에 확장자가 없으면 `.html`을 자동으로 붙입니다. 기본 출력 형식은 여전히 마크다운입니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

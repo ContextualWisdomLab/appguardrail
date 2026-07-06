@@ -7,7 +7,7 @@ Usage:
   appguardrail scan [--trivy] [--external auto|off] [--bandit] [--ruff] [--semgrep] [--zap-baseline <url>] [--findings-json <path>] [--codegraph] [<path>]
   appguardrail monitor
   appguardrail review [--stack <stack>] [--db <db>] [--payments <payments>]
-  appguardrail report {buyer-diligence,founder-friendly,agency,fix-pack} --findings <json> [--out <path>]
+  appguardrail report {buyer-diligence,founder-friendly,agency,fix-pack} --findings <json> [--out <path>] [--html]
   appguardrail org-bundle [--owner <org>] [--bundle-dir <path>]
   appguardrail hook [--codegraph]
   appguardrail --help
@@ -81,6 +81,7 @@ from appguardrail_core.org_bundle import (
 from appguardrail_core.reports import (
     REPORT_TYPE_LABELS,
     ReportContext,
+    render_html,
     render_report,
     supported_report_types,
 )
@@ -1707,11 +1708,17 @@ def cmd_report(args):
         or "Pre-launch review",
         based_on=getattr(args, "based_on", None) or "AppGuardrail findings JSON",
     )
-    report = render_report(report_type, findings, context)
+    as_html = bool(getattr(args, "html", False))
+    if as_html:
+        report = render_html(report_type, findings, context)
+    else:
+        report = render_report(report_type, findings, context)
 
     output_path = getattr(args, "out", None)
     if output_path:
         target = Path(output_path)
+        if as_html and not target.suffix:
+            target = target.with_suffix(".html")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(report, encoding="utf-8")
         print(f"✅ {REPORT_TYPE_LABELS[report_type]} written: {target}")
@@ -3131,7 +3138,12 @@ def main():
         parser.add_argument(
             "--out",
             default=None,
-            help="Write report to this markdown path instead of stdout",
+            help="Write report to this path instead of stdout",
+        )
+        parser.add_argument(
+            "--html",
+            action="store_true",
+            help="Emit a self-contained HTML document instead of markdown",
         )
         parser.add_argument("--app-name", default=None, help="Application name")
         parser.add_argument("--repository", default=None, help="Repository name")

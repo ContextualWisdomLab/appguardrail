@@ -202,6 +202,21 @@ any object with a `findings` array. Report types are:
 - `agency`: client-ready technical review and retest notes.
 - `fix-pack`: AI-ready remediation prompts and verification steps.
 
+Add `--html` to any report command to emit a self-contained HTML document
+instead of markdown — a single file with embedded styling and no external
+assets, easier to share with buyers and auditors:
+
+```bash
+appguardrail report buyer-diligence \
+  --findings reports/findings.json \
+  --html \
+  --out reports/buyer-diligence.html
+```
+
+All report text is HTML-escaped, so hostile content inside finding messages
+cannot execute when the file is opened in a browser. If `--out` has no file
+extension, `.html` is appended automatically.
+
 Reports omit raw secrets and expand normalized metadata into launch posture,
 finding summaries, remediation, and verification checklists.
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from html import escape
 from typing import Any, Iterable
 
 from appguardrail_core.findings import (
@@ -61,6 +63,205 @@ def render_report(
     except KeyError as exc:
         raise ValueError(f"Unsupported report type: {report_type}") from exc
     return renderer(findings, context)
+
+
+_HTML_STYLE = """\
+:root { color-scheme: light dark; }
+body {
+  margin: 0;
+  padding: 2rem 1rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+  color: #1f2933;
+  background: #f5f7fa;
+}
+main {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 2.5rem 3rem;
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+}
+h1 { font-size: 1.7rem; border-bottom: 2px solid #d9e2ec; padding-bottom: 0.4rem; }
+h2 { font-size: 1.3rem; margin-top: 2rem; border-bottom: 1px solid #e4eaf1; padding-bottom: 0.25rem; }
+h3 { font-size: 1.1rem; margin-top: 1.5rem; }
+h4 { font-size: 1rem; margin-top: 1.25rem; }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #eef2f6;
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+pre {
+  background: #f0f4f8;
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+th, td { border: 1px solid #d9e2ec; padding: 0.4rem 0.6rem; text-align: left; }
+th { background: #f0f4f8; }
+ul, ol { padding-left: 1.5rem; }
+@media (prefers-color-scheme: dark) {
+  body { color: #e4eaf1; background: #10161d; }
+  main { background: #171f28; border-color: #2c3a49; }
+  h1, h2 { border-color: #2c3a49; }
+  code { background: #22303f; }
+  pre { background: #10161d; border-color: #2c3a49; }
+  th, td { border-color: #2c3a49; }
+  th { background: #22303f; }
+}
+"""
+
+_TABLE_SEPARATOR_CELL = re.compile(r":?-{3,}:?")
+
+
+def render_html(
+    report_type: str,
+    findings: Iterable[dict[str, Any]],
+    context: ReportContext | None = None,
+) -> str:
+    """Render any supported report type as a self-contained HTML document.
+
+    Wraps the existing markdown renderers, converting their bounded markdown
+    dialect (headings, bold, inline code, fences, tables, lists, paragraphs)
+    with all text HTML-escaped, so reports are safe to open and share as-is.
+    """
+    markdown = render_report(report_type, findings, context)
+    title = f"AppGuardrail — {REPORT_TYPE_LABELS[report_type]}"
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"<title>{escape(title)}</title>\n"
+        f"<style>\n{_HTML_STYLE}</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<main>\n"
+        f"{_markdown_to_html(markdown)}\n"
+        "</main>\n"
+        "</body>\n"
+        "</html>\n"
+    )
+
+
+def _inline_html(text: str) -> str:
+    """HTML-escape text, then apply bold and inline-code markdown spans."""
+    escaped = escape(text)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    return escaped
+
+
+def _table_html(rows: list[str]) -> str:
+    """Convert consecutive markdown table rows into an HTML table."""
+    parsed: list[list[str]] = []
+    for row in rows:
+        cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+        if cells and all(_TABLE_SEPARATOR_CELL.fullmatch(cell) for cell in cells):
+            continue
+        parsed.append(cells)
+    if not parsed:
+        return ""
+    lines = ["<table>"]
+    for row_index, cells in enumerate(parsed):
+        tag = "th" if row_index == 0 else "td"
+        rendered = "".join(f"<{tag}>{_inline_html(cell)}</{tag}>" for cell in cells)
+        lines.append(f"<tr>{rendered}</tr>")
+    lines.append("</table>")
+    return "\n".join(lines)
+
+
+def _markdown_to_html(markdown: str) -> str:
+    """Convert the bounded markdown dialect used by report renderers to HTML."""
+    lines = markdown.splitlines()
+    out: list[str] = []
+    paragraph: list[str] = []
+
+    def flush_paragraph() -> None:
+        if paragraph:
+            out.append("<p>" + " ".join(_inline_html(part) for part in paragraph) + "</p>")
+            paragraph.clear()
+
+    index = 0
+    total = len(lines)
+    while index < total:
+        stripped = lines[index].strip()
+
+        if stripped.startswith("```"):
+            flush_paragraph()
+            index += 1
+            code_lines = []
+            while index < total and not lines[index].strip().startswith("```"):
+                code_lines.append(lines[index])
+                index += 1
+            index += 1  # Skip the closing fence.
+            out.append("<pre><code>" + escape("\n".join(code_lines)) + "</code></pre>")
+            continue
+
+        if not stripped:
+            flush_paragraph()
+            index += 1
+            continue
+
+        heading = re.fullmatch(r"(#{1,4})\s+(.*)", stripped)
+        if heading:
+            flush_paragraph()
+            level = len(heading.group(1))
+            out.append(f"<h{level}>{_inline_html(heading.group(2))}</h{level}>")
+            index += 1
+            continue
+
+        if stripped.startswith("|"):
+            flush_paragraph()
+            table_rows = []
+            while index < total and lines[index].strip().startswith("|"):
+                table_rows.append(lines[index].strip())
+                index += 1
+            out.append(_table_html(table_rows))
+            continue
+
+        if stripped.startswith("- "):
+            flush_paragraph()
+            items = []
+            while index < total and lines[index].strip().startswith("- "):
+                items.append(lines[index].strip()[2:])
+                index += 1
+            out.append(
+                "<ul>"
+                + "".join(f"<li>{_inline_html(item)}</li>" for item in items)
+                + "</ul>"
+            )
+            continue
+
+        if re.match(r"\d+\.\s+", stripped):
+            flush_paragraph()
+            items = []
+            while index < total:
+                ordered = re.fullmatch(r"\d+\.\s+(.*)", lines[index].strip())
+                if not ordered:
+                    break
+                items.append(ordered.group(1))
+                index += 1
+            out.append(
+                "<ol>"
+                + "".join(f"<li>{_inline_html(item)}</li>" for item in items)
+                + "</ol>"
+            )
+            continue
+
+        paragraph.append(stripped)
+        index += 1
+
+    flush_paragraph()
+    return "\n".join(part for part in out if part)
 
 
 def render_buyer_diligence_report(
