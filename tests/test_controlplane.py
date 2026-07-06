@@ -154,7 +154,7 @@ def test_drift_new_blocking():
 
 def test_webhook_alerts_on_drift(monkeypatch):
     sent = []
-    monkeypatch.setattr(cp, "_send_alert", lambda url, payload: sent.append((url, payload)) or True)
+    monkeypatch.setattr(cp, "_send_alert", lambda url, payload, **kw: sent.append((url, payload, kw)) or True)
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")
     set_webhook(conn, oid, "http://hook.example/x")
@@ -163,14 +163,17 @@ def test_webhook_alerts_on_drift(monkeypatch):
     add_scan(conn, oid, [crit], repo="acme/app")             # 1 new -> alert
     add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")  # 0 new -> no alert
     assert len(sent) == 1
-    url, payload = sent[0]
+    url, payload, kw = sent[0]
     assert url == "http://hook.example/x"
     assert payload["event"] == "drift.new_blocking" and payload["new_blocking"] == 1
+    # add_scan hands the Slack renderer the org name + the new findings.
+    assert kw["org_name"] == "Acme"
+    assert [f["rule_id"] for f in kw["new_findings"]] == ["s"]
 
 
 def test_no_webhook_no_alert(monkeypatch):
     sent = []
-    monkeypatch.setattr(cp, "_send_alert", lambda url, payload: sent.append(1))
+    monkeypatch.setattr(cp, "_send_alert", lambda url, payload, **kw: sent.append(1))
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")  # no webhook set
     add_scan(conn, oid, [{"severity": "CRITICAL", "rule_id": "s", "file": "a", "line": 1, "context": "app-code"}])
@@ -252,3 +255,66 @@ def test_api_pagination_and_trend(server):
     assert len(page["scans"]) == 2
     _, tr = _req("GET", f"{base}/api/v1/scans/trend?limit=3", key)
     assert len(tr["trend"]) == 3
+
+
+# ---- Slack-formatted drift alert ----
+
+def test_is_slack_webhook():
+    assert cp._is_slack_webhook("https://hooks.slack.com/services/T/B/xyz")
+    assert not cp._is_slack_webhook("https://hooks.slack.com.evil.example/x")  # host must match
+    assert not cp._is_slack_webhook("https://hook.example/x")
+    assert not cp._is_slack_webhook("not a url")
+
+
+def test_slack_blocks_shape_and_content():
+    payload = {"org_id": 7, "scan_id": 42, "repo": "acme/app", "new_blocking": 2}
+    findings = [
+        {"rule_id": "hardcoded-secret", "file": "src/a.ts"},
+        {"rule_id": "sql-injection", "file": "src/b.py"},
+    ]
+    body = cp._slack_blocks("Acme", payload, findings)
+    assert "blocks" in body and body["blocks"][0]["type"] == "header"
+    text = json.dumps(body)
+    assert "Acme" in text  # org name rendered
+    assert "2 new deploy-blocking findings" in body["blocks"][0]["text"]["text"]  # count in header
+    assert "hardcoded-secret" in text and "src/a.ts" in text  # top rule_id + file listed
+    assert "#42" in text  # scan id
+
+
+def test_slack_blocks_caps_and_escapes():
+    findings = [{"rule_id": f"r{i}", "file": f"f{i}"} for i in range(8)]
+    payload = {"org_id": 1, "scan_id": 1, "repo": "r", "new_blocking": 8}
+    body = cp._slack_blocks("Ben & <Co>", payload, findings, top=5)
+    detail = body["blocks"][-1]["text"]["text"]
+    assert detail.count("• `r") == 5  # only top 5 rules listed
+    assert "+3 more" in detail       # overflow line
+    assert "Ben &amp; &lt;Co&gt;" in json.dumps(body)  # org name escaped for Slack
+
+
+def test_send_alert_slack_vs_generic(monkeypatch):
+    posted = {}
+
+    def _fake_urlopen(req, timeout=None):
+        posted["url"] = req.full_url
+        posted["body"] = json.loads(req.data.decode())
+        class _R:  # minimal stand-in, urlopen result is ignored
+            pass
+        return _R()
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    generic = {"event": "drift.new_blocking", "org_id": 3, "scan_id": 9,
+               "repo": "acme/app", "new_blocking": 1, "deploy_blocking": 1}
+    findings = [{"rule_id": "secret", "file": "a.ts"}]
+
+    # Slack URL -> Block Kit payload
+    assert cp._send_alert("https://hooks.slack.com/services/x", generic,
+                          org_name="Acme", new_findings=findings) is True
+    assert "blocks" in posted["body"]
+    assert "Acme" in json.dumps(posted["body"])
+    assert "1 new deploy-blocking finding" in posted["body"]["blocks"][0]["text"]["text"]
+
+    # Generic URL -> untouched original payload (backward compatible)
+    assert cp._send_alert("https://hook.example/x", generic,
+                          org_name="Acme", new_findings=findings) is True
+    assert posted["body"] == generic
+    assert "blocks" not in posted["body"]
