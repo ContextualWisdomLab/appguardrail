@@ -1,0 +1,81 @@
+rules:
+  - id: terraform-s3-bucket-public-acl
+    patterns:
+      - pattern-regex: '(?i)acl\s*=\s*"public-read(?:-write)?"'
+    message: |
+      Terraform provisions an S3 bucket (or ACL) with a public canned ACL
+      ("public-read" or "public-read-write"). This exposes bucket contents — and,
+      with "public-read-write", lets anyone upload or overwrite objects — to the
+      entire internet. Use "private" and grant access explicitly via bucket
+      policies, and enable aws_s3_bucket_public_access_block.
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/*.tf"
+    cwe: [CWE-284]
+    owasp: [A01:2021]
+
+  - id: terraform-security-group-open-to-world
+    patterns:
+      - pattern-regex: 'cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"'
+    message: |
+      A security group rule allows traffic from 0.0.0.0/0 (the entire internet).
+      When applied to an ingress rule — especially on administrative ports such as
+      22 (SSH) or 3389 (RDP) — this exposes the resource to unrestricted external
+      access. Restrict cidr_blocks to known, trusted ranges.
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/*.tf"
+    cwe: [CWE-284]
+    owasp: [A01:2021]
+
+  - id: terraform-unencrypted-storage
+    patterns:
+      - pattern-regex: 'encrypted\s*=\s*false'
+    message: |
+      A storage resource (EBS volume, RDS instance, S3 object, etc.) is configured
+      with encrypted = false, disabling encryption at rest. Sensitive data may be
+      stored in plaintext. Set encrypted = true and supply a KMS key where
+      appropriate.
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/*.tf"
+    cwe: [CWE-311]
+    owasp: [A02:2021]
+
+  - id: terraform-rds-publicly-accessible
+    patterns:
+      - pattern-regex: 'publicly_accessible\s*=\s*true'
+    message: |
+      An RDS instance (or similar database resource) is marked
+      publicly_accessible = true, giving it a public IP reachable from the
+      internet. Databases should live in private subnets. Set
+      publicly_accessible = false and reach it through a bastion or VPN.
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - "**/*.tf"
+    cwe: [CWE-284]
+    owasp: [A01:2021]
+
+  - id: terraform-hardcoded-secret
+    patterns:
+      - pattern-regex: '(?i)(?:password|secret|access_key|secret_key)\s*=\s*"[^"$][^"]{7,}"'
+    message: |
+      A password or secret appears to be hardcoded as a literal string in
+      Terraform. Committed secrets leak through state files and version control.
+      Reference a variable (var.*), a data source, or a secrets manager
+      (aws_secretsmanager_secret_version) instead of an inline literal.
+    severity: CRITICAL
+    languages: [generic]
+    paths:
+      include:
+        - "**/*.tf"
+    cwe: [CWE-798]
+    owasp: [A07:2021]

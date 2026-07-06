@@ -123,6 +123,7 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Terraform/IaC misconfigurations (public S3 ACLs, security groups open to `0.0.0.0/0`, unencrypted storage, publicly accessible RDS, hardcoded secrets)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain

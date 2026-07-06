@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### 추가
+- Terraform/IaC 오구성 탐지 룰 팩 추가(`scanner/rules/terraform.yml`, `.tf` 파일 대상, 고정밀·저 오탐). 변수/데이터 참조·암호화 활성·제한된 CIDR 등 안전 코드는 오탐 0으로 검증했습니다.
+  - `terraform-s3-bucket-public-acl` — S3 버킷 퍼블릭 ACL(`public-read`/`public-read-write`). HIGH.
+  - `terraform-security-group-open-to-world` — 보안 그룹이 `0.0.0.0/0`에 개방(SSH 22·RDP 3389 인그레스 시 특히 위험). HIGH.
+  - `terraform-unencrypted-storage` — 저장소 암호화 비활성(`encrypted = false`). HIGH.
+  - `terraform-rds-publicly-accessible` — RDS 등 DB가 퍼블릭 노출(`publicly_accessible = true`). HIGH.
+  - `terraform-hardcoded-secret` — Terraform에 비밀번호/시크릿 리터럴 하드코딩(`var.*`·데이터 소스·`${...}` 참조는 제외). CRITICAL.
+
+### 검증
+- `tests/test_terraform_rules.py`: 각 룰의 positive/negative 정규식 매칭과 severity, 그리고 실제 `.tf` 파일에 대한 end-to-end 스캔(안전 코드 오탐 0)을 검증합니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
