@@ -88,6 +88,11 @@ appguardrail scan .
 # Also run Trivy FS for dependency CVEs, secrets, and IaC misconfigurations
 appguardrail scan --trivy .
 
+# Fast PR check: scan only files changed versus a git ref
+appguardrail scan --diff                  # changed since HEAD~1 (default ref)
+appguardrail scan --diff origin/main src  # changed versus origin/main, under src
+# Not a git repo or git missing? It warns and falls back to a full scan.
+
 # The scanner detects Python, Java, JavaScript, TypeScript, and web files
 # automatically. If supported external SAST tools are installed and runnable,
 # scan auto mode can include Bandit/Ruff/Semgrep without choosing a language profile.

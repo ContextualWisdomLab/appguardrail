@@ -1387,6 +1387,19 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    diff_ref = getattr(args, "diff", None)
+    if diff_ref is not None:
+        scan_root = scan_path if scan_path.is_dir() else scan_path.parent
+        changed = _git_changed_files(scan_root, diff_ref)
+        if changed is not None:
+            # Only scan files that are BOTH changed and collected.
+            files_to_scan = [
+                fp for fp in files_to_scan if fp.resolve() in changed
+            ]
+            print(
+                f"🔀 Diff mode ({diff_ref}): {len(files_to_scan)} changed file(s) to scan\n"
+            )
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -1972,6 +1985,63 @@ def _collect_files(base_path: Path):
                 stack.extend(reversed(dirs))
         except (OSError, PermissionError):
             pass
+
+
+def _git_changed_files(scan_root: Path, ref: str):
+    """Return resolved paths changed versus ``ref``, or ``None`` to fall back.
+
+    Uses ``git diff --name-only --diff-filter=ACMR <ref>`` under ``scan_root``.
+    Returns a set of resolved absolute ``Path`` objects for added, copied,
+    modified, or renamed files. Returns ``None`` (signalling a full-scan
+    fallback) when git is unavailable or ``scan_root`` is not a git repo.
+    An empty set means the ref was valid but nothing changed.
+    """
+    git_exe = shutil.which("git")
+    if not git_exe:
+        print(
+            "⚠️  --diff requested but git was not found on PATH; scanning all files.",
+            file=sys.stderr,
+        )
+        return None
+
+    try:
+        result = subprocess.run(
+            [
+                git_exe,
+                "-C",
+                str(scan_root),
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMR",
+                ref,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        print(
+            f"⚠️  --diff could not run git ({exc}); scanning all files.",
+            file=sys.stderr,
+        )
+        return None
+
+    if result.returncode != 0:
+        detail = (result.stderr or "").strip().splitlines()
+        reason = detail[-1] if detail else f"git exited with {result.returncode}"
+        print(
+            f"⚠️  --diff could not resolve ref '{ref}' ({reason}); scanning all files.",
+            file=sys.stderr,
+        )
+        return None
+
+    changed = set()
+    for line in result.stdout.splitlines():
+        rel = line.strip()
+        if not rel:
+            continue
+        changed.add((scan_root / rel).resolve())
+    return changed
 
 
 def _sanitize_terminal_output(text: str) -> str:
@@ -3098,6 +3168,17 @@ def main():
         "--codegraph",
         action="store_true",
         help="Initialize or sync CodeGraph before scanning for structural review context",
+    )
+    scan_parser.add_argument(
+        "--diff",
+        nargs="?",
+        const="HEAD~1",
+        default=None,
+        metavar="REF",
+        help=(
+            "Scan only files changed versus a git ref for fast PR checks "
+            "(default ref: HEAD~1; pass e.g. --diff origin/main for another ref)"
+        ),
     )
 
     # monitor

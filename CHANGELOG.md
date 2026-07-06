@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- `appguardrail scan --diff [<ref>]` — 지정한 git ref 대비 변경된 파일만 스캔합니다(빠른 PR 체크용). `--diff`만 쓰면 `HEAD~1` 기준, `--diff origin/main`처럼 ref를 주면 해당 ref 기준입니다. 내부적으로 `git diff --name-only --diff-filter=ACMR <ref>`(추가·복사·수정·이름변경)로 변경 경로를 구해 수집 대상 파일과 교집합만 스캔합니다. git이 없거나 git 저장소가 아니면 stderr 경고 후 전체 스캔으로 폴백하고, 변경 파일이 없으면 0개 파일로 조용히 끝냅니다. 무의존성 유지를 위해 stdlib `subprocess`와 시스템 `git`만 사용합니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
