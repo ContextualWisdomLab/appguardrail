@@ -52,6 +52,8 @@ jobs:
           retention-days: 7
 
   trivy-fs:
+    # Central Security Scan runs Trivy on PRs; only scan the default branch here.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
