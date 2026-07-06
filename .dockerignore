@@ -1,0 +1,12 @@
+.git
+.github
+.Jules
+.jules
+tests
+docs
+reports
+*.md
+!README.md
+__pycache__
+*.pyc
+.pytest_cache

@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- **공식 Docker 이미지 정의**(`Dockerfile` + `.dockerignore`) — 설치 없이 스캔합니다: `docker build -t appguardrail . && docker run --rm -v "$PWD:/src" appguardrail scan /src`. python:3.12-slim 기반, 비루트(`scanner`) 사용자로 실행, exit code 계약은 CLI와 동일(1 = deploy-blocking). 로컬 소스에서 설치해 리포와 항상 일치하며, 릴리스 고정 이미지는 `pip install appguardrail`로 전환하면 됩니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

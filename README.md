@@ -53,6 +53,15 @@ Agent. See [Release Automation](docs/release-automation.md).
 For the productization roadmap, see the
 [2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
 
+### Or run via Docker (no install)
+
+```bash
+docker build -t appguardrail .
+docker run --rm -v "$PWD:/src" appguardrail scan /src
+```
+
+Runs as a non-root user; exit code 1 means deploy-blocking findings.
+
 ### Initialize security rules in your project
 
 ```bash
