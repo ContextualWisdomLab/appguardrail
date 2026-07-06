@@ -4,7 +4,8 @@
 
 ### 추가
 - **GitHub Actions 네이티브 대응** — 스캔이 Actions 안에서 실행되면(`GITHUB_ACTIONS=true`) 자동으로 (1) 발견 항목을 PR diff에 인라인으로 띄우는 워크플로 어노테이션(`::error`/`::warning`, deploy-blocking은 error)과 (2) 실행 화면의 job summary(`$GITHUB_STEP_SUMMARY`, severity 집계 + 상위 목록)를 출력합니다. 로컬에서 강제하려면 `scan --github`. 무의존성(stdlib)이며 어노테이션 이스케이프는 GitHub 규격(`%0A`·`%2C`·`%3A`)을 따릅니다. 기존 `monitor` 워크플로는 변경 없이 인라인 표시를 얻습니다.
-- **재사용 가능한 GitHub Action**(`action.yml`, 리포지토리 루트) — `uses: ContextualWisdomLab/appguardrail@v1` 한 줄로 스캔 + SARIF 업로드 + deploy 게이트를 실행합니다. 입력 `path`·`sarif`·`upload-sarif`·`fail-on-blocking`·`version`, 출력 `sarif`·`exit-code`. composite action이라 별도 러너 이미지가 필요 없습니다.
+- **재사용 가능한 GitHub Action**(`action.yml`, 리포지토리 루트) — `uses: ContextualWisdomLab/appguardrail@v1` 한 줄로 스캔 + SARIF 업로드 + PR 코멘트 + deploy 게이트를 실행합니다. 입력 `path`·`sarif`·`upload-sarif`·`pr-comment`·`fail-on-blocking`·`version`, 출력 `sarif`·`exit-code`. composite action이라 별도 러너 이미지가 필요 없습니다.
+- **PR 스티키 코멘트** — Actions의 `pull_request` 이벤트에서 발견 요약(severity 집계 + 상위 목록)을 PR에 단일 코멘트로 upsert합니다(매 푸시마다 새 코멘트가 아니라 기존 코멘트를 갱신 → 코멘트 스팸 없음). 숨은 마커로 식별하며 `GITHUB_TOKEN`만 사용합니다(무의존성 urllib). 코멘트 실패는 보안 게이트를 절대 실패시키지 않습니다.
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

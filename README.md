@@ -126,8 +126,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ContextualWisdomLab/appguardrail@v1
-        # inputs (all optional): path, sarif, upload-sarif, fail-on-blocking, version
+        # inputs (all optional): path, sarif, upload-sarif, pr-comment, fail-on-blocking, version
 ```
+
+For the PR comment, also grant `pull-requests: write`.
 
 Inside Actions the scanner **auto-detects the environment** (`GITHUB_ACTIONS=true`)
 and, with no extra flags, emits:
@@ -136,6 +138,8 @@ and, with no extra flags, emits:
   `::warning` on the exact file/line, so reviewers see them on the diff.
 - **A job summary** — a severity breakdown and top findings written to the run's
   summary page (`$GITHUB_STEP_SUMMARY`).
+- **A sticky PR comment** — one comment with the findings roll-up, updated in
+  place on every push (needs `pull-requests: write`; disable with `pr-comment: false`).
 
 Force the same output locally with `appguardrail scan --github .`.
 
