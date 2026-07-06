@@ -278,8 +278,12 @@ def test_scan_file_uses_absolute_path_when_base_is_unrelated(tmp_path):
         }
     ]
 
+
     with patch("scanner.cli.appguardrail.SCAN_RULES", mock_rules):
+        import scanner.cli.appguardrail
+        scanner.cli.appguardrail._LAST_SCAN_RULES_ID = None
         findings = _scan_file(test_file, base_dir)
+
 
     assert len(findings) == 1
     assert findings[0]["file"] == str(test_file)

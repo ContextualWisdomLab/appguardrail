@@ -56,34 +56,23 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.config import load_config
-from appguardrail_core.findings import (
-    NON_BLOCKING_CONTEXTS,
-    is_deploy_blocking as core_is_deploy_blocking,
-    normalize_findings,
-)
-from appguardrail_core.language import (
-    LANGUAGE_EXTENSIONS,
-    detect_language_axes,
-    detect_stack_profile,
-)
-from appguardrail_core.org_bundle import (
-    OrgBundleError,
-    annotate_missing_pr_repositories,
-    gh_error_message,
-    gh_pr_list,
-    gh_repo_list,
-    load_json as load_org_json,
-    render_org_evidence,
-    write_bundle,
-)
-from appguardrail_core.reports import (
-    REPORT_TYPE_LABELS,
-    ReportContext,
-    render_report,
-    supported_report_types,
-)
+from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import \
+    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import normalize_findings
+from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
+                                        detect_language_axes,
+                                        detect_stack_profile)
+from appguardrail_core.org_bundle import (OrgBundleError,
+                                          annotate_missing_pr_repositories,
+                                          gh_error_message, gh_pr_list,
+                                          gh_repo_list)
+from appguardrail_core.org_bundle import load_json as load_org_json
+from appguardrail_core.org_bundle import render_org_evidence, write_bundle
+from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
+                                       render_report, supported_report_types)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1533,7 +1522,9 @@ def cmd_scan(args):
             notes.append(f"fail_on={config['fail_on']}")
         if config.get("exclude_rules"):
             notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
-        print(f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else ""))
+        print(
+            f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
+        )
 
     blocking = config.get("blocking_severities")
     excluded = config.get("exclude_rules") or set()
@@ -1577,6 +1568,66 @@ def _write_sarif(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
     print(f"🛡️  SARIF written: {output_path}")
+
+
+def cmd_fix(args):
+    """Apply safe, deterministic auto-fixes (dry-run by default)."""
+    import difflib
+
+    from appguardrail_core.autofix import apply_safe_fixes, fixable_extensions
+
+    base = Path(getattr(args, "path", ".") or ".")
+    if not base.exists():
+        print(f"❌ Path not found: {base}", file=sys.stderr)
+        return 1
+
+    apply = getattr(args, "apply", False)
+    exts = fixable_extensions()
+    files = [base] if base.is_file() else _collect_files(base)
+
+    total_fixes = 0
+    changed_files = 0
+    for f in files:
+        if f.suffix.lower() not in exts:
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        new_text, count = apply_safe_fixes(text, f.suffix)
+        if count == 0:
+            continue
+        total_fixes += count
+        changed_files += 1
+        if apply:
+            try:
+                f.write_text(new_text, encoding="utf-8")
+                print(f"✅ Fixed {count} issue(s) in {f}")
+            except OSError as exc:
+                print(f"❌ Could not write {f}: {exc}", file=sys.stderr)
+                return 1
+        else:
+            sys.stdout.writelines(
+                difflib.unified_diff(
+                    text.splitlines(True),
+                    new_text.splitlines(True),
+                    fromfile=str(f),
+                    tofile=f"{f} (fixed)",
+                )
+            )
+
+    if total_fixes == 0:
+        print("✨ No safe auto-fixes to apply.")
+        return 0
+    if apply:
+        print(f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s).")
+    else:
+        print(
+            f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
+            "Re-run with --apply to write them."
+        )
+        print("   Other findings need review — see 'appguardrail report fix-pack'.")
+    return 0
 
 
 def cmd_monitor(args):
@@ -3181,6 +3232,16 @@ def main():
     )
 
     # dashboard
+    fix_parser = subparsers.add_parser(
+        "fix", help="Apply safe, deterministic auto-fixes (dry-run by default)"
+    )
+    fix_parser.add_argument(
+        "path", nargs="?", default=".", help="File or directory to fix"
+    )
+    fix_parser.add_argument(
+        "--apply", action="store_true",
+        help="Write fixes to disk (default: show a dry-run diff)",
+    )
     dashboard_parser = subparsers.add_parser(
         "dashboard", help="Serve the findings dashboard in your browser"
     )
@@ -3215,6 +3276,8 @@ def main():
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
+    elif args.command == "fix":
+        sys.exit(cmd_fix(args))
     elif args.command == "dashboard":
         sys.exit(cmd_dashboard(args))
     else:

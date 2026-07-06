@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### 추가
+- `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
+
+### 추가
 - 프로젝트 설정 파일 `.appguardrail.json`(선택) — deploy 게이트를 CLI 플래그 없이 팀 단위로 조정합니다. 무의존성 유지를 위해 JSON을 사용합니다.
   - `fail_on`: 게이트를 실패시키는 최소 severity(예: `"HIGH"`, `"CRITICAL"`). 기본은 CRITICAL·HIGH.
   - `exclude_rules`: 게이트에서 제외할 rule id 목록(억제). 잘못된 값은 스캔을 조용히 통과시키지 않고 오류로 실패합니다.
@@ -10,6 +13,12 @@
   - `sql-injection-raw-unsafe` — Prisma `$queryRawUnsafe`/`$executeRawUnsafe`(파라미터화 없이 SQL 주입 가능). CRITICAL.
   - `react-dangerously-set-inner-html` — React `dangerouslySetInnerHTML`(사용자 입력 시 XSS). HIGH.
   - `hardcoded-anthropic-api-key` — `sk-ant-…` Claude API 키 하드코딩. CRITICAL.
+- 시크릿·주입 탐지 룰 8종 추가(고정밀, 안전 코드 오탐 0 검증):
+  - `hardcoded-aws-access-key-id`(AKIA/ASIA), `hardcoded-github-token`(ghp_/github_pat_), `hardcoded-google-api-key`(AIza), `hardcoded-private-key-block`(PEM) — 모두 CRITICAL.
+  - `supabase-auth-admin-client-usage`(auth.admin.* 클라이언트 노출), `node-open-redirect-user-input`(req 입력 redirect), `insecure-random-security-token`(토큰에 Math.random) — HIGH.
+  - `wildcard-postmessage-target`(postMessage 대상 '*') — WARNING.
+
+### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.
 - `appguardrail monitor`가 설치하는 워크플로가 이제 SARIF를 생성해 GitHub code scanning에 업로드합니다(`security-events: write`). deploy 게이트는 그대로 유지됩니다.
 - `appguardrail dashboard` 명령을 추가했습니다. `scan --findings-json`이 생성한 `appguardrail.findings.v1` 파일을 로컬 웹 대시보드로 렌더링합니다. severity 요약, deploy-blocking 게이트, 카테고리별 findings, 그리고 finding별 상세(AppGuardrail Fix Format: Problem / Fix Prompt / Verification)를 보여줍니다.
