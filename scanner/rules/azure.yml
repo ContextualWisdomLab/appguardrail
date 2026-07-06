@@ -1,0 +1,73 @@
+rules:
+  - id: azure-storage-blob-public-access
+    patterns:
+      - pattern-regex: '(?i)allow_blob_public_access\s*=\s*true'
+      - pattern-regex: '(?i)allowBlobPublicAccess["'']?\s*[:=]\s*true'
+    message: |
+      Azure Storage account allows public blob access. Anonymous users can read
+      blobs in any container configured for public access, which is a common
+      source of data leaks. Set allow_blob_public_access = false (Terraform) or
+      allowBlobPublicAccess: false (ARM/Bicep) and serve blobs through SAS
+      tokens or authenticated endpoints instead.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-284]
+    owasp: [A01:2021]
+
+  - id: azure-nsg-rule-open-to-internet
+    patterns:
+      - pattern-regex: '(?i)source_address_prefix\s*=\s*"(?:\*|internet|0\.0\.0\.0/0)"'
+      - pattern-regex: '(?i)sourceAddressPrefix["'']?\s*:\s*["''](?:\*|internet|0\.0\.0\.0/0)["'']'
+    message: |
+      Azure Network Security Group rule accepts traffic from any source
+      ("*", "Internet", or 0.0.0.0/0). Combined with an Allow rule this exposes
+      the attached subnet or NIC (e.g. SSH/RDP/database ports) to the whole
+      internet. Restrict source_address_prefix / sourceAddressPrefix to known
+      CIDR ranges, a service tag, or an Application Security Group.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-284]
+    owasp: [A01:2021]
+
+  - id: azure-sql-firewall-open-to-all-ips
+    patterns:
+      - pattern-regex: '(?i)end_ip_address\s*=\s*"255\.255\.255\.255"'
+      - pattern-regex: '(?i)endIpAddress["'']?\s*:\s*["'']255\.255\.255\.255["'']'
+    message: |
+      Azure SQL firewall rule ends at 255.255.255.255, which (with a 0.0.0.0
+      start) allows connections from every IPv4 address on the internet.
+      Restrict the firewall rule to trusted IP ranges, or use Private Endpoints
+      / VNet service endpoints instead of public network access.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-284]
+    owasp: [A01:2021]
+
+  - id: azure-storage-https-only-disabled
+    patterns:
+      - pattern-regex: '(?i)(?:enable_https_traffic_only|https_traffic_only_enabled)\s*=\s*false'
+      - pattern-regex: '(?i)supportsHttpsTrafficOnly["'']?\s*:\s*false'
+    message: |
+      Azure Storage account allows plain-HTTP traffic. Data in transit
+      (including SAS tokens and account keys in request signatures) can be
+      intercepted. Set https_traffic_only_enabled = true (Terraform) or
+      supportsHttpsTrafficOnly: true (ARM/Bicep).
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-319]
+    owasp: [A02:2021]
+
+  - id: azure-key-vault-purge-protection-disabled
+    patterns:
+      - pattern-regex: '(?i)purge_protection_enabled\s*=\s*false'
+      - pattern-regex: '(?i)enablePurgeProtection["'']?\s*:\s*false'
+    message: |
+      Azure Key Vault purge protection is disabled. An attacker (or accidental
+      script) with delete permissions can permanently purge secrets, keys, and
+      certificates before the soft-delete retention window expires, making
+      recovery impossible. Set purge_protection_enabled = true (Terraform) or
+      enablePurgeProtection: true (ARM/Bicep) for production vaults.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-693]
+    owasp: [A05:2021]

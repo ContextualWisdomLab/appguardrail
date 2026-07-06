@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### 추가
+- Azure IaC(ARM/Bicep/Terraform-azurerm) 설정 오류 탐지 룰 팩 `scanner/rules/azure.yml` 추가(고정밀 5종, Terraform HCL·ARM JSON·Bicep 표기 모두 인식):
+  - `azure-nsg-rule-open-to-internet` — NSG 규칙의 source가 `*`/`Internet`/`0.0.0.0/0`(인터넷 전체 개방). CRITICAL.
+  - `azure-sql-firewall-open-to-all-ips` — SQL 방화벽 규칙의 end IP가 `255.255.255.255`(전체 IPv4 허용). Azure 서비스 전용 `0.0.0.0`–`0.0.0.0` 규칙은 오탐 방지를 위해 제외. CRITICAL.
+  - `azure-storage-blob-public-access` — Storage 계정의 익명 blob 공개 접근 허용. HIGH.
+  - `azure-storage-https-only-disabled` — Storage 계정의 HTTPS 전용 전송 비활성화(평문 HTTP 허용). HIGH.
+  - `azure-key-vault-purge-protection-disabled` — Key Vault purge protection 비활성화(soft-delete 복구 무력화). HIGH.
+
+### 검증
+- `tests/test_azure_rules.py`: 룰별 양성(Terraform·ARM·Bicep 표기)·음성(안전 설정) 매칭과 severity를 검증합니다. 임시 `.tf`/`.bicep`/`.json` 파일 대상 end-to-end 스캔으로 5종 룰 발화 및 안전 설정 무발화를 확인했습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
