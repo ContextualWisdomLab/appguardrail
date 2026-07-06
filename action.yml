@@ -17,6 +17,10 @@ inputs:
     description: "Upload SARIF to GitHub code scanning (needs security-events: write)."
     required: false
     default: "true"
+  pr-comment:
+    description: "Post a sticky findings comment on the PR (needs pull-requests: write + GITHUB_TOKEN env)."
+    required: false
+    default: "true"
   fail-on-blocking:
     description: "Fail the job when deploy-blocking (CRITICAL/HIGH) findings are present."
     required: false
@@ -53,10 +57,17 @@ runs:
       # PR annotations and a job summary — no extra flags needed.
       run: |
         set +e
-        appguardrail scan --sarif "${{ inputs.sarif }}" "${{ inputs.path }}"
+        appguardrail scan --sarif "${{ inputs.sarif }}" --findings-json appguardrail-findings.json "${{ inputs.path }}"
         code=$?
         echo "exit=$code" >> "$GITHUB_OUTPUT"
         exit 0
+
+    - name: Post PR comment
+      if: ${{ inputs.pr-comment == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: python -m appguardrail_core.github_comment appguardrail-findings.json || true
 
     - name: Upload results to GitHub code scanning
       if: ${{ always() && inputs.upload-sarif == 'true' }}
