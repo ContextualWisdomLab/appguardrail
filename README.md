@@ -112,6 +112,33 @@ annotations, ranked by `security-severity`. `appguardrail monitor` installs a
 workflow that emits and uploads SARIF automatically while preserving the deploy
 gate.
 
+### GitHub Actions
+
+Add the scanner to any workflow with one step — it's a composite action:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write   # for SARIF upload
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ContextualWisdomLab/appguardrail@v1
+        # inputs (all optional): path, sarif, upload-sarif, fail-on-blocking, version
+```
+
+Inside Actions the scanner **auto-detects the environment** (`GITHUB_ACTIONS=true`)
+and, with no extra flags, emits:
+
+- **Inline PR annotations** — each finding as a `::error` (deploy-blocking) or
+  `::warning` on the exact file/line, so reviewers see them on the diff.
+- **A job summary** — a severity breakdown and top findings written to the run's
+  summary page (`$GITHUB_STEP_SUMMARY`).
+
+Force the same output locally with `appguardrail scan --github .`.
+
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
