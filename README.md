@@ -123,6 +123,10 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- C#/.NET risks — SQL built by string concatenation/interpolation,
+  `BinaryFormatter`-family deserialization, string-built `Process.Start`
+  commands, `ValidateRequest="false"`, insecure cookie flags, and literal
+  connection-string passwords in `appsettings*.json`/`web.config`
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain

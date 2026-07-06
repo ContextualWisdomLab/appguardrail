@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### 추가
+- C#/ASP.NET 탐지 룰 팩 `scanner/rules/dotnet.yml` 추가 — 기존 룰이 다루지 않던 `.cs`/`.cshtml`/`appsettings*.json`/`web.config` 사각지대를 커버합니다(고정밀, 안전 코드 오탐 0 검증).
+  - `dotnet-sql-injection-concat` — `SqlCommand`/`ExecuteSqlRaw`/`FromSqlRaw`에 문자열 연결·보간으로 SQL을 조립. CRITICAL(CWE-89).
+  - `dotnet-binaryformatter-deserialize` — `BinaryFormatter` 계열(SoapFormatter, NetDataContractSerializer, LosFormatter, ObjectStateFormatter) 사용. 신뢰할 수 없는 데이터 역직렬화 시 RCE. CRITICAL(CWE-502).
+  - `dotnet-process-start-user-input` — `Process.Start`/`ProcessStartInfo`/`Arguments`에 연결·보간으로 명령줄 조립. CRITICAL(CWE-78).
+  - `aspnet-request-validation-disabled` — `ValidateRequest="false"` 또는 `[ValidateInput(false)]`로 요청 검증 비활성화. HIGH(CWE-79).
+  - `dotnet-cookie-secure-false` — `CookieSecurePolicy.None`, `Secure = false`, `requireSSL="false"` 등 Secure 플래그 없는 쿠키. HIGH(CWE-614).
+  - `appsettings-connectionstring-password` — `appsettings*.json`/`web.config` 연결 문자열의 리터럴 `Password=`(플레이스홀더 `${…}`/`{0}`/`%…%`는 제외). HIGH(CWE-798). 스니펫은 자동 마스킹됩니다.
+
+### 검증
+- `tests/test_dotnet_rules.py`: 룰별 양성·음성 케이스, severity, 경로 스코핑(`**/*.cs` 등), `_scan_file` end-to-end 탐지, 시크릿 스니펫 마스킹 테스트를 추가했습니다. 시크릿 형태 픽스처는 런타임에 조립해 리터럴로 커밋하지 않습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
