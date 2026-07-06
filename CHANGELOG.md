@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### 추가
+- Vue/Svelte/Nuxt 프런트엔드 룰 팩 `scanner/rules/vue-svelte.yml` 6종 추가(고정밀, 경로 스코프 적용). React(`dangerouslySetInnerHTML`)만 다루던 프런트엔드 XSS·시크릿 노출 탐지를 Vue·Svelte 생태계로 확장합니다.
+  - `vue-v-html-usage` — `.vue` 템플릿의 `v-html` 디렉티브(raw HTML 렌더링, XSS 싱크). HIGH.
+  - `svelte-html-tag-usage` — `.svelte` 템플릿의 raw HTML 태그(이스케이프 없이 마크업 주입). HIGH.
+  - `nuxt-public-env-secret` — 시크릿 성격 이름의 환경 변수에 NUXT_PUBLIC_ 접두사 사용(클라이언트 번들에 노출). CRITICAL.
+  - `vite-env-secret-exposed` — `.env*` 파일에서 시크릿 성격 이름의 변수에 VITE_ 접두사 사용(Vite가 클라이언트 번들에 인라인). CRITICAL.
+  - `sveltekit-private-env-in-client` — `.svelte` 컴포넌트에서 SvelteKit private env(`$env/*/private`) import. HIGH.
+  - `sveltekit-csrf-origin-check-disabled` — svelte.config에서 CSRF origin 검사 비활성화. HIGH.
+  - `tests/test_vue_svelte_rules.py`: 룰별 양성·음성 정밀도, severity, 경로 스코프, e2e 스캔(취약/안전 프로젝트) 검증.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가
