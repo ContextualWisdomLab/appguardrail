@@ -119,6 +119,9 @@ Detects:
 - Dangerous Supabase/Firebase usage patterns
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
+- Google Cloud IaC misconfigurations (Terraform `google_*` / gcloud): public IAM
+  bindings (`allUsers`), firewalls and Cloud SQL open to `0.0.0.0/0`, GKE
+  legacy ABAC, service account keys in Terraform state
 - Dangerous CORS settings (`origin: "*"`)
 - Missing Stripe webhook signature verification
 - Unprotected admin routes

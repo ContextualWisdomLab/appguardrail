@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### 추가
+- Google Cloud(Terraform `google_*` 리소스·gcloud CLI) 설정 오류 탐지 룰 팩 `scanner/rules/gcp.yml`을 추가했습니다(고정밀, 안전 설정 오탐 0 검증):
+  - `gcp-iam-public-member` — IAM 바인딩의 `allUsers`/`allAuthenticatedUsers` 부여(Terraform `member`/`members` 목록, `gcloud … --member` 모두 탐지). 리소스가 인터넷 전체 또는 모든 Google 계정에 공개됩니다. CRITICAL.
+  - `gcp-sql-public-authorized-network` — Cloud SQL `authorized_networks`에 `0.0.0.0/0` 허용(DB가 인터넷 전체에 노출). CRITICAL.
+  - `gcp-firewall-open-to-world` — 방화벽 `source_ranges`(또는 `gcloud … --source-ranges`)의 `0.0.0.0/0` 허용. HIGH.
+  - `gcp-gke-legacy-abac-enabled` — GKE `enable_legacy_abac = true`(RBAC 우회, 광범위한 권한 상승 경로). HIGH.
+  - `gcp-service-account-key-resource` — Terraform의 `google_service_account_key` 생성(키가 state에 평문 저장되고 무기한 유효). Workload Identity 등 keyless 방식을 권고합니다. WARNING.
+
+### 검증
+- `tests/test_gcp_rules.py`: 룰별 양성·음성 패턴 매칭과 severity, 그리고 임시 `.tf` 파일에 대한 end-to-end 스캔(취약 설정 5종 전부 탐지, 안전한 설정에서 GCP 룰 오탐 0)을 검증합니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

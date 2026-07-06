@@ -1,0 +1,69 @@
+rules:
+  - id: gcp-iam-public-member
+    patterns:
+      - pattern-regex: '(?:\bmember\s*=\s*|\bmembers\s*=\s*\[[^\]]*)"(?:allUsers|allAuthenticatedUsers)"'
+      - pattern-regex: '--member[=\s]+["'']?(?:allUsers|allAuthenticatedUsers)\b'
+    message: |
+      A Google Cloud IAM binding grants a role to allUsers or
+      allAuthenticatedUsers, making the resource (bucket, Cloud Run service,
+      Pub/Sub topic, project, ...) accessible to anyone on the internet or to
+      any Google account. Grant roles to specific members instead, e.g.
+      member = "serviceAccount:app@project.iam.gserviceaccount.com". If the
+      resource must be public (static website assets), isolate it in a
+      dedicated bucket with no sensitive data.
+      [CWE-284 Improper Access Control; OWASP A01:2021 - Broken Access Control]
+    severity: CRITICAL
+    languages: [generic]
+
+  - id: gcp-firewall-open-to-world
+    patterns:
+      - pattern-regex: 'source_ranges\s*=\s*\[[^\]]*"0\.0\.0\.0/0"'
+      - pattern-regex: '--source-ranges[=\s]+["'']?0\.0\.0\.0/0\b'
+    message: |
+      A GCP firewall rule accepts traffic from 0.0.0.0/0 (the entire
+      internet). This exposes matched ports — often SSH/RDP or databases — to
+      global scanning and brute force. Restrict source_ranges to trusted
+      CIDRs, or use Identity-Aware Proxy (IAP) TCP forwarding
+      (source range 35.235.240.0/20) instead of opening SSH to the world.
+      [CWE-284 Improper Access Control; OWASP A05:2021 - Security Misconfiguration]
+    severity: HIGH
+    languages: [generic]
+
+  - id: gcp-sql-public-authorized-network
+    patterns:
+      - pattern-regex: 'authorized_networks\s*\{[^}]*value\s*=\s*"0\.0\.0\.0/0"'
+    message: |
+      A Cloud SQL instance authorizes connections from 0.0.0.0/0, exposing
+      the database to the entire internet. Remove the open authorized network
+      and connect through private IP (private_network) or the Cloud SQL Auth
+      Proxy, which authenticates with IAM and encrypts traffic.
+      [CWE-284 Improper Access Control; OWASP A05:2021 - Security Misconfiguration]
+    severity: CRITICAL
+    languages: [generic]
+
+  - id: gcp-gke-legacy-abac-enabled
+    patterns:
+      - pattern-regex: '\benable_legacy_abac\s*=\s*true\b'
+    message: |
+      Legacy ABAC is enabled on a GKE cluster. ABAC grants coarse,
+      cluster-wide permissions and bypasses Kubernetes RBAC, so any
+      compromised pod credential can escalate broadly. Remove
+      enable_legacy_abac (or set it to false) and rely on RBAC roles and
+      Workload Identity for authorization.
+      [CWE-269 Improper Privilege Management; OWASP A01:2021 - Broken Access Control]
+    severity: HIGH
+    languages: [generic]
+
+  - id: gcp-service-account-key-resource
+    patterns:
+      - pattern-regex: 'resource\s+"google_service_account_key"'
+    message: |
+      Terraform creates a google_service_account_key. The private key
+      material is stored unencrypted in the Terraform state, and user-managed
+      keys never expire or rotate on their own. Prefer keyless options:
+      Workload Identity (GKE), attached service accounts (GCE/Cloud Run), or
+      Workload Identity Federation for external CI. If a key is unavoidable,
+      create it outside Terraform and store it in a secrets manager.
+      [CWE-522 Insufficiently Protected Credentials; OWASP A02:2021 - Cryptographic Failures]
+    severity: WARNING
+    languages: [generic]
