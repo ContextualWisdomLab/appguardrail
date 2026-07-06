@@ -2625,9 +2625,13 @@ def _scan_file(file_path: Path, base_path: Path):
     # ⚡ Bolt: Defer expensive Pathlib operations (like relative_to) and string
     # sanitization until a match is actually found. This avoids significant overhead
     # for the vast majority of files that have no vulnerabilities.
+    # ⚡ Bolt: Replaced Path.relative_to() with string prefix checking for performance.
     rel_path_str = None
     rel_path_for_filters = None
     build_finding = _build_finding
+
+    file_str = None
+    base_str = None
 
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -2648,13 +2652,19 @@ def _scan_file(file_path: Path, base_path: Path):
             ) in applicable_rules:
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
-                            )
-                        rel_path_for_filters = str(rel_path)
+                        if file_str is None:
+                            file_str = str(file_path)
+                            base_str = str(resolved_base_path)
+                            if not base_str.endswith(os.sep):
+                                base_str += os.sep
+
+                        if file_str.startswith(base_str):
+                            rel_path_for_filters = file_str[len(base_str):]
+                        elif file_str == str(resolved_base_path):
+                            rel_path_for_filters = "."
+                        else:
+                            rel_path_for_filters = file_path.name if base_path.is_file() else file_str
+
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2667,13 +2677,19 @@ def _scan_file(file_path: Path, base_path: Path):
 
                 for match in finditer(content):
                     if rel_path_str is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
-                            )
-                        rel_path_str = _sanitize_terminal_output(str(rel_path))
+                        if file_str is None:
+                            file_str = str(file_path)
+                            base_str = str(resolved_base_path)
+                            if not base_str.endswith(os.sep):
+                                base_str += os.sep
+
+                        if file_str.startswith(base_str):
+                            raw_rel_path = file_str[len(base_str):]
+                        elif file_str == str(resolved_base_path):
+                            raw_rel_path = "."
+                        else:
+                            raw_rel_path = file_path.name if base_path.is_file() else file_str
+                        rel_path_str = _sanitize_terminal_output(raw_rel_path)
 
                     start_idx = match.start()
 
