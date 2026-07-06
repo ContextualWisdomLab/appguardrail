@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### 추가
+- Electron 데스크톱 앱 보안 룰 팩 `scanner/rules/electron.yml` 추가(6종, 고정밀 — Electron 전용 식별자에 앵커링해 일반 웹 코드 오탐 0 검증):
+  - `electron-node-integration-enabled` — renderer에서 nodeIntegration 활성화(XSS가 곧 RCE로 확대). CRITICAL.
+  - `electron-context-isolation-disabled` — contextIsolation 비활성화(preload·특권 API 오염 가능). CRITICAL.
+  - `electron-web-security-disabled` — webSecurity 비활성화(same-origin policy 해제, file:// 읽기 가능). HIGH.
+  - `electron-allow-running-insecure-content` — HTTPS 페이지에서 HTTP 스크립트 실행 허용(mixed content 주입). HIGH.
+  - `electron-shell-openexternal-user-input` — `shell.openExternal`에 비리터럴(동적) 인자 전달(임의 프로토콜·실행 파일 구동 위험). HIGH.
+  - `electron-remote-module-enabled` — deprecated remote 모듈 활성화(renderer 침해 영향 확대). WARNING.
+- `tests/test_electron_rules.py` — 룰별 양성/음성 정밀도, severity, 확장자 비제한(generic) 검증과 취약/하드닝된 Electron main 프로세스·비-Electron 코드 e2e 스캔 테스트를 추가했습니다.
+
+### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

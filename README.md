@@ -123,6 +123,8 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
+  `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
