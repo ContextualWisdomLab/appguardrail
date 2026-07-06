@@ -123,6 +123,7 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
