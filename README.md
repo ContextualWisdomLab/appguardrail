@@ -203,7 +203,11 @@ owner.
 
 Set a drift-alert webhook (`POST /api/v1/webhook` with `{"url":"…"}`) and the
 control plane notifies it whenever a scan introduces new deploy-blocking
-findings.
+findings. If the URL is a Slack Incoming Webhook (`hooks.slack.com`), the alert
+is automatically formatted as a Slack Block Kit message — a header with the new
+blocker count plus the org, repo, scan id, and the top offending rule ids and
+files — so Slack renders a readable card. Any other URL receives the generic
+JSON payload unchanged.
 
 Endpoints: `POST /api/v1/scans`, `GET /api/v1/scans`, `GET /api/v1/scans/{id}`,
 `POST /api/v1/webhook`, `GET /api/v1/health`. Tenant-isolated by API key. Stdlib + SQLite (swap for a

@@ -112,15 +112,100 @@ def set_webhook(conn: sqlite3.Connection, org_id: int, url: "str | None") -> Non
     conn.commit()
 
 
-def _send_alert(url: str, payload: dict[str, Any]) -> bool:
-    """Best-effort POST of a drift alert. Never raises; returns delivery success."""
+def _is_slack_webhook(url: str) -> bool:
+    """True if ``url`` is a Slack Incoming Webhook (host under hooks.slack.com)."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    return host == "hooks.slack.com" or host.endswith(".hooks.slack.com")
+
+
+def _slack_escape(text: str) -> str:
+    """Escape the three characters Slack treats specially in message text."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _trim(text: str, limit: int) -> str:
+    """Trim ``text`` to ``limit`` chars (Slack block text has hard caps)."""
+    return text if len(text) <= limit else text[: max(0, limit - 1)] + "…"
+
+
+def _slack_blocks(
+    org_name: "str | None",
+    payload: dict[str, Any],
+    new_findings: "list[dict[str, Any]]",
+    top: int = 5,
+) -> dict[str, Any]:
+    """Render a drift alert as a Slack Block Kit message (header + summary).
+
+    Lists the org, the count of newly-introduced deploy blockers, and up to
+    ``top`` offending ``rule_id`` / ``file`` pairs with a ``+N more`` overflow
+    line. Returns the dict POSTed to a Slack Incoming Webhook.
+    """
+    org = org_name or f"org {payload.get('org_id')}"
+    n = payload.get("new_blocking", 0)
+    repo = payload.get("repo") or "—"
+    scan_id = payload.get("scan_id")
+
+    shown = new_findings[:top]
+    lines = [
+        "• `{rule}` — {file}".format(
+            rule=_slack_escape(str(f.get("rule_id") or "?")),
+            file=_slack_escape(str(f.get("file") or "?")),
+        )
+        for f in shown
+    ]
+    remaining = len(new_findings) - len(shown)
+    if remaining > 0:
+        lines.append(f"• +{remaining} more")
+    detail = "\n".join(lines) if lines else "_no finding details available_"
+
+    header = f"{n} new deploy-blocking finding{'s' if n != 1 else ''}"
+    blocks: list[dict[str, Any]] = [
+        {"type": "header", "text": {"type": "plain_text", "text": _trim(header, 150)}},
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": _trim(f"*Org:*\n{_slack_escape(org)}", 2000)},
+                {"type": "mrkdwn", "text": f"*New blockers:*\n{n}"},
+                {"type": "mrkdwn", "text": _trim(f"*Repo:*\n{_slack_escape(str(repo))}", 2000)},
+                {"type": "mrkdwn", "text": f"*Scan:*\n#{scan_id}"},
+            ],
+        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": _trim(detail, 3000)}},
+    ]
+    return {
+        "text": _trim(f"{header} in {_slack_escape(org)}", 3000),
+        "blocks": blocks,
+    }
+
+
+def _send_alert(
+    url: str,
+    payload: dict[str, Any],
+    *,
+    org_name: "str | None" = None,
+    new_findings: "list[dict[str, Any]] | None" = None,
+) -> bool:
+    """Best-effort POST of a drift alert. Never raises; returns delivery success.
+
+    For Slack Incoming Webhook URLs (host ``hooks.slack.com``) the alert is
+    rendered as a Block Kit message so Slack shows a readable card; every other
+    URL receives the generic JSON ``payload`` unchanged (backward compatible).
+    """
     import urllib.error
     import urllib.request
+
+    if _is_slack_webhook(url):
+        body = _slack_blocks(org_name, payload, new_findings or [])
+    else:
+        body = payload
 
     try:
         req = urllib.request.Request(
             url,
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(body).encode("utf-8"),
             method="POST",
             headers={"Content-Type": "application/json"},
         )
@@ -193,7 +278,8 @@ def add_scan(
         prev_fps = {
             _drift_fp(f) for f in json.loads(prev["findings"]) if is_deploy_blocking(f)
         }
-    new_blocking = sum(1 for f in blocking_findings if _drift_fp(f) not in prev_fps)
+    new_findings = [f for f in blocking_findings if _drift_fp(f) not in prev_fps]
+    new_blocking = len(new_findings)
 
     created_at = _now()
     cur = conn.execute(
@@ -217,20 +303,25 @@ def add_scan(
     # Drift alert: notify the org's webhook when new blockers were introduced.
     if new_blocking > 0:
         row = conn.execute(
-            "SELECT webhook_url FROM orgs WHERE id = ?", (org_id,)
+            "SELECT name, webhook_url FROM orgs WHERE id = ?", (org_id,)
         ).fetchone()
         hook = row["webhook_url"] if row else None
         if hook:
-            _send_alert(hook, {
-                "event": "drift.new_blocking",
-                "org_id": org_id,
-                "scan_id": cur.lastrowid,
-                "repo": repo,
-                "commit": commit_sha,
-                "new_blocking": new_blocking,
-                "deploy_blocking": blocking,
-                "created_at": created_at,
-            })
+            _send_alert(
+                hook,
+                {
+                    "event": "drift.new_blocking",
+                    "org_id": org_id,
+                    "scan_id": cur.lastrowid,
+                    "repo": repo,
+                    "commit": commit_sha,
+                    "new_blocking": new_blocking,
+                    "deploy_blocking": blocking,
+                    "created_at": created_at,
+                },
+                org_name=row["name"] if row else None,
+                new_findings=new_findings,
+            )
 
     return {
         "id": cur.lastrowid,
