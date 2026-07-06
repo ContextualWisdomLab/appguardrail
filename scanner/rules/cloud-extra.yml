@@ -1,0 +1,68 @@
+# Additional-cloud IaC misconfiguration rules for Terraform.
+# Covers DigitalOcean, Oracle Cloud Infrastructure (OCI) and Alibaba Cloud.
+# Every pattern is anchored on a provider-specific resource or attribute name
+# so it never fires on generic files or on AWS/Azure/GCP Terraform.
+rules:
+  - id: digitalocean-firewall-sensitive-port-world-open
+    patterns:
+      - pattern-regex: 'port_range\s*=\s*"(?:22|3389|3306|5432|6379|27017|1433|9200|5601)"[\s\S]{0,160}?source_addresses\s*=\s*\[[^\]]*"0\.0\.0\.0/0"'
+    message: |
+      DigitalOcean firewall exposes a sensitive management/database port
+      (SSH, RDP, MySQL, PostgreSQL, Redis, MongoDB, MSSQL, Elasticsearch, Kibana)
+      to the entire internet via source_addresses = ["0.0.0.0/0"].
+      Restrict source_addresses to a bastion host, VPN, or known office CIDRs.
+    severity: HIGH
+    languages: [generic]
+
+  - id: digitalocean-spaces-bucket-public-acl
+    patterns:
+      - pattern-regex: 'digitalocean_spaces_bucket[\s\S]{0,240}?acl\s*=\s*"public-read(?:-write)?"'
+    message: |
+      DigitalOcean Spaces bucket is created with a public ACL
+      (acl = "public-read" or "public-read-write"), exposing every object to
+      anonymous readers on the internet. Use acl = "private" and grant access
+      through signed URLs or an explicit bucket policy.
+    severity: HIGH
+    languages: [generic]
+
+  - id: oracle-security-list-ingress-world-open
+    patterns:
+      - pattern-regex: 'ingress_security_rules\s*\{[\s\S]{0,240}?source\s*=\s*"0\.0\.0\.0/0"'
+    message: |
+      Oracle Cloud (OCI) security list ingress rule allows traffic from
+      source = "0.0.0.0/0" (the entire internet). Scope the source to trusted
+      CIDRs and only open the specific ports the workload requires.
+    severity: HIGH
+    languages: [generic]
+
+  - id: oracle-object-storage-bucket-public
+    patterns:
+      - pattern-regex: 'oci_objectstorage_bucket[\s\S]{0,300}?access_type\s*=\s*"ObjectRead(?:WithoutList)?"'
+    message: |
+      Oracle Cloud (OCI) Object Storage bucket sets a public access_type
+      ("ObjectRead" or "ObjectReadWithoutList"), letting anonymous users read
+      objects. Use access_type = "NoPublicAccess" and grant access with
+      pre-authenticated requests or IAM policies instead.
+    severity: HIGH
+    languages: [generic]
+
+  - id: alibaba-security-group-rule-world-open
+    patterns:
+      - pattern-regex: 'alicloud_security_group_rule[\s\S]{0,400}?cidr_ip\s*=\s*"0\.0\.0\.0/0"'
+    message: |
+      Alibaba Cloud security group rule allows traffic from
+      cidr_ip = "0.0.0.0/0" (the entire internet). Restrict cidr_ip to trusted
+      networks and avoid exposing management or database ports publicly.
+    severity: HIGH
+    languages: [generic]
+
+  - id: alibaba-oss-bucket-public-write
+    patterns:
+      - pattern-regex: 'alicloud_oss_bucket[\s\S]{0,300}?acl\s*=\s*"public-read-write"'
+    message: |
+      Alibaba Cloud OSS bucket is created with acl = "public-read-write",
+      allowing anonymous users to both read AND overwrite or delete objects.
+      This is a critical exposure. Use acl = "private" and grant access through
+      RAM policies or signed URLs.
+    severity: CRITICAL
+    languages: [generic]

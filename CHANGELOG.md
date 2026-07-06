@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### 추가
+- 추가 클라우드 IaC 오탐지 룰 팩(`scanner/rules/cloud-extra.yml`) — Terraform 기반 DigitalOcean·Oracle Cloud(OCI)·Alibaba Cloud 미스컨피그를 탐지합니다. 모든 패턴을 프로바이더 전용 리소스/속성 이름에 앵커링해 일반 파일이나 AWS·Azure·GCP Terraform에서는 발화하지 않도록 고정밀로 설계했습니다.
+  - `digitalocean-firewall-sensitive-port-world-open` — DigitalOcean 방화벽이 SSH/RDP/DB 등 민감 포트를 `source_addresses = ["0.0.0.0/0"]`로 전체 인터넷에 개방. HIGH.
+  - `digitalocean-spaces-bucket-public-acl` — Spaces 버킷 `acl = "public-read"`/`"public-read-write"`(익명 읽기 노출). HIGH.
+  - `oracle-security-list-ingress-world-open` — OCI 보안 목록 ingress가 `source = "0.0.0.0/0"`로 전체 개방. HIGH.
+  - `oracle-object-storage-bucket-public` — OCI Object Storage 버킷 `access_type = "ObjectRead"`/`"ObjectReadWithoutList"`(공개). HIGH.
+  - `alibaba-security-group-rule-world-open` — Alibaba 보안 그룹 규칙 `cidr_ip = "0.0.0.0/0"`(전체 개방). HIGH.
+  - `alibaba-oss-bucket-public-write` — Alibaba OSS 버킷 `acl = "public-read-write"`(익명 읽기·쓰기 노출). CRITICAL.
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 
 ### 추가

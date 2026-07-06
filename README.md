@@ -121,6 +121,7 @@ Detects:
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
 - Missing Stripe webhook signature verification
+- Additional-cloud Terraform misconfigurations for DigitalOcean, Oracle Cloud (OCI), and Alibaba Cloud (world-open firewalls/security groups, public Spaces/OSS/Object Storage buckets)
 - Unprotected admin routes
 - Risky file upload handlers
 
@@ -312,7 +313,8 @@ appguardrail/
 │   │   ├── supabase.yml
 │   │   ├── firebase.yml
 │   │   ├── nextjs.yml
-│   │   └── stripe.yml
+│   │   ├── stripe.yml
+│   │   └── cloud-extra.yml
 │   └── cli/
 │       └── appguardrail.py
 ├── reports/                      # Report templates
