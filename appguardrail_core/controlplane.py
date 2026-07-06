@@ -436,11 +436,14 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             path = parsed.path
             qs = parse_qs(parsed.query)
 
-            def _qint(name, default):
+            def _qint(name, default, lo, hi):
+                # Clamp: sqlite treats LIMIT -1 as "no limit", so never pass
+                # negatives through; hi keeps a single request bounded.
                 try:
-                    return int(qs.get(name, [default])[0])
+                    value = int(qs.get(name, [default])[0])
                 except (ValueError, TypeError):
                     return default
+                return max(lo, min(hi, value))
 
             if path in ("/", "/console", "/index.html"):
                 self.send_response(200)
@@ -456,18 +459,26 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return self._json(401, {"error": "invalid or missing API key"})
             org, _role = auth
             if path == "/api/v1/scans":
-                return self._json(200, {"scans": list_scans(conn, org, _qint("limit", 100), _qint("offset", 0))})
+                return self._json(200, {"scans": list_scans(conn, org, _qint("limit", 100, 1, 1000), _qint("offset", 0, 0, 10**9))})
             if path == "/api/v1/scans/trend":
-                return self._json(200, {"trend": scan_trend(conn, org, _qint("limit", 30))})
+                return self._json(200, {"trend": scan_trend(conn, org, _qint("limit", 30, 1, 365))})
             m = re.match(r"^/api/v1/scans/(\d+)$", path)
             if m:
                 scan = get_scan(conn, org, int(m.group(1)))
                 return self._json(200, scan) if scan else self._json(404, {"error": "not found"})
             self._json(404, {"error": "not found"})
 
+        _MAX_BODY = 10 * 1024 * 1024  # 10 MiB — plenty for findings, blocks OOM posts
+
         def _body(self):
             try:
                 length = int(self.headers.get("Content-Length", 0))
+            except (ValueError, TypeError):
+                return None
+            if length < 0 or length > self._MAX_BODY:
+                # Negative reads until EOF; oversized bodies exhaust memory.
+                return None
+            try:
                 return json.loads(self.rfile.read(length) or b"{}")
             except (ValueError, TypeError):
                 return None

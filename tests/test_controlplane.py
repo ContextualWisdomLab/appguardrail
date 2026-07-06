@@ -318,3 +318,49 @@ def test_send_alert_slack_vs_generic(monkeypatch):
                           org_name="Acme", new_findings=findings) is True
     assert posted["body"] == generic
     assert "blocks" not in posted["body"]
+
+
+# ---- API hardening: body cap + query clamps ----
+
+def test_negative_and_huge_limit_clamped(server):
+    base, key = server
+    for _ in range(3):
+        _req("POST", f"{base}/api/v1/scans", key, {"repo": "r", "findings": []})
+    # limit=-1 means UNBOUNDED in sqlite — must be clamped, not passed through
+    _, page = _req("GET", f"{base}/api/v1/scans?limit=-1", key)
+    assert 1 <= len(page["scans"]) <= 1000
+    _, page2 = _req("GET", f"{base}/api/v1/scans?limit=999999&offset=-5", key)
+    assert len(page2["scans"]) <= 1000  # hi clamp; negative offset -> 0
+
+
+def test_oversized_body_rejected(server):
+    import http.client
+    from urllib.parse import urlparse as _u
+    base, key = server
+    u = _u(base)
+    conn = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+    # Claim an over-cap body; server must 400 without reading it all.
+    conn.putrequest("POST", "/api/v1/scans")
+    conn.putheader("Authorization", f"Bearer {key}")
+    conn.putheader("Content-Type", "application/json")
+    conn.putheader("Content-Length", str(50 * 1024 * 1024))
+    conn.endheaders()
+    conn.send(b"{")  # send a byte so the server can respond
+    resp = conn.getresponse()
+    assert resp.status == 400
+    conn.close()
+
+
+def test_negative_content_length_rejected(server):
+    import http.client
+    from urllib.parse import urlparse as _u
+    base, key = server
+    u = _u(base)
+    conn = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+    conn.putrequest("POST", "/api/v1/scans")
+    conn.putheader("Authorization", f"Bearer {key}")
+    conn.putheader("Content-Length", "-1")
+    conn.endheaders()
+    resp = conn.getresponse()
+    assert resp.status == 400
+    conn.close()
