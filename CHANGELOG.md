@@ -17,6 +17,13 @@
   - `hardcoded-aws-access-key-id`(AKIA/ASIA), `hardcoded-github-token`(ghp_/github_pat_), `hardcoded-google-api-key`(AIza), `hardcoded-private-key-block`(PEM) — 모두 CRITICAL.
   - `supabase-auth-admin-client-usage`(auth.admin.* 클라이언트 노출), `node-open-redirect-user-input`(req 입력 redirect), `insecure-random-security-token`(토큰에 Math.random) — HIGH.
   - `wildcard-postmessage-target`(postMessage 대상 '*') — WARNING.
+- Ansible 플레이북 룰 팩 6종 추가(`scanner/rules/ansible.yml`, 고정밀 — Kubernetes/Helm/docker-compose/GitHub Actions 등 유사 YAML에는 반응하지 않도록 Ansible 전용 모듈·키에 앵커링, look-alike 음성 케이스 e2e 검증):
+  - `ansible-become-password-literal` — `ansible_become_pass`를 Vault 없이 평문 리터럴로 저장(관리 대상 전 호스트 root 노출). CRITICAL.
+  - `ansible-ssh-password-literal` — `ansible_ssh_pass`/`ansible_password` 평문 리터럴(SSH 접속 자격 증명 노출). CRITICAL.
+  - `ansible-shell-command-injection` — `shell:`/`command:` 태스크에 Jinja2 변수 직접 보간(명령 주입, `| quote` 필터 부재). HIGH.
+  - `ansible-validate-certs-false` — `validate_certs: false`로 TLS 검증 비활성화(중간자 변조 허용). HIGH.
+  - `ansible-file-mode-world-writable` — 파일 배포 권한 0777/0666(로컬 권한 상승 표적). HIGH.
+  - `ansible-host-key-checking-disabled` — SSH host key 검증 비활성화(YAML 변수 및 `ansible.cfg` 모두 탐지). HIGH.
 
 ### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.

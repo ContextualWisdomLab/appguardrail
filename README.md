@@ -123,6 +123,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Ansible playbook risks (plaintext `ansible_become_pass`/`ansible_ssh_pass`,
+  shell/command Jinja2 injection, `validate_certs: false`, world-writable file
+  modes, disabled host key checking)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain

@@ -1,0 +1,104 @@
+rules:
+  - id: ansible-shell-command-injection
+    patterns:
+      - pattern-regex: '(?im)^\s*(?:-\s+)?(?:ansible\.builtin\.|ansible\.legacy\.)?(?:shell|command)\s*:\s*(?!\[)[^\n]*?(?<!\$)\{\{\s*(?!include\b|tpl\b|printf\b|toYaml\b|required\b|quote\b)[A-Za-z_]'
+    message: |
+      An Ansible shell/command task interpolates a Jinja2 variable directly into
+      the command line. If the variable carries user-supplied or inventory data,
+      this allows command injection on every managed host. Pass values through
+      module arguments, add the quote filter ({{ var | quote }}), or use a
+      dedicated module instead of shell/command.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-78]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.yml"
+        - "**/*.yaml"
+
+  - id: ansible-validate-certs-false
+    patterns:
+      - pattern-regex: '(?im)^\s*validate_certs\s*:\s*["\x27]?(?:false|no)\b'
+    message: |
+      An Ansible task disables TLS certificate validation (validate_certs: false).
+      Downloads, API calls, and package installs become vulnerable to
+      man-in-the-middle tampering across the whole fleet. Keep validation
+      enabled and distribute the internal CA certificate to managed hosts instead.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-295]
+    owasp: [A05:2021]
+    paths:
+      include:
+        - "**/*.yml"
+        - "**/*.yaml"
+
+  - id: ansible-become-password-literal
+    patterns:
+      - pattern-regex: '(?im)^\s*ansible_become_pass(?:word)?\s*:\s*["\x27]?[^\s"\x27{!][^\n]*'
+    message: |
+      A privilege-escalation password (ansible_become_pass) is stored as a
+      plaintext literal in the inventory or playbook. Anyone with repository
+      access gains root on every managed host. Move the value into Ansible
+      Vault and reference it as a vaulted variable, or prompt with --ask-become-pass.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-798]
+    owasp: [A07:2021]
+    paths:
+      include:
+        - "**/*.yml"
+        - "**/*.yaml"
+
+  - id: ansible-ssh-password-literal
+    patterns:
+      - pattern-regex: '(?im)^\s*ansible_(?:ssh_)?pass(?:word)?\s*:\s*["\x27]?[^\s"\x27{!][^\n]*'
+    message: |
+      An SSH login password (ansible_ssh_pass / ansible_password) is stored as
+      a plaintext literal in the inventory or playbook. This exposes direct
+      shell access to every managed host. Move the value into Ansible Vault,
+      or switch to SSH key-based authentication.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-798]
+    owasp: [A07:2021]
+    paths:
+      include:
+        - "**/*.yml"
+        - "**/*.yaml"
+
+  - id: ansible-file-mode-world-writable
+    patterns:
+      - pattern-regex: '(?im)^\s*mode\s*:\s*["\x27]?0?o?(?:777|666)["\x27]?\s*(?:#[^\n]*)?$'
+    message: |
+      A file or directory is deployed with world-writable permissions (0777/0666).
+      Any local user on the managed host can replace the content, which turns
+      config files, scripts, and unit files into privilege-escalation targets.
+      Restrict the file permission value to owner/group access such as 0644 or 0750.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-732]
+    owasp: [A01:2021]
+    paths:
+      include:
+        - "**/*.yml"
+        - "**/*.yaml"
+
+  - id: ansible-host-key-checking-disabled
+    patterns:
+      - pattern-regex: '(?im)^\s*(?:ansible_)?(?:ssh_)?host_key_checking\s*[:=]\s*["\x27]?(?:false|no)\b'
+    message: |
+      SSH host key checking is disabled for Ansible connections. The controller
+      will happily connect to an impersonated host, so a network attacker can
+      harvest credentials and inject tasks. Re-enable host key checking and
+      pre-populate known_hosts for managed machines instead.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-322]
+    owasp: [A05:2021]
+    paths:
+      include:
+        - "**/*.yml"
+        - "**/*.yaml"
+        - "**/ansible.cfg"
