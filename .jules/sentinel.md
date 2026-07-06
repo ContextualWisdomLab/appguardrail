@@ -56,3 +56,7 @@
 **Vulnerability:** The CLI file scanner `vibesec scan` lacked detection rules for insecure deserialization, such as `pickle.load` or `yaml.load` in Python, which could lead to arbitrary code execution.
 **Learning:** Adding regular expressions that detect known dangerous serialization libraries prevents severe security vulnerabilities when parsing untrusted data.
 **Prevention:** A new scanner rule `python-insecure-deserialization` was added to `SCAN_RULES` to flag `pickle.load(s)`, `yaml.load`, and `marshal.load(s)`.
+## 2024-05-18 - Fix missing redaction tokens for new secret rules
+**Vulnerability:** Newly added secret detection rules (like AWS keys, Anthropic keys, GitHub tokens, etc.) were missing from the `_SENSITIVE_RULE_TOKENS` list in `scanner/cli/appguardrail.py`.
+**Learning:** Adding new scanner rules to detect secrets isn't enough; the token strings identifying these rules must also be added to `_SENSITIVE_RULE_TOKENS` to ensure their values are redacted in CI/CD logs or terminal output. Otherwise, the scanner would find the secret and then leak it.
+**Prevention:** Whenever adding new secret detection rules to `SCAN_RULES` or `scanner/rules/secrets.yml`, always cross-reference and update the `_SENSITIVE_RULE_TOKENS` list to ensure corresponding redaction.
