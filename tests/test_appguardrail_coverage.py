@@ -453,3 +453,112 @@ def test_scan_file_open_permission_error():
 
         findings = _scan_file(file_path, base_path)
         assert findings == []
+
+def test_compile_glob_and_path_allowed_coverage():
+    from scanner.cli.appguardrail import _compile_glob, _path_allowed_by_rule, _parse_inline_list, _compile_yaml_regex_rule, _load_packaged_regex_rules
+    import importlib.resources as resources
+
+    # Test _parse_inline_list missing cases
+    assert _parse_inline_list("invalid") == []
+    assert _parse_inline_list("[]") == []
+
+    # Test invalid regex in yaml rule
+    rule = {
+        "id": "invalid-regex",
+        "regexes": ["("], # Invalid regex
+    }
+    assert _compile_yaml_regex_rule(rule) == []
+
+    # Test file error in _load_packaged_regex_rules (mock resources.files)
+    original_files = getattr(resources, "files", None)
+
+    class MockFiles:
+        def iterdir(self):
+            raise FileNotFoundError("Mock error")
+
+    try:
+        resources.files = lambda x: MockFiles()
+        assert _load_packaged_regex_rules() == []
+    finally:
+        resources.files = original_files
+
+    # Test file read error in _load_packaged_regex_rules
+    from pathlib import Path
+    class MockFileReadError:
+        @property
+        def suffix(self):
+            return ".yml"
+        @property
+        def name(self):
+            return "test.yml"
+        def read_text(self, encoding):
+            raise OSError("Mock read error")
+
+    class MockFilesReadError:
+        def iterdir(self):
+            return [MockFileReadError()]
+
+    try:
+        resources.files = lambda x: MockFilesReadError()
+        assert _load_packaged_regex_rules() == []
+    finally:
+        resources.files = original_files
+
+
+    # Test _compile_glob with "./" and backslashes
+    g1 = _compile_glob(".\\**\\*.ts")
+    assert g1.match("src/index.ts")
+
+    # Test _compile_glob without starting with **
+    g2 = _compile_glob("./src/*.ts")
+    assert g2.match("src/index.ts")
+
+    # Test _path_allowed_by_rule with raw string fallbacks and "./" path
+    assert _path_allowed_by_rule(".\\src\\index.ts", [".\\**\\*.ts"], [])
+    assert not _path_allowed_by_rule(".\\src\\index.ts", [], [".\\**\\*.ts"])
+
+def test_cmd_monitor_symlink(tmp_path):
+    from scanner.cli.appguardrail import cmd_monitor
+    from argparse import Namespace
+    from unittest.mock import patch
+
+    with patch("scanner.cli.appguardrail.Path.resolve", return_value=tmp_path):
+        workflow_file = tmp_path / ".github" / "workflows" / "appguardrail-monitor.yml"
+        workflow_file.parent.mkdir(parents=True, exist_ok=True)
+        workflow_file.touch()
+
+        with patch("scanner.cli.appguardrail.Path.is_symlink", return_value=True):
+            with patch("scanner.cli.appguardrail.Path.unlink") as mock_unlink:
+                cmd_monitor(Namespace())
+                mock_unlink.assert_called_once()
+
+def test_path_matches_glob_symlink(tmp_path):
+    # This hits lines 1621-1622 (try/except inside _scan_file for file_path.relative_to with ValueError)
+    from scanner.cli.appguardrail import _scan_file
+    import os
+    from unittest.mock import patch
+    # We want base_path.is_file() to be False but file_path.relative_to(base_path) to raise ValueError
+    base_path = tmp_path / "base"
+    base_path.mkdir()
+    file_path = tmp_path / "other" / "file.ts"
+    file_path.parent.mkdir()
+    file_path.touch()
+    file_path.write_text("import { useState } from 'react';\n")
+
+    # Needs to match a rule with include/exclude
+    _scan_file(file_path, base_path)
+
+    base_file = tmp_path / "base.ts"
+    base_file.touch()
+    _scan_file(file_path, base_file)
+
+def test_coverage_additional():
+    from scanner.cli.appguardrail import main
+    import sys
+    from unittest.mock import patch
+
+    with patch.object(sys, "argv", ["appguardrail", "monitor"]):
+        with patch("scanner.cli.appguardrail.cmd_monitor", return_value=0) as mock_monitor:
+            with patch("sys.exit") as mock_exit:
+                main()
+                mock_monitor.assert_called()

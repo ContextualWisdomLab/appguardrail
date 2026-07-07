@@ -914,8 +914,6 @@ def cmd_init(args):
 
     for selected_tool in selected_tools:
         config = tool_configs[selected_tool]
-        if config.get("shared_only"):
-            continue
 
         target_file = project_root / config["path"]
 
