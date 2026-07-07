@@ -54,6 +54,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 "scanner.rules" = ["*.yml"]
+"scanner" = ["dashboard/*.html", "dashboard/*.json"]
 
 [tool.interrogate]
 exclude = ["tests", "build", "dist"]

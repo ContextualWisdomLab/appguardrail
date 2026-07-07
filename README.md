@@ -100,7 +100,17 @@ appguardrail scan --codegraph .
 
 # Save normalized findings for report generation or dashboard ingestion
 appguardrail scan --findings-json reports/findings.json .
+
+# Emit SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools
+appguardrail scan --sarif appguardrail.sarif .
 ```
+
+The SARIF output feeds GitHub code scanning
+(`github/codeql-action/upload-sarif`), the VS Code SARIF viewer, and any other
+SARIF consumer — findings appear in the GitHub **Security** tab and as inline PR
+annotations, ranked by `security-severity`. `appguardrail monitor` installs a
+workflow that emits and uploads SARIF automatically while preserving the deploy
+gate.
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
@@ -120,6 +130,41 @@ documented rule fixtures until the lightweight engine grows structural matching.
 
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
+
+#### Tune the gate with `.appguardrail.json` (optional)
+
+Commit a `.appguardrail.json` at the repo root to configure the deploy gate for
+the whole team — no CLI flags needed:
+
+```json
+{
+  "fail_on": "HIGH",
+  "exclude_rules": ["some-noisy-rule-id"]
+}
+```
+
+- `fail_on` — minimum severity that fails the gate (`CRITICAL`, `HIGH`,
+  `WARNING`, or `INFO`). Default gate blocks `CRITICAL` and `HIGH`.
+- `exclude_rules` — rule ids to drop from the gate (findings still show, but
+  don't fail the build). An invalid config fails the scan loudly rather than
+  silently passing.
+
+### Auto-fix safe issues
+
+```bash
+# Preview safe, deterministic fixes (dry-run diff)
+appguardrail fix .
+
+# Apply them
+appguardrail fix --apply .
+```
+
+`appguardrail fix` applies only **purely additive, semantics-preserving**
+fixes — it will not silently rewrite behavior-changing code. The first
+transform adds `rel="noopener noreferrer"` to external `target="_blank"` links
+(reverse-tabnabbing). Behavior-changing fixes (moving a secret to an env var,
+flipping TLS verification) stay as reviewable prompts — see
+`appguardrail report fix-pack`. This closes the scan → fix → verify loop safely.
 
 ### Generate reports from findings
 
@@ -159,6 +204,29 @@ any object with a `findings` array. Report types are:
 
 Reports omit raw secrets and expand normalized metadata into launch posture,
 finding summaries, remediation, and verification checklists.
+
+### View findings in a dashboard
+
+```bash
+# Generate findings, then open the local dashboard in your browser
+appguardrail scan --findings-json reports/findings.json .
+appguardrail dashboard
+```
+
+`appguardrail dashboard` serves a self-contained web dashboard that renders the
+`appguardrail.findings.v1` file produced by `scan --findings-json`. It shows
+severity counts, the deploy-blocking gate, findings by category, and a per-finding
+detail view with the AppGuardrail Fix Format (Problem / Fix Prompt / Verification).
+
+```bash
+appguardrail dashboard --findings reports/findings.json  # custom findings path
+appguardrail dashboard --port 8899                       # custom port
+appguardrail dashboard --no-open                          # don't launch a browser
+```
+
+No build step or dependencies — the dashboard is a single static page shipped
+with the package (`scanner/dashboard/index.html`), so it also works from a
+`pip install`. You can open it manually and drag a `findings.json` onto it.
 
 ### Generate an organization buyer evidence bundle
 

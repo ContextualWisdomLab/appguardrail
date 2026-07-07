@@ -62,3 +62,16 @@ rules:
       which validates the token against the Supabase Auth server.
     severity: HIGH
     languages: [javascript, typescript]
+
+  - id: supabase-auth-admin-client-usage
+    patterns:
+      - pattern-regex: '\.auth\.admin\.[a-zA-Z]'
+    message: |
+      Supabase Admin auth API (auth.admin.*) detected. These methods (createUser,
+      deleteUser, listUsers, generateLink, etc.) require the service role key and
+      must run only server-side. Verify this file is a server route, server action,
+      or edge function — never a client component.
+    severity: HIGH
+    languages: [javascript, typescript]
+    cwe: [CWE-269]
+    owasp: [A01:2021]

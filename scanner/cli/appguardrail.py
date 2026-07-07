@@ -57,6 +57,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.config import load_config
 from appguardrail_core.findings import (
     NON_BLOCKING_CONTEXTS,
     is_deploy_blocking as core_is_deploy_blocking,
@@ -240,6 +241,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   scan:
@@ -256,8 +258,22 @@ jobs:
       - name: Install AppGuardrail
         run: python -m pip install --disable-pip-version-check appguardrail
 
-      - name: Run AppGuardrail deploy gate
-        run: appguardrail scan .
+      - name: Run AppGuardrail (SARIF + deploy gate)
+        id: scan
+        continue-on-error: true
+        run: appguardrail scan --sarif appguardrail.sarif .
+
+      - name: Upload results to GitHub code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: appguardrail.sarif
+
+      - name: Enforce deploy gate
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "AppGuardrail found deploy-blocking findings — see the Security tab."
+          exit 1
 """
 
 # ---------------------------------------------------------------------------
@@ -1490,10 +1506,46 @@ def cmd_scan(args):
             )
             return 1
 
+    sarif_path = getattr(args, "sarif", None)
+    if sarif_path:
+        try:
+            _write_sarif(findings, Path(sarif_path))
+        except RuntimeError as exc:
+            print(f"❌ Error: {exc}", file=sys.stderr)
+            print(
+                "💡 Hint: Check the output path and directory permissions.",
+                file=sys.stderr,
+            )
+            return 1
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
-    return 1 if any(_is_deploy_blocking(f) for f in findings) else 0
+
+    # Optional .appguardrail.json tunes the gate (fail_on threshold, rule excludes).
+    config_dir = scan_path if scan_path.is_dir() else scan_path.parent
+    try:
+        config = load_config([config_dir, Path.cwd()])
+    except RuntimeError as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        return 1
+    if config.get("_path"):
+        notes = []
+        if config.get("fail_on"):
+            notes.append(f"fail_on={config['fail_on']}")
+        if config.get("exclude_rules"):
+            notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
+        print(f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else ""))
+
+    blocking = config.get("blocking_severities")
+    excluded = config.get("exclude_rules") or set()
+
+    def _gates(finding):
+        if finding.get("rule_id") in excluded:
+            return False
+        return core_is_deploy_blocking(finding, blocking)
+
+    return 1 if any(_gates(f) for f in findings) else 0
 
 
 def _write_findings_json(findings, output_path: Path):
@@ -1512,6 +1564,81 @@ def _write_findings_json(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     print(f"🧾 Findings JSON written: {output_path}")
+
+
+def _write_sarif(findings, output_path: Path):
+    """Write SARIF 2.1.0 for GitHub code scanning and other SARIF consumers."""
+    from appguardrail_core.sarif import findings_to_sarif
+
+    log = findings_to_sarif(findings, tool_version=__version__)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(log, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
+    print(f"🛡️  SARIF written: {output_path}")
+
+
+def cmd_fix(args):
+    """Apply safe, deterministic auto-fixes (dry-run by default)."""
+    import difflib
+
+    from appguardrail_core.autofix import apply_safe_fixes, fixable_extensions
+
+    base = Path(getattr(args, "path", ".") or ".")
+    if not base.exists():
+        print(f"❌ Path not found: {base}", file=sys.stderr)
+        return 1
+
+    apply = getattr(args, "apply", False)
+    exts = fixable_extensions()
+    files = [base] if base.is_file() else _collect_files(base)
+
+    total_fixes = 0
+    changed_files = 0
+    for f in files:
+        if f.suffix.lower() not in exts:
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        new_text, count = apply_safe_fixes(text, f.suffix)
+        if count == 0:
+            continue
+        total_fixes += count
+        changed_files += 1
+        if apply:
+            try:
+                f.write_text(new_text, encoding="utf-8")
+                print(f"✅ Fixed {count} issue(s) in {f}")
+            except OSError as exc:
+                print(f"❌ Could not write {f}: {exc}", file=sys.stderr)
+                return 1
+        else:
+            sys.stdout.writelines(
+                difflib.unified_diff(
+                    text.splitlines(True),
+                    new_text.splitlines(True),
+                    fromfile=str(f),
+                    tofile=f"{f} (fixed)",
+                )
+            )
+
+    if total_fixes == 0:
+        print("✨ No safe auto-fixes to apply.")
+        return 0
+    if apply:
+        print(f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s).")
+    else:
+        print(
+            f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
+            "Re-run with --apply to write them."
+        )
+        print("   Other findings need review — see 'appguardrail report fix-pack'.")
+    return 0
 
 
 def cmd_monitor(args):
@@ -2685,6 +2812,192 @@ def cmd_review(args):
     print()
 
 
+def dashboard_index_path():
+    """Locate the static dashboard entry point shipped inside the package.
+
+    Works both from a source checkout and a pip-installed wheel because the
+    asset lives under ``scanner/dashboard/`` and is resolved via
+    importlib.resources.
+    """
+    return Path(str(resources.files("scanner").joinpath("dashboard", "index.html")))
+
+
+def dashboard_tokens_path():
+    """Locate the canonical design-token source shipped with the package."""
+    return Path(str(resources.files("scanner").joinpath("dashboard", "tokens.json")))
+
+
+# Map canonical color token names (tokens.json) to the CSS custom properties the
+# dashboard stylesheet consumes. Scales (radius/space/size) are emitted
+# generically. Keeps tokens.json the single source of truth.
+_COLOR_CSS_VARS = {
+    "background": "--bg",
+    "surface": "--surface",
+    "text-default": "--text",
+    "text-muted": "--muted",
+    "border": "--border",
+    "divider": "--divider",
+    "primary": "--primary",
+    "on-primary": "--on-primary",
+    "critical": "--crit",
+    "high": "--high",
+    "warning": "--warn",
+    "info": "--info",
+}
+
+
+def render_tokens_css(tokens: dict) -> str:
+    """Render CSS custom properties from the design-token source dict.
+
+    Emits colors (mapped to the dashboard's var names), the radius/space/size
+    scales (as ``--radius-*`` / ``--space-*`` / ``--size-*``, plus a ``--radius``
+    alias for the default card radius), and a ``@media (prefers-contrast: more)``
+    color override so the dashboard adapts to the user's contrast preference.
+    """
+    color = tokens.get("color") or {}
+    radius = tokens.get("radius") or {}
+    space = tokens.get("space") or {}
+    size = tokens.get("size") or {}
+
+    lines = [":root{"]
+    for key, css_var in _COLOR_CSS_VARS.items():
+        entry = color.get(key)
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  {css_var}: {entry['value']};")
+    # radius scale + --radius alias (default card radius)
+    for key, entry in radius.items():
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  --radius-{key}: {entry['value']};")
+    alias = radius.get("card-alias")
+    if alias and isinstance(radius.get(alias), dict):
+        lines.append(f"  --radius: {radius[alias]['value']};")
+    for key, entry in space.items():
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  --space-{key}: {entry['value']};")
+    for key, entry in size.items():
+        if isinstance(entry, dict) and "value" in entry:
+            lines.append(f"  --size-{key}: {entry['value']};")
+    lines.append("}")
+
+    hc = tokens.get("high-contrast") or {}
+    hc_lines = [
+        f"    {css_var}: {hc[key]['value']};"
+        for key, css_var in _COLOR_CSS_VARS.items()
+        if isinstance(hc.get(key), dict) and "value" in hc[key]
+    ]
+    if hc_lines:
+        lines.append("@media (prefers-contrast: more){")
+        lines.append("  :root{")
+        lines.extend(hc_lines)
+        lines.append("  }")
+        lines.append("}")
+
+    return "\n".join(lines) + "\n"
+
+
+def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_bytes=b""):
+    """Build (but do not start) an HTTP server that serves the dashboard.
+
+    Serves the dashboard HTML at ``/``, the design tokens at ``/tokens.css``,
+    and the findings file at ``/findings.json`` so the page loads regardless
+    of the caller's cwd.
+    """
+    import http.server
+
+    findings_path = Path(findings_path)
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, body, content_type):
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            path = self.path.split("?", 1)[0]
+            if path in ("/", "/index.html", "/dashboard/", "/dashboard/index.html"):
+                self._send(index_bytes, "text/html; charset=utf-8")
+            elif path in ("/tokens.css", "/dashboard/tokens.css"):
+                self._send(tokens_css_bytes, "text/css; charset=utf-8")
+            elif path in ("/findings.json", "/reports/findings.json"):
+                if findings_path.is_file():
+                    self._send(findings_path.read_bytes(), "application/json")
+                else:
+                    self.send_error(404, "findings.json not found")
+            else:
+                self.send_error(404)
+
+        def log_message(self, *_args):  # keep the console quiet
+            pass
+
+    return http.server.HTTPServer((host, port), _Handler)
+
+
+def cmd_dashboard(args):
+    """Serve the local AppGuardrail findings dashboard in a browser."""
+    import webbrowser
+
+    index = dashboard_index_path()
+    if not index.is_file():
+        print(f"❌ Dashboard assets not found at {index}", file=sys.stderr)
+        print(
+            "💡 Run 'appguardrail dashboard' from an AppGuardrail source checkout "
+            "that includes dashboard/index.html.",
+            file=sys.stderr,
+        )
+        return 1
+
+    findings_path = Path(getattr(args, "findings", None) or "reports/findings.json")
+    if not findings_path.is_file():
+        print(f"ℹ️  No findings file at {findings_path}.")
+        print(
+            "   Generate one with: "
+            "appguardrail scan --findings-json reports/findings.json ."
+        )
+        print("   The dashboard opens with instructions — reload after generating.\n")
+
+    tokens_css = b""
+    tokens_file = dashboard_tokens_path()
+    if tokens_file.is_file():
+        try:
+            tokens_css = render_tokens_css(
+                json.loads(tokens_file.read_text(encoding="utf-8"))
+            ).encode("utf-8")
+        except (ValueError, OSError) as exc:
+            print(f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.", file=sys.stderr)
+
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8787)
+    try:
+        server = make_dashboard_server(
+            host, port, index.read_bytes(), findings_path, tokens_css
+        )
+    except OSError as exc:
+        print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
+        print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
+        return 1
+
+    actual_port = server.server_address[1]
+    url = f"http://{host}:{actual_port}/"
+    print(f"🛡️  AppGuardrail dashboard: {url}")
+    print("   Press Ctrl+C to stop.")
+    if not getattr(args, "no_open", False):
+        try:
+            webbrowser.open(url)
+        except Exception as exc:
+            # Non-fatal: the server is already serving; just tell the user to
+            # open the URL themselves instead of failing the command.
+            print(f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n👋 Dashboard stopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -2775,6 +3088,11 @@ def main():
         "--findings-json",
         default=None,
         help="Write normalized findings JSON for report builders and dashboards",
+    )
+    scan_parser.add_argument(
+        "--sarif",
+        default=None,
+        help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
     )
     scan_parser.add_argument(
         "--codegraph",
@@ -2909,6 +3227,35 @@ def main():
         help="Install the hook in CodeGraph mode so commits also refresh structural context",
     )
 
+    # dashboard
+    fix_parser = subparsers.add_parser(
+        "fix", help="Apply safe, deterministic auto-fixes (dry-run by default)"
+    )
+    fix_parser.add_argument(
+        "path", nargs="?", default=".", help="File or directory to fix"
+    )
+    fix_parser.add_argument(
+        "--apply", action="store_true",
+        help="Write fixes to disk (default: show a dry-run diff)",
+    )
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="Serve the findings dashboard in your browser"
+    )
+    dashboard_parser.add_argument(
+        "--findings",
+        default="reports/findings.json",
+        help="Path to a findings JSON file (default: reports/findings.json)",
+    )
+    dashboard_parser.add_argument(
+        "--port", type=int, default=8787, help="Port to serve on (default: 8787)"
+    )
+    dashboard_parser.add_argument(
+        "--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)"
+    )
+    dashboard_parser.add_argument(
+        "--no-open", action="store_true", help="Do not open a browser automatically"
+    )
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -2925,6 +3272,10 @@ def main():
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
+    elif args.command == "fix":
+        sys.exit(cmd_fix(args))
+    elif args.command == "dashboard":
+        sys.exit(cmd_dashboard(args))
     else:
         parser.print_help()
         sys.exit(0)
