@@ -106,7 +106,7 @@ function isDeployBlocking(f){
   const ctx = String(f.context||'app-code');
   return BLOCKING_SEV.has(sev) && !NON_BLOCKING.has(ctx);
 }
-function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 let ALL = [];
 let filterSev = '', query = '';
