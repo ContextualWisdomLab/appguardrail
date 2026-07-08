@@ -34,6 +34,28 @@ k8s manifest in this repo today.
   Scan **job result**, not the `code_scanning` rule — do **not** add tools to
   that rule.
 
+### Config & secrets (KV, not env)
+- Org rule: do **NOT** read config/secrets via `os.getenv()` / raw environment
+  variables at runtime. Read them from a KV / credential registry. Org Actions
+  secrets (e.g. `OPENAI_API_KEY`) flow **into** the KV via a bootstrap/CI step;
+  runtime reads from the KV — env is only transport into the KV, never the
+  runtime source. The reference implementation is xtrmLLMBatchPython's
+  pgcrypto-encrypted Postgres credential registry (`get_credential(name)`);
+  reuse that pattern (a DB-backed KV is fine) unless a dedicated KV is adopted.
+- Where this repo stands today: the scanner/CLI holds **no persistent runtime
+  secret** — it is pure static analysis and authenticates to nothing at scan
+  time. Its env reads (`APPGUARDRAIL_SEMGREP_CONFIG`, `APPGUARDRAIL_TARGET_URL`
+  in `scanner/cli/appguardrail.py`) are non-secret **config/endpoints**, which
+  `os.environ` is acceptable for. The one credential in the repo is the ephemeral
+  GitHub App installation token in the CI-only collector
+  (`scripts/ci/collect_org_security_failures.py` reads `GH_TOKEN`/`GITHUB_TOKEN`),
+  minted per-run inside GitHub Actions from `ORG_SECURITY_FAILURE_APP_PRIVATE_KEY`
+  — legitimate CI transport, not a persistent runtime secret to migrate.
+- Going forward: if this package ever gains a real runtime secret (an LLM API
+  key for an AI-assisted mode, DB creds, a third-party token used at scan time),
+  source it from the KV / credential registry above — **do not** add a new
+  `os.getenv("...API_KEY")` read.
+
 ### Code exploration
 - No `.codegraph/` index is committed here, so use normal search (grep/find,
   your editor's symbol tools) to locate and understand code. If a `.codegraph/`
