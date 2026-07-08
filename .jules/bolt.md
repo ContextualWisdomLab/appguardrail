@@ -47,3 +47,7 @@
 ## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
 **Action:** Do not use `re.search` before `re.finditer` for optimization purposes.
+
+## 2025-01-01 - Fast-path pre-check for string sanitization
+**Learning:** String sanitization hot-paths (e.g., escaping non-printable characters) using character-by-character generator expressions can be extremely slow.
+**Action:** Implement a fast-path pre-check using native C-level string methods like `isprintable()` (e.g., `text.replace('\t', '').isprintable()`) to bypass slower character-by-character generator expressions for the vast majority of normal strings.
