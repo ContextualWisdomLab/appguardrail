@@ -236,6 +236,20 @@ def test_collect_returns_findings_and_resolutions():
     assert resolutions[(repo, "Strix Security Scan")]["run_url"].endswith("/runs/101")
 
 
+def test_build_finding_workflow_key_matches_run_workflow_name():
+    """close-on-fix regression: the finding's issue-marker workflow key must be
+    derived from the same source as the resolution key (run_workflow_name), so a
+    failure issue and its later successful-run resolution collapse to one key.
+    Previously build_finding fell through to ``job.workflow_name`` when the run
+    had no ``name``, diverging from run_workflow_name and breaking auto-close."""
+    repo = "ContextualWisdomLab/naruon"
+    run = _run(id=100, name="", conclusion="failure")
+    job = {"id": 900, "name": "strix", "conclusion": "failure", "workflow_name": "Strix Security Scan", "html_url": ""}
+    client = FakeApiClient(repos=[{"full_name": repo}], runs={repo: [run]}, jobs={})
+    built = collector.build_finding(client, repo, run, job, _args())
+    assert built["workflow"] == collector.run_workflow_name(run)
+
+
 def test_close_resolved_closes_open_issue_with_comment():
     repo = "ContextualWisdomLab/naruon"
     item = finding(repo=repo, workflow="Strix Security Scan")

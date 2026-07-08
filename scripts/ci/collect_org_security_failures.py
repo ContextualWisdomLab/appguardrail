@@ -168,7 +168,10 @@ def build_finding(client: GitHub, repo: str, run: dict[str, Any], job: dict[str,
     job_id = int(job["id"])
     return {
         "repo": repo,
-        "workflow": run.get("name") or job.get("workflow_name") or "unknown workflow",
+        # Must match run_workflow_name(): the issue marker workflow key and the
+        # close-on-fix resolution key are both derived from the run name, so a
+        # failure issue and its later resolution collapse to the same identity.
+        "workflow": run_workflow_name(run),
         "run_id": int(run["id"]),
         "run_url": run.get("html_url") or "",
         "job_id": job_id,
