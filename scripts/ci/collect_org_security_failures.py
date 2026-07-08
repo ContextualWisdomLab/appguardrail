@@ -73,8 +73,14 @@ class GitHub:
     def request(self, method: str, path: str, data: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> Any:
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
+        url = f"{self.api}{path}{query}"
+        # SECURITY: Prevent SSRF/LFI by explicitly validating that the dynamically
+        # constructed API URL strictly uses a secure scheme before fetching.
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(f"Security concern: Invalid or dangerous URL scheme in API request: {url}")
+
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
-            f"{self.api}{path}{query}",
+            url,
             data=body,
             method=method,
             headers={

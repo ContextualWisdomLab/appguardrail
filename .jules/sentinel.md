@@ -56,3 +56,7 @@
 **Vulnerability:** The CLI file scanner `vibesec scan` lacked detection rules for insecure deserialization, such as `pickle.load` or `yaml.load` in Python, which could lead to arbitrary code execution.
 **Learning:** Adding regular expressions that detect known dangerous serialization libraries prevents severe security vulnerabilities when parsing untrusted data.
 **Prevention:** A new scanner rule `python-insecure-deserialization` was added to `SCAN_RULES` to flag `pickle.load(s)`, `yaml.load`, and `marshal.load(s)`.
+## 2025-02-28 - Prevent Security Theater in Validation Logic
+**Vulnerability:** Redundant, useless security checks ("security theater") were previously added to statically hardcoded URL strings in GitHub actions and test files, under the guise of SSRF prevention.
+**Learning:** Checking a hardcoded string like `"https://pypi.org/..."` to see if it starts with `https://` provides zero real security value while polluting the codebase and making PR reviews noisy. Security validation logic must be strictly scoped to where *untrusted, dynamic input* is introduced (like dynamically constructed API URLs in network wrappers).
+**Prevention:** Avoid blanket application of security validation rules across an entire repository regardless of context. Always trace the source of the variable being validated to ensure it actually incorporates dynamic or external data before adding runtime verification logic.
