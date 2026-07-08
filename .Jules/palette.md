@@ -5,3 +5,7 @@
 ## 2026-06-30 - Added Emojis to CLI Output Messages
 **Learning:** Adding subtle emojis to informative CLI output headers (like "Created/updated files" and "Next steps") provides clearer visual cues for developers scanning long CLI output.
 **Action:** Always include relevant emojis in summary output text to make success and informational messages more visually distinguishable from routine command logs.
+
+## 2026-07-06 - Making Non-Interactive Elements Accessible
+**Learning:** When turning non-interactive elements like `<tr>` into clickable elements via JavaScript, keyboard users and screen readers are entirely excluded unless specific attributes and event listeners are added.
+**Action:** When a non-interactive element needs to act like a button, always add `tabindex="0"`, `role="button"`, `:focus-visible` styling, and listen for `keydown` events (Enter/Space) in addition to `click`.
