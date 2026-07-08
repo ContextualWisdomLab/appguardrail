@@ -1527,7 +1527,7 @@ def cmd_scan(args):
     try:
         config = load_config([config_dir, Path.cwd()])
     except RuntimeError as exc:
-        print(f"❌ Error: {exc}", file=sys.stderr)
+        print(f"❌ Error: {exc}\n💡 Hint: Check error details and try again.", file=sys.stderr)
         return 1
     if config.get("_path"):
         notes = []
