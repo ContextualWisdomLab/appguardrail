@@ -78,9 +78,40 @@ def test_marker_body_and_replacement_round_trip():
 
 def test_label_title_comment_and_seen_key_helpers():
     item = finding(job_id=999, snippet="::error:: security failure")
-    assert issueops.seen_key(item) == "28492006630:999"
+    key = issueops.seen_key(item)
+    assert len(key) == 16 and all(char in "0123456789abcdef" for char in key)
     assert issueops.sanitize_label_value("repo name/with spaces and symbols!") == "repo-name-with-spaces-and-symbols"
     assert issueops.title(item) == "[security-failure] ContextualWisdomLab/naruon: Strix Security Scan"
     comment = issueops.issue_comment(item)
     assert "New security workflow failure detected." in comment
     assert "::error:: security failure" in comment
+
+
+def test_seen_key_is_run_stable_but_signature_sensitive():
+    # Re-runs of the SAME failure (different run_id/job_id) share a key so the
+    # issue is UPDATED, not spammed with a fresh comment each scheduled run.
+    first = finding(run_id=1, job_id=1, snippet="::error:: RateLimitError from GitHub Models")
+    rerun = finding(run_id=2, job_id=2, snippet="::error:: RateLimitError from GitHub Models")
+    assert issueops.seen_key(first) == issueops.seen_key(rerun)
+    # A genuinely different failure produces a different key.
+    other = finding(run_id=3, job_id=3, snippet="::error:: Trivy found CRITICAL CVE")
+    assert issueops.seen_key(other) != issueops.seen_key(first)
+    # Volatile ids inside the same error line are normalized away.
+    noisy = finding(run_id=9, job_id=9, snippet="::error:: RateLimitError from GitHub Models attempt 4711")
+    stable = finding(run_id=8, job_id=8, snippet="::error:: RateLimitError from GitHub Models attempt 22")
+    assert issueops.seen_key(noisy) == issueops.seen_key(stable)
+
+
+def test_resolved_comment_reports_resolving_run():
+    comment = issueops.resolved_comment(
+        {
+            "repo": "ContextualWisdomLab/naruon",
+            "workflow": "Strix Security Scan",
+            "run_url": "https://github.com/ContextualWisdomLab/naruon/actions/runs/999",
+            "head_sha": "deadbeef",
+        }
+    )
+    assert "completed successfully" in comment
+    assert "ContextualWisdomLab/naruon" in comment
+    assert "actions/runs/999" in comment
+    assert "reopen" in comment

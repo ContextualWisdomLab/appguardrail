@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: org-security-failure-collector
@@ -33,42 +34,94 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_hours || '48' }}
-      ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID }}
-      ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Check GitHub App collector configuration
-        id: app-config
+      # Reuse the existing OpenCode GitHub App (the same cross-repo identity the
+      # central Strix workflow exchanges via OIDC) instead of a bespoke,
+      # never-provisioned App. Emits `available=true` + a masked `token` on
+      # success; `available=false` otherwise (drives best-effort DRY-RUN).
+      - name: Exchange OpenCode app token for org reads and appguardrail issues
+        id: app_token
+        env:
+          OIDC_AUDIENCE: opencode-github-action
+          OPENCODE_API_BASE_URL: https://api.opencode.ai
         run: |
           set -euo pipefail
-          if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping org security failure collection because ORG_SECURITY_FAILURE_APP_ID or ORG_SECURITY_FAILURE_APP_PRIVATE_KEY is not configured."
+
+          mark_unavailable() {
+            echo "available=false" >>"$GITHUB_OUTPUT"
+          }
+
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "OpenCode app token exchange unavailable: OIDC request environment is missing."
+            mark_unavailable
+            exit 0
           fi
 
-      - name: Create org installation token
-        if: steps.app-config.outputs.configured == 'true'
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
-          private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          permission-actions: read
-          permission-checks: read
-          permission-issues: write
+          request_url="${ACTIONS_ID_TOKEN_REQUEST_URL}"
+          separator="&"
+          case "$request_url" in
+            *\?*) ;;
+            *) separator="?" ;;
+          esac
+
+          if ! oidc_response="$(
+            curl -fsS \
+              -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${request_url}${separator}audience=${OIDC_AUDIENCE}"
+          )"; then
+            echo "OpenCode app token exchange unavailable: OIDC token request did not complete."
+            mark_unavailable
+            exit 0
+          fi
+
+          oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
+          if [ -z "$oidc_token" ]; then
+            echo "OpenCode app token exchange unavailable: OIDC token response was empty."
+            mark_unavailable
+            exit 0
+          fi
+
+          if ! token_response="$(
+            curl -fsS \
+              -X POST \
+              -H "Authorization: Bearer ${oidc_token}" \
+              "${OPENCODE_API_BASE_URL}/exchange_github_app_token"
+          )"; then
+            echo "OpenCode app token exchange unavailable: app token request did not complete."
+            mark_unavailable
+            exit 0
+          fi
+
+          app_token="$(jq -r '.token // empty' <<<"$token_response")"
+          if [ -z "$app_token" ]; then
+            echo "OpenCode app token exchange unavailable: app token response was empty."
+            mark_unavailable
+            exit 0
+          fi
+
+          echo "::add-mask::$app_token"
+          {
+            echo "available=true"
+            echo "token=$app_token"
+          } >>"$GITHUB_OUTPUT"
 
       - name: Collect security workflow failures
-        if: steps.app-config.outputs.configured == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # Prefer the OpenCode app token (cross-repo reads + issues:write on
+          # appguardrail). When unavailable, fall back to GITHUB_TOKEN and force
+          # DRY-RUN so the job never fails and never writes with a token that
+          # cannot reach sibling repos.
+          GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
+          COLLECTOR_DRY_RUN: ${{ (steps.app_token.outputs.available != 'true' || env.DRY_RUN == 'true') && 'true' || 'false' }}
         run: |
           set -euo pipefail
-          python3 scripts/ci/collect_org_security_failures.py \
+          if [ "$COLLECTOR_DRY_RUN" = "true" ]; then
+            echo "::notice::Running in DRY-RUN mode (OpenCode app token unavailable or dry_run requested); no issues will be written."
+          fi
+          DRY_RUN="$COLLECTOR_DRY_RUN" python3 scripts/ci/collect_org_security_failures.py \
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --target-repo "$GITHUB_REPOSITORY" \
             --lookback-hours "$LOOKBACK_HOURS"

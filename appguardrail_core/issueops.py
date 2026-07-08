@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from typing import Any
@@ -111,8 +112,72 @@ def compress_log(log: str, max_lines: int = DEFAULT_MAX_LOG_LINES, max_chars: in
     return snippet
 
 
+VOLATILE_HEX_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+VOLATILE_NUM_RE = re.compile(r"\d+")
+WHITESPACE_RE = re.compile(r"\s+")
+
+
+def failure_signature_source(finding: dict[str, Any]) -> str:
+    """Pick the most salient, run-stable line describing why the job failed.
+
+    Prefers the first high-signal error line from the (already redacted)
+    log snippet so re-runs of the *same* failure share a signature; falls
+    back to the job name when no error line is present.
+    """
+    snippet = finding.get("snippet") or ""
+    for line in snippet.splitlines():
+        stripped = line.strip()
+        if stripped and any(pattern.search(stripped) for pattern in PRIMARY_LOG_RE):
+            return stripped
+    return finding.get("job_name") or "unknown"
+
+
+def normalize_signature(text: str) -> str:
+    """Strip run-specific noise (hashes, ids, counters, spacing/case) so the
+    same underlying failure normalizes to one stable string."""
+    lowered = text.lower()
+    lowered = VOLATILE_HEX_RE.sub("<hex>", lowered)
+    lowered = VOLATILE_NUM_RE.sub("<n>", lowered)
+    return WHITESPACE_RE.sub(" ", lowered).strip()
+
+
+def failure_signature(finding: dict[str, Any]) -> str:
+    """Stable dedup hash of ``repo + workflow + normalized failure signature``.
+
+    Independent of ``run_id``/``job_id`` so a recurring failure UPDATES its
+    existing issue instead of spamming a new comment on every scheduled run.
+    """
+    raw = "\n".join(
+        (
+            finding.get("repo") or "",
+            finding.get("workflow") or "",
+            normalize_signature(failure_signature_source(finding)),
+        )
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
 def seen_key(finding: dict[str, Any]) -> str:
-    return f"{finding['run_id']}:{finding['job_id']}"
+    """Stable per-failure dedup key (see :func:`failure_signature`)."""
+    return failure_signature(finding)
+
+
+def resolved_comment(resolution: dict[str, Any]) -> str:
+    """Comment posted when a later successful run resolves a tracked failure."""
+    rows = [
+        ("Repository", f"`{resolution['repo']}`"),
+        ("Workflow", f"`{resolution['workflow']}`"),
+        ("Resolved by", resolution.get("run_url") or "n/a"),
+        ("Head SHA", f"`{resolution.get('head_sha') or ''}`"),
+    ]
+    detail = "\n".join(f"- {key}: {value}" for key, value in rows)
+    return "\n\n".join(
+        [
+            "Resolved: a later run of this security workflow completed successfully.",
+            detail,
+            "Closing automatically. It will reopen if the workflow fails again.",
+        ]
+    )
 
 
 def marker(repo: str, workflow: str, seen: set[str]) -> str:

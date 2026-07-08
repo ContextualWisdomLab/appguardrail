@@ -24,6 +24,7 @@ from appguardrail_core.issueops import (
     parse_marker,
     parse_run_url,
     replace_marker,
+    resolved_comment,
     sanitize_label_value,
     seen_key,
     title,
@@ -33,6 +34,9 @@ API = "https://api.github.com"
 UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
+# Distinguishes these general CI/security-workflow *failure* issues from the
+# source-side Strix per-*finding* issues (labeled `strix`/`security`).
+CI_FAILURE_LABEL = "ci-failure"
 DEFAULT_LOOKBACK_HOURS = 48
 BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
 
@@ -179,16 +183,44 @@ def build_finding(client: GitHub, repo: str, run: dict[str, Any], job: dict[str,
     }
 
 
-def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
+def list_installation_repos(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
+    """Return org repos reachable by the current token.
+
+    Uses the App-installation endpoint (works with the OpenCode app token).
+    When the token is not an installation token (e.g. the ``GITHUB_TOKEN``
+    fallback used for DRY-RUN), this degrades to the target repo alone rather
+    than crashing, so the collector stays best-effort.
+    """
+    try:
+        repos = client.pages("/installation/repositories")
+    except RuntimeError as exc:
+        print(
+            f"::warning::could not list installation repositories ({exc}); "
+            "falling back to target repo only"
+        )
+        return [{"full_name": args.target_repo}]
+    return [r for r in repos if r.get("full_name") and not r.get("archived") and not r.get("fork")]
+
+
+def run_workflow_name(run: dict[str, Any]) -> str:
+    """Stable workflow identity used to key resolutions and issue markers."""
+    return run.get("name") or "unknown workflow"
+
+
+def collect(client: GitHub, args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[tuple[str, str], dict[str, Any]]]:
+    """Walk completed org workflow runs once, returning failing security jobs
+    (findings) and, per security workflow, a resolution when its most recent
+    completed run SUCCEEDED (drives close-on-fix)."""
     if args.run_url:
         repo, run_id = parse_run_url(args.run_url)
         repos = [{"full_name": repo}]
         fixed_runs = {repo: [client.request("GET", f"/repos/{repo}/actions/runs/{run_id}")]}
     else:
-        repos = [r for r in client.pages("/installation/repositories") if r.get("full_name") and not r.get("archived") and not r.get("fork")]
+        repos = list_installation_repos(client, args)
         fixed_runs = {}
     cutoff = utc_now() - dt.timedelta(hours=args.lookback_hours)
     findings: list[dict[str, Any]] = []
+    latest_run: dict[tuple[str, str], tuple[dt.datetime, dict[str, Any]]] = {}
     for repo_info in repos:
         repo = repo_info["full_name"]
         if not repo.startswith(f"{args.owner}/"):
@@ -198,13 +230,29 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
             runs = [
                 r
                 for r in client.pages(f"/repos/{repo}/actions/runs", {"status": "completed"})
-                if is_failure(r.get("conclusion")) and parse_time(r.get("updated_at") or r.get("created_at")) >= cutoff
+                if parse_time(r.get("updated_at") or r.get("created_at")) >= cutoff
             ]
         for run in runs:
+            if is_security_name(run.get("name")):
+                when = parse_time(run.get("updated_at") or run.get("created_at"))
+                key = (repo, run_workflow_name(run))
+                if key not in latest_run or when > latest_run[key][0]:
+                    latest_run[key] = (when, run)
+            if not is_failure(run.get("conclusion")):
+                continue
             for job in client.pages(f"/repos/{repo}/actions/runs/{run['id']}/jobs"):
                 if is_failure(job.get("conclusion") or run.get("conclusion")) and is_security_name(run.get("name"), job.get("workflow_name"), job.get("name")):
                     findings.append(build_finding(client, repo, run, job, args))
-    return findings
+    resolutions: dict[tuple[str, str], dict[str, Any]] = {}
+    for (repo, workflow), (_when, run) in latest_run.items():
+        if (run.get("conclusion") or "").lower() == "success":
+            resolutions[(repo, workflow)] = {
+                "repo": repo,
+                "workflow": workflow,
+                "run_url": run.get("html_url") or "",
+                "head_sha": run.get("head_sha") or "",
+            }
+    return findings, resolutions
 
 
 def ensure_label(client: GitHub, target_repo: str, name: str, dry_run: bool, cache: set[str]) -> None:
@@ -227,7 +275,7 @@ def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
 
 
 def publish_one(client: GitHub, target_repo: str, finding: dict[str, Any], dry_run: bool, issues: dict[str, dict[str, Any]], labels_seen: set[str]) -> None:
-    labels = [ISSUE_LABEL, SECURITY_LABEL, f"repo:{sanitize_label_value(finding['repo'].split('/', 1)[1])}"]
+    labels = [ISSUE_LABEL, SECURITY_LABEL, CI_FAILURE_LABEL, f"repo:{sanitize_label_value(finding['repo'].split('/', 1)[1])}"]
     issue_title = title(finding)
     issue = issues.get(issue_title)
     if issue is None:
@@ -265,11 +313,54 @@ def publish_one(client: GitHub, target_repo: str, finding: dict[str, Any], dry_r
         issue["state"] = "open"
 
 
-def publish_findings(client: GitHub, target_repo: str, findings: list[dict[str, Any]], dry_run: bool) -> None:
-    issues = issue_index(client, target_repo) if findings else {}
+def close_resolved(
+    client: GitHub,
+    target_repo: str,
+    resolutions: dict[tuple[str, str], dict[str, Any]],
+    dry_run: bool,
+    issues: dict[str, dict[str, Any]],
+) -> None:
+    """Close-on-fix: close each open tracked issue whose (repo, workflow) has a
+    newer successful run, leaving a resolved comment. Best-effort per issue."""
+    for issue in list(issues.values()):
+        if issue.get("state") != "open":
+            continue
+        marker_data = parse_marker(issue.get("body"))
+        key = (marker_data.get("repo"), marker_data.get("workflow"))
+        resolution = resolutions.get(key)
+        if not resolution:
+            continue
+        number = issue.get("number")
+        comment = resolved_comment(resolution)
+        try:
+            if dry_run:
+                print(f"DRY_RUN close issue #{number}: {issue.get('title')}")
+                print(comment)
+            else:
+                client.request("POST", f"/repos/{target_repo}/issues/{number}/comments", {"body": comment})
+                client.request("PATCH", f"/repos/{target_repo}/issues/{number}", {"state": "closed", "state_reason": "completed"})
+                print(f"closed resolved issue #{number} for {key[0]} {key[1]}")
+            issue["state"] = "closed"
+        except RuntimeError as exc:
+            print(f"::warning::failed to close resolved issue #{number}: {exc}")
+
+
+def publish_findings(
+    client: GitHub,
+    target_repo: str,
+    findings: list[dict[str, Any]],
+    dry_run: bool,
+    resolutions: dict[tuple[str, str], dict[str, Any]] | None = None,
+) -> None:
+    issues = issue_index(client, target_repo) if (findings or resolutions) else {}
     labels_seen: set[str] = set()
     for finding in findings:
-        publish_one(client, target_repo, finding, dry_run, issues, labels_seen)
+        try:
+            publish_one(client, target_repo, finding, dry_run, issues, labels_seen)
+        except RuntimeError as exc:
+            print(f"::warning::failed to publish finding for {finding['repo']} {finding['workflow']}: {exc}")
+    if resolutions:
+        close_resolved(client, target_repo, resolutions, dry_run, issues)
 
 
 def parse_bool(value: str | None) -> bool:
@@ -294,9 +385,12 @@ def main(argv: list[str] | None = None) -> int:
     if not token:
         raise SystemExit("GH_TOKEN or GITHUB_TOKEN is required")
     client = GitHub(token)
-    findings = collect_findings(client, args)
-    print(f"collected {len(findings)} security workflow failure job(s)")
-    publish_findings(client, args.target_repo, findings, args.dry_run)
+    findings, resolutions = collect(client, args)
+    print(
+        f"collected {len(findings)} security workflow failure job(s); "
+        f"{len(resolutions)} resolved workflow(s)"
+    )
+    publish_findings(client, args.target_repo, findings, args.dry_run, resolutions)
     return 0
 
 
