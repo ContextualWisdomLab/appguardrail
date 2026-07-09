@@ -7,6 +7,8 @@ import argparse
 import datetime as dt
 import json
 import os
+import ipaddress
+import socket
 import sys
 import urllib.error
 import urllib.parse
@@ -27,6 +29,11 @@ ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
 BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
+ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
+    ".actions.githubusercontent.com",
+    ".blob.core.windows.net",
+    ".githubusercontent.com",
+)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -51,10 +58,42 @@ def _redacted_url(parsed: urllib.parse.ParseResult) -> str:
     return f"{parsed.scheme}://{parsed.hostname or ''}{parsed.path}"
 
 
-def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
-    """Reject non-HTTP(S), credentialed, or internal log download URLs."""
-    import ipaddress
+def _is_allowed_log_host(host: str) -> bool:
+    """Return whether a redirect host is expected for GitHub job logs."""
+    return any(
+        host == suffix.removeprefix(".") or host.endswith(suffix)
+        for suffix in ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES
+    )
 
+
+def _is_blocked_ip(raw: str) -> bool:
+    """Return whether an IP literal or resolved address is unsafe to contact."""
+    ip = ipaddress.ip_address(raw)
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    return not ip.is_global
+
+
+def _validate_resolved_addresses(host: str, port: int | None) -> None:
+    """Resolve a host and reject any internal or non-global address result."""
+    try:
+        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise urllib.error.URLError(f"Could not resolve log download host: {host}") from exc
+
+    addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
+    if not addresses:
+        raise urllib.error.URLError(f"Could not resolve log download host: {host}")
+    for address in addresses:
+        if _is_blocked_ip(address):
+            parsed = urllib.parse.urlparse(f"https://{host}/")
+            raise urllib.error.URLError(
+                f"Access to internal address blocked: {_redacted_url(parsed)}"
+            )
+
+
+def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
+    """Reject non-HTTP(S), credentialed, untrusted, or internal log URLs."""
     parsed = urllib.parse.urlparse(url)
     scheme = (parsed.scheme or "").lower()
     if scheme not in {"http", "https"}:
@@ -86,24 +125,20 @@ def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
         )
 
     try:
-        ip = ipaddress.ip_address(raw)
-        if getattr(ip, "ipv4_mapped", None):
-            ip = ip.ipv4_mapped
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_unspecified
-            or ip.is_multicast
-        ):
+        if _is_blocked_ip(raw):
             raise urllib.error.URLError(
                 f"Access to internal address blocked: {_redacted_url(parsed)}"
             )
+        raise urllib.error.URLError(
+            f"Unexpected log download host blocked: {_redacted_url(parsed)}"
+        )
     except ValueError:
-        # Host is not a direct IP literal; allow normal DNS-hostname handling.
+        if not _is_allowed_log_host(host):
+            raise urllib.error.URLError(
+                f"Unexpected log download host blocked: {_redacted_url(parsed)}"
+            )
+        _validate_resolved_addresses(host, parsed.port)
         return parsed
-    return parsed
 
 
 class GitHub:
