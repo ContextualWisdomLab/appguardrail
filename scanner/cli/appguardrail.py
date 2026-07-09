@@ -1228,12 +1228,12 @@ def cmd_init(args):
             existing = target_file.read_text()
             if config["append_marker"] not in existing:
                 target_file.write_text(existing + "\n\n" + config["content"])
-                installed.append(f"{config['path']} (appended)")
+                installed.append(f"{_display_path(config['path'])} (appended)")
             else:
-                skipped.append(str(config["path"]))
+                skipped.append(_display_path(config["path"]))
         else:
             target_file.write_text(config["content"])
-            installed.append(str(config["path"]))
+            installed.append(_display_path(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "APPGUARDRAIL_CHECKLIST.md"
 
@@ -1287,6 +1287,13 @@ def _print_supabase_reminder():
     print("  - Use getUser() not getSession() on the server")
     print("  - Keep SUPABASE_SERVICE_ROLE_KEY server-side only")
     print()
+
+
+def _display_path(path: str | Path) -> str:
+    """Render paths consistently in CLI logs across platforms."""
+    if isinstance(path, Path):
+        return path.as_posix()
+    return str(path).replace("\\", "/")
 
 
 def _detect_scan_languages(files):
@@ -2139,10 +2146,10 @@ def _trivy_target(target: str, base_path: Path) -> str:
         path = Path(target)
         if path.is_absolute():
             root = base_path if base_path.is_dir() else base_path.parent
-            return str(path.relative_to(root))
+            return path.relative_to(root).as_posix()
     except ValueError:
         pass
-    return target
+    return _display_path(target)
 
 
 def _trivy_findings(report: dict, base_path: Path):
@@ -2654,7 +2661,7 @@ def _scan_file(file_path: Path, base_path: Path):
                             rel_path = (
                                 file_path.name if base_path.is_file() else file_path
                             )
-                        rel_path_for_filters = str(rel_path)
+                        rel_path_for_filters = _display_path(rel_path)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2673,7 +2680,9 @@ def _scan_file(file_path: Path, base_path: Path):
                             rel_path = (
                                 file_path.name if base_path.is_file() else file_path
                             )
-                        rel_path_str = _sanitize_terminal_output(str(rel_path))
+                        rel_path_str = _sanitize_terminal_output(
+                            _display_path(rel_path)
+                        )
 
                     start_idx = match.start()
 
