@@ -136,15 +136,15 @@ def build_org_inventory(
         }
     )
     supported_nonforks = sum(
-        1 for repo in nonforks if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
+        1
+        for repo in nonforks
+        if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
     )
     return OrgInventory(
         total_repositories=len(repo_list),
         nonfork_repositories=len(nonforks),
         fork_repositories=len(forks),
-        private_repositories=sum(
-            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
-        ),
+        private_repositories=sum(1 for repo in repo_list if _truthy(repo.get("isPrivate"))),
         supported_nonfork_repositories=supported_nonforks,
         unsupported_nonfork_languages=tuple(unsupported),
         primary_language_counts=_sorted_counts(primary_languages),
@@ -420,11 +420,7 @@ def _seven_day_plan(
     pr_summary: PullRequestGateSummary,
 ) -> list[str]:
     action_counts = dict(pr_summary.action_bucket_counts)
-    top_repo = (
-        pr_summary.top_repositories[0].repository
-        if pr_summary.top_repositories
-        else "the highest-risk repository"
-    )
+    top_repo = pr_summary.top_repositories[0].repository if pr_summary.top_repositories else "the highest-risk repository"
     plan: list[str] = []
     if action_counts.get("source-work"):
         plan.append(
@@ -545,11 +541,7 @@ def _sorted_counts(counter: Counter[str]) -> tuple[tuple[str, int], ...]:
 def _table(label: str, rows: tuple[tuple[str, int], ...]) -> list[str]:
     if not rows:
         return [f"| {label} | Count |", "|---|---:|", "| n/a | 0 |"]
-    return [
-        f"| {label} | Count |",
-        "|---|---:|",
-        *[f"| {key} | {count} |" for key, count in rows],
-    ]
+    return [f"| {label} | Count |", "|---|---:|", *[f"| {key} | {count} |" for key, count in rows]]
 
 
 def _repo_gate_table(rows: tuple[RepositoryGateSummary, ...]) -> list[str]:
@@ -574,10 +566,7 @@ def _buyer_metric_table(rows: tuple[BuyerEvidenceMetric, ...]) -> list[str]:
         "|---|---|---|---|",
     )
     if not rows:
-        return [
-            *header,
-            "| n/a | fail | no evidence | evidence pack should include KPI rows |",
-        ]
+        return [*header, "| n/a | fail | no evidence | evidence pack should include KPI rows |"]
     return [
         *header,
         *[

@@ -4,15 +4,9 @@ from pathlib import Path
 
 from appguardrail_core import issueops
 
-MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "ci"
-    / "collect_org_security_failures.py"
-)
-SPEC = importlib.util.spec_from_file_location(
-    "collect_org_security_failures", MODULE_PATH
-)
+
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "ci" / "collect_org_security_failures.py"
+SPEC = importlib.util.spec_from_file_location("collect_org_security_failures", MODULE_PATH)
 collector = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = collector
 assert SPEC.loader is not None
@@ -58,12 +52,7 @@ class FakeClient:
 
     def request(self, method, path, data=None):
         self.calls.append(("request", method, path, data))
-        return {
-            "number": 99,
-            "state": "open",
-            "title": data.get("title", ""),
-            "body": data.get("body", ""),
-        }
+        return {"number": 99, "state": "open", "title": data.get("title", ""), "body": data.get("body", "")}
 
 
 class FakeRedirectResponse:
@@ -120,52 +109,18 @@ def test_publish_skips_duplicate_and_reopens_closed_issue():
         "number": 17,
         "state": "open",
         "title": collector.title(item),
-        "body": issueops.marker(
-            item["repo"], item["workflow"], {collector.seen_key(item)}
-        ),
+        "body": issueops.marker(item["repo"], item["workflow"], {collector.seen_key(item)}),
     }
     client = FakeClient([issue])
-    collector.publish_one(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        item,
-        True,
-        {issue["title"]: issue},
-        set(),
-    )
+    collector.publish_one(client, "ContextualWisdomLab/appguardrail", item, True, {issue["title"]: issue}, set())
     assert all(call[0] != "request" for call in client.calls)
 
     unseen = finding(job_id=999, snippet="::error:: security failure")
-    closed = dict(
-        issue,
-        state="closed",
-        body=issueops.marker(item["repo"], item["workflow"], {"1:2"}),
-    )
+    closed = dict(issue, state="closed", body=issueops.marker(item["repo"], item["workflow"], {"1:2"}))
     client = FakeClient([closed])
-    collector.publish_one(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        unseen,
-        False,
-        {closed["title"]: closed},
-        set(),
-    )
-    patch = [
-        call
-        for call in client.calls
-        if call[:3]
-        == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")
-    ]
-    comment = [
-        call
-        for call in client.calls
-        if call[:3]
-        == (
-            "request",
-            "POST",
-            "/repos/ContextualWisdomLab/appguardrail/issues/17/comments",
-        )
-    ]
+    collector.publish_one(client, "ContextualWisdomLab/appguardrail", unseen, False, {closed["title"]: closed}, set())
+    patch = [call for call in client.calls if call[:3] == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")]
+    comment = [call for call in client.calls if call[:3] == ("request", "POST", "/repos/ContextualWisdomLab/appguardrail/issues/17/comments")]
     assert patch and patch[0][3]["state"] == "open"
     assert collector.seen_key(unseen) in patch[0][3]["body"]
     assert comment
@@ -180,16 +135,7 @@ def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
         dry_run=True,
     )
     output = capsys.readouterr().out
-    assert (
-        client.calls.count(
-            (
-                "pages",
-                "/repos/ContextualWisdomLab/appguardrail/issues",
-                {"state": "all", "labels": collector.ISSUE_LABEL},
-            )
-        )
-        == 1
-    )
+    assert client.calls.count(("pages", "/repos/ContextualWisdomLab/appguardrail/issues", {"state": "all", "labels": collector.ISSUE_LABEL})) == 1
     assert output.count("DRY_RUN label ContextualWisdomLab/appguardrail") == 3
     assert "DRY_RUN create issue" in output
     assert "DRY_RUN update issue #dry-run" in output
