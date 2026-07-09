@@ -38,18 +38,15 @@ FALLBACK_LOG_RE = [re.compile(r"\bfailed\b|\berror\b|\bfatal\b", re.IGNORECASE)]
 
 
 def is_failure(conclusion: str | None) -> bool:
-    """Return whether a GitHub Actions conclusion should open an IssueOps item."""
     return (conclusion or "").lower() in FAILURES
 
 
 def is_security_name(*names: str | None) -> bool:
-    """Return whether workflow or job names look security-related."""
     text = " ".join(name or "" for name in names).lower()
     return any(term in text for term in SECURITY_TERMS)
 
 
 def parse_run_url(url: str) -> tuple[str, int]:
-    """Extract the repository slug and run id from a GitHub Actions run URL."""
     match = re.search(r"github\.com/([^/]+/[^/]+)/actions/runs/(\d+)", url)
     if not match:
         raise ValueError(f"Unsupported GitHub Actions run URL: {url}")
@@ -57,13 +54,11 @@ def parse_run_url(url: str) -> tuple[str, int]:
 
 
 def sanitize_label_value(value: str) -> str:
-    """Convert arbitrary workflow values into bounded GitHub label fragments."""
     value = re.sub(r"[^A-Za-z0-9._:-]+", "-", value.strip()).strip("-")
     return value[:45] or "unknown"
 
 
 def redact(log: str) -> str:
-    """Normalize logs and redact likely credentials before storing snippets."""
     text = ANSI_RE.sub("", log.replace("\r\n", "\n").replace("\r", "\n"))
     text = "\n".join(TS_RE.sub("", line) for line in text.splitlines())
     for regex in SECRET_RE:
@@ -72,7 +67,6 @@ def redact(log: str) -> str:
 
 
 def log_ranges(lines: list[str], patterns: list[re.Pattern[str]]) -> list[tuple[int, int]]:
-    """Return context ranges around log lines matching the supplied patterns."""
     return [
         (max(0, index - 2), min(len(lines), index + 9))
         for index, line in enumerate(lines)
@@ -81,7 +75,6 @@ def log_ranges(lines: list[str], patterns: list[re.Pattern[str]]) -> list[tuple[
 
 
 def compress_log(log: str, max_lines: int = DEFAULT_MAX_LOG_LINES, max_chars: int = DEFAULT_MAX_LOG_CHARS) -> str:
-    """Trim a raw job log down to the most relevant failure evidence."""
     lines = redact(log).splitlines()
     if not lines:
         return "(no job log returned)"
@@ -119,18 +112,15 @@ def compress_log(log: str, max_lines: int = DEFAULT_MAX_LOG_LINES, max_chars: in
 
 
 def seen_key(finding: dict[str, Any]) -> str:
-    """Return the stable per-run job key used to deduplicate findings."""
     return f"{finding['run_id']}:{finding['job_id']}"
 
 
 def marker(repo: str, workflow: str, seen: set[str]) -> str:
-    """Build the hidden marker that tracks IssueOps state in issue bodies."""
     payload = {"repo": repo, "workflow": workflow, "seen": sorted(seen)}
     return f"{MARKER_PREFIX} {json.dumps(payload, sort_keys=True)} {MARKER_SUFFIX}"
 
 
 def parse_marker(body: str | None) -> dict[str, Any]:
-    """Parse a hidden IssueOps marker from an existing issue body."""
     body = body or ""
     start = body.find(MARKER_PREFIX)
     end = body.find(MARKER_SUFFIX, start + len(MARKER_PREFIX))
@@ -143,7 +133,6 @@ def parse_marker(body: str | None) -> dict[str, Any]:
 
 
 def replace_marker(body: str | None, repo: str, workflow: str, seen: set[str]) -> str:
-    """Replace or prepend the hidden IssueOps marker in an issue body."""
     body = body or ""
     new_marker = marker(repo, workflow, seen)
     start = body.find(MARKER_PREFIX)
@@ -154,12 +143,10 @@ def replace_marker(body: str | None, repo: str, workflow: str, seen: set[str]) -
 
 
 def title(finding: dict[str, Any]) -> str:
-    """Return the GitHub issue title for a security workflow failure."""
     return f"[security-failure] {finding['repo']}: {finding['workflow']}"
 
 
 def summary(finding: dict[str, Any]) -> str:
-    """Render the common markdown summary for issues and comments."""
     prs = ", ".join(f"#{number}" for number in finding["pr_numbers"]) or "n/a"
     rows = [
         ("Repository", f"`{finding['repo']}`"),
@@ -177,7 +164,6 @@ def summary(finding: dict[str, Any]) -> str:
 
 
 def issue_body(finding: dict[str, Any], seen: set[str]) -> str:
-    """Render the initial IssueOps body for a detected workflow failure."""
     owner = finding["repo"].split("/", 1)[0]
     return "\n\n".join(
         [
@@ -190,5 +176,4 @@ def issue_body(finding: dict[str, Any], seen: set[str]) -> str:
 
 
 def issue_comment(finding: dict[str, Any]) -> str:
-    """Render a follow-up comment for a new failure on an existing issue."""
     return "\n\n".join(["New security workflow failure detected.", summary(finding), f"```text\n{finding['snippet']}\n```"])

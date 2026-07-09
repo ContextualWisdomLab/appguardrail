@@ -70,3 +70,5 @@
 **Prevention:** Use `ipaddress.ip_address` to parse and validate IP literals, explicitly rejecting private and reserved addresses before making network requests. Ensure edge cases like dotless decimal encoding and credentials in URLs are also rejected.
 ## 2025-02-28 - Note on IP parsing edge cases
 **Learning:** Catching `ValueError` during `ipaddress.ip_address(raw)` and passing (which is necessary to allow valid hostnames like `example.com`), inadvertently allows IP formats that `ipaddress` rejects but `urllib` might accept (e.g., octal or hex encoded IP addresses like `http://0177.0.0.1/`). Full SSRF protection typically requires DNS resolution, but static check is still a massive improvement over basic string matching blocklists.
+## 2025-02-28 - Note on CodeQL and external tools network flakiness
+**Learning:** Network disruptions on runner environments (like `unable to access 'https://github.com/ContextualWisdomLab/appguardrail/': Could not resolve host: github.com` during OSV scanner execution) are transient infrastructure failures and not related to the codebase. When this occurs alongside CodeQL issues, re-running the job is the appropriate action.

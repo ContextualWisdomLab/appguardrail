@@ -741,7 +741,7 @@ SCAN_RULES = [
             r"(?i)<a\b(?=[^>\n]*target\s*=\s*[\"']_blank[\"'])(?![^>\n]*rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer))[^>\n]*href\s*=\s*[\"']https?://"
         ),
         "severity": "WARNING",
-        "message": "External target=_blank link is missing rel=\"noopener noreferrer\". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]",
+        "message": 'External target=_blank link is missing rel="noopener noreferrer". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]',
         "extensions": [".html", ".htm"],
     },
     {
@@ -888,6 +888,7 @@ SCAN_RULES = [
         "extensions": None,
     },
 ]
+
 
 def _unquote_rule_scalar(value: str) -> str:
     """Return a simple YAML scalar value from the controlled rule files."""
@@ -1264,13 +1265,13 @@ def cmd_init(args):
     if installed:
         print("✨ Created/updated files:")
         for f in installed:
-            print(f"  {_display_path(f)}")
+            print(f"  {f}")
         print()
 
     if skipped:
         print("⏭️  Skipped (already configured):")
         for f in skipped:
-            print(f"  {_display_path(f)}")
+            print(f"  {f}")
         print()
 
     print("🚀 Next steps:")
@@ -1467,10 +1468,7 @@ def cmd_scan(args):
         try:
             findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
         except RuntimeError as exc:
-            if (
-                external_plan.semgrep.auto_selected
-                and not external_plan.semgrep.forced
-            ):
+            if external_plan.semgrep.auto_selected and not external_plan.semgrep.forced:
                 print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
@@ -1535,7 +1533,9 @@ def cmd_scan(args):
             notes.append(f"fail_on={config['fail_on']}")
         if config.get("exclude_rules"):
             notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
-        print(f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else ""))
+        print(
+            f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
+        )
 
     blocking = config.get("blocking_severities")
     excluded = config.get("exclude_rules") or set()
@@ -1631,7 +1631,9 @@ def cmd_fix(args):
         print("✨ No safe auto-fixes to apply.")
         return 0
     if apply:
-        print(f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s).")
+        print(
+            f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s)."
+        )
     else:
         print(
             f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
@@ -1703,8 +1705,7 @@ def cmd_report(args):
         or "Application source, configuration, and security workflow evidence.",
         client_name=getattr(args, "client_name", None) or "n/a",
         reviewer=getattr(args, "reviewer", None) or "AppGuardrail",
-        engagement_type=getattr(args, "engagement_type", None)
-        or "Pre-launch review",
+        engagement_type=getattr(args, "engagement_type", None) or "Pre-launch review",
         based_on=getattr(args, "based_on", None) or "AppGuardrail findings JSON",
     )
     report = render_report(report_type, findings, context)
@@ -1741,11 +1742,13 @@ def cmd_org_bundle(args):
             prs, collection_warnings = gh_pr_list(owner, repos, per_repo_pr_limit)
         if prs_repository:
             prs = annotate_missing_pr_repositories(prs, prs_repository)
-        generated_at, report, evidence_payload, inventory, pr_summary = render_org_evidence(
-            repos,
-            prs,
-            active_repository_target=active_repository_target,
-            generated_at=getattr(args, "generated_at", None),
+        generated_at, report, evidence_payload, inventory, pr_summary = (
+            render_org_evidence(
+                repos,
+                prs,
+                active_repository_target=active_repository_target,
+                generated_at=getattr(args, "generated_at", None),
+            )
         )
         manifest = write_bundle(
             bundle_dir,
@@ -1770,7 +1773,9 @@ def cmd_org_bundle(args):
         )
         return 1
     except subprocess.CalledProcessError as exc:
-        print(f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr)
+        print(
+            f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr
+        )
         print(
             "💡 Hint: Retry later or provide --repos-json and --prs-json.",
             file=sys.stderr,
@@ -1984,11 +1989,6 @@ def _sanitize_terminal_output(text: str) -> str:
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
-def _display_path(path: Path | str) -> str:
-    """Return a stable slash-separated path for CLI output and reports."""
-    return str(path).replace("\\", "/")
-
-
 _SENSITIVE_RULE_TOKENS = (
     "secret",
     "password",
@@ -2144,11 +2144,10 @@ def _trivy_target(target: str, base_path: Path) -> str:
         path = Path(target)
         if path.is_absolute():
             root = base_path if base_path.is_dir() else base_path.parent
-            return _display_path(path.relative_to(root))
+            return str(path.relative_to(root))
     except ValueError:
-        # Absolute targets outside the scan root are reported as provided.
         pass
-    return _display_path(target)
+    return target
 
 
 def _trivy_findings(report: dict, base_path: Path):
@@ -2431,20 +2430,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2511,13 +2512,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -2635,6 +2638,15 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_for_filters = None
     build_finding = _build_finding
 
+    # Pre-compute string values to replace slow Path.relative_to() calls
+    resolved_base_path_str = str(resolved_base_path)
+    resolved_base_path_prefix = (
+        resolved_base_path_str + os.sep
+        if not resolved_base_path_str.endswith(os.sep)
+        else resolved_base_path_str
+    )
+    file_path_str_cache = str(file_path)
+
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -2654,13 +2666,18 @@ def _scan_file(file_path: Path, base_path: Path):
             ) in applicable_rules:
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
+                        if file_path_str_cache == resolved_base_path_str:
+                            rel_path_for_filters = "."
+                        elif file_path_str_cache.startswith(resolved_base_path_prefix):
+                            rel_path_for_filters = file_path_str_cache[
+                                len(resolved_base_path_prefix) :
+                            ]
+                        else:
+                            rel_path_for_filters = (
+                                file_path.name
+                                if base_path.is_file()
+                                else file_path_str_cache
                             )
-                        rel_path_for_filters = _display_path(rel_path)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2673,13 +2690,21 @@ def _scan_file(file_path: Path, base_path: Path):
 
                 for match in finditer(content):
                     if rel_path_str is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
+                        if file_path_str_cache == resolved_base_path_str:
+                            rel_path_for_output = "."
+                        elif file_path_str_cache.startswith(resolved_base_path_prefix):
+                            rel_path_for_output = file_path_str_cache[
+                                len(resolved_base_path_prefix) :
+                            ]
+                        else:
+                            rel_path_for_output = (
+                                file_path.name
+                                if base_path.is_file()
+                                else file_path_str_cache
                             )
-                        rel_path_str = _sanitize_terminal_output(_display_path(rel_path))
+                        rel_path_str = _sanitize_terminal_output(
+                            str(rel_path_for_output)
+                        )
 
                     start_idx = match.start()
 
@@ -2971,7 +2996,10 @@ def cmd_dashboard(args):
                 json.loads(tokens_file.read_text(encoding="utf-8"))
             ).encode("utf-8")
         except (ValueError, OSError) as exc:
-            print(f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.", file=sys.stderr)
+            print(
+                f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.",
+                file=sys.stderr,
+            )
 
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8787)
@@ -2994,7 +3022,9 @@ def cmd_dashboard(args):
         except Exception as exc:
             # Non-fatal: the server is already serving; just tell the user to
             # open the URL themselves instead of failing the command.
-            print(f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr)
+            print(
+                f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr
+            )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -3141,9 +3171,7 @@ def main():
         )
         parser.add_argument("--app-name", default=None, help="Application name")
         parser.add_argument("--repository", default=None, help="Repository name")
-        parser.add_argument(
-            "--commit", default=None, help="Commit SHA or version"
-        )
+        parser.add_argument("--commit", default=None, help="Commit SHA or version")
         parser.add_argument(
             "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
         )
@@ -3241,7 +3269,8 @@ def main():
         "path", nargs="?", default=".", help="File or directory to fix"
     )
     fix_parser.add_argument(
-        "--apply", action="store_true",
+        "--apply",
+        action="store_true",
         help="Write fixes to disk (default: show a dry-run diff)",
     )
     dashboard_parser = subparsers.add_parser(

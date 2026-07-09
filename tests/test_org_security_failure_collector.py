@@ -99,6 +99,8 @@ def test_job_log_rejects_internal_redirect_host(monkeypatch):
         "http://[::ffff:127.0.0.1]/",
         "http://10.0.0.5/",
         "http://2130706433/",
+        "http://0177.0.0.1/",
+        "http://0x7f.0.0.1/",
     ]
 
     for url in blocked_urls:
