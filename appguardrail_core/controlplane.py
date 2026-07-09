@@ -62,8 +62,35 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# scrypt work factors (stdlib ``hashlib.scrypt``). n must be a power of two;
+# these are the interactive-login reference parameters and stay well within the
+# default 32 MiB ``maxmem`` (n*r*128 ≈ 16 MiB).
+_SCRYPT_N = 2 ** 14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+# Fixed application salt (pepper). API-key hashes are looked up by equality
+# (``WHERE api_key_hash = ?``), so hashing must be deterministic — a per-call
+# random salt would make every stored key unfindable. A constant salt keeps the
+# lookup working while scrypt's memory-hard cost defeats offline brute-force.
+_KEY_SALT = b"appguardrail.controlplane.key.v1"
+
+
 def _hash_key(api_key: str) -> str:
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    """Derive a deterministic, brute-force-resistant hash of an API key.
+
+    Uses scrypt (a memory-hard KDF from the stdlib) instead of a fast hash such
+    as SHA-256: API keys are secrets, so if the store leaks, an attacker must
+    pay scrypt's tunable compute/memory cost per guess rather than hashing
+    billions of candidates per second. The fixed application salt keeps the
+    output deterministic so keys remain findable by an indexed equality lookup.
+    """
+    return hashlib.scrypt(
+        api_key.encode("utf-8"),
+        salt=_KEY_SALT,
+        n=_SCRYPT_N,
+        r=_SCRYPT_R,
+        p=_SCRYPT_P,
+    ).hex()
 
 
 def connect(db_path: str) -> sqlite3.Connection:
