@@ -38,29 +38,21 @@ BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    """HTTP handler that exposes GitHub log redirects without following them."""
-
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Stop urllib before it follows the signed log download URL."""
         return None
 
 
 class SecureRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """HTTP handler that validates every redirected log download URL."""
-
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Validate a redirect target before urllib follows it."""
         _validate_log_download_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _redacted_url(parsed: urllib.parse.ParseResult) -> str:
-    """Return a URL string without query parameters or credentials."""
     return f"{parsed.scheme}://{parsed.hostname or ''}{parsed.path}"
 
 
 def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
-    """Reject non-HTTP(S) and local log download redirect targets."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         raise urllib.error.URLError(
@@ -74,15 +66,11 @@ def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
 
 
 class GitHub:
-    """Small GitHub REST client used by the failure collector."""
-
     def __init__(self, token: str, api: str = API):
-        """Store authentication and API base URL."""
         self.token = token
         self.api = api.rstrip("/")
 
     def request(self, method: str, path: str, data: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> Any:
-        """Send one GitHub API request and decode JSON responses."""
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
         url = f"{self.api}{path}{query}"
@@ -116,7 +104,6 @@ class GitHub:
         return json.loads(text) if "application/json" in content_type else text
 
     def pages(self, path: str, params: dict[str, Any] | None = None) -> list[Any]:
-        """Collect every paginated item from a GitHub list endpoint."""
         items: list[Any] = []
         page = 1
         while True:
@@ -135,7 +122,6 @@ class GitHub:
             page += 1
 
     def job_log(self, repo: str, job_id: int) -> str:
-        """Fetch a job log through GitHub's signed redirect flow."""
         path = f"/repos/{repo}/actions/jobs/{job_id}/logs"
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
             f"{self.api}{path}",
@@ -172,18 +158,15 @@ class GitHub:
 
 
 def utc_now() -> dt.datetime:
-    """Return the current timezone-aware UTC timestamp."""
     return dt.datetime.now(dt.timezone.utc)
 
 
 def parse_time(value: str) -> dt.datetime:
-    """Parse a GitHub timestamp into a timezone-aware datetime."""
     parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
 
 def build_finding(client: GitHub, repo: str, run: dict[str, Any], job: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
-    """Build one normalized workflow failure finding."""
     job_id = int(job["id"])
     return {
         "repo": repo,
@@ -203,7 +186,6 @@ def build_finding(client: GitHub, repo: str, run: dict[str, Any], job: dict[str,
 
 
 def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
-    """Collect recent failing security workflow jobs across repositories."""
     if args.run_url:
         repo, run_id = parse_run_url(args.run_url)
         repos = [{"full_name": repo}]
@@ -232,7 +214,6 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
 
 
 def ensure_label(client: GitHub, target_repo: str, name: str, dry_run: bool, cache: set[str]) -> None:
-    """Create a GitHub label once per run unless dry-run mode is active."""
     if name in cache:
         return
     cache.add(name)
@@ -247,13 +228,11 @@ def ensure_label(client: GitHub, target_repo: str, name: str, dry_run: bool, cac
 
 
 def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
-    """Return existing AppGuardrail issues keyed by title."""
     issues = client.pages(f"/repos/{target_repo}/issues", {"state": "all", "labels": ISSUE_LABEL})
     return {issue["title"]: issue for issue in issues if issue.get("title") and "pull_request" not in issue}
 
 
 def publish_one(client: GitHub, target_repo: str, finding: dict[str, Any], dry_run: bool, issues: dict[str, dict[str, Any]], labels_seen: set[str]) -> None:
-    """Create or update the issue for one workflow failure finding."""
     labels = [ISSUE_LABEL, SECURITY_LABEL, f"repo:{sanitize_label_value(finding['repo'].split('/', 1)[1])}"]
     issue_title = title(finding)
     issue = issues.get(issue_title)
@@ -293,7 +272,6 @@ def publish_one(client: GitHub, target_repo: str, finding: dict[str, Any], dry_r
 
 
 def publish_findings(client: GitHub, target_repo: str, findings: list[dict[str, Any]], dry_run: bool) -> None:
-    """Publish collected findings into GitHub issues."""
     issues = issue_index(client, target_repo) if findings else {}
     labels_seen: set[str] = set()
     for finding in findings:
@@ -301,12 +279,10 @@ def publish_findings(client: GitHub, target_repo: str, findings: list[dict[str, 
 
 
 def parse_bool(value: str | None) -> bool:
-    """Parse common truthy environment variable strings."""
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Parse command line arguments for the collector."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--owner", default=os.getenv("GITHUB_REPOSITORY_OWNER", "ContextualWisdomLab"))
     parser.add_argument("--target-repo", default=os.getenv("GITHUB_REPOSITORY", "ContextualWisdomLab/appguardrail"))
@@ -319,7 +295,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run collection and issue publication from process arguments."""
     args = parse_args(argv or sys.argv[1:])
     token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
     if not token:
