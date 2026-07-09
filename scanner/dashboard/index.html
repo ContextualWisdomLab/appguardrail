@@ -52,6 +52,8 @@
   thead th{color:var(--muted);font-size:12px;font-weight:600;background:var(--bg)}
   tbody tr{cursor:pointer}
   tbody tr:hover{background:var(--bg)}
+  :focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
+  tbody tr:focus-visible{outline-offset:-2px;border-radius:0}
   .chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
   .file{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;border:1px solid var(--border);font-size:11px;color:var(--muted)}
@@ -84,7 +86,7 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <input type="file" id="file" accept="application/json,.json" style="margin-left:12px">
+  <input type="file" id="file" aria-label="Load findings JSON file" accept="application/json,.json" style="margin-left:12px">
 </header>
 <main id="app"></main>
 
@@ -148,7 +150,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}">
+    return `<tr data-i="${i}" tabindex="0" aria-label="View details for ${esc(f.rule_id)}">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -167,8 +169,8 @@ function render(){
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
       <div>
         <div class="toolbar">
-          <input type="search" id="q" placeholder="Search message, file, rule, category" value="${esc(query)}">
-          <select id="sev">
+          <input type="search" id="q" aria-label="Search findings" placeholder="Search message, file, rule, category" value="${esc(query)}">
+          <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
           </select>
@@ -182,8 +184,10 @@ function render(){
 
   document.getElementById('q').addEventListener('input', e=>{query=e.target.value.toLowerCase();render();syncFocus('q');});
   document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();});
-  app.querySelectorAll('tbody tr[data-i]').forEach(tr=>
-    tr.addEventListener('click',()=>openDetail(ALL[+tr.dataset.i])));
+  app.querySelectorAll('tbody tr[data-i]').forEach(tr=>{
+    tr.addEventListener('click',()=>openDetail(ALL[+tr.dataset.i]));
+    tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(ALL[+tr.dataset.i]);}});
+  });
 }
 function syncFocus(id){const el=document.getElementById(id);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}}
 
