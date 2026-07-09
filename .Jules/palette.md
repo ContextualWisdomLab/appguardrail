@@ -5,3 +5,7 @@
 ## 2026-06-30 - Added Emojis to CLI Output Messages
 **Learning:** Adding subtle emojis to informative CLI output headers (like "Created/updated files" and "Next steps") provides clearer visual cues for developers scanning long CLI output.
 **Action:** Always include relevant emojis in summary output text to make success and informational messages more visually distinguishable from routine command logs.
+
+## 2026-07-01 - Interactive Table Rows Keyboard Navigation
+**Learning:** Table rows that act as clickable elements are inaccessible to keyboard and screen reader users without proper `tabindex` and `keydown` event handling.
+**Action:** When making non-interactive elements (like `tr` or `div`) clickable, always add `tabindex="0"`, visible focus states (`:focus-visible`), and handle `Enter`/`Space` key events to ensure keyboard accessibility.
