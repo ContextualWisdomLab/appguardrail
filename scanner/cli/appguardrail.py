@@ -1264,13 +1264,13 @@ def cmd_init(args):
     if installed:
         print("✨ Created/updated files:")
         for f in installed:
-            print(f"  {f}")
+            print(f"  {_display_path(f)}")
         print()
 
     if skipped:
         print("⏭️  Skipped (already configured):")
         for f in skipped:
-            print(f"  {f}")
+            print(f"  {_display_path(f)}")
         print()
 
     print("🚀 Next steps:")
@@ -1984,6 +1984,11 @@ def _sanitize_terminal_output(text: str) -> str:
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
+def _display_path(path: Path | str) -> str:
+    """Return a stable slash-separated path for CLI output and reports."""
+    return str(path).replace("\\", "/")
+
+
 _SENSITIVE_RULE_TOKENS = (
     "secret",
     "password",
@@ -2139,10 +2144,11 @@ def _trivy_target(target: str, base_path: Path) -> str:
         path = Path(target)
         if path.is_absolute():
             root = base_path if base_path.is_dir() else base_path.parent
-            return str(path.relative_to(root))
+            return _display_path(path.relative_to(root))
     except ValueError:
+        # Absolute targets outside the scan root are reported as provided.
         pass
-    return target
+    return _display_path(target)
 
 
 def _trivy_findings(report: dict, base_path: Path):
@@ -2654,7 +2660,7 @@ def _scan_file(file_path: Path, base_path: Path):
                             rel_path = (
                                 file_path.name if base_path.is_file() else file_path
                             )
-                        rel_path_for_filters = str(rel_path)
+                        rel_path_for_filters = _display_path(rel_path)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2673,7 +2679,7 @@ def _scan_file(file_path: Path, base_path: Path):
                             rel_path = (
                                 file_path.name if base_path.is_file() else file_path
                             )
-                        rel_path_str = _sanitize_terminal_output(str(rel_path))
+                        rel_path_str = _sanitize_terminal_output(_display_path(rel_path))
 
                     start_idx = match.start()
 
