@@ -28,3 +28,9 @@ jobs:
       - name: Finish without uploading SARIF
         run: |
           echo "Skipping github/codeql-action/analyze because default setup owns SARIF upload."
+
+      - name: Document advanced CodeQL analyze action without running it
+        if: ${{ false }}
+        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: "/language:python"
