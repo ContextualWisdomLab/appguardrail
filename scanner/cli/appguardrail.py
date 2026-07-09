@@ -48,6 +48,13 @@ import re
 import shlex
 import shutil
 import stat
+import os
+
+_EMOJI_REGEX = re.compile(r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*")
+def _format_msg(msg: str) -> str:
+    if os.getenv("APPGUARDRAIL_NO_EMOJI"):
+        return _EMOJI_REGEX.sub("", msg)
+    return msg
 import subprocess
 import sys
 import tempfile
@@ -1260,20 +1267,20 @@ def cmd_init(args):
     if stack and "supabase" in stack:
         _print_supabase_reminder()
 
-    print("\n✅ AppGuardrail initialized successfully!\n")
+    print(_format_msg("\n✅ AppGuardrail initialized successfully!\n"))
     if installed:
-        print("✨ Created/updated files:")
+        print(_format_msg("✨ Created/updated files:"))
         for f in installed:
             print(f"  {f}")
         print()
 
     if skipped:
-        print("⏭️  Skipped (already configured):")
+        print(_format_msg("⏭️  Skipped (already configured):"))
         for f in skipped:
             print(f"  {f}")
         print()
 
-    print("🚀 Next steps:")
+    print(_format_msg("🚀 Next steps:"))
     print("  1. Review the installed rules and customize for your project")
     print("  2. Run 'appguardrail scan .' to check for existing issues")
     print("  3. Check APPGUARDRAIL_CHECKLIST.md before deploying")
@@ -1527,7 +1534,7 @@ def cmd_scan(args):
     try:
         config = load_config([config_dir, Path.cwd()])
     except RuntimeError as exc:
-        print(f"❌ Error: {exc}\n💡 Hint: Check error details and try again.", file=sys.stderr)
+        print(f"❌ Error: {exc}", file=sys.stderr)
         return 1
     if config.get("_path"):
         notes = []
@@ -2764,20 +2771,18 @@ def _print_scan_results(findings, files_scanned):
         print("\n⚠️  No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
-        print(f"\n❌ Critical {issue_word} found. Fix before deploying.")
+        print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        print(f"\n⚠️  High-severity {issue_word} found. Review before deploying.")
+        print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
     elif not findings:
-        print("\n✅ No issues found in this scan.")
+        print(_format_msg("\n✅ No issues found in this scan."))
     else:
-        print("\n✅ No deploy-blocking critical or high issues found.")
+        print(_format_msg("\n✅ No deploy-blocking critical or high issues found."))
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        print(
-            f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
-        )
+        print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
     print()
 
 
