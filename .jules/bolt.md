@@ -50,3 +50,7 @@
 ## 2024-07-08 - Path.relative_to overhead in file scanning loops
 **Learning:** Calling `pathlib.Path.relative_to()` inside nested loops (like per-match file scanning) is a massive performance bottleneck due to Pathlib's object instantiation and resolution overhead, far slower than raw string manipulations. Even deferred to the first match per file, string logic is significantly faster.
 **Action:** In performance-critical loops such as file scanners, avoid Path methods for string comparisons. Use standard string manipulation (checking exact matches and `startswith` for prefixes) to determine relative paths. Ensure exact match fallback yields `.` instead of an empty string, to accurately match `relative_to` behavior.
+
+## 2024-07-09 - String Sanitization Fast-Path
+**Learning:** The `_sanitize_terminal_output` function used a character-by-character generator expression `"".join(c if ... else ...)` to escape ANSI sequences. This was highly inefficient for 99% of normal string inputs (like typical file paths).
+**Action:** When sanitizing strings for terminal output, implement a fast-path pre-check using native C-level string methods like `isprintable()` (e.g., `text.replace('\t', '').isprintable()`) to bypass the generator for normal strings, significantly reducing CPU overhead in logging hot-paths.
