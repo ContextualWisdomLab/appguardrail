@@ -25,6 +25,7 @@ from appguardrail_core.org_bundle import (
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command-line arguments for report rendering."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--owner", default="ContextualWisdomLab")
     parser.add_argument("--repos-json", help="Path to gh repo list JSON output.")
@@ -40,6 +41,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Render organization readiness evidence from GitHub repository data."""
     args = parse_args(argv or sys.argv[1:])
     try:
         repos = _load_json(args.repos_json) if args.repos_json else _gh_repo_list(args.owner)
