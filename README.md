@@ -171,8 +171,8 @@ flipping TLS verification) stay as reviewable prompts — see
 ### Run the control-plane API (scan history)
 
 ```bash
-# Provision an org + API key
-appguardrail serve --db cp.db --create-org "Acme"
+# Provision an org + API key file (defaults to cp.db.api-key)
+appguardrail serve --db cp.db --create-org "Acme" --api-key-file acme.api-key
 
 # Run the API (bootstraps a default org + key on an empty DB)
 appguardrail serve --db cp.db --port 8788
@@ -180,6 +180,7 @@ appguardrail serve --db cp.db --port 8788
 
 `appguardrail serve` turns AppGuardrail from a one-shot CLI into a persistent,
 multi-tenant surface: CI pushes each scan and the org queries its history.
+New bootstrap keys are written to a local key file instead of console logs.
 
 ```bash
 # From CI, after `appguardrail scan --findings-json findings.json .`
