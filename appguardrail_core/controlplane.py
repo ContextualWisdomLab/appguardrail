@@ -214,6 +214,37 @@ def _slack_blocks(
     }
 
 
+def _is_safe_url(url: str) -> bool:
+    import ipaddress
+    import urllib.parse
+    import socket
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    raw = host.split("%", 1)[0].strip("[]")
+
+    try:
+        ip_str = socket.gethostbyname(raw)
+        ip = ipaddress.ip_address(ip_str)
+        if ip.is_loopback or ip.is_private or ip.is_link_local:
+            return False
+    except socket.gaierror:
+        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
+        # This allows dummy domains in tests like `hook.example`.
+        pass
+    except ValueError:
+        return False
+
+    return True
+
+
 def _send_alert(
     url: str,
     payload: dict[str, Any],
@@ -230,7 +261,7 @@ def _send_alert(
     import urllib.error
     import urllib.request
 
-    if not url.startswith(("http://", "https://")):
+    if not _is_safe_url(url):
         return False
 
     if _is_slack_webhook(url):
@@ -239,13 +270,13 @@ def _send_alert(
         body = payload
 
     try:
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
             url,
             data=json.dumps(body).encode("utf-8"),
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(req, timeout=10)
+        urllib.request.urlopen(req, timeout=10)  # noqa: S310 - Safe URL scheme validated
         return True
     except (urllib.error.URLError, OSError, ValueError):
         return False

@@ -79,3 +79,7 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI) risks in webhook payloads and CLI push endpoints due to missing URL scheme validation before `urllib.request.urlopen`.
 **Learning:** Built-in Python functions like `urllib.request.urlopen` accept schemes like `file://` and `ftp://` natively. When user input (like configuration strings or CLI arguments) provides the URL, it must be validated statically.
 **Prevention:** Ensure explicit prefix checks (e.g. `url.startswith(('http://', 'https://'))`) on user-provided inputs passed to generic HTTP client APIs before issuing the request.
+## 2026-07-10 - [SSRF and LFI vulnerability in urllib.request.urlopen]
+**Vulnerability:** Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI) risks in webhook payloads and CLI push endpoints due to missing URL scheme validation before `urllib.request.urlopen` and insufficient host validation.
+**Learning:** Checking the URL hostname natively with string matches is vulnerable to DNS-based bypasses (e.g. `127.0.0.1.nip.io`). To prevent internal routing from malicious external actors, URL schemes should be validated and the IP address obtained through `socket.gethostbyname` needs to be validated against loopback, private, and link-local ranges.
+**Prevention:** Always validate user-provided URLs by strictly allowing schemas (`http`, `https`) and checking their resolved IPs for safety (`ipaddress.is_loopback`, `ipaddress.is_private`, `ipaddress.is_link_local`).

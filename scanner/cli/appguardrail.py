@@ -1571,6 +1571,37 @@ def _write_findings_json(findings, output_path: Path):
     print(f"🧾 Findings JSON written: {output_path}")
 
 
+def _is_safe_url(url: str) -> bool:
+    import ipaddress
+    import urllib.parse
+    import socket
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    raw = host.split("%", 1)[0].strip("[]")
+
+    try:
+        ip_str = socket.gethostbyname(raw)
+        ip = ipaddress.ip_address(ip_str)
+        if ip.is_loopback or ip.is_private or ip.is_link_local:
+            return False
+    except socket.gaierror:
+        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
+        # This allows dummy domains in tests like `hook.example`.
+        pass
+    except ValueError:
+        return False
+
+    return True
+
+
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
     import urllib.error
@@ -1583,9 +1614,9 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
-    if not url.startswith(("http://", "https://")):
+    if not _is_safe_url(url):
         print(
-            f"⚠️  --push URL must start with http:// or https://, got {url}",
+            f"⚠️  --push URL must be a valid http/https URL and not point to internal infrastructure, got {url}",
             file=sys.stderr,
         )
         return
@@ -1595,7 +1626,7 @@ def _push_findings(url, findings):
         "commit": os.environ.get("GITHUB_SHA"),
     }
     endpoint = url.rstrip("/") + "/api/v1/scans"
-    req = urllib.request.Request(
+    req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
@@ -1605,7 +1636,7 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""

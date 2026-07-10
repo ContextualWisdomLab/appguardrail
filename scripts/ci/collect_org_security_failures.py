@@ -141,9 +141,9 @@ class GitHub:
             },
         )
         try:
-            with urllib.request.urlopen(
+            with urllib.request.urlopen(  # noqa: S310 - GitHub API URL
                 req, timeout=30
-            ) as res:  # noqa: S310 - GitHub API URL
+            ) as res:
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
