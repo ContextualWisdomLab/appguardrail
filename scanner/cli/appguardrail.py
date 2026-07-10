@@ -2971,6 +2971,39 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
     return http.server.HTTPServer((host, port), _Handler)
 
 
+def cmd_sbom(args):
+    """Generate a CycloneDX SBOM from dependency manifests."""
+    from appguardrail_core.sbom import build_sbom, collect_components
+
+    base = Path(getattr(args, "path", ".") or ".")
+    if not base.exists():
+        print(f"❌ Path not found: {base}", file=sys.stderr)
+        return 1
+    root = base if base.is_dir() else base.parent
+    components = collect_components(root)
+    if not components:
+        print(
+            "ℹ️  No supported manifests found "
+            "(package.json, package-lock.json, requirements.txt).",
+            file=sys.stderr,
+        )
+        return 1
+    app_name = getattr(args, "app_name", None) or root.name or "AppGuardrail scan target"
+    payload = json.dumps(build_sbom(components, app_name), indent=2)
+    out = getattr(args, "out", None)
+    if out:
+        try:
+            Path(out).parent.mkdir(parents=True, exist_ok=True)
+            Path(out).write_text(payload + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Cannot write SBOM: {exc}", file=sys.stderr)
+            return 1
+        print(f"📦 SBOM ({len(components)} components) written: {out}")
+    else:
+        print(payload)
+    return 0
+
+
 def cmd_dashboard(args):
     """Serve the local AppGuardrail findings dashboard in a browser."""
     import webbrowser
@@ -3279,6 +3312,16 @@ def main():
         action="store_true",
         help="Write fixes to disk (default: show a dry-run diff)",
     )
+    sbom_parser = subparsers.add_parser(
+        "sbom", help="Generate a CycloneDX SBOM from dependency manifests"
+    )
+    sbom_parser.add_argument(
+        "path", nargs="?", default=".", help="Project directory to inventory"
+    )
+    sbom_parser.add_argument(
+        "--out", default=None, help="Write SBOM JSON here instead of stdout"
+    )
+    sbom_parser.add_argument("--app-name", default=None, help="Application name for the SBOM metadata")
     dashboard_parser = subparsers.add_parser(
         "dashboard", help="Serve the findings dashboard in your browser"
     )
@@ -3315,6 +3358,8 @@ def main():
         sys.exit(cmd_hook(args))
     elif args.command == "fix":
         sys.exit(cmd_fix(args))
+    elif args.command == "sbom":
+        sys.exit(cmd_sbom(args))
     elif args.command == "dashboard":
         sys.exit(cmd_dashboard(args))
     else:
