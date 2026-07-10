@@ -246,6 +246,8 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    env:
+      CP_URL: ${{ secrets.APPGUARDRAIL_CONTROL_PLANE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -258,10 +260,15 @@ jobs:
       - name: Install AppGuardrail
         run: python -m pip install --disable-pip-version-check appguardrail
 
-      - name: Run AppGuardrail (SARIF + deploy gate)
+      - name: Run AppGuardrail (SARIF + deploy gate; push to control plane if configured)
         id: scan
         continue-on-error: true
-        run: appguardrail scan --sarif appguardrail.sarif .
+        env:
+          APPGUARDRAIL_API_KEY: ${{ secrets.APPGUARDRAIL_API_KEY }}
+        run: |
+          PUSH=""
+          if [ -n "$CP_URL" ]; then PUSH="--push $CP_URL"; fi
+          appguardrail scan --sarif appguardrail.sarif $PUSH .
 
       - name: Upload results to GitHub code scanning
         if: always()
@@ -1521,6 +1528,10 @@ def cmd_scan(args):
             )
             return 1
 
+    push_url = getattr(args, "push", None)
+    if push_url:
+        _push_findings(push_url, findings)
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
@@ -1569,6 +1580,39 @@ def _write_findings_json(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     print(f"🧾 Findings JSON written: {output_path}")
+
+
+def _push_findings(url, findings):
+    """POST normalized findings to a control-plane /api/v1/scans endpoint."""
+    import urllib.error
+    import urllib.request
+
+    api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
+    if not api_key:
+        print("⚠️  --push set but APPGUARDRAIL_API_KEY is empty; skipping push.", file=sys.stderr)
+        return
+    payload = {
+        "findings": list(normalize_findings(findings)),
+        "repo": os.environ.get("GITHUB_REPOSITORY"),
+        "commit": os.environ.get("GITHUB_SHA"),
+    }
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read() or b"{}")
+        drift = body.get("new_blocking")
+        extra = f", {drift} newly deploy-blocking" if drift else ""
+        print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
+    except urllib.error.HTTPError as exc:
+        print(f"⚠️  Control-plane push failed ({exc.code}); scan still completed.", file=sys.stderr)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"⚠️  Control-plane push failed ({exc}); scan still completed.", file=sys.stderr)
 
 
 def _write_sarif(findings, output_path: Path):
@@ -2971,6 +3015,46 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
     return http.server.HTTPServer((host, port), _Handler)
 
 
+def cmd_serve(args):
+    """Run the AppGuardrail control-plane API (scan ingest + history)."""
+    from appguardrail_core import controlplane as cp
+
+    db = getattr(args, "db", None) or "appguardrail-control-plane.db"
+    conn = cp.connect(db)
+    create = getattr(args, "create_org", None)
+    if create:
+        oid, key = cp.create_org(conn, create)
+        conn.close()
+        print(f"✅ Created org '{create}' (id {oid}).")
+        print(f"🔑 API key (store it now — shown only once): {key}")
+        return 0
+    if conn.execute("SELECT COUNT(*) AS c FROM orgs").fetchone()["c"] == 0:
+        _oid, key = cp.create_org(conn, "default")
+        print("ℹ️  No orgs yet — created 'default'.")
+        print(f"🔑 API key (store it now — shown only once): {key}\n")
+    conn.close()
+
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8788)
+    try:
+        server = cp.make_control_plane_server(host, port, db)
+    except OSError as exc:
+        print(f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr)
+        print("💡 Pass a free port with --port.", file=sys.stderr)
+        return 1
+    actual = server.server_address[1]
+    print(f"🛰️  AppGuardrail control plane on http://{host}:{actual}")
+    print("   POST /api/v1/scans · GET /api/v1/scans · GET /api/v1/scans/{id} · GET /api/v1/health")
+    print("   Auth: Authorization: Bearer <api_key>. Ctrl+C to stop.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n👋 Control plane stopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
 def cmd_sbom(args):
     """Generate a CycloneDX SBOM from dependency manifests."""
     from appguardrail_core.sbom import build_sbom, collect_components
@@ -3170,6 +3254,12 @@ def main():
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
     )
     scan_parser.add_argument(
+        "--push",
+        default=None,
+        metavar="URL",
+        help="POST findings to a control-plane URL (key from APPGUARDRAIL_API_KEY)",
+    )
+    scan_parser.add_argument(
         "--codegraph",
         action="store_true",
         help="Initialize or sync CodeGraph before scanning for structural review context",
@@ -3312,6 +3402,13 @@ def main():
         action="store_true",
         help="Write fixes to disk (default: show a dry-run diff)",
     )
+    serve_parser = subparsers.add_parser(
+        "serve", help="Run the control-plane API (multi-tenant scan ingest + history)"
+    )
+    serve_parser.add_argument("--db", default=None, help="SQLite database path (default: appguardrail-control-plane.db)")
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
+    serve_parser.add_argument("--port", type=int, default=8788, help="Bind port")
+    serve_parser.add_argument("--create-org", default=None, metavar="NAME", help="Create an org, print its API key, and exit")
     sbom_parser = subparsers.add_parser(
         "sbom", help="Generate a CycloneDX SBOM from dependency manifests"
     )
@@ -3358,6 +3455,8 @@ def main():
         sys.exit(cmd_hook(args))
     elif args.command == "fix":
         sys.exit(cmd_fix(args))
+    elif args.command == "serve":
+        sys.exit(cmd_serve(args))
     elif args.command == "sbom":
         sys.exit(cmd_sbom(args))
     elif args.command == "dashboard":
