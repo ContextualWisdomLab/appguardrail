@@ -70,3 +70,8 @@
 **Prevention:** Use `ipaddress.ip_address` to parse and validate IP literals, explicitly rejecting private and reserved addresses before making network requests. Ensure edge cases like dotless decimal encoding and credentials in URLs are also rejected.
 ## 2025-02-28 - Note on IP Validation and Valid Hostnames
 **Learning:** Checking hostnames against patterns like `p.startswith("0")` or `p.startswith("0x")` to prevent octal/hex SSRF bypasses may inadvertently block valid domain names like `0x.org` or `0123.com`. While acceptable for internal tools restricted to known endpoints, it shouldn't be blindly applied to all web applications.
+
+## 2026-07-06 - _SENSITIVE_RULE_TOKENS 업데이트 누락 수정
+**Vulnerability:** 새로운 시크릿 스캔 룰 추가 시 민감 정보 노출
+**Learning:** `scanner/rules/secrets.yml`에 aws나 private-key 등의 스캔 룰이 추가되었으나, 로그나 터미널 출력 시 해당 정보를 마스킹하기 위해 필요한 `_SENSITIVE_RULE_TOKENS`에 토큰이 누락되어, 스캔 결과 출력 시 인증 정보가 그대로 노출될 위험이 존재했습니다.
+**Prevention:** 새로운 시크릿 종류를 `SCAN_RULES`에 추가할 경우, `scanner/cli/appguardrail.py`의 `_SENSITIVE_RULE_TOKENS` 튜플에도 반드시 연관 토큰(예: "aws", "private-key")을 추가하여 `_safe_snippet` 함수가 터미널 출력 시 해당 값을 안전하게 \[REDACTED\] 처리하도록 유지해야 합니다.
