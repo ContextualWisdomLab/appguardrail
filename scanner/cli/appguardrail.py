@@ -3015,6 +3015,36 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
     return http.server.HTTPServer((host, port), _Handler)
 
 
+def _api_key_output_path(args, db_path):
+    configured = getattr(args, "api_key_file", None)
+    if configured:
+        return Path(configured)
+    return Path(f"{db_path}.api-key")
+
+
+def _write_api_key_file(path, api_key):
+    key_path = Path(path)
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(key_path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(api_key + "\n")
+    try:
+        os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        # Some platforms/filesystems ignore POSIX chmod; the file was already
+        # opened with restrictive mode where that mode is supported.
+        return key_path
+    return key_path
+
+
+def _persist_api_key(path, api_key):
+    key_path = Path(path)
+    if key_path.exists():
+        raise FileExistsError(key_path)
+    _write_api_key_file(key_path, api_key)
+
+
 def cmd_serve(args):
     """Run the AppGuardrail control-plane API (scan ingest + history)."""
     from appguardrail_core import controlplane as cp
@@ -3023,15 +3053,40 @@ def cmd_serve(args):
     conn = cp.connect(db)
     create = getattr(args, "create_org", None)
     if create:
+        key_path = _api_key_output_path(args, db)
+        if key_path.exists():
+            conn.close()
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
         oid, key = cp.create_org(conn, create)
         conn.close()
+        try:
+            _persist_api_key(key_path, key)
+        except FileExistsError:
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
         print(f"✅ Created org '{create}' (id {oid}).")
-        print(f"🔑 API key (store it now — shown only once): {key}")
+        print(f"🔑 API key written to {key_path}")
         return 0
     if conn.execute("SELECT COUNT(*) AS c FROM orgs").fetchone()["c"] == 0:
+        key_path = _api_key_output_path(args, db)
+        if key_path.exists():
+            conn.close()
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
         _oid, key = cp.create_org(conn, "default")
+        try:
+            _persist_api_key(key_path, key)
+        except FileExistsError:
+            conn.close()
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
         print("ℹ️  No orgs yet — created 'default'.")
-        print(f"🔑 API key (store it now — shown only once): {key}\n")
+        print(f"🔑 API key written to {key_path}\n")
     conn.close()
 
     host = getattr(args, "host", "127.0.0.1")
@@ -3408,7 +3463,13 @@ def main():
     serve_parser.add_argument("--db", default=None, help="SQLite database path (default: appguardrail-control-plane.db)")
     serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
     serve_parser.add_argument("--port", type=int, default=8788, help="Bind port")
-    serve_parser.add_argument("--create-org", default=None, metavar="NAME", help="Create an org, print its API key, and exit")
+    serve_parser.add_argument("--create-org", default=None, metavar="NAME", help="Create an org, write its API key, and exit")
+    serve_parser.add_argument(
+        "--api-key-file",
+        default=None,
+        metavar="PATH",
+        help="Write newly generated bootstrap API keys to PATH (default: <db>.api-key)",
+    )
     sbom_parser = subparsers.add_parser(
         "sbom", help="Generate a CycloneDX SBOM from dependency manifests"
     )
