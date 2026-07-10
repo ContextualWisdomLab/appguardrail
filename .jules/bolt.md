@@ -47,3 +47,10 @@
 ## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
 **Action:** Do not use `re.search` before `re.finditer` for optimization purposes.
+## 2024-07-08 - Path.relative_to overhead in file scanning loops
+**Learning:** Calling `pathlib.Path.relative_to()` inside nested loops (like per-match file scanning) is a massive performance bottleneck due to Pathlib's object instantiation and resolution overhead, far slower than raw string manipulations. Even deferred to the first match per file, string logic is significantly faster.
+**Action:** In performance-critical loops such as file scanners, avoid Path methods for string comparisons. Use standard string manipulation (checking exact matches and `startswith` for prefixes) to determine relative paths. Ensure exact match fallback yields `.` instead of an empty string, to accurately match `relative_to` behavior.
+
+## 2024-07-09 - Path.relative_to overhead in external tool target parsing
+**Learning:** `pathlib.Path.relative_to()` is a significant performance bottleneck not just in file scanning loops, but also when repeatedly parsing large arrays of findings from external security tools (like Trivy or Semgrep). The object instantiation and internal `stat` resolution overhead scales poorly when called hundreds or thousands of times during report normalization.
+**Action:** Avoid `Path.relative_to()` inside loops parsing external tool reports. Use standard string manipulations (e.g., `startswith` prefix checking and slicing) to determine relative paths. Remember to properly format paths using `.replace("\\", "/")` to handle multi-platform target paths seamlessly, and ensure exact match fallbacks yield `.` exactly as `relative_to` would.

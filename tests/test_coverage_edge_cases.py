@@ -1,14 +1,23 @@
-import os
-import json
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from scanner.cli.appguardrail import (
-    cmd_scan, _run_trivy_fs, _finding_context, _finding_category, _trivy_target,
-    _scan_file, _trivy_severity, _trivy_line, _trivy_findings, _build_finding,
-    _confidence, _is_deploy_blocking, _run_codegraph_command, _run_codegraph_index
+    _confidence,
+    _finding_category,
+    _finding_context,
+    _is_deploy_blocking,
+    _run_codegraph_command,
+    _run_codegraph_index,
+    _run_trivy_fs,
+    _scan_file,
+    _trivy_findings,
+    _trivy_line,
+    _trivy_severity,
+    _trivy_target,
+    cmd_scan,
 )
 from tests.test_appguardrail_coverage import ScanArgs
 
@@ -75,7 +84,7 @@ def test_finding_category_secrets_for_credentials():
     assert _finding_category("hardcoded-api-credential") == "secrets"
 
 def test_trivy_target_empty(tmp_path):
-    assert _trivy_target("", tmp_path) == str(tmp_path)
+    assert _trivy_target("", tmp_path) == tmp_path.as_posix()
 
 def test_trivy_target_absolute_valueerror(tmp_path):
     # base is a non-existent file (not a dir), so root = base.parent = tmp_path
@@ -222,10 +231,10 @@ def test_confidence():
     assert _confidence("random") == "high"
 
 def test_is_deploy_blocking():
-    assert _is_deploy_blocking({"severity": "CRITICAL", "context": "app-code"}) == True
-    assert _is_deploy_blocking({"severity": "HIGH", "context": "app-code"}) == True
-    assert _is_deploy_blocking({"severity": "MEDIUM", "context": "app-code"}) == False
-    assert _is_deploy_blocking({"severity": "CRITICAL", "context": "test"}) == False
+    assert _is_deploy_blocking({"severity": "CRITICAL", "context": "app-code"})
+    assert _is_deploy_blocking({"severity": "HIGH", "context": "app-code"})
+    assert not _is_deploy_blocking({"severity": "MEDIUM", "context": "app-code"})
+    assert not _is_deploy_blocking({"severity": "CRITICAL", "context": "test"})
 
 
 def test_trivy_target_value_error():
@@ -282,4 +291,4 @@ def test_scan_file_uses_absolute_path_when_base_is_unrelated(tmp_path):
         findings = _scan_file(test_file, base_dir)
 
     assert len(findings) == 1
-    assert findings[0]["file"] == str(test_file)
+    assert findings[0]["file"] == test_file.as_posix()

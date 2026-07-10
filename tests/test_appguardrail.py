@@ -30,6 +30,7 @@ from scanner.cli.appguardrail import (
     cmd_org_bundle,
     cmd_report,
     cmd_scan,
+    cmd_serve,
 )
 
 MOCK_RULES = [
@@ -107,6 +108,15 @@ class OrgBundleArgs:
         self.per_repo_pr_limit = 30
         self.active_repository_target = 2
         self.generated_at = "2026-07-03T00:00:00Z"
+
+
+class ServeArgs:
+    def __init__(self, db, create_org=None, api_key_file=None, host="127.0.0.1", port=0):
+        self.db = str(db)
+        self.create_org = create_org
+        self.api_key_file = str(api_key_file) if api_key_file else None
+        self.host = host
+        self.port = port
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -704,6 +714,49 @@ def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
     assert payload["findings"][0]["context"] == "app-code"
     assert "managed secret storage" in payload["findings"][0]["remediation"]
     assert "Findings JSON written" in capsys.readouterr().out
+
+
+def test_cmd_serve_create_org_writes_api_key_file(tmp_path, capsys):
+    key_file = tmp_path / "acme.api-key"
+
+    assert cmd_serve(ServeArgs(tmp_path / "cp.db", create_org="Acme", api_key_file=key_file)) == 0
+
+    out = capsys.readouterr().out
+    key = key_file.read_text(encoding="utf-8").strip()
+    assert key.startswith("agk_")
+    assert key not in out
+    assert "API key written to" in out
+
+
+def test_cmd_serve_default_bootstrap_writes_api_key_file(tmp_path, monkeypatch, capsys):
+    class FakeServer:
+        server_address = ("127.0.0.1", 8788)
+
+        def __init__(self):
+            self.closed = False
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            self.closed = True
+
+    fake = FakeServer()
+    monkeypatch.setattr(
+        "appguardrail_core.controlplane.make_control_plane_server",
+        lambda *_args, **_kwargs: fake,
+    )
+    key_file = tmp_path / "default.api-key"
+
+    assert cmd_serve(ServeArgs(tmp_path / "cp.db", api_key_file=key_file)) == 0
+
+    out = capsys.readouterr().out
+    key = key_file.read_text(encoding="utf-8").strip()
+    assert key.startswith("agk_")
+    assert key not in out
+    assert "No orgs yet" in out
+    assert "API key written to" in out
+    assert fake.closed
 
 
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
@@ -1471,9 +1524,12 @@ def test_cmd_monitor_installs_github_actions_workflow(tmp_path, monkeypatch, cap
     workflow_text = workflow.read_text()
     assert workflow.exists()
     assert "name: AppGuardrail Monitor" in workflow_text
-    assert "appguardrail scan --sarif appguardrail.sarif ." in workflow_text
+    assert "appguardrail scan --sarif appguardrail.sarif $PUSH ." in workflow_text
     assert "github/codeql-action/upload-sarif" in workflow_text
     assert "security-events: write" in workflow_text
+    # optional control-plane push wiring
+    assert "APPGUARDRAIL_CONTROL_PLANE_URL" in workflow_text
+    assert "APPGUARDRAIL_API_KEY" in workflow_text
     assert "appguardrail-monitor.yml" in capsys.readouterr().out
 
 
