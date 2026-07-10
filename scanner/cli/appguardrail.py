@@ -2042,6 +2042,9 @@ def _sanitize_terminal_output(text: str) -> str:
     """
     if not isinstance(text, str):
         return text
+    # ⚡ Bolt: Fast path for strings that don't need escaping
+    if not text or text.replace("\t", "").isprintable():
+        return text
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
