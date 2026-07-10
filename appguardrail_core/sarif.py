@@ -48,9 +48,15 @@ def findings_to_sarif(
             rule: dict[str, Any] = {
                 "id": rule_id,
                 "name": rule_id,
-                "shortDescription": {"text": f["message"].strip().splitlines()[0][:200]},
+                "shortDescription": {
+                    "text": f["message"].strip().splitlines()[0][:200]
+                },
                 "fullDescription": {"text": f["message"].strip()},
-                "helpUri": refs[0] if refs else "https://github.com/ContextualWisdomLab/appguardrail",
+                "helpUri": (
+                    refs[0]
+                    if refs
+                    else "https://github.com/ContextualWisdomLab/appguardrail"
+                ),
                 "defaultConfiguration": {"level": _LEVEL.get(severity, "note")},
                 "properties": {
                     "tags": _tags(f),
@@ -108,11 +114,23 @@ def findings_to_sarif(
 if __name__ == "__main__":  # pragma: no cover - self-check
     log = findings_to_sarif(
         [
-            {"severity": "CRITICAL", "rule_id": "hardcoded-stripe-secret-key",
-             "message": "Hardcoded Stripe key", "file": "src/pay.ts", "line": 12,
-             "cwe": ["CWE-798"], "context": "app-code"},
-            {"severity": "INFO", "rule_id": "note", "message": "fyi",
-             "file": "README.md", "line": 1, "context": "doc"},
+            {
+                "severity": "CRITICAL",
+                "rule_id": "hardcoded-stripe-secret-key",
+                "message": "Hardcoded Stripe key",
+                "file": "src/pay.ts",
+                "line": 12,
+                "cwe": ["CWE-798"],
+                "context": "app-code",
+            },
+            {
+                "severity": "INFO",
+                "rule_id": "note",
+                "message": "fyi",
+                "file": "README.md",
+                "line": 1,
+                "context": "doc",
+            },
         ],
         tool_version="1.2.3",
     )

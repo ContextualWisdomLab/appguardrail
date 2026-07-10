@@ -42,7 +42,12 @@ def test_snippet_cannot_break_code_fence():
 
 
 def test_benign_message_unchanged():
-    benign = {**HOSTILE, "message": "Hardcoded secret detected", "remediation": "move to env",
-              "verification": "rerun", "snippet": "const k = 1"}
+    benign = {
+        **HOSTILE,
+        "message": "Hardcoded secret detected",
+        "remediation": "move to env",
+        "verification": "rerun",
+        "snippet": "const k = 1",
+    }
     report = render_report("founder-friendly", [benign])
     assert "Hardcoded secret detected" in report  # no over-escaping
