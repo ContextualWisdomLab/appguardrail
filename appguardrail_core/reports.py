@@ -69,7 +69,7 @@ def render_buyer_diligence_report(
 ) -> str:
     """Render a buyer-diligence markdown report from normalized findings."""
     context = context or ReportContext()
-    normalized = [normalize_finding(finding) for finding in findings]
+    normalized = [_sanitize_for_markdown(normalize_finding(finding)) for finding in findings]
     normalized.sort(key=finding_sort_key)
     counts = severity_counts(normalized)
     blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
@@ -412,6 +412,40 @@ def _finding_detail(index: int, finding: dict[str, Any]) -> list[str]:
     ]
 
 
+_PROSE_FIELDS = ("message", "remediation", "verification")
+
+
+def _md_prose(value: Any) -> str:
+    """HTML-neutralize free text so a hostile finding message can't inject
+    markup when a generated markdown report is later rendered as HTML."""
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _md_fence(value: Any) -> str:
+    """Prevent a snippet from breaking out of its ``` code fence."""
+    return str(value).replace("```", "`\u200b``")
+
+
+def _sanitize_for_markdown(finding: dict[str, Any]) -> dict[str, Any]:
+    """Return a render-safe copy: prose fields HTML-escaped, snippet fence-safe.
+
+    rule_id/category/context/severity are constrained identifiers used in gate
+    logic and are left untouched.
+    """
+    safe = dict(finding)
+    for field in _PROSE_FIELDS:
+        if field in safe:
+            safe[field] = _md_prose(safe[field])
+    if "snippet" in safe:
+        safe["snippet"] = _md_fence(safe["snippet"])
+    return safe
+
+
 def _short_title(message: str, max_len: int = 84) -> str:
     """Return a compact report heading derived from a finding message."""
     title = message.split(".", 1)[0].strip() or "Security finding"
@@ -432,7 +466,7 @@ def _prepare_report(
 ]:
     """Normalize findings and compute shared report metadata."""
     context = context or ReportContext()
-    normalized = [normalize_finding(finding) for finding in findings]
+    normalized = [_sanitize_for_markdown(normalize_finding(finding)) for finding in findings]
     normalized.sort(key=finding_sort_key)
     counts = severity_counts(normalized)
     blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
