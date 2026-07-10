@@ -230,6 +230,9 @@ def _send_alert(
     import urllib.error
     import urllib.request
 
+    if not url.startswith(("http://", "https://")):
+        return False
+
     if _is_slack_webhook(url):
         body = _slack_blocks(org_name, payload, new_findings or [])
     else:

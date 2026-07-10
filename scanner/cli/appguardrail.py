@@ -1583,6 +1583,12 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
+    if not url.startswith(("http://", "https://")):
+        print(
+            f"⚠️  --push URL must start with http:// or https://, got {url}",
+            file=sys.stderr,
+        )
+        return
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
