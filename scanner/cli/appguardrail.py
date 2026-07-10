@@ -2185,26 +2185,47 @@ def _trivy_line(item: dict) -> int:
     return item.get("StartLine") or metadata.get("StartLine") or 1
 
 
-def _trivy_target(target: str, base_path: Path) -> str:
+def _trivy_target(
+    target: str, base_path: Path, base_path_is_dir: bool | None = None
+) -> str:
     """Normalize a Trivy target path relative to the scan base when possible."""
     if not target:
         return base_path.as_posix()
-    try:
-        path = Path(target)
-        if path.is_absolute():
-            root = base_path if base_path.is_dir() else base_path.parent
-            return path.relative_to(root).as_posix()
-    except ValueError:
-        pass
+
+    # ⚡ Bolt: Use string slicing instead of Path.relative_to() to prevent heavy
+    # pathlib initialization and resolution overhead during findings normalization.
+    target_posix = target.replace("\\", "/")
+    # Determine if it's an absolute path
+    is_absolute = target_posix.startswith("/") or (
+        len(target_posix) > 2 and target_posix[1] == ":" and target_posix[2] == "/"
+    )
+
+    if is_absolute:
+        if base_path_is_dir is None:
+            base_path_is_dir = base_path.is_dir()
+        root = base_path if base_path_is_dir else base_path.parent
+        root_str = root.as_posix()
+
+        if target_posix == root_str:
+            return "."
+
+        root_prefix = root_str + "/" if not root_str.endswith("/") else root_str
+        if target_posix.startswith(root_prefix):
+            return target_posix[len(root_prefix) :]
+
     return Path(target).as_posix()
 
 
 def _trivy_findings(report: dict, base_path: Path):
     """Convert a Trivy JSON report into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for result in report.get("Results") or []:
         target = _sanitize_terminal_output(
-            _trivy_target(result.get("Target", ""), base_path)
+            _trivy_target(result.get("Target", ""), base_path, base_path_is_dir)
         )
 
         for vuln in result.get("Vulnerabilities") or []:
@@ -2305,10 +2326,14 @@ def _bandit_severity(severity: str) -> str:
 def _bandit_findings(report: dict, base_path: Path):
     """Convert a Bandit JSON report into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for result in report.get("results") or []:
         test_id = result.get("test_id") or "bandit"
         filename = _sanitize_terminal_output(
-            _trivy_target(result.get("filename", ""), base_path)
+            _trivy_target(result.get("filename", ""), base_path, base_path_is_dir)
         )
         findings.append(
             _build_finding(
@@ -2371,11 +2396,15 @@ def _ruff_severity(code: str) -> str:
 def _ruff_findings(report: list, base_path: Path):
     """Convert Ruff JSON diagnostics into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for item in report or []:
         code = item.get("code") or "ruff"
         location = item.get("location") or {}
         filename = _sanitize_terminal_output(
-            _trivy_target(item.get("filename", ""), base_path)
+            _trivy_target(item.get("filename", ""), base_path, base_path_is_dir)
         )
         findings.append(
             _build_finding(
@@ -2448,12 +2477,16 @@ def _semgrep_severity(severity: str) -> str:
 def _semgrep_findings(report: dict, base_path: Path):
     """Convert Semgrep JSON results into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
         # fmt: off
         path = _sanitize_terminal_output(
-            _trivy_target(item.get("path", ""), base_path)
+            _trivy_target(item.get("path", ""), base_path, base_path_is_dir)
         )
         # fmt: on
         check_id = item.get("check_id") or "semgrep"
