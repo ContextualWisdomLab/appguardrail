@@ -2006,6 +2006,8 @@ _SENSITIVE_RULE_TOKENS = (
     "stripe",
     "openai",
     "supabase-service-role",
+    "aws",
+    "private-key",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
