@@ -38,21 +38,29 @@ BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Redirect handler that exposes GitHub log download redirects safely."""
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Prevent automatic redirect following so the caller can validate URLs."""
         return None
 
 
 class SecureRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Redirect handler that validates every GitHub log download hop."""
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Validate redirected log URLs before urllib opens them."""
         _validate_log_download_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _redacted_url(parsed: urllib.parse.ParseResult) -> str:
+    """Return a credential-free URL string safe for error messages."""
     return f"{parsed.scheme}://{parsed.hostname or ''}{parsed.path}"
 
 
 def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
+    """Reject non-HTTP(S), credentialed, or internal log download URLs."""
     import ipaddress
 
     parsed = urllib.parse.urlparse(url)
@@ -85,11 +93,15 @@ def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
 
 
 class GitHub:
+    """Small GitHub REST client for workflow, job, issue, and log APIs."""
+
     def __init__(self, token: str, api: str = API):
+        """Create a client using a bearer token and API root."""
         self.token = token
         self.api = api.rstrip("/")
 
     def request(self, method: str, path: str, data: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> Any:
+        """Send one JSON GitHub API request and return the decoded payload."""
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
@@ -117,6 +129,7 @@ class GitHub:
         return json.loads(text) if "application/json" in content_type else text
 
     def pages(self, path: str, params: dict[str, Any] | None = None) -> list[Any]:
+        """Collect all pages for common GitHub list endpoints."""
         items: list[Any] = []
         page = 1
         while True:
@@ -135,6 +148,7 @@ class GitHub:
             page += 1
 
     def job_log(self, repo: str, job_id: int) -> str:
+        """Fetch a job log through GitHub's validated redirected download URL."""
         path = f"/repos/{repo}/actions/jobs/{job_id}/logs"
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
             f"{self.api}{path}",
@@ -171,15 +185,18 @@ class GitHub:
 
 
 def utc_now() -> dt.datetime:
+    """Return the current UTC timestamp with timezone information."""
     return dt.datetime.now(dt.timezone.utc)
 
 
 def parse_time(value: str) -> dt.datetime:
+    """Parse GitHub ISO timestamps and ensure the result is timezone-aware."""
     parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
 
 def build_finding(client: GitHub, repo: str, run: dict[str, Any], job: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    """Build one normalized security workflow failure record from run/job data."""
     job_id = int(job["id"])
     return {
         "repo": repo,
@@ -199,6 +216,7 @@ def build_finding(client: GitHub, repo: str, run: dict[str, Any], job: dict[str,
 
 
 def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
+    """Collect failed security workflow jobs across the configured organization."""
     if args.run_url:
         repo, run_id = parse_run_url(args.run_url)
         repos = [{"full_name": repo}]
@@ -227,6 +245,7 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
 
 
 def ensure_label(client: GitHub, target_repo: str, name: str, dry_run: bool, cache: set[str]) -> None:
+    """Ensure a GitHub issue label exists, caching labels within one run."""
     if name in cache:
         return
     cache.add(name)
@@ -241,11 +260,13 @@ def ensure_label(client: GitHub, target_repo: str, name: str, dry_run: bool, cac
 
 
 def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
+    """Return existing non-PR issues keyed by title for deduplication."""
     issues = client.pages(f"/repos/{target_repo}/issues", {"state": "all", "labels": ISSUE_LABEL})
     return {issue["title"]: issue for issue in issues if issue.get("title") and "pull_request" not in issue}
 
 
 def publish_one(client: GitHub, target_repo: str, finding: dict[str, Any], dry_run: bool, issues: dict[str, dict[str, Any]], labels_seen: set[str]) -> None:
+    """Create, reopen, or update one issue for a collected failure."""
     labels = [ISSUE_LABEL, SECURITY_LABEL, f"repo:{sanitize_label_value(finding['repo'].split('/', 1)[1])}"]
     issue_title = title(finding)
     issue = issues.get(issue_title)
@@ -285,6 +306,7 @@ def publish_one(client: GitHub, target_repo: str, finding: dict[str, Any], dry_r
 
 
 def publish_findings(client: GitHub, target_repo: str, findings: list[dict[str, Any]], dry_run: bool) -> None:
+    """Publish every collected failure to the target repository."""
     issues = issue_index(client, target_repo) if findings else {}
     labels_seen: set[str] = set()
     for finding in findings:
@@ -292,10 +314,12 @@ def publish_findings(client: GitHub, target_repo: str, findings: list[dict[str, 
 
 
 def parse_bool(value: str | None) -> bool:
+    """Parse truthy environment-style strings."""
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command-line arguments for the collector."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--owner", default=os.getenv("GITHUB_REPOSITORY_OWNER", "ContextualWisdomLab"))
     parser.add_argument("--target-repo", default=os.getenv("GITHUB_REPOSITORY", "ContextualWisdomLab/appguardrail"))
@@ -308,6 +332,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run collection and issue publication, returning a process exit code."""
     args = parse_args(argv or sys.argv[1:])
     token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
     if not token:
