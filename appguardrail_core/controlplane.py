@@ -493,7 +493,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             if m:
                 scan = get_scan(conn, org, int(m.group(1)))
                 return self._json(200, scan) if scan else self._json(404, {"error": "not found"})
-            self._json(404, {"error": "not found"})
+            return self._json(404, {"error": "not found"})
 
         _MAX_BODY = 10 * 1024 * 1024  # 10 MiB — plenty for findings, blocks OOM posts
 
@@ -547,7 +547,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return self._json(400, {"error": "expected a findings array or {\"findings\":[...]}"})
             meta = data if isinstance(data, dict) else {}
             summary = add_scan(conn, org, findings, meta.get("repo"), meta.get("commit"))
-            self._json(201, summary)
+            return self._json(201, summary)
 
         def log_message(self, *_args):
             pass

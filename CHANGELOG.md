@@ -2,7 +2,8 @@
 
 ## [Unreleased]
 
-### 보안 강화
+### 보안
+- 리포트 출력 하드닝 — 생성된 markdown 리포트가 HTML로 렌더될 때 악성 finding 내용(예: 외부 엔진이 스캔한 코드의 `<script>`)이 주입되지 않도록, 프로즈 필드(message/remediation/verification)를 HTML 이스케이프하고 snippet의 code-fence 탈출을 무력화합니다(모든 리포트 타입). rule_id/category/context 등 제약된 식별자는 그대로 둡니다.
 - control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).
 
 ### 추가
@@ -18,6 +19,8 @@
   - **Slack 포맷 drift 알림** — webhook 호스트가 `hooks.slack.com`이면 payload를 Slack Block Kit 메시지(헤더 + org·신규 blocker 수·repo·scan, 상위 5개 `rule_id`/파일 목록과 `+N more` 오버플로)로 자동 렌더링해 Slack Incoming Webhook이 읽기 좋은 카드로 표시합니다. 그 외 URL은 기존 generic JSON payload를 그대로 받습니다(하위 호환). 무의존성 유지를 위해 stdlib만 사용하며 텍스트는 이스케이프·트림합니다.
   - `appguardrail scan --push <url>` — 스캔 후 findings를 control-plane에 POST합니다(키는 `APPGUARDRAIL_API_KEY`, repo/commit은 `GITHUB_REPOSITORY`/`GITHUB_SHA`에서 자동). CI가 매 스캔을 플랫폼에 밀어넣어 continuous-monitoring 루프를 닫습니다.
   - `appguardrail monitor` 워크플로가 `APPGUARDRAIL_CONTROL_PLANE_URL` secret이 설정된 경우 스캔을 control-plane에 자동 push합니다(`APPGUARDRAIL_API_KEY` secret 사용). 미설정 시 기존 SARIF+게이트 동작 그대로.
+- `appguardrail sbom` — 의존성 매니페스트(npm `package-lock.json`/`package.json`, Python `requirements.txt`)에서 CycloneDX 1.5 SBOM을 생성합니다. 무의존성(stdlib)으로 동작하며, lockfile이 있으면 resolved 버전을, 없으면 매니페스트의 declared 범위를 사용하고 컴포넌트 properties에 출처를 기록합니다. 공급망 실사(due diligence)의 기본 산출물입니다.
+- `appguardrail sbom`의 lockfile 파서를 확장했습니다 — `poetry.lock`(pypi), `pnpm-lock.yaml`·`yarn.lock`(npm)을 추가로 인식합니다. 서드파티 toml/yaml 라이브러리 없이 stdlib만으로 손수 파싱하며(정규식·라인 스캔), scoped npm 패키지(`@scope/name`)·pnpm peer-dependency 접미사·yarn 다중 spec 헤더를 처리하고 resolved 버전으로 기록합니다. npm 측은 `package-lock.json` > `pnpm-lock.yaml` > `yarn.lock` > `package.json` 순으로 우선하고, `poetry.lock`은 Python 측에 additive로 더해집니다.
 
 ### 추가
 - 프로젝트 설정 파일 `.appguardrail.json`(선택) — deploy 게이트를 CLI 플래그 없이 팀 단위로 조정합니다. 무의존성 유지를 위해 JSON을 사용합니다.
