@@ -100,6 +100,10 @@ class GitHub:
         """Create a client using a bearer token and API root."""
         self.token = token
         self.api = api.rstrip("/")
+        # Security concern: Prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI)
+        # by ensuring the API base URL only uses secure, safe HTTP schemes before opening connections.
+        if not self.api.startswith(("http://", "https://")):
+            raise ValueError("API URL must start with http:// or https://")
 
     def request(self, method: str, path: str, data: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> Any:
         """Send one JSON GitHub API request and return the decoded payload."""
