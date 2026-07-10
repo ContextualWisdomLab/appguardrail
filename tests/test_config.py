@@ -3,7 +3,8 @@
 import pytest
 
 from appguardrail_core.config import CONFIG_NAME, load_config
-from appguardrail_core.findings import is_deploy_blocking, severities_at_or_above
+from appguardrail_core.findings import (is_deploy_blocking,
+                                        severities_at_or_above)
 
 
 def _write(tmp_path, text):
@@ -33,12 +34,15 @@ def test_first_dir_wins(tmp_path):
     assert load_config([d1, d2])["fail_on"] == "HIGH"
 
 
-@pytest.mark.parametrize("text,frag", [
-    ('{"fail_on": "BOGUS"}', "fail_on"),
-    ('not json', "Invalid"),
-    ('[]', "must be a JSON object"),
-    ('{"exclude_rules": "x"}', "exclude_rules"),
-])
+@pytest.mark.parametrize(
+    "text,frag",
+    [
+        ('{"fail_on": "BOGUS"}', "fail_on"),
+        ("not json", "Invalid"),
+        ("[]", "must be a JSON object"),
+        ('{"exclude_rules": "x"}', "exclude_rules"),
+    ],
+)
 def test_invalid_config_raises(tmp_path, text, frag):
     _write(tmp_path, text)
     with pytest.raises(RuntimeError) as exc:

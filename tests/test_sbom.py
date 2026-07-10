@@ -2,13 +2,9 @@
 
 import json
 
-from appguardrail_core.sbom import (
-    build_sbom,
-    collect_components,
-    parse_package_json,
-    parse_package_lock,
-    parse_requirements,
-)
+from appguardrail_core.sbom import (build_sbom, collect_components,
+                                    parse_package_json, parse_package_lock,
+                                    parse_requirements)
 
 
 def test_package_json_strips_ranges(tmp_path):

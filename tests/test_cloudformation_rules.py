@@ -37,6 +37,7 @@ def _severity(rule_id):
 # self-scan never sees a literal misconfigured template in this file.
 # ---------------------------------------------------------------------------
 
+
 def _cfn_lines(*lines):
     return "\n".join(lines) + "\n"
 
@@ -108,6 +109,7 @@ def _secret_parameter(name, extra_lines=()):
 # cfn-s3-bucket-public-acl
 # ---------------------------------------------------------------------------
 
+
 def test_s3_public_acl_positive_yaml():
     assert _matches("cfn-s3-bucket-public-acl", _s3_bucket("PublicRead"))
     assert _matches("cfn-s3-bucket-public-acl", _s3_bucket("PublicReadWrite"))
@@ -123,9 +125,7 @@ def test_s3_public_acl_positive_json():
 
 def test_s3_public_acl_negative():
     assert not _matches("cfn-s3-bucket-public-acl", _s3_bucket("Private"))
-    assert not _matches(
-        "cfn-s3-bucket-public-acl", _s3_bucket("AuthenticatedRead")
-    )
+    assert not _matches("cfn-s3-bucket-public-acl", _s3_bucket("AuthenticatedRead"))
 
 
 def test_s3_public_acl_severity():
@@ -135,6 +135,7 @@ def test_s3_public_acl_severity():
 # ---------------------------------------------------------------------------
 # cfn-security-group-open-world
 # ---------------------------------------------------------------------------
+
 
 def test_security_group_open_world_positive():
     assert _matches("cfn-security-group-open-world", _security_group("0.0.0.0/0"))
@@ -149,9 +150,7 @@ def test_security_group_open_world_positive():
 
 
 def test_security_group_open_world_negative_scoped_cidr():
-    assert not _matches(
-        "cfn-security-group-open-world", _security_group("10.0.0.0/8")
-    )
+    assert not _matches("cfn-security-group-open-world", _security_group("10.0.0.0/8"))
     assert not _matches(
         "cfn-security-group-open-world", _security_group("192.168.1.0/24")
     )
@@ -170,6 +169,7 @@ def test_security_group_open_world_severity():
 # ---------------------------------------------------------------------------
 # cfn-iam-policy-star-star
 # ---------------------------------------------------------------------------
+
 
 def test_iam_star_star_positive():
     assert _matches("cfn-iam-policy-star-star", _iam_policy("'*'", "'*'"))
@@ -214,23 +214,16 @@ def test_iam_star_star_severity():
 # cfn-rds-publicly-accessible
 # ---------------------------------------------------------------------------
 
+
 def test_rds_publicly_accessible_positive():
-    assert _matches(
-        "cfn-rds-publicly-accessible", _rds_instance("true", "true")
-    )
-    assert _matches(
-        "cfn-rds-publicly-accessible", '"PubliclyAccessible": true'
-    )
+    assert _matches("cfn-rds-publicly-accessible", _rds_instance("true", "true"))
+    assert _matches("cfn-rds-publicly-accessible", '"PubliclyAccessible": true')
 
 
 def test_rds_publicly_accessible_negative():
-    assert not _matches(
-        "cfn-rds-publicly-accessible", _rds_instance("false", "true")
-    )
+    assert not _matches("cfn-rds-publicly-accessible", _rds_instance("false", "true"))
     # CDK TypeScript casing must not match the CFN-cased rule.
-    assert not _matches(
-        "cfn-rds-publicly-accessible", "publiclyAccessible: true,"
-    )
+    assert not _matches("cfn-rds-publicly-accessible", "publiclyAccessible: true,")
 
 
 def test_rds_publicly_accessible_severity():
@@ -240,6 +233,7 @@ def test_rds_publicly_accessible_severity():
 # ---------------------------------------------------------------------------
 # cfn-storage-unencrypted
 # ---------------------------------------------------------------------------
+
 
 def test_storage_unencrypted_positive():
     assert _matches("cfn-storage-unencrypted", _rds_instance("false", "false"))
@@ -254,9 +248,7 @@ def test_storage_unencrypted_positive():
 
 
 def test_storage_unencrypted_negative():
-    assert not _matches(
-        "cfn-storage-unencrypted", _rds_instance("false", "true")
-    )
+    assert not _matches("cfn-storage-unencrypted", _rds_instance("false", "true"))
     # A bare Encrypted flag without an EBS volume context must not match.
     assert not _matches("cfn-storage-unencrypted", "encrypted: false")
 
@@ -269,15 +261,14 @@ def test_storage_unencrypted_severity():
 # cfn-secret-parameter-default
 # ---------------------------------------------------------------------------
 
+
 def test_secret_parameter_default_positive():
     fixture = _secret_parameter(
         "DatabasePassword",
         ("NoEcho: true", "Default: " + "Sup3r" + "Secret!"),
     )
     assert _matches("cfn-secret-parameter-default", fixture)
-    json_fixture = (
-        '"ApiToken": {"Type": "String", "Default": "' + "tok-1234" + '"}'
-    )
+    json_fixture = '"ApiToken": {"Type": "String", "Default": "' + "tok-1234" + '"}'
     assert _matches("cfn-secret-parameter-default", json_fixture)
 
 
@@ -310,6 +301,7 @@ def test_secret_parameter_default_severity():
 # End-to-end scans
 # ---------------------------------------------------------------------------
 
+
 def _cfn_finding_ids(path, base):
     return {
         finding["rule_id"]
@@ -321,9 +313,7 @@ def _cfn_finding_ids(path, base):
 def test_e2e_misconfigured_template_fires_all_rules(tmp_path):
     template = (
         "AWSTemplateFormatVersion: '2010-09-09'\n"
-        + _secret_parameter(
-            "DatabasePassword", ("Default: " + "Sup3r" + "Secret!",)
-        )
+        + _secret_parameter("DatabasePassword", ("Default: " + "Sup3r" + "Secret!",))
         + _s3_bucket("PublicRead")
         + _security_group("0.0.0.0/0")
         + _iam_policy("'*'", "'*'")

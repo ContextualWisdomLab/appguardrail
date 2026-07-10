@@ -56,34 +56,23 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.config import load_config
-from appguardrail_core.findings import (
-    NON_BLOCKING_CONTEXTS,
-    is_deploy_blocking as core_is_deploy_blocking,
-    normalize_findings,
-)
-from appguardrail_core.language import (
-    LANGUAGE_EXTENSIONS,
-    detect_language_axes,
-    detect_stack_profile,
-)
-from appguardrail_core.org_bundle import (
-    OrgBundleError,
-    annotate_missing_pr_repositories,
-    gh_error_message,
-    gh_pr_list,
-    gh_repo_list,
-    load_json as load_org_json,
-    render_org_evidence,
-    write_bundle,
-)
-from appguardrail_core.reports import (
-    REPORT_TYPE_LABELS,
-    ReportContext,
-    render_report,
-    supported_report_types,
-)
+from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import \
+    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import normalize_findings
+from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
+                                        detect_language_axes,
+                                        detect_stack_profile)
+from appguardrail_core.org_bundle import (OrgBundleError,
+                                          annotate_missing_pr_repositories,
+                                          gh_error_message, gh_pr_list,
+                                          gh_repo_list)
+from appguardrail_core.org_bundle import load_json as load_org_json
+from appguardrail_core.org_bundle import render_org_evidence, write_bundle
+from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
+                                       render_report, supported_report_types)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1589,7 +1578,10 @@ def _push_findings(url, findings):
 
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
-        print("⚠️  --push set but APPGUARDRAIL_API_KEY is empty; skipping push.", file=sys.stderr)
+        print(
+            "⚠️  --push set but APPGUARDRAIL_API_KEY is empty; skipping push.",
+            file=sys.stderr,
+        )
         return
     payload = {
         "findings": list(normalize_findings(findings)),
@@ -1601,7 +1593,10 @@ def _push_findings(url, findings):
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -1610,9 +1605,15 @@ def _push_findings(url, findings):
         extra = f", {drift} newly deploy-blocking" if drift else ""
         print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
     except urllib.error.HTTPError as exc:
-        print(f"⚠️  Control-plane push failed ({exc.code}); scan still completed.", file=sys.stderr)
+        print(
+            f"⚠️  Control-plane push failed ({exc.code}); scan still completed.",
+            file=sys.stderr,
+        )
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        print(f"⚠️  Control-plane push failed ({exc}); scan still completed.", file=sys.stderr)
+        print(
+            f"⚠️  Control-plane push failed ({exc}); scan still completed.",
+            file=sys.stderr,
+        )
 
 
 def _write_sarif(findings, output_path: Path):
@@ -2034,6 +2035,9 @@ def _sanitize_terminal_output(text: str) -> str:
     that could hide scanner findings by removing or escaping non-printable characters.
     """
     if not isinstance(text, str):
+        return text
+    # ⚡ Bolt: Fast path for strings that don't need escaping
+    if not text or text.replace("\t", "").isprintable():
         return text
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
@@ -3129,12 +3133,16 @@ def cmd_serve(args):
     try:
         server = cp.make_control_plane_server(host, port, db)
     except OSError as exc:
-        print(f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr)
+        print(
+            f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr
+        )
         print("💡 Pass a free port with --port.", file=sys.stderr)
         return 1
     actual = server.server_address[1]
     print(f"🛰️  AppGuardrail control plane on http://{host}:{actual}")
-    print("   POST /api/v1/scans · GET /api/v1/scans · GET /api/v1/scans/{id} · GET /api/v1/health")
+    print(
+        "   POST /api/v1/scans · GET /api/v1/scans · GET /api/v1/scans/{id} · GET /api/v1/health"
+    )
     print("   Auth: Authorization: Bearer <api_key>. Ctrl+C to stop.")
     try:
         server.serve_forever()
@@ -3162,7 +3170,9 @@ def cmd_sbom(args):
             file=sys.stderr,
         )
         return 1
-    app_name = getattr(args, "app_name", None) or root.name or "AppGuardrail scan target"
+    app_name = (
+        getattr(args, "app_name", None) or root.name or "AppGuardrail scan target"
+    )
     payload = json.dumps(build_sbom(components, app_name), indent=2)
     out = getattr(args, "out", None)
     if out:
@@ -3495,10 +3505,19 @@ def main():
     serve_parser = subparsers.add_parser(
         "serve", help="Run the control-plane API (multi-tenant scan ingest + history)"
     )
-    serve_parser.add_argument("--db", default=None, help="SQLite database path (default: appguardrail-control-plane.db)")
+    serve_parser.add_argument(
+        "--db",
+        default=None,
+        help="SQLite database path (default: appguardrail-control-plane.db)",
+    )
     serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
     serve_parser.add_argument("--port", type=int, default=8788, help="Bind port")
-    serve_parser.add_argument("--create-org", default=None, metavar="NAME", help="Create an org, write its API key, and exit")
+    serve_parser.add_argument(
+        "--create-org",
+        default=None,
+        metavar="NAME",
+        help="Create an org, write its API key, and exit",
+    )
     serve_parser.add_argument(
         "--api-key-file",
         default=None,
@@ -3514,7 +3533,9 @@ def main():
     sbom_parser.add_argument(
         "--out", default=None, help="Write SBOM JSON here instead of stdout"
     )
-    sbom_parser.add_argument("--app-name", default=None, help="Application name for the SBOM metadata")
+    sbom_parser.add_argument(
+        "--app-name", default=None, help="Application name for the SBOM metadata"
+    )
     dashboard_parser = subparsers.add_parser(
         "dashboard", help="Serve the findings dashboard in your browser"
     )

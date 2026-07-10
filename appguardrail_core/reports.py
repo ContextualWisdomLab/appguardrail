@@ -6,13 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
 
-from appguardrail_core.findings import (
-    SEVERITIES,
-    finding_sort_key,
-    is_deploy_blocking,
-    normalize_finding,
-    severity_counts,
-)
+from appguardrail_core.findings import (SEVERITIES, finding_sort_key,
+                                        is_deploy_blocking, normalize_finding,
+                                        severity_counts)
 
 
 @dataclass(frozen=True)
@@ -69,7 +65,9 @@ def render_buyer_diligence_report(
 ) -> str:
     """Render a buyer-diligence markdown report from normalized findings."""
     context = context or ReportContext()
-    normalized = [_sanitize_for_markdown(normalize_finding(finding)) for finding in findings]
+    normalized = [
+        _sanitize_for_markdown(normalize_finding(finding)) for finding in findings
+    ]
     normalized.sort(key=finding_sort_key)
     counts = severity_counts(normalized)
     blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
@@ -269,7 +267,9 @@ def render_agency_report(
     )
     if normalized:
         for index, finding in enumerate(normalized, start=1):
-            lines.append(f"| AG-{index:03d} | Pending | Rerun {finding['rule_id']} evidence. |")
+            lines.append(
+                f"| AG-{index:03d} | Pending | Rerun {finding['rule_id']} evidence. |"
+            )
     else:
         lines.append("| n/a | n/a | No findings. |")
 
@@ -373,7 +373,9 @@ def _summary_table(findings: list[dict[str, Any]]) -> list[str]:
         "|---|---|---|---|---|",
     ]
     for index, finding in enumerate(findings, start=1):
-        references = ", ".join(finding["references"] or finding["owasp"] or finding["cwe"])
+        references = ", ".join(
+            finding["references"] or finding["owasp"] or finding["cwe"]
+        )
         rows.append(
             "| {id} | {severity} | {category} | `{location}` | {references} |".format(
                 id=f"BD-{index:03d}",
@@ -418,12 +420,7 @@ _PROSE_FIELDS = ("message", "remediation", "verification")
 def _md_prose(value: Any) -> str:
     """HTML-neutralize free text so a hostile finding message can't inject
     markup when a generated markdown report is later rendered as HTML."""
-    return (
-        str(value)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _md_fence(value: Any) -> str:
@@ -466,7 +463,9 @@ def _prepare_report(
 ]:
     """Normalize findings and compute shared report metadata."""
     context = context or ReportContext()
-    normalized = [_sanitize_for_markdown(normalize_finding(finding)) for finding in findings]
+    normalized = [
+        _sanitize_for_markdown(normalize_finding(finding)) for finding in findings
+    ]
     normalized.sort(key=finding_sort_key)
     counts = severity_counts(normalized)
     blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
@@ -665,4 +664,6 @@ def _fix_status_table(findings: list[dict[str, Any]]) -> list[str]:
 
 def _references(finding: dict[str, Any]) -> str:
     """Return a comma-separated reference list for a finding."""
-    return ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"
+    return (
+        ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"
+    )

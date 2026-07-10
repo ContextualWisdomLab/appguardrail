@@ -8,23 +8,13 @@ from contextlib import closing
 
 import pytest
 
-from appguardrail_core.controlplane import (
-    _is_slack_webhook,
-    _send_alert,
-    _slack_blocks,
-    add_scan,
-    connect,
-    create_key,
-    create_org,
-    get_scan,
-    has_role,
-    list_scans,
-    make_control_plane_server,
-    org_for_key,
-    role_for_key,
-    scan_trend,
-    set_webhook,
-)
+from appguardrail_core.controlplane import (_is_slack_webhook, _send_alert,
+                                            _slack_blocks, add_scan, connect,
+                                            create_key, create_org, get_scan,
+                                            has_role, list_scans,
+                                            make_control_plane_server,
+                                            org_for_key, role_for_key,
+                                            scan_trend, set_webhook)
 
 FINDINGS = [
     {"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
@@ -33,6 +23,7 @@ FINDINGS = [
 
 
 # ---- store ----
+
 
 def test_org_key_auth():
     conn = connect(":memory:")
@@ -63,6 +54,7 @@ def test_tenant_isolation():
 
 
 # ---- API ----
+
 
 def _serve(server):
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -102,7 +94,9 @@ def test_health_no_auth(server):
 def test_ingest_and_history(server):
     base, key = server
     status, summary = _req(
-        "POST", f"{base}/api/v1/scans", key,
+        "POST",
+        f"{base}/api/v1/scans",
+        key,
         {"repo": "acme/app", "commit": "abc", "findings": FINDINGS},
     )
     assert status == 201 and summary["deploy_blocking"] == 1
@@ -139,29 +133,52 @@ def test_console_served_at_root(server):
 def test_drift_new_blocking():
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")
-    crit = {"severity": "CRITICAL", "rule_id": "secret", "file": "a.ts", "line": 3,
-            "message": "hardcoded key", "context": "app-code"}
-    other = {"severity": "HIGH", "rule_id": "rls", "file": "b.sql", "line": 1,
-             "message": "RLS off", "context": "app-code"}
+    crit = {
+        "severity": "CRITICAL",
+        "rule_id": "secret",
+        "file": "a.ts",
+        "line": 3,
+        "message": "hardcoded key",
+        "context": "app-code",
+    }
+    other = {
+        "severity": "HIGH",
+        "rule_id": "rls",
+        "file": "b.sql",
+        "line": 1,
+        "message": "RLS off",
+        "context": "app-code",
+    }
     s1 = add_scan(conn, oid, [crit], repo="acme/app")
     assert s1["new_blocking"] == 1  # first scan: all blocking are new
     s2 = add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")
     assert s2["new_blocking"] == 0  # same finding, line moved -> not new
     s3 = add_scan(conn, oid, [crit, other], repo="acme/app")
-    assert s3["deploy_blocking"] == 2 and s3["new_blocking"] == 1  # one newly introduced
+    assert (
+        s3["deploy_blocking"] == 2 and s3["new_blocking"] == 1
+    )  # one newly introduced
     s4 = add_scan(conn, oid, [crit], repo="acme/other")
     assert s4["new_blocking"] == 1  # different repo -> independent baseline
 
 
 def test_webhook_alerts_on_drift(monkeypatch):
     sent = []
-    monkeypatch.setattr("appguardrail_core.controlplane._send_alert", lambda url, payload, **kw: sent.append((url, payload, kw)) or True)
+    monkeypatch.setattr(
+        "appguardrail_core.controlplane._send_alert",
+        lambda url, payload, **kw: sent.append((url, payload, kw)) or True,
+    )
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")
     set_webhook(conn, oid, "http://hook.example/x")
-    crit = {"severity": "CRITICAL", "rule_id": "s", "file": "a.ts", "line": 1,
-            "message": "k", "context": "app-code"}
-    add_scan(conn, oid, [crit], repo="acme/app")             # 1 new -> alert
+    crit = {
+        "severity": "CRITICAL",
+        "rule_id": "s",
+        "file": "a.ts",
+        "line": 1,
+        "message": "k",
+        "context": "app-code",
+    }
+    add_scan(conn, oid, [crit], repo="acme/app")  # 1 new -> alert
     add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")  # 0 new -> no alert
     assert len(sent) == 1
     url, payload, kw = sent[0]
@@ -174,16 +191,33 @@ def test_webhook_alerts_on_drift(monkeypatch):
 
 def test_no_webhook_no_alert(monkeypatch):
     sent = []
-    monkeypatch.setattr("appguardrail_core.controlplane._send_alert", lambda url, payload, **kw: sent.append(1))
+    monkeypatch.setattr(
+        "appguardrail_core.controlplane._send_alert",
+        lambda url, payload, **kw: sent.append(1),
+    )
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")  # no webhook set
-    add_scan(conn, oid, [{"severity": "CRITICAL", "rule_id": "s", "file": "a", "line": 1, "context": "app-code"}])
+    add_scan(
+        conn,
+        oid,
+        [
+            {
+                "severity": "CRITICAL",
+                "rule_id": "s",
+                "file": "a",
+                "line": 1,
+                "context": "app-code",
+            }
+        ],
+    )
     assert sent == []  # no webhook -> no delivery attempt
 
 
 def test_api_set_webhook(server):
     base, key = server
-    status, body = _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"})
+    status, body = _req(
+        "POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"}
+    )
     assert status == 200 and body["webhook_url"] == "http://hook.example/y"
 
 
@@ -214,9 +248,11 @@ def test_api_role_enforcement(server):
     F = {"findings": [{"severity": "CRITICAL", "rule_id": "x", "context": "app-code"}]}
     # viewer: read yes, ingest no, keys no
     assert _req("GET", f"{base}/api/v1/scans", viewer)[0] == 200
-    for method, path, body in [("POST", "/api/v1/scans", F),
-                               ("POST", "/api/v1/keys", {"role": "member"}),
-                               ("POST", "/api/v1/webhook", {"url": "http://x"})]:
+    for method, path, body in [
+        ("POST", "/api/v1/scans", F),
+        ("POST", "/api/v1/keys", {"role": "member"}),
+        ("POST", "/api/v1/webhook", {"url": "http://x"}),
+    ]:
         with pytest.raises(urllib.error.HTTPError) as e:
             _req(method, f"{base}{path}", viewer, body)
         assert e.value.code == 403
@@ -226,16 +262,30 @@ def test_api_role_enforcement(server):
         _req("POST", f"{base}/api/v1/webhook", member, {"url": "http://x"})
     assert e.value.code == 403
     # owner: all yes
-    assert _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://x"})[0] == 200
+    assert (
+        _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://x"})[0] == 200
+    )
 
 
 def test_pagination_and_trend():
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")
     for i in range(5):
-        add_scan(conn, oid, [{"severity": "CRITICAL", "rule_id": f"r{i}",
-                              "file": "a", "line": i, "message": "m", "context": "app-code"}],
-                 repo="acme/app")
+        add_scan(
+            conn,
+            oid,
+            [
+                {
+                    "severity": "CRITICAL",
+                    "rule_id": f"r{i}",
+                    "file": "a",
+                    "line": i,
+                    "message": "m",
+                    "context": "app-code",
+                }
+            ],
+            repo="acme/app",
+        )
     # list is newest-first; offset skips
     p1 = list_scans(conn, oid, limit=2, offset=0)
     p2 = list_scans(conn, oid, limit=2, offset=2)
@@ -260,9 +310,12 @@ def test_api_pagination_and_trend(server):
 
 # ---- Slack-formatted drift alert ----
 
+
 def test_is_slack_webhook():
     assert _is_slack_webhook("https://hooks.slack.com/services/T/B/xyz")
-    assert not _is_slack_webhook("https://hooks.slack.com.evil.example/x")  # host must match
+    assert not _is_slack_webhook(
+        "https://hooks.slack.com.evil.example/x"
+    )  # host must match
     assert not _is_slack_webhook("https://hook.example/x")
     assert not _is_slack_webhook("not a url")
 
@@ -277,8 +330,12 @@ def test_slack_blocks_shape_and_content():
     assert "blocks" in body and body["blocks"][0]["type"] == "header"
     text = json.dumps(body)
     assert "Acme" in text  # org name rendered
-    assert "2 new deploy-blocking findings" in body["blocks"][0]["text"]["text"]  # count in header
-    assert "hardcoded-secret" in text and "src/a.ts" in text  # top rule_id + file listed
+    assert (
+        "2 new deploy-blocking findings" in body["blocks"][0]["text"]["text"]
+    )  # count in header
+    assert (
+        "hardcoded-secret" in text and "src/a.ts" in text
+    )  # top rule_id + file listed
     assert "#42" in text  # scan id
 
 
@@ -288,7 +345,7 @@ def test_slack_blocks_caps_and_escapes():
     body = _slack_blocks("Ben & <Co>", payload, findings, top=5)
     detail = body["blocks"][-1]["text"]["text"]
     assert detail.count("• `r") == 5  # only top 5 rules listed
-    assert "+3 more" in detail       # overflow line
+    assert "+3 more" in detail  # overflow line
     assert "Ben &amp; &lt;Co&gt;" in json.dumps(body)  # org name escaped for Slack
 
 
@@ -298,30 +355,52 @@ def test_send_alert_slack_vs_generic(monkeypatch):
     def _fake_urlopen(req, timeout=None):
         posted["url"] = req.full_url
         posted["body"] = json.loads(req.data.decode())
+
         class _R:  # minimal stand-in, urlopen result is ignored
             pass
+
         return _R()
 
     monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
-    generic = {"event": "drift.new_blocking", "org_id": 3, "scan_id": 9,
-               "repo": "acme/app", "new_blocking": 1, "deploy_blocking": 1}
+    generic = {
+        "event": "drift.new_blocking",
+        "org_id": 3,
+        "scan_id": 9,
+        "repo": "acme/app",
+        "new_blocking": 1,
+        "deploy_blocking": 1,
+    }
     findings = [{"rule_id": "secret", "file": "a.ts"}]
 
     # Slack URL -> Block Kit payload
-    assert _send_alert("https://hooks.slack.com/services/x", generic,
-                       org_name="Acme", new_findings=findings) is True
+    assert (
+        _send_alert(
+            "https://hooks.slack.com/services/x",
+            generic,
+            org_name="Acme",
+            new_findings=findings,
+        )
+        is True
+    )
     assert "blocks" in posted["body"]
     assert "Acme" in json.dumps(posted["body"])
-    assert "1 new deploy-blocking finding" in posted["body"]["blocks"][0]["text"]["text"]
+    assert (
+        "1 new deploy-blocking finding" in posted["body"]["blocks"][0]["text"]["text"]
+    )
 
     # Generic URL -> untouched original payload (backward compatible)
-    assert _send_alert("https://hook.example/x", generic,
-                       org_name="Acme", new_findings=findings) is True
+    assert (
+        _send_alert(
+            "https://hook.example/x", generic, org_name="Acme", new_findings=findings
+        )
+        is True
+    )
     assert posted["body"] == generic
     assert "blocks" not in posted["body"]
 
 
 # ---- API hardening: body cap + query clamps ----
+
 
 def test_negative_and_huge_limit_clamped(server):
     base, key = server
@@ -337,6 +416,7 @@ def test_negative_and_huge_limit_clamped(server):
 def test_oversized_body_rejected(server):
     import http.client
     from urllib.parse import urlparse as _u
+
     base, key = server
     u = _u(base)
     conn = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
@@ -355,6 +435,7 @@ def test_oversized_body_rejected(server):
 def test_negative_content_length_rejected(server):
     import http.client
     from urllib.parse import urlparse as _u
+
     base, key = server
     u = _u(base)
     conn = http.client.HTTPConnection(u.hostname, u.port, timeout=10)

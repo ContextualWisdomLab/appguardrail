@@ -6,32 +6,20 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    SCAN_RULES,
-    _bandit_findings,
-    _collect_files,
-    _build_finding,
-    _detect_scan_languages,
-    _load_packaged_regex_rules,
-    _path_allowed_by_rule,
-    _print_scan_results,
-    _ruff_findings,
-    _run_bandit_scan,
-    _run_codegraph_command,
-    _run_codegraph_index,
-    _run_ruff_security_scan,
-    _run_semgrep_scan,
-    _run_trivy_fs,
-    _run_zap_baseline,
-    _scan_file,
-    _semgrep_findings,
-    cmd_init,
-    cmd_monitor,
-    cmd_org_bundle,
-    cmd_report,
-    cmd_scan,
-    cmd_serve,
-)
+from scanner.cli.appguardrail import (SCAN_RULES, _bandit_findings,
+                                      _build_finding, _collect_files,
+                                      _detect_scan_languages,
+                                      _load_packaged_regex_rules,
+                                      _path_allowed_by_rule,
+                                      _print_scan_results, _ruff_findings,
+                                      _run_bandit_scan, _run_codegraph_command,
+                                      _run_codegraph_index,
+                                      _run_ruff_security_scan,
+                                      _run_semgrep_scan, _run_trivy_fs,
+                                      _run_zap_baseline, _scan_file,
+                                      _semgrep_findings, cmd_init, cmd_monitor,
+                                      cmd_org_bundle, cmd_report, cmd_scan,
+                                      cmd_serve)
 
 MOCK_RULES = [
     {
@@ -111,7 +99,9 @@ class OrgBundleArgs:
 
 
 class ServeArgs:
-    def __init__(self, db, create_org=None, api_key_file=None, host="127.0.0.1", port=0):
+    def __init__(
+        self, db, create_org=None, api_key_file=None, host="127.0.0.1", port=0
+    ):
         self.db = str(db)
         self.create_org = create_org
         self.api_key_file = str(api_key_file) if api_key_file else None
@@ -647,16 +637,18 @@ def test_cmd_scan_auto_external_uses_detected_language_axes(tmp_path, monkeypatc
     def fake_available(name, version_args=("--version",)):
         return f"/usr/bin/{name}" if name in {"bandit", "ruff", "semgrep"} else None
 
-    with patch("scanner.cli.appguardrail.SCAN_RULES", []), patch(
-        "scanner.cli.appguardrail._external_tool_available",
-        side_effect=fake_available,
-    ), patch(
-        "scanner.cli.appguardrail._run_bandit_scan", return_value=[]
-    ) as bandit, patch(
-        "scanner.cli.appguardrail._run_ruff_security_scan", return_value=[]
-    ) as ruff, patch(
-        "scanner.cli.appguardrail._run_semgrep_scan", return_value=[]
-    ) as semgrep:
+    with (
+        patch("scanner.cli.appguardrail.SCAN_RULES", []),
+        patch(
+            "scanner.cli.appguardrail._external_tool_available",
+            side_effect=fake_available,
+        ),
+        patch("scanner.cli.appguardrail._run_bandit_scan", return_value=[]) as bandit,
+        patch(
+            "scanner.cli.appguardrail._run_ruff_security_scan", return_value=[]
+        ) as ruff,
+        patch("scanner.cli.appguardrail._run_semgrep_scan", return_value=[]) as semgrep,
+    ):
         assert cmd_scan(args) == 0
 
     bandit.assert_called_once_with(tmp_path.resolve())
@@ -684,8 +676,9 @@ def test_cmd_scan_auto_external_explains_missing_optional_engines(tmp_path, caps
     args = ScanArgs(tmp_path)
     args.external = "auto"
 
-    with patch("scanner.cli.appguardrail.SCAN_RULES", []), patch(
-        "scanner.cli.appguardrail._external_tool_available", return_value=None
+    with (
+        patch("scanner.cli.appguardrail.SCAN_RULES", []),
+        patch("scanner.cli.appguardrail._external_tool_available", return_value=None),
     ):
         assert cmd_scan(args) == 0
 
@@ -719,7 +712,12 @@ def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
 def test_cmd_serve_create_org_writes_api_key_file(tmp_path, capsys):
     key_file = tmp_path / "acme.api-key"
 
-    assert cmd_serve(ServeArgs(tmp_path / "cp.db", create_org="Acme", api_key_file=key_file)) == 0
+    assert (
+        cmd_serve(
+            ServeArgs(tmp_path / "cp.db", create_org="Acme", api_key_file=key_file)
+        )
+        == 0
+    )
 
     out = capsys.readouterr().out
     key = key_file.read_text(encoding="utf-8").strip()
@@ -774,8 +772,11 @@ def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
         events.append(f"scan:{file_path.name}")
         return []
 
-    with patch("scanner.cli.appguardrail._collect_files", side_effect=fake_collect_files), patch(
-        "scanner.cli.appguardrail._scan_file", side_effect=fake_scan_file
+    with (
+        patch(
+            "scanner.cli.appguardrail._collect_files", side_effect=fake_collect_files
+        ),
+        patch("scanner.cli.appguardrail._scan_file", side_effect=fake_scan_file),
     ):
         assert cmd_scan(ScanArgs(tmp_path)) == 0
 
@@ -961,9 +962,10 @@ def test_run_bandit_scan_maps_json_findings(tmp_path):
         "Process", (), {"returncode": 1, "stdout": json.dumps(report), "stderr": ""}
     )()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/bandit"
-    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+    with (
+        patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/bandit"),
+        patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run,
+    ):
         findings = _run_bandit_scan(tmp_path)
 
     assert run.call_args.args[0][:4] == ["/usr/bin/bandit", "-f", "json", "-q"]
@@ -1003,9 +1005,10 @@ def test_run_ruff_security_scan_maps_json_findings(tmp_path):
         "Process", (), {"returncode": 1, "stdout": json.dumps(report), "stderr": ""}
     )()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/ruff"
-    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+    with (
+        patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/ruff"),
+        patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run,
+    ):
         findings = _run_ruff_security_scan(tmp_path)
 
     assert run.call_args.args[0][:4] == [
@@ -1060,9 +1063,10 @@ def test_run_semgrep_scan_maps_json_findings(tmp_path):
         "Process", (), {"returncode": 1, "stdout": json.dumps(report), "stderr": ""}
     )()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/semgrep"
-    ), patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+    with (
+        patch("scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/semgrep"),
+        patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run,
+    ):
         findings = _run_semgrep_scan(tmp_path, "auto")
 
     assert run.call_args.args[0][:5] == [
@@ -1102,9 +1106,13 @@ def test_run_zap_baseline_maps_json_findings(tmp_path):
         Path(command[4]).write_text(json.dumps(report))
         return type("Process", (), {"returncode": 1, "stdout": "", "stderr": ""})()
 
-    with patch(
-        "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/zap-baseline.py"
-    ), patch("scanner.cli.appguardrail.subprocess.run", side_effect=fake_run) as run:
+    with (
+        patch(
+            "scanner.cli.appguardrail.shutil.which",
+            return_value="/usr/bin/zap-baseline.py",
+        ),
+        patch("scanner.cli.appguardrail.subprocess.run", side_effect=fake_run) as run,
+    ):
         findings = _run_zap_baseline("https://example.test")
 
     assert run.call_args.args[0][:3] == [

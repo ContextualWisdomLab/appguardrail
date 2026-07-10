@@ -36,13 +36,18 @@ def _clean_version(value: str) -> str:
     return _RANGE_PREFIX.sub("", str(value or "")).strip()
 
 
-def _component(name: str, version: str, ecosystem: str, resolved: bool) -> dict[str, Any]:
+def _component(
+    name: str, version: str, ecosystem: str, resolved: bool
+) -> dict[str, Any]:
     comp: dict[str, Any] = {
         "type": "library",
         "name": name,
         "purl": f"pkg:{ecosystem}/{name}" + (f"@{version}" if version else ""),
         "properties": [
-            {"name": "appguardrail:version-source", "value": "resolved" if resolved else "declared"},
+            {
+                "name": "appguardrail:version-source",
+                "value": "resolved" if resolved else "declared",
+            },
         ],
     }
     if version:
@@ -89,7 +94,9 @@ def parse_requirements(path: Path) -> list[dict[str, Any]]:
         m = _REQ_LINE.match(line)
         if not m:
             continue
-        out.append(_component(m.group(1), m.group(2) or "", "pypi", resolved=bool(m.group(2))))
+        out.append(
+            _component(m.group(1), m.group(2) or "", "pypi", resolved=bool(m.group(2)))
+        )
     return out
 
 
@@ -159,7 +166,9 @@ def parse_yarn_lock(path: Path) -> list[dict[str, Any]]:
         elif current:
             vm = _YARN_VERSION.match(raw)
             if vm:
-                out.setdefault(current, _component(current, vm.group(1), "npm", resolved=True))
+                out.setdefault(
+                    current, _component(current, vm.group(1), "npm", resolved=True)
+                )
                 current = None
     return list(out.values())
 
@@ -198,7 +207,9 @@ def collect_components(base: Path) -> list[dict[str, Any]]:
     return unique
 
 
-def build_sbom(components: list[dict[str, Any]], app_name: str = "AppGuardrail scan target") -> dict[str, Any]:
+def build_sbom(
+    components: list[dict[str, Any]], app_name: str = "AppGuardrail scan target"
+) -> dict[str, Any]:
     """Assemble a CycloneDX 1.5 document."""
     return {
         "bomFormat": "CycloneDX",
@@ -214,8 +225,12 @@ if __name__ == "__main__":  # pragma: no cover - self-check
 
     with tempfile.TemporaryDirectory() as d:
         base = Path(d)
-        (base / "package.json").write_text('{"dependencies":{"next":"^14.1.0"},"devDependencies":{"jest":"29.0.0"}}')
-        (base / "requirements.txt").write_text("flask==3.0.0\nrequests>=2\n# comment\n-e .\n")
+        (base / "package.json").write_text(
+            '{"dependencies":{"next":"^14.1.0"},"devDependencies":{"jest":"29.0.0"}}'
+        )
+        (base / "requirements.txt").write_text(
+            "flask==3.0.0\nrequests>=2\n# comment\n-e .\n"
+        )
         comps = collect_components(base)
         names = {c["name"]: c for c in comps}
         assert names["next"]["version"] == "14.1.0"  # ^ stripped

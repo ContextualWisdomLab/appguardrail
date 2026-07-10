@@ -17,10 +17,10 @@ import json
 import re
 import secrets
 import sqlite3
-from importlib import resources
-from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone
+from importlib import resources
 from typing import Any, Iterable
+from urllib.parse import parse_qs, urlparse
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
 
@@ -65,7 +65,7 @@ def _now() -> str:
 # scrypt work factors (stdlib ``hashlib.scrypt``). n must be a power of two;
 # these are the interactive-login reference parameters and stay well within the
 # default 32 MiB ``maxmem`` (n*r*128 ≈ 16 MiB).
-_SCRYPT_N = 2 ** 14
+_SCRYPT_N = 2**14
 _SCRYPT_R = 8
 _SCRYPT_P = 1
 # Fixed application salt (pepper). API-key hashes are looked up by equality
@@ -194,9 +194,15 @@ def _slack_blocks(
         {
             "type": "section",
             "fields": [
-                {"type": "mrkdwn", "text": _trim(f"*Org:*\n{_slack_escape(org)}", 2000)},
+                {
+                    "type": "mrkdwn",
+                    "text": _trim(f"*Org:*\n{_slack_escape(org)}", 2000),
+                },
                 {"type": "mrkdwn", "text": f"*New blockers:*\n{n}"},
-                {"type": "mrkdwn", "text": _trim(f"*Repo:*\n{_slack_escape(str(repo))}", 2000)},
+                {
+                    "type": "mrkdwn",
+                    "text": _trim(f"*Repo:*\n{_slack_escape(str(repo))}", 2000),
+                },
                 {"type": "mrkdwn", "text": f"*Scan:*\n#{scan_id}"},
             ],
         },
@@ -252,7 +258,10 @@ def has_role(role: "str | None", minimum: str) -> bool:
 
 
 def create_key(
-    conn: sqlite3.Connection, org_id: int, role: str = "member", label: "str | None" = None
+    conn: sqlite3.Connection,
+    org_id: int,
+    role: str = "member",
+    label: "str | None" = None,
 ) -> "tuple[int, str]":
     """Issue a new API key for an org with a role. Returns (key_id, api_key)."""
     role = role if role in _ROLE_RANK else "member"
@@ -360,7 +369,9 @@ def add_scan(
     }
 
 
-def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+def list_scans(
+    conn: sqlite3.Connection, org_id: int, limit: int = 100, offset: int = 0
+) -> list[dict[str, Any]]:
     """Return scan summaries for an org, newest first."""
     rows = conn.execute(
         "SELECT id, created_at, repo, commit_sha, total, deploy_blocking, new_blocking, severity_counts "
@@ -382,7 +393,9 @@ def list_scans(conn: sqlite3.Connection, org_id: int, limit: int = 100, offset: 
     ]
 
 
-def scan_trend(conn: sqlite3.Connection, org_id: int, limit: int = 30) -> list[dict[str, Any]]:
+def scan_trend(
+    conn: sqlite3.Connection, org_id: int, limit: int = 30
+) -> list[dict[str, Any]]:
     """Oldest->newest deploy_blocking/new_blocking series for charting."""
     rows = conn.execute(
         "SELECT created_at, deploy_blocking, new_blocking FROM scans "
@@ -390,13 +403,18 @@ def scan_trend(conn: sqlite3.Connection, org_id: int, limit: int = 30) -> list[d
         (org_id, max(1, limit)),
     ).fetchall()
     return [
-        {"created_at": r["created_at"], "deploy_blocking": r["deploy_blocking"],
-         "new_blocking": r["new_blocking"]}
+        {
+            "created_at": r["created_at"],
+            "deploy_blocking": r["deploy_blocking"],
+            "new_blocking": r["new_blocking"],
+        }
         for r in reversed(rows)
     ]
 
 
-def get_scan(conn: sqlite3.Connection, org_id: int, scan_id: int) -> "dict[str, Any] | None":
+def get_scan(
+    conn: sqlite3.Connection, org_id: int, scan_id: int
+) -> "dict[str, Any] | None":
     """Return a full scan (with findings) scoped to the org, or None."""
     r = conn.execute(
         "SELECT * FROM scans WHERE id = ? AND org_id = ?", (scan_id, org_id)
@@ -414,7 +432,6 @@ def get_scan(conn: sqlite3.Connection, org_id: int, scan_id: int) -> "dict[str, 
         "severity_counts": json.loads(r["severity_counts"]),
         "findings": json.loads(r["findings"]),
     }
-
 
 
 def console_html() -> bytes:
@@ -486,13 +503,29 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return self._json(401, {"error": "invalid or missing API key"})
             org, _role = auth
             if path == "/api/v1/scans":
-                return self._json(200, {"scans": list_scans(conn, org, _qint("limit", 100, 1, 1000), _qint("offset", 0, 0, 10**9))})
+                return self._json(
+                    200,
+                    {
+                        "scans": list_scans(
+                            conn,
+                            org,
+                            _qint("limit", 100, 1, 1000),
+                            _qint("offset", 0, 0, 10**9),
+                        )
+                    },
+                )
             if path == "/api/v1/scans/trend":
-                return self._json(200, {"trend": scan_trend(conn, org, _qint("limit", 30, 1, 365))})
+                return self._json(
+                    200, {"trend": scan_trend(conn, org, _qint("limit", 30, 1, 365))}
+                )
             m = re.match(r"^/api/v1/scans/(\d+)$", path)
             if m:
                 scan = get_scan(conn, org, int(m.group(1)))
-                return self._json(200, scan) if scan else self._json(404, {"error": "not found"})
+                return (
+                    self._json(200, scan)
+                    if scan
+                    else self._json(404, {"error": "not found"})
+                )
             return self._json(404, {"error": "not found"})
 
         _MAX_BODY = 10 * 1024 * 1024  # 10 MiB — plenty for findings, blocks OOM posts
@@ -535,18 +568,32 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
                 new_role = (body or {}).get("role", "member")
-                _kid, new_key = create_key(conn, org, new_role, (body or {}).get("label"))
-                return self._json(201, {"api_key": new_key, "role": new_role if new_role in ROLES else "member"})
+                _kid, new_key = create_key(
+                    conn, org, new_role, (body or {}).get("label")
+                )
+                return self._json(
+                    201,
+                    {
+                        "api_key": new_key,
+                        "role": new_role if new_role in ROLES else "member",
+                    },
+                )
             if not has_role(role, "member"):
-                return self._json(403, {"error": "member role required to ingest scans"})
+                return self._json(
+                    403, {"error": "member role required to ingest scans"}
+                )
             data = self._body()
             if data is None:
                 return self._json(400, {"error": "invalid JSON body"})
             findings = data.get("findings") if isinstance(data, dict) else data
             if not isinstance(findings, list):
-                return self._json(400, {"error": "expected a findings array or {\"findings\":[...]}"})
+                return self._json(
+                    400, {"error": 'expected a findings array or {"findings":[...]}'}
+                )
             meta = data if isinstance(data, dict) else {}
-            summary = add_scan(conn, org, findings, meta.get("repo"), meta.get("commit"))
+            summary = add_scan(
+                conn, org, findings, meta.get("repo"), meta.get("commit")
+            )
             return self._json(201, summary)
 
         def log_message(self, *_args):
@@ -561,10 +608,14 @@ if __name__ == "__main__":  # pragma: no cover - self-check
     assert org_for_key(conn, key) == oid
     assert org_for_key(conn, "agk_wrong") is None
     s = add_scan(
-        conn, oid,
-        [{"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
-         {"severity": "INFO", "rule_id": "y", "context": "doc"}],
-        repo="acme/app", commit_sha="abc123",
+        conn,
+        oid,
+        [
+            {"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
+            {"severity": "INFO", "rule_id": "y", "context": "doc"},
+        ],
+        repo="acme/app",
+        commit_sha="abc123",
     )
     assert s["total"] == 2 and s["deploy_blocking"] == 1, s
     listed = list_scans(conn, oid)
