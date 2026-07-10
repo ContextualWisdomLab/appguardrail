@@ -88,7 +88,8 @@ def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified or ip.is_multicast:
             raise urllib.error.URLError(f"Access to internal address blocked: {_redacted_url(parsed)}")
     except ValueError:
-        pass
+        # Host is not a direct IP literal; allow normal DNS-hostname handling.
+        return parsed
     return parsed
 
 
