@@ -92,15 +92,26 @@ def test_job_log_rejects_dangerous_redirect_scheme(monkeypatch):
 
 def test_job_log_rejects_internal_redirect_host(monkeypatch):
     client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener("http://169.254.169.254/latest/meta-data"),
-    )
 
-    assert "Access to internal address blocked" in client.job_log(
-        "ContextualWisdomLab/naruon", 123
-    )
+    blocked_urls = [
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://10.0.0.5/",
+        "http://2130706433/",
+        "http://0177.0.0.1/",
+        "http://0x7f.0.0.1/",
+    ]
+
+    for url in blocked_urls:
+        monkeypatch.setattr(
+            collector.urllib.request,
+            "build_opener",
+            lambda *_, u=url: FakeRedirectOpener(u),
+        )
+        assert "Access to internal address blocked" in client.job_log(
+            "ContextualWisdomLab/naruon", 123
+        )
 
 
 def test_publish_skips_duplicate_and_reopens_closed_issue():

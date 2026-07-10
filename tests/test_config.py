@@ -26,7 +26,8 @@ def test_loads_fail_on_and_excludes(tmp_path):
 
 def test_first_dir_wins(tmp_path):
     d1, d2 = tmp_path / "a", tmp_path / "b"
-    d1.mkdir(); d2.mkdir()
+    d1.mkdir()
+    d2.mkdir()
     (d1 / CONFIG_NAME).write_text('{"fail_on": "HIGH"}')
     (d2 / CONFIG_NAME).write_text('{"fail_on": "INFO"}')
     assert load_config([d1, d2])["fail_on"] == "HIGH"

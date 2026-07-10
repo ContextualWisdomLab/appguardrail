@@ -1142,6 +1142,11 @@ For each issue found, provide:
 """
 
 
+def _display_path(path: str | Path) -> str:
+    """Return a stable, slash-separated path for CLI output and reports."""
+    return Path(path).as_posix()
+
+
 # ---------------------------------------------------------------------------
 # Command implementations
 # ---------------------------------------------------------------------------
@@ -1229,12 +1234,12 @@ def cmd_init(args):
             existing = target_file.read_text()
             if config["append_marker"] not in existing:
                 target_file.write_text(existing + "\n\n" + config["content"])
-                installed.append(f"{config['path']} (appended)")
+                installed.append(f"{_display_path(config['path'])} (appended)")
             else:
-                skipped.append(str(config["path"]))
+                skipped.append(_display_path(config["path"]))
         else:
             target_file.write_text(config["content"])
-            installed.append(str(config["path"]))
+            installed.append(_display_path(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "APPGUARDRAIL_CHECKLIST.md"
 
@@ -2139,15 +2144,15 @@ def _trivy_line(item: dict) -> int:
 def _trivy_target(target: str, base_path: Path) -> str:
     """Normalize a Trivy target path relative to the scan base when possible."""
     if not target:
-        return str(base_path)
+        return base_path.as_posix()
     try:
         path = Path(target)
         if path.is_absolute():
             root = base_path if base_path.is_dir() else base_path.parent
-            return str(path.relative_to(root))
+            return path.relative_to(root).as_posix()
     except ValueError:
         pass
-    return target
+    return Path(target).as_posix()
 
 
 def _trivy_findings(report: dict, base_path: Path):
@@ -2678,6 +2683,7 @@ def _scan_file(file_path: Path, base_path: Path):
                                 if base_path.is_file()
                                 else file_path_str_cache
                             )
+                        rel_path_for_filters = _display_path(rel_path_for_filters)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2703,7 +2709,7 @@ def _scan_file(file_path: Path, base_path: Path):
                                 else file_path_str_cache
                             )
                         rel_path_str = _sanitize_terminal_output(
-                            str(rel_path_for_output)
+                            _display_path(rel_path_for_output)
                         )
 
                     start_idx = match.start()
