@@ -1207,7 +1207,6 @@ def cmd_init(args):
         if config.get("shared_only"):
             continue
 
-        display_path = config["path"].as_posix()
         target_file = project_root / config["path"]
 
         # SECURITY: Prevent Arbitrary File Write via symlink path traversal
@@ -1230,12 +1229,12 @@ def cmd_init(args):
             existing = target_file.read_text()
             if config["append_marker"] not in existing:
                 target_file.write_text(existing + "\n\n" + config["content"])
-                installed.append(f"{display_path} (appended)")
+                installed.append(f"{config['path']} (appended)")
             else:
-                skipped.append(display_path)
+                skipped.append(str(config["path"]))
         else:
             target_file.write_text(config["content"])
-            installed.append(display_path)
+            installed.append(str(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "APPGUARDRAIL_CHECKLIST.md"
 
@@ -1666,7 +1665,7 @@ def cmd_monitor(args):
     workflow_file.write_text(MONITOR_WORKFLOW)
 
     print("\n✅ AppGuardrail monitor workflow installed!\n")
-    print(f"Created/updated: {workflow_file.relative_to(project_root).as_posix()}")
+    print(f"Created/updated: {workflow_file.relative_to(project_root)}")
     print()
     print(
         "This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
@@ -2672,12 +2671,12 @@ def _scan_file(file_path: Path, base_path: Path):
                         elif file_path_str_cache.startswith(resolved_base_path_prefix):
                             rel_path_for_filters = file_path_str_cache[
                                 len(resolved_base_path_prefix) :
-                            ].replace(os.sep, "/")
+                            ]
                         else:
                             rel_path_for_filters = (
                                 file_path.name
                                 if base_path.is_file()
-                                else Path(file_path_str_cache).as_posix()
+                                else file_path_str_cache
                             )
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
@@ -2696,12 +2695,12 @@ def _scan_file(file_path: Path, base_path: Path):
                         elif file_path_str_cache.startswith(resolved_base_path_prefix):
                             rel_path_for_output = file_path_str_cache[
                                 len(resolved_base_path_prefix) :
-                            ].replace(os.sep, "/")
+                            ]
                         else:
                             rel_path_for_output = (
                                 file_path.name
                                 if base_path.is_file()
-                                else Path(file_path_str_cache).as_posix()
+                                else file_path_str_cache
                             )
                         rel_path_str = _sanitize_terminal_output(
                             str(rel_path_for_output)

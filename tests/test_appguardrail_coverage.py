@@ -1,21 +1,8 @@
-import runpy
-import sys
 from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    _collect_files,
-    _parse_inline_list,
-    _path_matches_glob,
-    _scan_file,
-    cmd_hook,
-    cmd_init,
-    cmd_monitor,
-    cmd_review,
-    cmd_scan,
-    main,
-)
+from scanner.cli.appguardrail import cmd_init, cmd_scan
 from tests.test_appguardrail import MOCK_RULES
 
 
@@ -150,6 +137,10 @@ def test_cmd_init_path_traversal_target_file(tmp_path, monkeypatch, capsys):
     assert "💡 Hint: Ensure" in err
 
 
+from scanner.cli.appguardrail import cmd_hook
+
+
+
 class HookArgs:
     pass
 
@@ -175,8 +166,7 @@ def test_cmd_hook_success(tmp_path, monkeypatch, capsys):
     assert 'python3 "$APPGUARDRAIL_CLI" scan .' in hook_text
     import stat
 
-    if sys.platform != "win32":
-        assert hook_file.stat().st_mode & stat.S_IEXEC
+    assert hook_file.stat().st_mode & stat.S_IEXEC
 
     assert "pre-commit hook installed successfully" in capsys.readouterr().out
 
@@ -231,6 +221,9 @@ def test_cmd_hook_remove_symlink(tmp_path, monkeypatch):
 
     assert cmd_hook(HookArgs()) == 0
     assert not hook_link.is_symlink()
+
+
+from scanner.cli.appguardrail import _collect_files, _scan_file
 
 
 def test_collect_files_oserror_on_scandir(tmp_path):
@@ -305,6 +298,11 @@ def test_scan_file_not_regular(tmp_path):
 
     with patch("os.lstat", return_value=MockStat()):
         assert _scan_file(test_file, tmp_path) == []
+
+
+import sys
+
+from scanner.cli.appguardrail import cmd_review, main
 
 
 class ReviewArgs:
@@ -417,6 +415,9 @@ def test_scan_file_empty_rules(tmp_path):
         assert _scan_file(test_file, tmp_path) == []
 
 
+import runpy
+
+
 def test_if_name_main():
     import sys
     from unittest.mock import patch
@@ -455,6 +456,8 @@ def test_scan_file_open_permission_error():
 
         findings = _scan_file(file_path, base_path)
         assert findings == []
+
+from scanner.cli.appguardrail import cmd_monitor, _path_matches_glob, _parse_inline_list
 
 def test_cmd_monitor(capsys, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
