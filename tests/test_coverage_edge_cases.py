@@ -4,25 +4,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    _confidence,
-    _finding_category,
-    _finding_context,
-    _is_deploy_blocking,
-    _run_codegraph_command,
-    _run_codegraph_index,
-    _run_trivy_fs,
-    _scan_file,
-    _trivy_findings,
-    _trivy_line,
-    _trivy_severity,
-    _trivy_target,
-    cmd_scan,
-)
+from scanner.cli.appguardrail import (_confidence, _finding_category,
+                                      _finding_context, _is_deploy_blocking,
+                                      _run_codegraph_command,
+                                      _run_codegraph_index, _run_trivy_fs,
+                                      _scan_file, _trivy_findings, _trivy_line,
+                                      _trivy_severity, _trivy_target, cmd_scan)
 from tests.test_appguardrail_coverage import ScanArgs
+
 
 def test_run_trivy_fs_error(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+
     def mock_subprocess_run(*args, **kwargs):
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -31,11 +24,15 @@ def test_run_trivy_fs_error(tmp_path, monkeypatch):
 
     with patch("subprocess.run", side_effect=mock_subprocess_run):
         with patch("shutil.which", return_value="trivy"):
-            with pytest.raises(RuntimeError, match="Trivy scan failed: Simulated error"):
+            with pytest.raises(
+                RuntimeError, match="Trivy scan failed: Simulated error"
+            ):
                 _run_trivy_fs(tmp_path)
+
 
 def test_run_trivy_fs_invalid_json(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+
     def mock_subprocess_run(*args, **kwargs):
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -47,44 +44,60 @@ def test_run_trivy_fs_invalid_json(tmp_path, monkeypatch):
             with pytest.raises(RuntimeError, match="Trivy returned invalid JSON"):
                 _run_trivy_fs(tmp_path)
 
+
 def test_finding_context_examples():
     assert _finding_context("examples/test.py") == "example"
+
 
 def test_finding_context_tests():
     assert _finding_context("tests/test.py") == "test"
 
+
 def test_finding_context_docs():
     assert _finding_context("docs/test.py") == "doc"
+
 
 def test_finding_context_scanner_fixture():
     assert _finding_context("scanner/rules/test.yml") == "scanner-fixture"
 
+
 def test_finding_context_scanner_fixture_appguardrail():
-    assert _finding_context("scanner/cli/appguardrail.py", '"id": "test"') == "scanner-fixture"
+    assert (
+        _finding_context("scanner/cli/appguardrail.py", '"id": "test"')
+        == "scanner-fixture"
+    )
+
 
 def test_finding_category_cve():
     assert _finding_category("cve-1234") == "dependency"
 
+
 def test_finding_category_payment():
     assert _finding_category("stripe-test") == "payment"
 
+
 def test_finding_category_storage():
     assert _finding_category("firebase-test") == "storage"
+
 
 def test_finding_category_authz():
     assert _finding_category("auth-test") == "authz"
     assert _finding_category("python-jwt-decode-without-algorithms") == "authz"
     assert _finding_category("fastapi-state-changing-route-without-auth") == "authz"
 
+
 def test_finding_category_injection():
     assert _finding_category("eval-test") == "injection"
     assert _finding_category("python-subprocess-user-controlled-args") == "injection"
 
+
 def test_finding_category_secrets_for_credentials():
     assert _finding_category("hardcoded-api-credential") == "secrets"
 
+
 def test_trivy_target_empty(tmp_path):
     assert _trivy_target("", tmp_path) == tmp_path.as_posix()
+
 
 def test_trivy_target_absolute_valueerror(tmp_path):
     # base is a non-existent file (not a dir), so root = base.parent = tmp_path
@@ -92,10 +105,12 @@ def test_trivy_target_absolute_valueerror(tmp_path):
     target = str(tmp_path / "other" / "path.txt")
     assert _trivy_target(target, base) == "other/path.txt"
 
+
 def test_scan_file_empty_file(tmp_path):
     empty_file = tmp_path / "empty.ts"
     empty_file.touch()
     assert _scan_file(empty_file, tmp_path) == []
+
 
 def test_scan_file_no_newline_after_match(tmp_path):
     file_content = "const password = 'verysecretpassword';"
@@ -103,18 +118,22 @@ def test_scan_file_no_newline_after_match(tmp_path):
     test_file.write_text(file_content)
 
     import re
-    MOCK_RULES = [{
-        "id": "test-rule",
-        "severity": "CRITICAL",
-        "message": "Test",
-        "extensions": [".ts"],
-        "pattern": re.compile(r"password")
-    }]
+
+    MOCK_RULES = [
+        {
+            "id": "test-rule",
+            "severity": "CRITICAL",
+            "message": "Test",
+            "extensions": [".ts"],
+            "pattern": re.compile(r"password"),
+        }
+    ]
 
     with patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES):
         findings = _scan_file(test_file, tmp_path)
         assert len(findings) > 0
         assert findings[0]["snippet"].startswith("const password")
+
 
 def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
@@ -123,6 +142,7 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
         raise RuntimeError("Mock trivy failure")
 
     with patch("scanner.cli.appguardrail._run_trivy_fs", side_effect=mock_run_trivy):
+
         class TrivyArgs(ScanArgs):
             def __init__(self, path):
                 super().__init__(path)
@@ -131,7 +151,10 @@ def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):
         assert cmd_scan(TrivyArgs(tmp_path)) == 1
         err = capsys.readouterr().err
         assert "❌ Error: Mock trivy failure" in err
-        assert "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy." in err
+        assert (
+            "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy."
+            in err
+        )
 
 
 def test_cmd_scan_codegraph_error_handled(tmp_path, monkeypatch, capsys):
@@ -144,6 +167,7 @@ def test_cmd_scan_codegraph_error_handled(tmp_path, monkeypatch, capsys):
         "scanner.cli.appguardrail._run_codegraph_index",
         side_effect=mock_run_codegraph,
     ):
+
         class CodeGraphArgs(ScanArgs):
             def __init__(self, path):
                 super().__init__(path)
@@ -178,10 +202,12 @@ def test_trivy_severity():
     assert _trivy_severity("LOW") == "INFO"
     assert _trivy_severity("UNKNOWN") == "INFO"
 
+
 def test_trivy_line():
     assert _trivy_line({"StartLine": 10}) == 10
     assert _trivy_line({"CauseMetadata": {"StartLine": 20}}) == 20
     assert _trivy_line({}) == 1
+
 
 def test_trivy_findings_parsing(tmp_path):
     report = {
@@ -195,7 +221,7 @@ def test_trivy_findings_parsing(tmp_path):
                         "Title": "Test Vuln",
                         "PkgName": "test-pkg",
                         "InstalledVersion": "1.0",
-                        "FixedVersion": "1.1"
+                        "FixedVersion": "1.1",
                     }
                 ],
                 "Misconfigurations": [
@@ -204,7 +230,7 @@ def test_trivy_findings_parsing(tmp_path):
                         "Severity": "HIGH",
                         "Title": "S3 bucket exposed",
                         "Message": "Bucket is public",
-                        "CauseMetadata": {"StartLine": 15}
+                        "CauseMetadata": {"StartLine": 15},
                     }
                 ],
                 "Secrets": [
@@ -212,9 +238,9 @@ def test_trivy_findings_parsing(tmp_path):
                         "RuleID": "aws-access-key",
                         "Severity": "CRITICAL",
                         "Title": "AWS Access Key",
-                        "StartLine": 5
+                        "StartLine": 5,
                     }
-                ]
+                ],
             }
         ]
     }
@@ -224,11 +250,13 @@ def test_trivy_findings_parsing(tmp_path):
     assert findings[1]["rule_id"] == "trivy:AVD-AWS-0001"
     assert findings[2]["rule_id"] == "trivy:aws-access-key"
 
+
 def test_confidence():
     assert _confidence("trivy:cve") == "high"
     assert _confidence("hardcoded-password") == "high"
     assert _confidence("todo-test") == "medium"
     assert _confidence("random") == "high"
+
 
 def test_is_deploy_blocking():
     assert _is_deploy_blocking({"severity": "CRITICAL", "context": "app-code"})
@@ -256,7 +284,9 @@ def test_run_codegraph_command_reports_failure(tmp_path):
         stderr="status failed\n",
     )
     with patch("subprocess.run", return_value=result):
-        with pytest.raises(RuntimeError, match="CodeGraph status failed: status failed"):
+        with pytest.raises(
+            RuntimeError, match="CodeGraph status failed: status failed"
+        ):
             _run_codegraph_command(["codegraph", "status"], tmp_path, "status")
 
 
