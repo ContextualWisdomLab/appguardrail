@@ -110,13 +110,18 @@ The SARIF output feeds GitHub code scanning
 SARIF consumer — findings appear in the GitHub **Security** tab and as inline PR
 annotations, ranked by `security-severity`. `appguardrail monitor` installs a
 workflow that emits and uploads SARIF automatically while preserving the deploy
-gate.
+gate. Set the `APPGUARDRAIL_CONTROL_PLANE_URL` and `APPGUARDRAIL_API_KEY`
+repository secrets and that workflow also pushes every scan to your control
+plane for history and drift tracking.
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
+- AWS CloudFormation template misconfigurations (public S3 ACLs, world-open
+  security groups, `*:*` IAM policies, public/unencrypted databases, secret
+  parameter defaults)
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
@@ -178,6 +183,67 @@ transform adds `rel="noopener noreferrer"` to external `target="_blank"` links
 (reverse-tabnabbing). Behavior-changing fixes (moving a secret to an env var,
 flipping TLS verification) stay as reviewable prompts — see
 `appguardrail report fix-pack`. This closes the scan → fix → verify loop safely.
+
+### Run the control-plane API (scan history)
+
+```bash
+# Provision an org + API key file (defaults to cp.db.api-key)
+appguardrail serve --db cp.db --create-org "Acme" --api-key-file acme.api-key
+
+# Run the API (bootstraps a default org + key on an empty DB)
+appguardrail serve --db cp.db --port 8788
+```
+
+`appguardrail serve` turns AppGuardrail from a one-shot CLI into a persistent,
+multi-tenant surface: CI pushes each scan and the org queries its history.
+New bootstrap keys are written to a local key file instead of console logs.
+
+```bash
+# From CI, after `appguardrail scan --findings-json findings.json .`
+curl -X POST http://localhost:8788/api/v1/scans \
+  -H "Authorization: Bearer $APPGUARDRAIL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @findings.json     # or {"repo":"...","commit":"...","findings":[...]}
+
+curl http://localhost:8788/api/v1/scans -H "Authorization: Bearer $APPGUARDRAIL_API_KEY"
+```
+
+Push scans from CI with `appguardrail scan --push http://your-control-plane .`
+(key from `APPGUARDRAIL_API_KEY`). The control plane computes **drift** — the
+number of deploy-blocking findings newly introduced since the repo's previous
+scan. Open the **org console** at `http://localhost:8788/` — a single static page that
+connects with your API key and shows scan history, the deploy-blocking trend,
+and per-scan detail.
+
+Issue role-scoped API keys with `POST /api/v1/keys` (owner only): `viewer`
+(read), `member` (ingest scans), or `owner` (full). The bootstrap key is an
+owner.
+
+Set a drift-alert webhook (`POST /api/v1/webhook` with `{"url":"…"}`) and the
+control plane notifies it whenever a scan introduces new deploy-blocking
+findings. If the URL is a Slack Incoming Webhook (`hooks.slack.com`), the alert
+is automatically formatted as a Slack Block Kit message — a header with the new
+blocker count plus the org, repo, scan id, and the top offending rule ids and
+files — so Slack renders a readable card. Any other URL receives the generic
+JSON payload unchanged.
+
+Endpoints: `POST /api/v1/scans`, `GET /api/v1/scans`, `GET /api/v1/scans/{id}`,
+`POST /api/v1/webhook`, `GET /api/v1/health`. Tenant-isolated by API key. Stdlib + SQLite (swap for a
+managed database behind the same functions at scale).
+
+### Generate a CycloneDX SBOM
+
+```bash
+# Inventory dependencies as a CycloneDX 1.5 SBOM
+appguardrail sbom . --out sbom.json
+```
+
+Parses `package-lock.json`/`package.json`, `pnpm-lock.yaml`, `yarn.lock`,
+`requirements.txt`, and `poetry.lock` into a CycloneDX software bill of
+materials — the component inventory buyers and auditors expect for
+supply-chain diligence. Versions are resolved from the lockfile when present,
+otherwise taken from the manifest (recorded per component). No third-party
+dependency.
 
 ### Generate reports from findings
 

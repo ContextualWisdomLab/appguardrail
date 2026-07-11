@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AppGuardrail Console</title>
+<!--
+  Org console for the AppGuardrail control plane (`appguardrail serve`).
+  Paste an org API key, then it calls GET /api/v1/scans (same origin) to show
+  scan history, the deploy-blocking trend, and per-scan detail.
+  ponytail: no framework, no build step. Consumes the API in controlplane.py.
+-->
+<style>
+  :root{
+    --bg:#F4F5F7; --surface:#FFFFFF; --text:#1A1D24; --muted:#5B6472;
+    --border:#D6DAE0; --divider:#E7EAEF; --primary:#256EF4; --on-primary:#fff;
+    --crit:#D93B3B; --high:#E06C00; --warn:#B7791F; --info:#5B6472; --ok:#1E874B;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  header{display:flex;gap:12px;align-items:center;padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .logo{width:26px;height:26px;border-radius:7px;background:var(--primary)}
+  h1{font-size:16px;margin:0;font-weight:700}
+  main{max-width:1000px;margin:0 auto;padding:20px}
+  input{font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-width:280px}
+  button{font:inherit;font-weight:600;padding:8px 14px;border:0;border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer}
+  button.ghost{background:var(--surface);color:var(--primary);border:1px solid var(--border)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+  .stats{display:flex;gap:12px;flex-wrap:wrap}
+  .stat{flex:1;min-width:130px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+  .stat .n{font-size:26px;font-weight:800}
+  .stat .l{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--divider);font-size:13px}
+  th{font-size:11px;color:var(--muted);text-transform:uppercase}
+  tr.scan{cursor:pointer}
+  tr.scan:hover{background:var(--bg)}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
+  .trend{display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px}
+  .bar{flex:1;min-width:6px;border-radius:3px 3px 0 0}
+  .muted{color:var(--muted)}
+  .err{color:var(--crit);font-weight:600}
+  code{background:var(--bg);padding:1px 5px;border-radius:4px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"></div>
+  <h1>AppGuardrail Console</h1>
+  <span class="muted" id="conn"></span>
+  <span style="flex:1"></span>
+  <input id="key" type="password" placeholder="Org API key (agk_…)" autocomplete="off">
+  <button id="connect">Connect</button>
+  <button id="logout" class="ghost hidden">Sign out</button>
+</header>
+<main>
+  <div id="msg" class="card muted">Paste your org API key and connect to view scan history.</div>
+  <div id="app" class="hidden">
+    <div class="stats" id="stats"></div>
+    <div class="card">
+      <strong>Deploy-blocking trend</strong> <span class="muted">(oldest → newest)</span>
+      <div class="trend" id="trend"></div>
+    </div>
+    <div class="card">
+      <strong>Scan history</strong>
+      <table id="history"><thead><tr><th>When</th><th>Repo</th><th>Commit</th><th>Total</th><th>Blocking</th><th>New</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card hidden" id="detail"></div>
+  </div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
+let KEY=sessionStorage.getItem("ag_key")||"";
+
+async function api(path){
+  const r=await fetch(path,{headers:{Authorization:"Bearer "+KEY}});
+  if(r.status===401)throw new Error("Invalid API key.");
+  if(!r.ok)throw new Error("Request failed ("+r.status+").");
+  return r.json();
+}
+function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
+
+async function load(){
+  try{
+    const {scans}=await api("/api/v1/scans");
+    $("#msg").classList.add("hidden");$("#app").classList.remove("hidden");
+    $("#logout").classList.remove("hidden");
+    $("#conn").textContent=scans.length+" scan(s)";
+    const latest=scans[0]||{severity_counts:{}};
+    const c=latest.severity_counts||{};
+    $("#stats").innerHTML=[
+      ["Latest deploy-blocking",latest.deploy_blocking||0],
+      ["New since last scan",latest.new_blocking||0],
+      ["Critical",c.CRITICAL||0],
+      ["Scans stored",scans.length],
+    ].map(([l,n])=>`<div class="stat"><div class="l">${l}</div><div class="n">${n}</div></div>`).join("");
+    // trend: oldest->newest deploy-blocking
+    const ord=[...scans].reverse();
+    const max=Math.max(1,...ord.map(s=>s.deploy_blocking||0));
+    $("#trend").innerHTML=ord.map(s=>{const h=Math.round(6+((s.deploy_blocking||0)/max)*54);
+      const col=(s.deploy_blocking||0)>0?"var(--crit)":"var(--ok)";
+      return `<div class="bar" title="${esc(s.created_at)}: ${s.deploy_blocking||0} blocking" style="height:${h}px;background:${col}"></div>`;}).join("")||'<span class="muted">No scans yet.</span>';
+    // table
+    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}">
+      <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
+      <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
+    document.querySelectorAll("tr.scan").forEach(tr=>tr.onclick=()=>detail(tr.dataset.id));
+  }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
+    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
+}
+async function detail(id){
+  const s=await api("/api/v1/scans/"+id);
+  const d=$("#detail");d.classList.remove("hidden");
+  const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
+    <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
+    <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
+  d.innerHTML=`<strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
+    <table style="margin-top:8px"><thead><tr><th>Severity</th><th>Rule</th><th>Finding</th><th>Location</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
+  d.scrollIntoView({behavior:"smooth"});
+}
+$("#connect").onclick=()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";load();};
+$("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
+$("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
+if(KEY)load();
+</script>
+</body>
+</html>
