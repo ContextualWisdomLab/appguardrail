@@ -33,6 +33,14 @@
   - `sveltekit-private-env-in-client` — `.svelte` 컴포넌트에서 SvelteKit private env(`$env/*/private`) import. HIGH.
   - `sveltekit-csrf-origin-check-disabled` — svelte.config에서 CSRF origin 검사 비활성화. HIGH.
   - `tests/test_vue_svelte_rules.py`: 룰별 양성·음성 정밀도, severity, 경로 스코프, e2e 스캔(취약/안전 프로젝트) 검증.
+- Kotlin / Android 네이티브 룰 팩 `scanner/rules/kotlin-android.yml` — `.kt`/`.kts` 소스 전용 고정밀 룰 6종을 추가했습니다. 기존 팩이 다루지 않던 Kotlin 소스 사각지대를 메우며, `paths.include`로 Kotlin 파일에만 적용되어 다른 스택에 오탐을 만들지 않습니다.
+  - `kotlin-webview-universal-file-access` — WebView `allowUniversalAccessFromFileURLs`/`allowFileAccessFromFileURLs` 활성화(로컬 파일 탈취 경로). CRITICAL.
+  - `kotlin-sql-injection-raw` — `rawQuery`/`execSQL`에 문자열 템플릿(`$var`) 또는 `+` 연결로 SQL 조립. CRITICAL.
+  - `kotlin-hardcoded-encryption-key` — `SecretKeySpec("리터럴".toByteArray(...))`로 암호화 키를 APK에 하드코딩. CRITICAL.
+  - `kotlin-trust-all-certs` — `checkServerTrusted` 빈 구현(모든 TLS 인증서 수용, MITM 허용). HIGH.
+  - `kotlin-world-accessible-prefs` — `MODE_WORLD_READABLE`/`MODE_WORLD_WRITEABLE` 사용(타 앱에 데이터 노출). HIGH.
+  - `kotlin-log-sensitive-data` — `Log.*`에 password/token/secret 값 로깅(logcat 유출). WARNING.
+  - 검증: `tests/test_kotlin_android_rules.py` — 룰별 양성/음성, severity, Kotlin 경로 스코핑, `_scan_file` end-to-end(발화·비발화) 테스트 18건.
 - Electron 데스크톱 앱 보안 룰 팩 `scanner/rules/electron.yml` 추가(6종, 고정밀 — Electron 전용 식별자에 앵커링해 일반 웹 코드 오탐 0 검증):
   - `electron-node-integration-enabled` — renderer에서 nodeIntegration 활성화(XSS가 곧 RCE로 확대). CRITICAL.
   - `electron-context-isolation-disabled` — contextIsolation 비활성화(preload·특권 API 오염 가능). CRITICAL.
