@@ -161,6 +161,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
+  string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
+  assignment, disabled CSRF protection, and hardcoded `secret_key_base`
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
