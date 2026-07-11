@@ -56,6 +56,10 @@
 **Vulnerability:** The CLI file scanner `vibesec scan` lacked detection rules for insecure deserialization, such as `pickle.load` or `yaml.load` in Python, which could lead to arbitrary code execution.
 **Learning:** Adding regular expressions that detect known dangerous serialization libraries prevents severe security vulnerabilities when parsing untrusted data.
 **Prevention:** A new scanner rule `python-insecure-deserialization` was added to `SCAN_RULES` to flag `pickle.load(s)`, `yaml.load`, and `marshal.load(s)`.
+## 2024-05-18 - Fix missing redaction tokens for new secret rules
+**Vulnerability:** Newly added secret detection rules (like AWS keys, Anthropic keys, GitHub tokens, etc.) were missing from the `_SENSITIVE_RULE_TOKENS` list in `scanner/cli/appguardrail.py`.
+**Learning:** Adding new scanner rules to detect secrets isn't enough; the token strings identifying these rules must also be added to `_SENSITIVE_RULE_TOKENS` to ensure their values are redacted in CI/CD logs or terminal output. Otherwise, the scanner would find the secret and then leak it.
+**Prevention:** Whenever adding new secret detection rules to `SCAN_RULES` or `scanner/rules/secrets.yml`, always cross-reference and update the `_SENSITIVE_RULE_TOKENS` list to ensure corresponding redaction.
 ## 2025-02-28 - Prevent Security Theater in Validation Logic
 **Vulnerability:** Redundant, useless security checks ("security theater") were previously added to statically hardcoded URL strings in GitHub actions and test files, under the guise of SSRF prevention.
 **Learning:** Checking a hardcoded string like `"https://pypi.org/..."` to see if it starts with `https://` provides zero real security value while polluting the codebase and making PR reviews noisy. Security validation logic must be strictly scoped to where *untrusted, dynamic input* is introduced (like dynamically constructed API URLs in network wrappers).
@@ -88,3 +92,8 @@
 **Vulnerability:** GitHub Actions log download redirects accepted DNS hostnames after only scheme, credential, and direct-IP validation, allowing an allowed-looking hostname to resolve to loopback, private, link-local, reserved, or otherwise non-global addresses.
 **Learning:** Runtime SSRF validation must be scoped to the untrusted redirect boundary and must validate both the host class and every DNS resolution result. For GitHub job logs, broad arbitrary host support is unnecessary; redirects should be limited to expected GitHub/Azure log hosts.
 **Prevention:** Validate initial log download URLs and redirect hops with `_validate_log_download_url`, allow only expected log host suffixes, and reject any `socket.getaddrinfo` result that is not a global public IP.
+
+## 2026-07-11 - SSRF and IPv6 bypassing due to socket.gethostbyname
+**Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `socket.gethostbyname` failing to properly process and resolve IPv6 literals (e.g., `::1`), throwing exceptions that allowed internal network routing constraints to be circumvented.
+**Learning:** `socket.gethostbyname` only returns IPv4 records and throws errors when encountering IPv6 literals or purely IPv6 DNS records. When constructing network guardrails like `_is_safe_url`, using `socket.gethostbyname` introduces blind spots for IPv6, which is heavily used in modern internal routing.
+**Prevention:** Always use `socket.getaddrinfo(raw, None)` to reliably iterate through all addresses (IPv4 and IPv6) returned for a host, along with directly trying `ipaddress.ip_address` to short-circuit IP literals before doing DNS resolution.
