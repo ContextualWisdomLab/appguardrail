@@ -7,6 +7,7 @@
 - control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).
 
 ### 추가
+- **공식 Docker 이미지 정의**(`Dockerfile` + `.dockerignore`) — 설치 없이 스캔합니다: `docker build -t appguardrail . && docker run --rm -v "$PWD:/src" appguardrail scan /src`. `python:3.12-slim` 이미지를 digest로 고정하고, 로컬 소스를 `PYTHONPATH=/app`에서 모듈로 실행해 컨테이너 빌드 중 `pip install` 공급망 단계를 제거합니다. 비루트(`scanner`) 사용자와 `HEALTHCHECK`를 포함하며, exit code 계약은 CLI와 동일합니다(1 = deploy-blocking).
 - PHP / WordPress 룰팩 `scanner/rules/php-wordpress.yml` 추가 — 바이브 코딩·에이전시 산출물에 많은 PHP/WordPress 코드를 처음으로 커버합니다. 기존 내장 eval/SQL 룰은 `.js`/`.py` 확장자에만 적용되어 `.php` 파일은 사각지대였습니다. 6종 모두 `**/*.php` 경로로 스코프되며, 안전 코드(prepared statement, `$wpdb->prepare()`, 상수 include 등) 오탐 0을 테스트로 검증했습니다.
   - `php-sql-concat` — `mysqli_query()`/`$wpdb->query()` 등에 `$_GET`/`$_POST`/`$_REQUEST`/`$_COOKIE`를 직접 연결·보간(SQL 주입, CWE-89). CRITICAL.
   - `php-unserialize-user-input` — 요청 입력을 `unserialize()`(PHP object injection, CWE-502). CRITICAL.
@@ -24,6 +25,22 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- Kotlin / Android 네이티브 룰 팩 `scanner/rules/kotlin-android.yml` — `.kt`/`.kts` 소스 전용 고정밀 룰 6종을 추가했습니다. 기존 팩이 다루지 않던 Kotlin 소스 사각지대를 메우며, `paths.include`로 Kotlin 파일에만 적용되어 다른 스택에 오탐을 만들지 않습니다.
+  - `kotlin-webview-universal-file-access` — WebView `allowUniversalAccessFromFileURLs`/`allowFileAccessFromFileURLs` 활성화(로컬 파일 탈취 경로). CRITICAL.
+  - `kotlin-sql-injection-raw` — `rawQuery`/`execSQL`에 문자열 템플릿(`$var`) 또는 `+` 연결로 SQL 조립. CRITICAL.
+  - `kotlin-hardcoded-encryption-key` — `SecretKeySpec("리터럴".toByteArray(...))`로 암호화 키를 APK에 하드코딩. CRITICAL.
+  - `kotlin-trust-all-certs` — `checkServerTrusted` 빈 구현(모든 TLS 인증서 수용, MITM 허용). HIGH.
+  - `kotlin-world-accessible-prefs` — `MODE_WORLD_READABLE`/`MODE_WORLD_WRITEABLE` 사용(타 앱에 데이터 노출). HIGH.
+  - `kotlin-log-sensitive-data` — `Log.*`에 password/token/secret 값 로깅(logcat 유출). WARNING.
+  - 검증: `tests/test_kotlin_android_rules.py` — 룰별 양성/음성, severity, Kotlin 경로 스코핑, `_scan_file` end-to-end(발화·비발화) 테스트 18건.
+- Electron 데스크톱 앱 보안 룰 팩 `scanner/rules/electron.yml` 추가(6종, 고정밀 — Electron 전용 식별자에 앵커링해 일반 웹 코드 오탐 0 검증):
+  - `electron-node-integration-enabled` — renderer에서 nodeIntegration 활성화(XSS가 곧 RCE로 확대). CRITICAL.
+  - `electron-context-isolation-disabled` — contextIsolation 비활성화(preload·특권 API 오염 가능). CRITICAL.
+  - `electron-web-security-disabled` — webSecurity 비활성화(same-origin policy 해제, file:// 읽기 가능). HIGH.
+  - `electron-allow-running-insecure-content` — HTTPS 페이지에서 HTTP 스크립트 실행 허용(mixed content 주입). HIGH.
+  - `electron-shell-openexternal-user-input` — `shell.openExternal`에 비리터럴(동적) 인자 전달(임의 프로토콜·실행 파일 구동 위험). HIGH.
+  - `electron-remote-module-enabled` — deprecated remote 모듈 활성화(renderer 침해 영향 확대). WARNING.
+- `tests/test_electron_rules.py` — 룰별 양성/음성 정밀도, severity, 확장자 비제한(generic) 검증과 취약/하드닝된 Electron main 프로세스·비-Electron 코드 e2e 스캔 테스트를 추가했습니다.
 - `appguardrail diff-report <old.json> <new.json>` — 두 `scan --findings-json` 스냅샷을 비교해 **해결됨/신규/잔존**을 마크다운으로 렌더링합니다("나아지고 있는가?"에 대한 바이어·감사 증거). 지문은 control plane의 drift 키(rule+file+message 앞부분)와 동일해 라인만 이동한 finding은 잔존으로 분류됩니다(해결+신규 중복 아님). 회귀/개선/진행 중/변화 없음 판정을 상단에 표시하며 `--out`으로 파일 저장이 가능합니다. 무의존성.
 - C#/ASP.NET 탐지 룰 팩 `scanner/rules/dotnet.yml` 추가 — 기존 룰이 다루지 않던 `.cs`/`.cshtml`/`appsettings*.json`/`web.config` 사각지대를 커버합니다(고정밀, 안전 코드 오탐 0 검증).
   - `dotnet-sql-injection-concat` — `SqlCommand`/`ExecuteSqlRaw`/`FromSqlRaw`에 문자열 연결·보간으로 SQL을 조립. CRITICAL(CWE-89).
@@ -89,6 +106,12 @@
   - `hardcoded-slack-token`(xoxb/xoxa/xoxp/… Slack 토큰), `hardcoded-twilio-credential`(Twilio Account SID `AC…`/API key `SK…`), `hardcoded-sendgrid-api-key`(`SG.` SendGrid 키), `hardcoded-npm-token`(`npm_` npm 토큰), `hardcoded-pypi-token`(`pypi-AgEIcHlwaS…` PyPI 토큰) — 모두 CRITICAL.
   - `hardcoded-slack-webhook-url`(`hooks.slack.com/services/…` incoming webhook) — HIGH.
   - 모든 룰에 `cwe: [CWE-798]`, `owasp: [A07:2021]` 부여. 기존 룰(OpenAI/Anthropic/Stripe/AWS/GitHub/Google/PEM)과 중복 없음.
+- Java/Spring 보안 룰팩 `scanner/rules/java-spring.yml` 추가(고정밀 5종, 내장 Java 룰과 중복 없음):
+  - `java-sql-injection-concat` — `createQuery`/`prepareStatement`/`executeQuery`에 문자열 리터럴 + 변수 연결로 SQL/JPQL 조립. CRITICAL.
+  - `java-runtime-exec-concat` — `Runtime.getRuntime().exec`/`ProcessBuilder`에 문자열 연결로 OS 명령 조립. CRITICAL.
+  - `java-xxe-unsafe-parser` — 외부 엔티티/DTD를 명시적으로 허용하는 XML 파서 설정(`external-*-entities=true`, `disallow-doctype-decl=false`, `SUPPORT_DTD=true`). HIGH.
+  - `java-trustall-trustmanager` — `checkServerTrusted` 본문이 비어 있는 trust-all `X509TrustManager`(TLS 검증 무력화). HIGH.
+  - `spring-actuator-exposed` — `management.endpoints.web.exposure.include=*`(properties·yml 중첩 표기 모두 탐지, `application*` 설정 파일로 경로 스코프). HIGH.
 
 ### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.
