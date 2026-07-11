@@ -1398,6 +1398,21 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    ignore_patterns = _load_ignore_patterns(scan_path)
+    ignored_count = 0
+    if ignore_patterns:
+        kept = []
+        for file_path in files_to_scan:
+            if _is_ignored(file_path, scan_path, ignore_patterns):
+                ignored_count += 1
+            else:
+                kept.append(file_path)
+        files_to_scan = kept
+        print(
+            f"🙈 .appguardrailignore: {len(ignore_patterns)} pattern(s), "
+            f"{ignored_count} file(s) skipped\n"
+        )
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -1786,6 +1801,31 @@ def cmd_monitor(args):
     return 0
 
 
+def cmd_diff_report(args):
+    """Render a fixed/new/persisting progress report from two findings files."""
+    from appguardrail_core.diffreport import load_findings, render_diff_report
+
+    try:
+        old = load_findings(args.old)
+        new = load_findings(args.new)
+    except (OSError, ValueError) as exc:
+        print(f"❌ Error: cannot read findings: {exc}", file=sys.stderr)
+        return 1
+    report = render_diff_report(old, new)
+    if args.out:
+        try:
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(report + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Error: cannot write report: {exc}", file=sys.stderr)
+            return 1
+        print(f"📊 Diff report written: {out_path}")
+    else:
+        print(report)
+    return 0
+
+
 def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
@@ -2057,6 +2097,40 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
     return True
+
+
+def _load_ignore_patterns(scan_root: Path) -> list:
+    """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
+    ignore_file = (scan_root if scan_root.is_dir() else scan_root.parent) / ".appguardrailignore"
+    patterns = []
+    try:
+        for line in ignore_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                patterns.append(line.rstrip("/"))
+    except (OSError, UnicodeDecodeError):
+        return []
+    return patterns
+
+
+def _is_ignored(file_path: Path, scan_root: Path, patterns: list) -> bool:
+    """Match a scanned file's relative path against .appguardrailignore globs."""
+    if not patterns:
+        return False
+    try:
+        rel = file_path.relative_to(scan_root).as_posix()
+    except ValueError:
+        rel = file_path.as_posix()
+    for pattern in patterns:
+        # A bare name (no slash/glob) also ignores that file/dir anywhere in the tree.
+        if (
+            _path_matches_glob(rel, pattern)
+            or _path_matches_glob(rel, f"{pattern}/**")
+            or _path_matches_glob(rel, f"**/{pattern}")
+            or _path_matches_glob(rel, f"**/{pattern}/**")
+        ):
+            return True
+    return False
 
 
 def _collect_files(base_path: Path):
@@ -3461,6 +3535,16 @@ def main():
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # report
+    diff_report_parser = subparsers.add_parser(
+        "diff-report",
+        help="Compare two findings JSON snapshots: fixed / new / persisting",
+    )
+    diff_report_parser.add_argument("old", help="Older findings JSON (baseline)")
+    diff_report_parser.add_argument("new", help="Newer findings JSON (current)")
+    diff_report_parser.add_argument(
+        "--out", default=None, help="Write markdown report here instead of stdout"
+    )
+
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3645,6 +3729,8 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
+    elif args.command == "diff-report":
+        sys.exit(cmd_diff_report(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
