@@ -170,6 +170,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Kotlin/Android-native risks in `.kt`/`.kts` sources (raw SQL interpolation,
+  trust-all TLS, WebView file-URL access, hardcoded encryption keys,
+  world-accessible prefs, sensitive logcat logging)
 - Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
   `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
 - C#/.NET risks — SQL built by string concatenation/interpolation,
