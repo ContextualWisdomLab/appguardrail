@@ -2114,6 +2114,10 @@ _SENSITIVE_RULE_TOKENS = (
     "supabase-service-role",
     "aws",
     "private-key",
+    "anthropic",
+    "google",
+    "github",
+    "api-key",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
