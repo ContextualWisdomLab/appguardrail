@@ -1,8 +1,10 @@
 """Tests for the findings diff report (appguardrail_core.diffreport)."""
 
 import json
+from types import SimpleNamespace
 
 from appguardrail_core.diffreport import diff_findings, load_findings, render_diff_report
+from scanner.cli.appguardrail import cmd_diff_report
 
 OLD = [
     {"severity": "CRITICAL", "rule_id": "secret", "file": "a.ts", "line": 3,
@@ -53,3 +55,35 @@ def test_load_findings_shapes(tmp_path):
     bare = tmp_path / "bare.json"
     bare.write_text(json.dumps(OLD), encoding="utf-8")
     assert load_findings(str(bare)) == OLD
+
+
+def test_cmd_diff_report_stdout(tmp_path, capsys):
+    old_path = tmp_path / "old.json"
+    new_path = tmp_path / "new.json"
+    old_path.write_text(json.dumps(OLD), encoding="utf-8")
+    new_path.write_text(json.dumps(NEW), encoding="utf-8")
+
+    rc = cmd_diff_report(
+        SimpleNamespace(old=str(old_path), new=str(new_path), out=None)
+    )
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "회귀" in out
+    assert "`cors`" in out
+
+
+def test_cmd_diff_report_writes_file(tmp_path, capsys):
+    old_path = tmp_path / "old.json"
+    new_path = tmp_path / "new.json"
+    out_path = tmp_path / "report.md"
+    old_path.write_text(json.dumps(OLD), encoding="utf-8")
+    new_path.write_text(json.dumps([]), encoding="utf-8")
+
+    rc = cmd_diff_report(
+        SimpleNamespace(old=str(old_path), new=str(new_path), out=str(out_path))
+    )
+
+    assert rc == 0
+    assert "Diff report written" in capsys.readouterr().out
+    assert "개선" in out_path.read_text(encoding="utf-8")
