@@ -114,8 +114,40 @@ gate. Set the `APPGUARDRAIL_CONTROL_PLANE_URL` and `APPGUARDRAIL_API_KEY`
 repository secrets and that workflow also pushes every scan to your control
 plane for history and drift tracking.
 
+### GitHub Actions
+
+Add the scanner to any workflow with one step — it's a composite action:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write   # for SARIF upload
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ContextualWisdomLab/appguardrail@v1
+        # inputs (all optional): path, sarif, upload-sarif, pr-comment, fail-on-blocking, version
+```
+
+For the PR comment, also grant `pull-requests: write`.
+
+Inside Actions the scanner **auto-detects the environment** (`GITHUB_ACTIONS=true`)
+and, with no extra flags, emits:
+
+- **Inline PR annotations** — each finding as a `::error` (deploy-blocking) or
+  `::warning` on the exact file/line, so reviewers see them on the diff.
+- **A job summary** — a severity breakdown and top findings written to the run's
+  summary page (`$GITHUB_STEP_SUMMARY`).
+- **A sticky PR comment** — one comment with the findings roll-up, updated in
+  place on every push (needs `pull-requests: write`; disable with `pr-comment: false`).
+
+Force the same output locally with `appguardrail scan --github .`.
+
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
+- Hardcoded provider API tokens by distinctive prefix: OpenAI/Anthropic (`sk-`, `sk-ant-`), AWS (`AKIA`/`ASIA`), GitHub (`ghp_`/`github_pat_`), Google (`AIza`), Slack (`xoxb-…` tokens and `hooks.slack.com` webhooks), Twilio (`AC…`/`SK…`), SendGrid (`SG.…`), npm (`npm_…`), and PyPI (`pypi-AgEIcHlwaS…`)
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
@@ -128,6 +160,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
+  string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
+  assignment, disabled CSRF protection, and hardcoded `secret_key_base`
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
