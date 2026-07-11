@@ -25,6 +25,16 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- Electron 데스크톱 앱 보안 룰 팩 `scanner/rules/electron.yml` 추가(6종, 고정밀 — Electron 전용 식별자에 앵커링해 일반 웹 코드 오탐 0 검증):
+  - `electron-node-integration-enabled` — renderer에서 nodeIntegration 활성화(XSS가 곧 RCE로 확대). CRITICAL.
+  - `electron-context-isolation-disabled` — contextIsolation 비활성화(preload·특권 API 오염 가능). CRITICAL.
+  - `electron-web-security-disabled` — webSecurity 비활성화(same-origin policy 해제, file:// 읽기 가능). HIGH.
+  - `electron-allow-running-insecure-content` — HTTPS 페이지에서 HTTP 스크립트 실행 허용(mixed content 주입). HIGH.
+  - `electron-shell-openexternal-user-input` — `shell.openExternal`에 비리터럴(동적) 인자 전달(임의 프로토콜·실행 파일 구동 위험). HIGH.
+  - `electron-remote-module-enabled` — deprecated remote 모듈 활성화(renderer 침해 영향 확대). WARNING.
+- `tests/test_electron_rules.py` — 룰별 양성/음성 정밀도, severity, 확장자 비제한(generic) 검증과 취약/하드닝된 Electron main 프로세스·비-Electron 코드 e2e 스캔 테스트를 추가했습니다.
+
+### 추가
 - `appguardrail diff-report <old.json> <new.json>` — 두 `scan --findings-json` 스냅샷을 비교해 **해결됨/신규/잔존**을 마크다운으로 렌더링합니다("나아지고 있는가?"에 대한 바이어·감사 증거). 지문은 control plane의 drift 키(rule+file+message 앞부분)와 동일해 라인만 이동한 finding은 잔존으로 분류됩니다(해결+신규 중복 아님). 회귀/개선/진행 중/변화 없음 판정을 상단에 표시하며 `--out`으로 파일 저장이 가능합니다. 무의존성.
 - C#/ASP.NET 탐지 룰 팩 `scanner/rules/dotnet.yml` 추가 — 기존 룰이 다루지 않던 `.cs`/`.cshtml`/`appsettings*.json`/`web.config` 사각지대를 커버합니다(고정밀, 안전 코드 오탐 0 검증).
   - `dotnet-sql-injection-concat` — `SqlCommand`/`ExecuteSqlRaw`/`FromSqlRaw`에 문자열 연결·보간으로 SQL을 조립. CRITICAL(CWE-89).
