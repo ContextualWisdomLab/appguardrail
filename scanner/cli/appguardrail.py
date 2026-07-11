@@ -1801,6 +1801,31 @@ def cmd_monitor(args):
     return 0
 
 
+def cmd_diff_report(args):
+    """Render a fixed/new/persisting progress report from two findings files."""
+    from appguardrail_core.diffreport import load_findings, render_diff_report
+
+    try:
+        old = load_findings(args.old)
+        new = load_findings(args.new)
+    except (OSError, ValueError) as exc:
+        print(f"❌ Error: cannot read findings: {exc}", file=sys.stderr)
+        return 1
+    report = render_diff_report(old, new)
+    if args.out:
+        try:
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(report + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Error: cannot write report: {exc}", file=sys.stderr)
+            return 1
+        print(f"📊 Diff report written: {out_path}")
+    else:
+        print(report)
+    return 0
+
+
 def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
@@ -3511,6 +3536,16 @@ def main():
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # report
+    diff_report_parser = subparsers.add_parser(
+        "diff-report",
+        help="Compare two findings JSON snapshots: fixed / new / persisting",
+    )
+    diff_report_parser.add_argument("old", help="Older findings JSON (baseline)")
+    diff_report_parser.add_argument("new", help="Newer findings JSON (current)")
+    diff_report_parser.add_argument(
+        "--out", default=None, help="Write markdown report here instead of stdout"
+    )
+
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3695,6 +3730,8 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
+    elif args.command == "diff-report":
+        sys.exit(cmd_diff_report(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
