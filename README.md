@@ -170,6 +170,8 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
+  `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
 - C#/.NET risks — SQL built by string concatenation/interpolation,
   `BinaryFormatter`-family deserialization, string-built `Process.Start`
   commands, `ValidateRequest="false"`, insecure cookie flags, and literal
