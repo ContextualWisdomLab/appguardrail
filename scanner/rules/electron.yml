@@ -1,0 +1,86 @@
+rules:
+  - id: electron-node-integration-enabled
+    patterns:
+      - pattern-regex: '\bnodeIntegration\s*:\s*true\b'
+    message: |
+      Electron nodeIntegration is enabled for a renderer (BrowserWindow
+      webPreferences). Any XSS in the renderer becomes full remote code
+      execution on the user's machine, because page JavaScript gains direct
+      access to Node.js APIs (require, child_process, fs). Keep the default
+      (disabled) and expose only the minimal API surface the renderer needs
+      through a preload script with contextBridge.exposeInMainWorld.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-94]
+    owasp: [A05:2021]
+
+  - id: electron-context-isolation-disabled
+    patterns:
+      - pattern-regex: '\bcontextIsolation\s*:\s*false\b'
+    message: |
+      Electron contextIsolation is disabled. The renderer page shares a
+      JavaScript context with the preload script, so untrusted web content
+      can tamper with preload/Electron internals and reach privileged APIs
+      (prototype pollution of exposed bridges leads to code execution).
+      Remove this override — contextIsolation defaults to enabled since
+      Electron 12 — and pass data through contextBridge instead.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-693]
+    owasp: [A05:2021]
+
+  - id: electron-web-security-disabled
+    patterns:
+      - pattern-regex: '\bwebSecurity\s*:\s*false\b'
+    message: |
+      Electron webSecurity is disabled in webPreferences. This turns off the
+      same-origin policy in the renderer, letting any loaded page read
+      cross-origin responses and local files (file://). Keep webSecurity
+      enabled; if you need to load local resources, use a custom protocol
+      handler instead of disabling origin checks.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-346]
+    owasp: [A05:2021]
+
+  - id: electron-allow-running-insecure-content
+    patterns:
+      - pattern-regex: '\ballowRunningInsecureContent\s*:\s*true\b'
+    message: |
+      Electron allowRunningInsecureContent is enabled, so pages served over
+      HTTPS may load and execute scripts fetched over plain HTTP. A network
+      attacker can inject script into the renderer via mixed content. Remove
+      the override and serve all renderer resources over HTTPS.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-319]
+    owasp: [A05:2021]
+
+  - id: electron-shell-openexternal-user-input
+    patterns:
+      - pattern-regex: '\bshell\.openExternal\s*\(\s*(?:[A-Za-z_$][\w$]*|`[^`\n]*\$\{)'
+    message: |
+      Electron shell.openExternal is called with a dynamic (non-literal)
+      argument. If the value can be influenced by remote content or user
+      input, an attacker can launch arbitrary protocols or executables
+      (file://, smb://, custom URI handlers) on the user's machine. Validate
+      the URL first — parse it and allowlist http:/https: plus expected hosts
+      — before passing it to shell.openExternal.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-73]
+    owasp: [A03:2021]
+
+  - id: electron-remote-module-enabled
+    patterns:
+      - pattern-regex: '\benableRemoteModule\s*:\s*true\b'
+    message: |
+      Electron's remote module is enabled for a renderer. The remote module
+      gives renderer code synchronous access to main-process objects, greatly
+      widening the impact of any renderer compromise. It is deprecated and
+      removed from Electron core (>=14). Remove the flag and use ipcRenderer
+      / ipcMain handlers (or @electron/remote only where unavoidable).
+    severity: WARNING
+    languages: [generic]
+    cwe: [CWE-668]
+    owasp: [A05:2021]
