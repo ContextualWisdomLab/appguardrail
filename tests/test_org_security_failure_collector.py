@@ -81,6 +81,9 @@ class FakeRedirectResponse:
     def geturl(self):
         return self.location
 
+    def read(self):
+        return self.location.encode()
+
 
 class FakeRedirectOpener:
     def __init__(self, location):
@@ -211,3 +214,72 @@ def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
 def test_github_init_rejects_dangerous_scheme():
     with pytest.raises(ValueError, match="API URL must start with http:// or https://"):
         collector.GitHub("token", "file:///etc/passwd")
+
+
+def test_job_log_rejects_internal_dns_resolution(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener(
+            "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
+        ),
+    )
+    monkeypatch.setattr(
+        collector.socket,
+        "getaddrinfo",
+        lambda *_, **__: [
+            (
+                collector.socket.AF_INET,
+                collector.socket.SOCK_STREAM,
+                6,
+                "",
+                ("127.0.0.1", 443),
+            )
+        ],
+    )
+
+    assert "Access to internal address blocked" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
+
+
+def test_job_log_rejects_unexpected_redirect_host(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener("https://attacker.example/job-logs.txt"),
+    )
+
+    assert "Unexpected log download host blocked" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
+
+
+def test_job_log_allows_public_github_log_host(monkeypatch):
+    client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener(
+            "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
+        ),
+    )
+    monkeypatch.setattr(
+        collector.socket,
+        "getaddrinfo",
+        lambda *_, **__: [
+            (
+                collector.socket.AF_INET,
+                collector.socket.SOCK_STREAM,
+                6,
+                "",
+                ("93.184.216.34", 443),
+            )
+        ],
+    )
+
+    assert client.job_log("ContextualWisdomLab/naruon", 123) == (
+        "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
+    )
