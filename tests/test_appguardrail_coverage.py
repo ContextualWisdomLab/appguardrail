@@ -262,7 +262,7 @@ def test_collect_files_oserror_on_entry(tmp_path):
                 return [MockEntry(True, False, False)]
 
             def __exit__(self, *args):
-                pass
+                return False
 
         return MockIt()
 
