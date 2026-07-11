@@ -28,6 +28,7 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- `appguardrail rules` — 로드된 전체 탐지 룰(내장 + 패키지 YAML)을 severity 순으로 나열합니다. 상단에 severity별 집계, 룰별로 적용 확장자 스코프를 표시해 "우리 스택이 커버되나?"를 즉시 감사할 수 있습니다. `--json`은 `appguardrail.rules.v1` 스키마로 기계가독 출력합니다.
 - Vue/Svelte/Nuxt 프런트엔드 룰 팩 `scanner/rules/vue-svelte.yml` 6종 추가(고정밀, 경로 스코프 적용). React(`dangerouslySetInnerHTML`)만 다루던 프런트엔드 XSS·시크릿 노출 탐지를 Vue·Svelte 생태계로 확장합니다.
   - `vue-v-html-usage` — `.vue` 템플릿의 `v-html` 디렉티브(raw HTML 렌더링, XSS 싱크). HIGH.
   - `svelte-html-tag-usage` — `.svelte` 템플릿의 raw HTML 태그(이스케이프 없이 마크업 주입). HIGH.
