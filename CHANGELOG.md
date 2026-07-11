@@ -2,11 +2,38 @@
 
 ## [Unreleased]
 
+### 보안
+- 리포트 출력 하드닝 — 생성된 markdown 리포트가 HTML로 렌더될 때 악성 finding 내용(예: 외부 엔진이 스캔한 코드의 `<script>`)이 주입되지 않도록, 프로즈 필드(message/remediation/verification)를 HTML 이스케이프하고 snippet의 code-fence 탈출을 무력화합니다(모든 리포트 타입). rule_id/category/context 등 제약된 식별자는 그대로 둡니다.
+- control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).
+
+### 추가
+- AWS CloudFormation 템플릿 misconfiguration 룰팩 `scanner/rules/cloudformation.yml`을 추가했습니다(정밀 룰 6종, YAML/JSON/`.template` 대상). Terraform-AWS는 기존 엔진이 커버하지만 raw CFN 템플릿은 공백이었습니다. 모든 패턴을 CFN 고유 컨텍스트(`AWS::` 리소스 타입, PascalCase 속성명)에 앵커링해 Kubernetes 매니페스트·docker-compose·GitHub Actions 워크플로 같은 YAML 유사 파일에서는 발화하지 않음을 테스트로 검증했습니다.
+  - `cfn-iam-policy-star-star` — IAM 정책이 `Action`·`Resource` 모두 와일드카드(사실상 계정 전체 관리자 권한). Statement 경계를 넘는 오탐 차단. CRITICAL.
+  - `cfn-s3-bucket-public-acl` — S3 버킷 `AccessControl`이 PublicRead/PublicReadWrite(전 세계 공개). HIGH.
+  - `cfn-security-group-open-world` — 보안 그룹 ingress가 `0.0.0.0/0`·`::/0`에 개방(기본값인 open egress는 오탐 없이 통과). HIGH.
+  - `cfn-rds-publicly-accessible` — `PubliclyAccessible: true`(DB 인스턴스 인터넷 직접 노출). HIGH.
+  - `cfn-storage-unencrypted` — RDS `StorageEncrypted: false` 또는 EBS 볼륨 `Encrypted: false`(저장 데이터 미암호화). HIGH.
+  - `cfn-secret-parameter-default` — 시크릿 성격 이름의 Parameter에 리터럴 `Default` 값 커밋(`{{resolve:...}}` 동적 참조는 안전으로 통과). HIGH.
+- `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
+
 ### 추가
 - CI/CD 보안 탐지 룰 3종(`scanner/rules/cicd.yml`) — GitHub Actions 공급망/파이프라인 위험: `github-action-mutable-ref`(action을 @main/@master 이동 브랜치에 고정), `github-actions-pull-request-target`(fork PR 컨텍스트에서 secrets 접근), `github-actions-script-injection`(공격자 제어 `github.event.*`를 표현식에 인라인). 각각 SHA 고정·트리거 검토·env 경유 참조를 권고합니다.
 
 ### 추가
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
+- `appguardrail serve` — 멀티테넌트 **control-plane API**(스캔 인제스트 + 히스토리). 일회성 CLI를 넘어, CI가 매 스캔의 `appguardrail.findings.v1`을 org별 API 키로 영속 저장하고 시간에 따른 추이를 조회할 수 있는 지속형 백본입니다. stdlib(sqlite3 + http.server)만 사용하며 org별 테넌트 격리를 강제합니다.
+  - 엔드포인트: `POST /api/v1/scans`(인제스트), `GET /api/v1/scans`(히스토리), `GET /api/v1/scans/{id}`(상세), `GET /api/v1/health`.
+  - 인증: `Authorization: Bearer <api_key>`. `--create-org <name>`으로 org·키 발급, 빈 DB면 기본 org를 부트스트랩합니다.
+  - **org console** — control-plane 서버가 `/`에서 서빙하는 단일 정적 페이지(`scanner/dashboard/console.html`). API 키로 연결해 스캔 히스토리, deploy-blocking 추이, 스캔 상세를 봅니다(프레임워크·빌드 단계 없음).
+  - **drift 감지** — 인제스트 시 같은 org+repo의 직전 스캔 대비 **신규 deploy-blocking** 수(`new_blocking`)를 계산합니다(line-독립 지문). console과 API 응답에 노출됩니다.
+  - **API 페이지네이션 + trend** — `GET /api/v1/scans?limit=&offset=`로 스캔 히스토리를 페이징하고, `GET /api/v1/scans/trend?limit=`로 시간순(오래된→최신) deploy_blocking·new_blocking 시계열을 얻습니다(차트용).
+  - **RBAC / 멀티유저** — org별 다중 API 키에 역할(viewer/member/owner)을 부여합니다. viewer=읽기, member=스캔 인제스트, owner=webhook·키 발급 포함 전체. `POST /api/v1/keys`(owner)로 역할 지정 키를 발급합니다. 부트스트랩 키는 owner입니다.
+  - **drift 알림 webhook** — org에 webhook URL을 설정하면(`POST /api/v1/webhook`) `new_blocking > 0`인 스캔에서 알림을 POST합니다(best-effort, 인제스트 실패 안 함). detect→alert 루프를 닫습니다.
+  - **Slack 포맷 drift 알림** — webhook 호스트가 `hooks.slack.com`이면 payload를 Slack Block Kit 메시지(헤더 + org·신규 blocker 수·repo·scan, 상위 5개 `rule_id`/파일 목록과 `+N more` 오버플로)로 자동 렌더링해 Slack Incoming Webhook이 읽기 좋은 카드로 표시합니다. 그 외 URL은 기존 generic JSON payload를 그대로 받습니다(하위 호환). 무의존성 유지를 위해 stdlib만 사용하며 텍스트는 이스케이프·트림합니다.
+  - `appguardrail scan --push <url>` — 스캔 후 findings를 control-plane에 POST합니다(키는 `APPGUARDRAIL_API_KEY`, repo/commit은 `GITHUB_REPOSITORY`/`GITHUB_SHA`에서 자동). CI가 매 스캔을 플랫폼에 밀어넣어 continuous-monitoring 루프를 닫습니다.
+  - `appguardrail monitor` 워크플로가 `APPGUARDRAIL_CONTROL_PLANE_URL` secret이 설정된 경우 스캔을 control-plane에 자동 push합니다(`APPGUARDRAIL_API_KEY` secret 사용). 미설정 시 기존 SARIF+게이트 동작 그대로.
+- `appguardrail sbom` — 의존성 매니페스트(npm `package-lock.json`/`package.json`, Python `requirements.txt`)에서 CycloneDX 1.5 SBOM을 생성합니다. 무의존성(stdlib)으로 동작하며, lockfile이 있으면 resolved 버전을, 없으면 매니페스트의 declared 범위를 사용하고 컴포넌트 properties에 출처를 기록합니다. 공급망 실사(due diligence)의 기본 산출물입니다.
+- `appguardrail sbom`의 lockfile 파서를 확장했습니다 — `poetry.lock`(pypi), `pnpm-lock.yaml`·`yarn.lock`(npm)을 추가로 인식합니다. 서드파티 toml/yaml 라이브러리 없이 stdlib만으로 손수 파싱하며(정규식·라인 스캔), scoped npm 패키지(`@scope/name`)·pnpm peer-dependency 접미사·yarn 다중 spec 헤더를 처리하고 resolved 버전으로 기록합니다. npm 측은 `package-lock.json` > `pnpm-lock.yaml` > `yarn.lock` > `package.json` 순으로 우선하고, `poetry.lock`은 Python 측에 additive로 더해집니다.
 
 ### 추가
 - 프로젝트 설정 파일 `.appguardrail.json`(선택) — deploy 게이트를 CLI 플래그 없이 팀 단위로 조정합니다. 무의존성 유지를 위해 JSON을 사용합니다.
