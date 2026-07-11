@@ -167,6 +167,9 @@ Detects:
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
+- Vue/Svelte/Nuxt frontend risks (`v-html` and raw HTML template sinks,
+  client-exposed `VITE_`/`NUXT_PUBLIC_` secret env vars, SvelteKit private env
+  imports in components, disabled SvelteKit CSRF origin checks)
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers

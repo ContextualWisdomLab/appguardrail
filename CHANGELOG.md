@@ -29,6 +29,14 @@
 
 ### 추가
 - `appguardrail rules` — 로드된 전체 탐지 룰(내장 + 패키지 YAML)을 severity 순으로 나열합니다. 상단에 severity별 집계, 룰별로 적용 확장자 스코프를 표시해 "우리 스택이 커버되나?"를 즉시 감사할 수 있습니다. `--json`은 `appguardrail.rules.v1` 스키마로 기계가독 출력합니다.
+- Vue/Svelte/Nuxt 프런트엔드 룰 팩 `scanner/rules/vue-svelte.yml` 6종 추가(고정밀, 경로 스코프 적용). React(`dangerouslySetInnerHTML`)만 다루던 프런트엔드 XSS·시크릿 노출 탐지를 Vue·Svelte 생태계로 확장합니다.
+  - `vue-v-html-usage` — `.vue` 템플릿의 `v-html` 디렉티브(raw HTML 렌더링, XSS 싱크). HIGH.
+  - `svelte-html-tag-usage` — `.svelte` 템플릿의 raw HTML 태그(이스케이프 없이 마크업 주입). HIGH.
+  - `nuxt-public-env-secret` — 시크릿 성격 이름의 환경 변수에 NUXT_PUBLIC_ 접두사 사용(클라이언트 번들에 노출). CRITICAL.
+  - `vite-env-secret-exposed` — `.env*` 파일에서 시크릿 성격 이름의 변수에 VITE_ 접두사 사용(Vite가 클라이언트 번들에 인라인). CRITICAL.
+  - `sveltekit-private-env-in-client` — `.svelte` 컴포넌트에서 SvelteKit private env(`$env/*/private`) import. HIGH.
+  - `sveltekit-csrf-origin-check-disabled` — svelte.config에서 CSRF origin 검사 비활성화. HIGH.
+  - `tests/test_vue_svelte_rules.py`: 룰별 양성·음성 정밀도, severity, 경로 스코프, e2e 스캔(취약/안전 프로젝트) 검증.
 - Kotlin / Android 네이티브 룰 팩 `scanner/rules/kotlin-android.yml` — `.kt`/`.kts` 소스 전용 고정밀 룰 6종을 추가했습니다. 기존 팩이 다루지 않던 Kotlin 소스 사각지대를 메우며, `paths.include`로 Kotlin 파일에만 적용되어 다른 스택에 오탐을 만들지 않습니다.
   - `kotlin-webview-universal-file-access` — WebView `allowUniversalAccessFromFileURLs`/`allowFileAccessFromFileURLs` 활성화(로컬 파일 탈취 경로). CRITICAL.
   - `kotlin-sql-injection-raw` — `rawQuery`/`execSQL`에 문자열 템플릿(`$var`) 또는 `+` 연결로 SQL 조립. CRITICAL.
