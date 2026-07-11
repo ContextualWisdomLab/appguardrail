@@ -165,7 +165,9 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     elif languages:
         profile_id = "generic-code"
         display_name = "Generic code scan"
-        summary = "Code files detected; AppGuardrail will run applicable built-in rules."
+        summary = (
+            "Code files detected; AppGuardrail will run applicable built-in rules."
+        )
         next_steps = ("Review critical/high findings before deployment.",)
     else:
         profile_id = "unknown"
