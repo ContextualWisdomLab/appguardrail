@@ -44,6 +44,10 @@
   - `hardcoded-aws-access-key-id`(AKIA/ASIA), `hardcoded-github-token`(ghp_/github_pat_), `hardcoded-google-api-key`(AIza), `hardcoded-private-key-block`(PEM) — 모두 CRITICAL.
   - `supabase-auth-admin-client-usage`(auth.admin.* 클라이언트 노출), `node-open-redirect-user-input`(req 입력 redirect), `insecure-random-security-token`(토큰에 Math.random) — HIGH.
   - `wildcard-postmessage-target`(postMessage 대상 '*') — WARNING.
+- 제공자별 고정밀 시크릿 탐지 룰 6종 추가(distinctive prefix 기반, 안전 코드 오탐 0 검증):
+  - `hardcoded-slack-token`(xoxb/xoxa/xoxp/… Slack 토큰), `hardcoded-twilio-credential`(Twilio Account SID `AC…`/API key `SK…`), `hardcoded-sendgrid-api-key`(`SG.` SendGrid 키), `hardcoded-npm-token`(`npm_` npm 토큰), `hardcoded-pypi-token`(`pypi-AgEIcHlwaS…` PyPI 토큰) — 모두 CRITICAL.
+  - `hardcoded-slack-webhook-url`(`hooks.slack.com/services/…` incoming webhook) — HIGH.
+  - 모든 룰에 `cwe: [CWE-798]`, `owasp: [A07:2021]` 부여. 기존 룰(OpenAI/Anthropic/Stripe/AWS/GitHub/Google/PEM)과 중복 없음.
 
 ### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.
