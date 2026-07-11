@@ -161,6 +161,10 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- C#/.NET risks — SQL built by string concatenation/interpolation,
+  `BinaryFormatter`-family deserialization, string-built `Process.Start`
+  commands, `ValidateRequest="false"`, insecure cookie flags, and literal
+  connection-string passwords in `appsettings*.json`/`web.config`
 - Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
 - Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
   string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
