@@ -161,6 +161,11 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- C#/.NET risks — SQL built by string concatenation/interpolation,
+  `BinaryFormatter`-family deserialization, string-built `Process.Start`
+  commands, `ValidateRequest="false"`, insecure cookie flags, and literal
+  connection-string passwords in `appsettings*.json`/`web.config`
+- Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
 - Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
   string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
   assignment, disabled CSRF protection, and hardcoded `secret_key_base`
@@ -210,6 +215,19 @@ the whole team — no CLI flags needed:
 - `exclude_rules` — rule ids to drop from the gate (findings still show, but
   don't fail the build). An invalid config fails the scan loudly rather than
   silently passing.
+
+### Show progress between scans
+
+```bash
+appguardrail scan --findings-json before.json .
+# ...fix things...
+appguardrail scan --findings-json after.json .
+appguardrail diff-report before.json after.json --out progress.md
+```
+
+The diff report buckets findings into **fixed / new / persisting** (line moves
+count as persisting, not fixed+new) and leads with a verdict — regression,
+improved, in progress, or unchanged — ready to attach as buyer/audit evidence.
 
 ### Auto-fix safe issues
 

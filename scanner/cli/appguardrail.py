@@ -1818,19 +1818,62 @@ def cmd_rules(args):
             }
             for r in rules
         ]
-        print(json.dumps({"schema": "appguardrail.rules.v1", "count": len(payload), "rules": payload}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "schema": "appguardrail.rules.v1",
+                    "count": len(payload),
+                    "rules": payload,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     counts = {}
     for r in rules:
-        counts[r.get("severity", "INFO")] = counts.get(r.get("severity", "INFO"), 0) + 1
+        severity = r.get("severity", "INFO")
+        counts[severity] = counts.get(severity, 0) + 1
     print(f"🛡️  {len(rules)} detection rules loaded")
-    print("   " + " · ".join(f"{k} {v}" for k, v in sorted(counts.items(), key=lambda kv: severity_order.get(kv[0], 9))))
+    print(
+        "   "
+        + " · ".join(
+            f"{k} {v}"
+            for k, v in sorted(
+                counts.items(), key=lambda kv: severity_order.get(kv[0], 9)
+            )
+        )
+    )
     print()
     for r in rules:
         exts = r.get("extensions")
         scope = ",".join(sorted(exts)) if exts else "all files"
         print(f"  [{r.get('severity','INFO'):8}] {r.get('id')}  ({scope})")
+    return 0
+
+
+def cmd_diff_report(args):
+    """Render a fixed/new/persisting progress report from two findings files."""
+    from appguardrail_core.diffreport import load_findings, render_diff_report
+
+    try:
+        old = load_findings(args.old)
+        new = load_findings(args.new)
+    except (OSError, ValueError) as exc:
+        print(f"❌ Error: cannot read findings: {exc}", file=sys.stderr)
+        return 1
+    report = render_diff_report(old, new)
+    if args.out:
+        try:
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(report + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Error: cannot write report: {exc}", file=sys.stderr)
+            return 1
+        print(f"📊 Diff report written: {out_path}")
+    else:
+        print(report)
     return 0
 
 
@@ -3551,6 +3594,16 @@ def main():
         "--json", action="store_true", help="Machine-readable JSON output"
     )
 
+    diff_report_parser = subparsers.add_parser(
+        "diff-report",
+        help="Compare two findings JSON snapshots: fixed / new / persisting",
+    )
+    diff_report_parser.add_argument("old", help="Older findings JSON (baseline)")
+    diff_report_parser.add_argument("new", help="Newer findings JSON (current)")
+    diff_report_parser.add_argument(
+        "--out", default=None, help="Write markdown report here instead of stdout"
+    )
+
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3737,6 +3790,8 @@ def main():
         sys.exit(cmd_report(args))
     elif args.command == "rules":
         sys.exit(cmd_rules(args))
+    elif args.command == "diff-report":
+        sys.exit(cmd_diff_report(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":

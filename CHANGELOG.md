@@ -25,6 +25,27 @@
 
 ### 추가
 - `appguardrail rules` — 로드된 전체 탐지 룰(내장 + 패키지 YAML)을 severity 순으로 나열합니다. 상단에 severity별 집계, 룰별로 적용 확장자 스코프를 표시해 "우리 스택이 커버되나?"를 즉시 감사할 수 있습니다. `--json`은 `appguardrail.rules.v1` 스키마로 기계가독 출력합니다.
+- `appguardrail diff-report <old.json> <new.json>` — 두 `scan --findings-json` 스냅샷을 비교해 **해결됨/신규/잔존**을 마크다운으로 렌더링합니다("나아지고 있는가?"에 대한 바이어·감사 증거). 지문은 control plane의 drift 키(rule+file+message 앞부분)와 동일해 라인만 이동한 finding은 잔존으로 분류됩니다(해결+신규 중복 아님). 회귀/개선/진행 중/변화 없음 판정을 상단에 표시하며 `--out`으로 파일 저장이 가능합니다. 무의존성.
+- C#/ASP.NET 탐지 룰 팩 `scanner/rules/dotnet.yml` 추가 — 기존 룰이 다루지 않던 `.cs`/`.cshtml`/`appsettings*.json`/`web.config` 사각지대를 커버합니다(고정밀, 안전 코드 오탐 0 검증).
+  - `dotnet-sql-injection-concat` — `SqlCommand`/`ExecuteSqlRaw`/`FromSqlRaw`에 문자열 연결·보간으로 SQL을 조립. CRITICAL(CWE-89).
+  - `dotnet-binaryformatter-deserialize` — `BinaryFormatter` 계열(SoapFormatter, NetDataContractSerializer, LosFormatter, ObjectStateFormatter) 사용. 신뢰할 수 없는 데이터 역직렬화 시 RCE. CRITICAL(CWE-502).
+  - `dotnet-process-start-user-input` — `Process.Start`/`ProcessStartInfo`/`Arguments`에 연결·보간으로 명령줄 조립. CRITICAL(CWE-78).
+  - `aspnet-request-validation-disabled` — `ValidateRequest="false"` 또는 `[ValidateInput(false)]`로 요청 검증 비활성화. HIGH(CWE-79).
+  - `dotnet-cookie-secure-false` — `CookieSecurePolicy.None`, `Secure = false`, `requireSSL="false"` 등 Secure 플래그 없는 쿠키. HIGH(CWE-614).
+  - `appsettings-connectionstring-password` — `appsettings*.json`/`web.config` 연결 문자열의 리터럴 `Password=`(플레이스홀더 `${…}`/`{0}`/`%…%`는 제외). HIGH(CWE-798). 스니펫은 자동 마스킹됩니다.
+
+### 검증
+- `tests/test_dotnet_rules.py`: 룰별 양성·음성 케이스, severity, 경로 스코핑(`**/*.cs` 등), `_scan_file` end-to-end 탐지, 시크릿 스니펫 마스킹 테스트를 추가했습니다. 시크릿 형태 픽스처는 런타임에 조립해 리터럴로 커밋하지 않습니다.
+
+### 추가
+- Go 보안 룰 팩 `scanner/rules/go.yml` — 기존 스캐너가 커버하지 않던 `.go` 파일을 경로 스코프(`**/*.go`) 기반으로 탐지합니다(고정밀, 안전 코드 오탐 0 검증):
+  - `go-sql-injection-sprintf` — `Query`/`QueryRow`/`Exec`(+Context)에 `fmt.Sprintf` 또는 문자열 연결로 만든 SQL을 전달. CRITICAL.
+  - `go-command-injection` — `exec.Command(Context)`가 `sh`/`bash` `-c`에 리터럴이 아닌(변수·연결) 명령 문자열을 전달. CRITICAL.
+  - `go-hardcoded-jwt-signing-key` — `SignedString([]byte("리터럴"))`로 JWT 서명 키 하드코딩. CRITICAL.
+  - `go-tls-insecure-skip-verify` — `tls.Config`의 `InsecureSkipVerify: true`(인증서 검증 비활성화). HIGH.
+  - `go-weak-random-token` — token/secret/OTP/session 등 보안 값 생성에 `math/rand` 사용. HIGH.
+  - `go-pprof-import-exposed` — `_ "net/http/pprof"` blank import로 기본 mux에 프로파일링 핸들러 노출. WARNING.
+- `tests/test_go_rules.py` — 룰별 양성·음성 케이스, severity, `.go` 경로 스코프, 임시 파일 end-to-end 스캔 검증을 추가했습니다.
 - **pre-commit 프레임워크 통합**(`.pre-commit-hooks.yaml`, 리포지토리 루트) — https://pre-commit.com 사용자 리포가 `.pre-commit-config.yaml`에 3줄만 추가하면 커밋마다 AppGuardrail 스캔이 실행되고, deploy-blocking 발견 시 커밋이 차단됩니다. 기존 `appguardrail hook`(직접 git hook 설치)과 상호 보완적입니다.
 - `.appguardrailignore`(선택) — 스캔 루트에 gitignore 스타일 glob(한 줄당 하나, `#` 주석)을 두면 vendored 코드·생성물·서드파티 번들을 스캔에서 제외합니다. 이름만 쓰면(`vendor/`) 트리 어디서든 매칭되고, `*.min.js` 같은 glob·`docs/generated` 같은 경로도 지원합니다. 제외 건수를 스캔 출력에 표시해 조용히 빠지는 일이 없습니다.
 - Ruby on Rails 보안 룰 팩 `scanner/rules/rails.yml` — 내장 룰이 다루지 않던 `.rb`/`.erb` 소스를 경로 글롭으로 스코핑해 탐지합니다. 모든 인젝션 룰은 실제 Ruby 문자열 보간(`#{...}`)이나 명백히 위험한 API를 요구하는 고정밀 설계로, 파라미터 바인딩 등 안전한 Rails 관용구는 매치하지 않습니다(안전 코드 오탐 0 검증).
