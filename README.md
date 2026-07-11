@@ -53,6 +53,15 @@ Agent. See [Release Automation](docs/release-automation.md).
 For the productization roadmap, see the
 [2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
 
+### Or run via Docker (no install)
+
+```bash
+docker build -t appguardrail .
+docker run --rm -v "$PWD:/src" appguardrail scan /src
+```
+
+Runs as a non-root user; exit code 1 means deploy-blocking findings.
+
 ### Initialize security rules in your project
 
 ```bash
@@ -151,6 +160,7 @@ Detects:
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
+- PHP/WordPress risks (SQL concatenation with superglobals, `unserialize()`/`include`/shell-exec on request input, `eval()`, `WP_DEBUG` enabled)
 - AWS CloudFormation template misconfigurations (public S3 ACLs, world-open
   security groups, `*:*` IAM policies, public/unencrypted databases, secret
   parameter defaults)
@@ -160,6 +170,21 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Kotlin/Android-native risks in `.kt`/`.kts` sources (raw SQL interpolation,
+  trust-all TLS, WebView file-URL access, hardcoded encryption keys,
+  world-accessible prefs, sensitive logcat logging)
+- Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
+  `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
+- C#/.NET risks — SQL built by string concatenation/interpolation,
+  `BinaryFormatter`-family deserialization, string-built `Process.Start`
+  commands, `ValidateRequest="false"`, insecure cookie flags, and literal
+  connection-string passwords in `appsettings*.json`/`web.config`
+- Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
+- Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
+  string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
+  assignment, disabled CSRF protection, and hardcoded `secret_key_base`
+- Java/Spring pitfalls (SQL/command concat injection, XXE parser flags,
+  trust-all `X509TrustManager`, wide-open Spring Boot Actuator exposure)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
@@ -167,6 +192,20 @@ documented rule fixtures until the lightweight engine grows structural matching.
 
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
+
+#### Skip vendored/generated code with `.appguardrailignore` (optional)
+
+Drop a `.appguardrailignore` at the scan root — gitignore-style globs, one per
+line (`#` comments). A bare name (`vendor/`) matches anywhere in the tree:
+
+```
+# third-party bundles
+vendor/
+*.min.js
+docs/generated
+```
+
+The scan prints how many files were skipped, so nothing disappears silently.
 
 #### Tune the gate with `.appguardrail.json` (optional)
 
@@ -185,6 +224,19 @@ the whole team — no CLI flags needed:
 - `exclude_rules` — rule ids to drop from the gate (findings still show, but
   don't fail the build). An invalid config fails the scan loudly rather than
   silently passing.
+
+### Show progress between scans
+
+```bash
+appguardrail scan --findings-json before.json .
+# ...fix things...
+appguardrail scan --findings-json after.json .
+appguardrail diff-report before.json after.json --out progress.md
+```
+
+The diff report buckets findings into **fixed / new / persisting** (line moves
+count as persisting, not fixed+new) and leads with a verdict — regression,
+improved, in progress, or unchanged — ready to attach as buyer/audit evidence.
 
 ### Auto-fix safe issues
 
@@ -341,6 +393,20 @@ This writes `appguardrail-buyer-evidence/` with:
 
 Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
 need a non-default organization, custom artifact path, or offline snapshot.
+
+### Use with the pre-commit framework
+
+If your team uses [pre-commit](https://pre-commit.com), add three lines to
+`.pre-commit-config.yaml` — every commit gets scanned, and deploy-blocking
+findings block the commit:
+
+```yaml
+repos:
+  - repo: https://github.com/ContextualWisdomLab/appguardrail
+    rev: v0.1.1
+    hooks:
+      - id: appguardrail
+```
 
 ### Install continuous monitoring
 
