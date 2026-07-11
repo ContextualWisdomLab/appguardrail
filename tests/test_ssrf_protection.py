@@ -37,3 +37,13 @@ def test_is_safe_url_unsupported_schemes():
 def test_is_safe_url_unresolvable_domain():
     # An unresolvable domain is considered safe by _is_safe_url
     assert _is_safe_url("http://this-domain-should-not-exist-12345.com/")
+
+
+def test_is_safe_url_unspecified_ips():
+    assert not _is_safe_url("http://0.0.0.0/")
+    assert not _is_safe_url("http://[::]/")
+
+
+def test_is_safe_url_multicast_ips():
+    assert not _is_safe_url("http://224.0.0.1/")
+    assert not _is_safe_url("http://[ff02::1]/")

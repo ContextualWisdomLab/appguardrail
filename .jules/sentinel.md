@@ -97,3 +97,8 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `socket.gethostbyname` failing to properly process and resolve IPv6 literals (e.g., `::1`), throwing exceptions that allowed internal network routing constraints to be circumvented.
 **Learning:** `socket.gethostbyname` only returns IPv4 records and throws errors when encountering IPv6 literals or purely IPv6 DNS records. When constructing network guardrails like `_is_safe_url`, using `socket.gethostbyname` introduces blind spots for IPv6, which is heavily used in modern internal routing.
 **Prevention:** Always use `socket.getaddrinfo(raw, None)` to reliably iterate through all addresses (IPv4 and IPv6) returned for a host, along with directly trying `ipaddress.ip_address` to short-circuit IP literals before doing DNS resolution.
+
+## 2024-07-24 - Fix SSRF bypass via unspecified and multicast IPs
+**Vulnerability:** SSRF protection in _is_safe_url bypassed by 0.0.0.0 or multicast addresses.
+**Learning:** ipaddress.ip_address.is_private does not cover 0.0.0.0 (is_unspecified) or 224.x.x.x (is_multicast).
+**Prevention:** Explicitly check for is_unspecified and is_multicast when filtering internal/unsafe IPs for webhooks.
