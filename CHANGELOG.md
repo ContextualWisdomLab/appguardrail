@@ -7,6 +7,7 @@
 - control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).
 
 ### 추가
+- **공식 Docker 이미지 정의**(`Dockerfile` + `.dockerignore`) — 설치 없이 스캔합니다: `docker build -t appguardrail . && docker run --rm -v "$PWD:/src" appguardrail scan /src`. `python:3.12-slim` 이미지를 digest로 고정하고, 로컬 소스를 `PYTHONPATH=/app`에서 모듈로 실행해 컨테이너 빌드 중 `pip install` 공급망 단계를 제거합니다. 비루트(`scanner`) 사용자와 `HEALTHCHECK`를 포함하며, exit code 계약은 CLI와 동일합니다(1 = deploy-blocking).
 - PHP / WordPress 룰팩 `scanner/rules/php-wordpress.yml` 추가 — 바이브 코딩·에이전시 산출물에 많은 PHP/WordPress 코드를 처음으로 커버합니다. 기존 내장 eval/SQL 룰은 `.js`/`.py` 확장자에만 적용되어 `.php` 파일은 사각지대였습니다. 6종 모두 `**/*.php` 경로로 스코프되며, 안전 코드(prepared statement, `$wpdb->prepare()`, 상수 include 등) 오탐 0을 테스트로 검증했습니다.
   - `php-sql-concat` — `mysqli_query()`/`$wpdb->query()` 등에 `$_GET`/`$_POST`/`$_REQUEST`/`$_COOKIE`를 직접 연결·보간(SQL 주입, CWE-89). CRITICAL.
   - `php-unserialize-user-input` — 요청 입력을 `unserialize()`(PHP object injection, CWE-502). CRITICAL.
@@ -32,6 +33,14 @@
   - `kotlin-world-accessible-prefs` — `MODE_WORLD_READABLE`/`MODE_WORLD_WRITEABLE` 사용(타 앱에 데이터 노출). HIGH.
   - `kotlin-log-sensitive-data` — `Log.*`에 password/token/secret 값 로깅(logcat 유출). WARNING.
   - 검증: `tests/test_kotlin_android_rules.py` — 룰별 양성/음성, severity, Kotlin 경로 스코핑, `_scan_file` end-to-end(발화·비발화) 테스트 18건.
+- Electron 데스크톱 앱 보안 룰 팩 `scanner/rules/electron.yml` 추가(6종, 고정밀 — Electron 전용 식별자에 앵커링해 일반 웹 코드 오탐 0 검증):
+  - `electron-node-integration-enabled` — renderer에서 nodeIntegration 활성화(XSS가 곧 RCE로 확대). CRITICAL.
+  - `electron-context-isolation-disabled` — contextIsolation 비활성화(preload·특권 API 오염 가능). CRITICAL.
+  - `electron-web-security-disabled` — webSecurity 비활성화(same-origin policy 해제, file:// 읽기 가능). HIGH.
+  - `electron-allow-running-insecure-content` — HTTPS 페이지에서 HTTP 스크립트 실행 허용(mixed content 주입). HIGH.
+  - `electron-shell-openexternal-user-input` — `shell.openExternal`에 비리터럴(동적) 인자 전달(임의 프로토콜·실행 파일 구동 위험). HIGH.
+  - `electron-remote-module-enabled` — deprecated remote 모듈 활성화(renderer 침해 영향 확대). WARNING.
+- `tests/test_electron_rules.py` — 룰별 양성/음성 정밀도, severity, 확장자 비제한(generic) 검증과 취약/하드닝된 Electron main 프로세스·비-Electron 코드 e2e 스캔 테스트를 추가했습니다.
 - `appguardrail diff-report <old.json> <new.json>` — 두 `scan --findings-json` 스냅샷을 비교해 **해결됨/신규/잔존**을 마크다운으로 렌더링합니다("나아지고 있는가?"에 대한 바이어·감사 증거). 지문은 control plane의 drift 키(rule+file+message 앞부분)와 동일해 라인만 이동한 finding은 잔존으로 분류됩니다(해결+신규 중복 아님). 회귀/개선/진행 중/변화 없음 판정을 상단에 표시하며 `--out`으로 파일 저장이 가능합니다. 무의존성.
 - C#/ASP.NET 탐지 룰 팩 `scanner/rules/dotnet.yml` 추가 — 기존 룰이 다루지 않던 `.cs`/`.cshtml`/`appsettings*.json`/`web.config` 사각지대를 커버합니다(고정밀, 안전 코드 오탐 0 검증).
   - `dotnet-sql-injection-concat` — `SqlCommand`/`ExecuteSqlRaw`/`FromSqlRaw`에 문자열 연결·보간으로 SQL을 조립. CRITICAL(CWE-89).

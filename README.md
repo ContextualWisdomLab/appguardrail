@@ -53,6 +53,15 @@ Agent. See [Release Automation](docs/release-automation.md).
 For the productization roadmap, see the
 [2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
 
+### Or run via Docker (no install)
+
+```bash
+docker build -t appguardrail .
+docker run --rm -v "$PWD:/src" appguardrail scan /src
+```
+
+Runs as a non-root user; exit code 1 means deploy-blocking findings.
+
 ### Initialize security rules in your project
 
 ```bash
@@ -164,6 +173,8 @@ Detects:
 - Kotlin/Android-native risks in `.kt`/`.kts` sources (raw SQL interpolation,
   trust-all TLS, WebView file-URL access, hardcoded encryption keys,
   world-accessible prefs, sensitive logcat logging)
+- Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
+  `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
 - C#/.NET risks — SQL built by string concatenation/interpolation,
   `BinaryFormatter`-family deserialization, string-built `Process.Start`
   commands, `ValidateRequest="false"`, insecure cookie flags, and literal
