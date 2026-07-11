@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 수정
+- SARIF 출력 견고성: (1) `startLine`을 방어적으로 coerce합니다 — 외부 엔진(Trivy 등)이 `"12-14"`·`"n/a"` 같은 비정수 line을 내면 `int()`가 던져 리포트 전체가 크래시했습니다(불량 finding 1개 → 리포트 전멸). (2) 공백만 있는 message의 shortDescription 추출 시 IndexError를 방지합니다. (3) `ruleIndex` 계산을 O(n²)에서 O(1)로 바꿨습니다(대량 finding 성능).
+
 ### 보안
 - 리포트 출력 하드닝 — 생성된 markdown 리포트가 HTML로 렌더될 때 악성 finding 내용(예: 외부 엔진이 스캔한 코드의 `<script>`)이 주입되지 않도록, 프로즈 필드(message/remediation/verification)를 HTML 이스케이프하고 snippet의 code-fence 탈출을 무력화합니다(모든 리포트 타입). rule_id/category/context 등 제약된 식별자는 그대로 둡니다.
 - control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).

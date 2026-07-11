@@ -72,3 +72,40 @@ def test_empty_findings_valid():
     run = findings_to_sarif([])["runs"][0]
     assert run["results"] == []
     assert run["tool"]["driver"]["rules"] == []
+
+
+# ---- robustness: one malformed finding must not sink the report ----
+
+def test_non_integer_line_does_not_crash():
+    from appguardrail_core.sarif import findings_to_sarif
+    log = findings_to_sarif([
+        {"severity": "HIGH", "rule_id": "trivy-range", "message": "range",
+         "file": "a.tf", "line": "12-14", "context": "app-code"},
+        {"severity": "INFO", "rule_id": "na", "message": "x",
+         "file": "b", "line": "n/a", "context": "doc"},
+    ])
+    regions = [r["locations"][0]["physicalLocation"]["region"]["startLine"]
+               for r in log["runs"][0]["results"]]
+    assert regions == [1, 1]  # coerced, not crashed
+
+
+def test_blank_message_gets_fallback_short_description():
+    from appguardrail_core.sarif import findings_to_sarif
+    log = findings_to_sarif([
+        {"severity": "HIGH", "rule_id": "blank", "message": "   ",
+         "file": "a", "line": 3, "context": "app-code"},
+    ])
+    rule = log["runs"][0]["tool"]["driver"]["rules"][0]
+    assert rule["shortDescription"]["text"]  # non-empty, no IndexError
+
+
+def test_private_index_not_leaked_and_ruleindex_correct():
+    from appguardrail_core.sarif import findings_to_sarif
+    log = findings_to_sarif([
+        {"severity": "HIGH", "rule_id": "a", "message": "m", "file": "f", "line": 1, "context": "app-code"},
+        {"severity": "HIGH", "rule_id": "b", "message": "m", "file": "f", "line": 2, "context": "app-code"},
+        {"severity": "HIGH", "rule_id": "a", "message": "m", "file": "f", "line": 3, "context": "app-code"},
+    ])
+    run = log["runs"][0]
+    assert all("_index" not in r for r in run["tool"]["driver"]["rules"])
+    assert [r["ruleIndex"] for r in run["results"]] == [0, 1, 0]  # deduped, stable
