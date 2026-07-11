@@ -56,13 +56,12 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core import github_actions
 from appguardrail_core.config import load_config
-from appguardrail_core.findings import (
-    NON_BLOCKING_CONTEXTS,
-    is_deploy_blocking as core_is_deploy_blocking,
-    normalize_findings,
-)
+from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import normalize_findings
 from appguardrail_core.language import (
     LANGUAGE_EXTENSIONS,
     detect_language_axes,
@@ -74,10 +73,9 @@ from appguardrail_core.org_bundle import (
     gh_error_message,
     gh_pr_list,
     gh_repo_list,
-    load_json as load_org_json,
-    render_org_evidence,
-    write_bundle,
 )
+from appguardrail_core.org_bundle import load_json as load_org_json
+from appguardrail_core.org_bundle import render_org_evidence, write_bundle
 from appguardrail_core.reports import (
     REPORT_TYPE_LABELS,
     ReportContext,
@@ -246,6 +244,8 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    env:
+      CP_URL: ${{ secrets.APPGUARDRAIL_CONTROL_PLANE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -258,10 +258,15 @@ jobs:
       - name: Install AppGuardrail
         run: python -m pip install --disable-pip-version-check appguardrail
 
-      - name: Run AppGuardrail (SARIF + deploy gate)
+      - name: Run AppGuardrail (SARIF + deploy gate; push to control plane if configured)
         id: scan
         continue-on-error: true
-        run: appguardrail scan --sarif appguardrail.sarif .
+        env:
+          APPGUARDRAIL_API_KEY: ${{ secrets.APPGUARDRAIL_API_KEY }}
+        run: |
+          PUSH=""
+          if [ -n "$CP_URL" ]; then PUSH="--push $CP_URL"; fi
+          appguardrail scan --sarif appguardrail.sarif $PUSH .
 
       - name: Upload results to GitHub code scanning
         if: always()
@@ -741,7 +746,7 @@ SCAN_RULES = [
             r"(?i)<a\b(?=[^>\n]*target\s*=\s*[\"']_blank[\"'])(?![^>\n]*rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer))[^>\n]*href\s*=\s*[\"']https?://"
         ),
         "severity": "WARNING",
-        "message": "External target=_blank link is missing rel=\"noopener noreferrer\". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]",
+        "message": 'External target=_blank link is missing rel="noopener noreferrer". Add rel attributes to prevent reverse tabnabbing. [OWASP A05:2021 - Security Misconfiguration]',
         "extensions": [".html", ".htm"],
     },
     {
@@ -888,6 +893,7 @@ SCAN_RULES = [
         "extensions": None,
     },
 ]
+
 
 def _unquote_rule_scalar(value: str) -> str:
     """Return a simple YAML scalar value from the controlled rule files."""
@@ -1141,6 +1147,11 @@ For each issue found, provide:
 """
 
 
+def _display_path(path: str | Path) -> str:
+    """Return a stable, slash-separated path for CLI output and reports."""
+    return Path(path).as_posix()
+
+
 # ---------------------------------------------------------------------------
 # Command implementations
 # ---------------------------------------------------------------------------
@@ -1228,12 +1239,12 @@ def cmd_init(args):
             existing = target_file.read_text()
             if config["append_marker"] not in existing:
                 target_file.write_text(existing + "\n\n" + config["content"])
-                installed.append(f"{config['path']} (appended)")
+                installed.append(f"{_display_path(config['path'])} (appended)")
             else:
-                skipped.append(str(config["path"]))
+                skipped.append(_display_path(config["path"]))
         else:
             target_file.write_text(config["content"])
-            installed.append(str(config["path"]))
+            installed.append(_display_path(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "APPGUARDRAIL_CHECKLIST.md"
 
@@ -1387,6 +1398,21 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    ignore_patterns = _load_ignore_patterns(scan_path)
+    ignored_count = 0
+    if ignore_patterns:
+        kept = []
+        for file_path in files_to_scan:
+            if _is_ignored(file_path, scan_path, ignore_patterns):
+                ignored_count += 1
+            else:
+                kept.append(file_path)
+        files_to_scan = kept
+        print(
+            f"🙈 .appguardrailignore: {len(ignore_patterns)} pattern(s), "
+            f"{ignored_count} file(s) skipped\n"
+        )
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -1467,10 +1493,7 @@ def cmd_scan(args):
         try:
             findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
         except RuntimeError as exc:
-            if (
-                external_plan.semgrep.auto_selected
-                and not external_plan.semgrep.forced
-            ):
+            if external_plan.semgrep.auto_selected and not external_plan.semgrep.forced:
                 print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
             else:
                 print(f"❌ Error: {exc}", file=sys.stderr)
@@ -1518,6 +1541,10 @@ def cmd_scan(args):
             )
             return 1
 
+    push_url = getattr(args, "push", None)
+    if push_url:
+        _push_findings(push_url, findings)
+
     _print_scan_results(findings, files_scanned)
     if files_scanned == 0:
         return 1
@@ -1535,7 +1562,9 @@ def cmd_scan(args):
             notes.append(f"fail_on={config['fail_on']}")
         if config.get("exclude_rules"):
             notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
-        print(f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else ""))
+        print(
+            f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
+        )
 
     blocking = config.get("blocking_severities")
     excluded = config.get("exclude_rules") or set()
@@ -1544,6 +1573,10 @@ def cmd_scan(args):
         if finding.get("rule_id") in excluded:
             return False
         return core_is_deploy_blocking(finding, blocking)
+
+    # GitHub Actions native output: inline PR annotations + job summary.
+    if github_actions.in_actions() or getattr(args, "github", False):
+        github_actions.emit(findings, files_scanned, _gates)
 
     return 1 if any(_gates(f) for f in findings) else 0
 
@@ -1564,6 +1597,101 @@ def _write_findings_json(findings, output_path: Path):
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     print(f"🧾 Findings JSON written: {output_path}")
+
+
+def _is_safe_url(url: str) -> bool:
+    import ipaddress
+    import urllib.parse
+    import socket
+
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    raw = host.split("%", 1)[0].strip("[]")
+
+    try:
+        ip = ipaddress.ip_address(raw)
+        if ip.is_loopback or ip.is_private or ip.is_link_local:
+            return False
+    except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(raw, None)
+        for entry in resolved:
+            ip_str = entry[4][0].split("%", 1)[0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_loopback or ip.is_private or ip.is_link_local:
+                return False
+    except socket.gaierror:
+        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
+        # This allows dummy domains in tests like `hook.example`.
+        pass
+    except ValueError:
+        return False
+
+    return True
+
+
+def _push_findings(url, findings):
+    """POST normalized findings to a control-plane /api/v1/scans endpoint."""
+    import urllib.error
+    import urllib.request
+
+    api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
+    if not api_key:
+        print(
+            "⚠️  --push set but APPGUARDRAIL_API_KEY is empty; skipping push.",
+            file=sys.stderr,
+        )
+        return
+    if not _is_safe_url(url):
+        print(
+            f"⚠️  --push URL must be a valid http/https URL and not point to internal infrastructure, got {url}",
+            file=sys.stderr,
+        )
+        return
+    payload = {
+        "findings": list(normalize_findings(findings)),
+        "repo": os.environ.get("GITHUB_REPOSITORY"),
+        "commit": os.environ.get("GITHUB_SHA"),
+    }
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(
+            req, timeout=15
+        ) as resp:  # noqa: S310 - Safe URL scheme validated
+            body = json.loads(resp.read() or b"{}")
+        drift = body.get("new_blocking")
+        extra = f", {drift} newly deploy-blocking" if drift else ""
+        print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
+    except urllib.error.HTTPError as exc:
+        print(
+            f"⚠️  Control-plane push failed ({exc.code}); scan still completed.",
+            file=sys.stderr,
+        )
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(
+            f"⚠️  Control-plane push failed ({exc}); scan still completed.",
+            file=sys.stderr,
+        )
 
 
 def _write_sarif(findings, output_path: Path):
@@ -1631,7 +1759,9 @@ def cmd_fix(args):
         print("✨ No safe auto-fixes to apply.")
         return 0
     if apply:
-        print(f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s).")
+        print(
+            f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s)."
+        )
     else:
         print(
             f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
@@ -1671,6 +1801,31 @@ def cmd_monitor(args):
     return 0
 
 
+def cmd_diff_report(args):
+    """Render a fixed/new/persisting progress report from two findings files."""
+    from appguardrail_core.diffreport import load_findings, render_diff_report
+
+    try:
+        old = load_findings(args.old)
+        new = load_findings(args.new)
+    except (OSError, ValueError) as exc:
+        print(f"❌ Error: cannot read findings: {exc}", file=sys.stderr)
+        return 1
+    report = render_diff_report(old, new)
+    if args.out:
+        try:
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(report + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Error: cannot write report: {exc}", file=sys.stderr)
+            return 1
+        print(f"📊 Diff report written: {out_path}")
+    else:
+        print(report)
+    return 0
+
+
 def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
@@ -1703,8 +1858,7 @@ def cmd_report(args):
         or "Application source, configuration, and security workflow evidence.",
         client_name=getattr(args, "client_name", None) or "n/a",
         reviewer=getattr(args, "reviewer", None) or "AppGuardrail",
-        engagement_type=getattr(args, "engagement_type", None)
-        or "Pre-launch review",
+        engagement_type=getattr(args, "engagement_type", None) or "Pre-launch review",
         based_on=getattr(args, "based_on", None) or "AppGuardrail findings JSON",
     )
     report = render_report(report_type, findings, context)
@@ -1741,11 +1895,13 @@ def cmd_org_bundle(args):
             prs, collection_warnings = gh_pr_list(owner, repos, per_repo_pr_limit)
         if prs_repository:
             prs = annotate_missing_pr_repositories(prs, prs_repository)
-        generated_at, report, evidence_payload, inventory, pr_summary = render_org_evidence(
-            repos,
-            prs,
-            active_repository_target=active_repository_target,
-            generated_at=getattr(args, "generated_at", None),
+        generated_at, report, evidence_payload, inventory, pr_summary = (
+            render_org_evidence(
+                repos,
+                prs,
+                active_repository_target=active_repository_target,
+                generated_at=getattr(args, "generated_at", None),
+            )
         )
         manifest = write_bundle(
             bundle_dir,
@@ -1770,7 +1926,9 @@ def cmd_org_bundle(args):
         )
         return 1
     except subprocess.CalledProcessError as exc:
-        print(f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr)
+        print(
+            f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr
+        )
         print(
             "💡 Hint: Retry later or provide --repos-json and --prs-json.",
             file=sys.stderr,
@@ -1941,6 +2099,40 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     return True
 
 
+def _load_ignore_patterns(scan_root: Path) -> list:
+    """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
+    ignore_file = (scan_root if scan_root.is_dir() else scan_root.parent) / ".appguardrailignore"
+    patterns = []
+    try:
+        for line in ignore_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                patterns.append(line.rstrip("/"))
+    except (OSError, UnicodeDecodeError):
+        return []
+    return patterns
+
+
+def _is_ignored(file_path: Path, scan_root: Path, patterns: list) -> bool:
+    """Match a scanned file's relative path against .appguardrailignore globs."""
+    if not patterns:
+        return False
+    try:
+        rel = file_path.relative_to(scan_root).as_posix()
+    except ValueError:
+        rel = file_path.as_posix()
+    for pattern in patterns:
+        # A bare name (no slash/glob) also ignores that file/dir anywhere in the tree.
+        if (
+            _path_matches_glob(rel, pattern)
+            or _path_matches_glob(rel, f"{pattern}/**")
+            or _path_matches_glob(rel, f"**/{pattern}")
+            or _path_matches_glob(rel, f"**/{pattern}/**")
+        ):
+            return True
+    return False
+
+
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
     # ⚡ Bolt: Optimize file traversal using os.scandir and os.path.splitext
@@ -1981,6 +2173,9 @@ def _sanitize_terminal_output(text: str) -> str:
     """
     if not isinstance(text, str):
         return text
+    # ⚡ Bolt: Fast path for strings that don't need escaping
+    if not text or text.replace("\t", "").isprintable():
+        return text
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
@@ -1996,6 +2191,12 @@ _SENSITIVE_RULE_TOKENS = (
     "stripe",
     "openai",
     "supabase-service-role",
+    "aws",
+    "private-key",
+    "anthropic",
+    "google",
+    "github",
+    "api-key",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
@@ -2131,26 +2332,47 @@ def _trivy_line(item: dict) -> int:
     return item.get("StartLine") or metadata.get("StartLine") or 1
 
 
-def _trivy_target(target: str, base_path: Path) -> str:
+def _trivy_target(
+    target: str, base_path: Path, base_path_is_dir: bool | None = None
+) -> str:
     """Normalize a Trivy target path relative to the scan base when possible."""
     if not target:
-        return str(base_path)
-    try:
-        path = Path(target)
-        if path.is_absolute():
-            root = base_path if base_path.is_dir() else base_path.parent
-            return str(path.relative_to(root))
-    except ValueError:
-        pass
-    return target
+        return base_path.as_posix()
+
+    # ⚡ Bolt: Use string slicing instead of Path.relative_to() to prevent heavy
+    # pathlib initialization and resolution overhead during findings normalization.
+    target_posix = target.replace("\\", "/")
+    # Determine if it's an absolute path
+    is_absolute = target_posix.startswith("/") or (
+        len(target_posix) > 2 and target_posix[1] == ":" and target_posix[2] == "/"
+    )
+
+    if is_absolute:
+        if base_path_is_dir is None:
+            base_path_is_dir = base_path.is_dir()
+        root = base_path if base_path_is_dir else base_path.parent
+        root_str = root.as_posix()
+
+        if target_posix == root_str:
+            return "."
+
+        root_prefix = root_str + "/" if not root_str.endswith("/") else root_str
+        if target_posix.startswith(root_prefix):
+            return target_posix[len(root_prefix) :]
+
+    return Path(target).as_posix()
 
 
 def _trivy_findings(report: dict, base_path: Path):
     """Convert a Trivy JSON report into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for result in report.get("Results") or []:
         target = _sanitize_terminal_output(
-            _trivy_target(result.get("Target", ""), base_path)
+            _trivy_target(result.get("Target", ""), base_path, base_path_is_dir)
         )
 
         for vuln in result.get("Vulnerabilities") or []:
@@ -2251,10 +2473,14 @@ def _bandit_severity(severity: str) -> str:
 def _bandit_findings(report: dict, base_path: Path):
     """Convert a Bandit JSON report into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for result in report.get("results") or []:
         test_id = result.get("test_id") or "bandit"
         filename = _sanitize_terminal_output(
-            _trivy_target(result.get("filename", ""), base_path)
+            _trivy_target(result.get("filename", ""), base_path, base_path_is_dir)
         )
         findings.append(
             _build_finding(
@@ -2317,11 +2543,15 @@ def _ruff_severity(code: str) -> str:
 def _ruff_findings(report: list, base_path: Path):
     """Convert Ruff JSON diagnostics into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for item in report or []:
         code = item.get("code") or "ruff"
         location = item.get("location") or {}
         filename = _sanitize_terminal_output(
-            _trivy_target(item.get("filename", ""), base_path)
+            _trivy_target(item.get("filename", ""), base_path, base_path_is_dir)
         )
         findings.append(
             _build_finding(
@@ -2394,12 +2624,16 @@ def _semgrep_severity(severity: str) -> str:
 def _semgrep_findings(report: dict, base_path: Path):
     """Convert Semgrep JSON results into AppGuardrail finding dictionaries."""
     findings = []
+
+    # ⚡ Bolt: Cache base_path.is_dir() outside the loop to avoid stat() syscalls inside
+    base_path_is_dir = base_path.is_dir()
+
     for item in report.get("results") or []:
         extra = item.get("extra") or {}
         start = item.get("start") or {}
         # fmt: off
         path = _sanitize_terminal_output(
-            _trivy_target(item.get("path", ""), base_path)
+            _trivy_target(item.get("path", ""), base_path, base_path_is_dir)
         )
         # fmt: on
         check_id = item.get("check_id") or "semgrep"
@@ -2425,20 +2659,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2505,13 +2741,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -2546,9 +2784,16 @@ def _run_codegraph_command(command, cwd: Path, action: str):
                 "CodeGraph command argument contains control characters."
             )
 
-    executable = Path(command[0]).name
+    executable = Path(command[0]).name.lower()
+    allowed_executables = {
+        "codegraph",
+        "codegraph.bat",
+        "codegraph.cmd",
+        "codegraph.exe",
+        "codegraph.ps1",
+    }
     allowed_args = {("sync",), ("init", "-i"), ("status",)}
-    if executable != "codegraph" or tuple(command[1:]) not in allowed_args:
+    if executable not in allowed_executables or tuple(command[1:]) not in allowed_args:
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
     try:
@@ -2629,6 +2874,15 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_for_filters = None
     build_finding = _build_finding
 
+    # Pre-compute string values to replace slow Path.relative_to() calls
+    resolved_base_path_str = str(resolved_base_path)
+    resolved_base_path_prefix = (
+        resolved_base_path_str + os.sep
+        if not resolved_base_path_str.endswith(os.sep)
+        else resolved_base_path_str
+    )
+    file_path_str_cache = str(file_path)
+
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -2648,13 +2902,19 @@ def _scan_file(file_path: Path, base_path: Path):
             ) in applicable_rules:
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
+                        if file_path_str_cache == resolved_base_path_str:
+                            rel_path_for_filters = "."
+                        elif file_path_str_cache.startswith(resolved_base_path_prefix):
+                            rel_path_for_filters = file_path_str_cache[
+                                len(resolved_base_path_prefix) :
+                            ]
+                        else:
+                            rel_path_for_filters = (
+                                file_path.name
+                                if base_path.is_file()
+                                else file_path_str_cache
                             )
-                        rel_path_for_filters = str(rel_path)
+                        rel_path_for_filters = _display_path(rel_path_for_filters)
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2667,13 +2927,21 @@ def _scan_file(file_path: Path, base_path: Path):
 
                 for match in finditer(content):
                     if rel_path_str is None:
-                        try:
-                            rel_path = file_path.relative_to(resolved_base_path)
-                        except ValueError:
-                            rel_path = (
-                                file_path.name if base_path.is_file() else file_path
+                        if file_path_str_cache == resolved_base_path_str:
+                            rel_path_for_output = "."
+                        elif file_path_str_cache.startswith(resolved_base_path_prefix):
+                            rel_path_for_output = file_path_str_cache[
+                                len(resolved_base_path_prefix) :
+                            ]
+                        else:
+                            rel_path_for_output = (
+                                file_path.name
+                                if base_path.is_file()
+                                else file_path_str_cache
                             )
-                        rel_path_str = _sanitize_terminal_output(str(rel_path))
+                        rel_path_str = _sanitize_terminal_output(
+                            _display_path(rel_path_for_output)
+                        )
 
                     start_idx = match.start()
 
@@ -2928,10 +3196,145 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             else:
                 self.send_error(404)
 
-        def log_message(self, *_args):  # keep the console quiet
-            pass
+        def log_message(self, *_args):
+            """Suppress default HTTP request logging for the local dashboard."""
+            return None
 
     return http.server.HTTPServer((host, port), _Handler)
+
+
+def _api_key_output_path(args, db_path):
+    configured = getattr(args, "api_key_file", None)
+    if configured:
+        return Path(configured)
+    return Path(f"{db_path}.api-key")
+
+
+def _write_api_key_file(path, api_key):
+    key_path = Path(path)
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(key_path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(api_key + "\n")
+    try:
+        os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        # Some platforms/filesystems ignore POSIX chmod; the file was already
+        # opened with restrictive mode where that mode is supported.
+        return key_path
+    return key_path
+
+
+def _persist_api_key(path, api_key):
+    key_path = Path(path)
+    if key_path.exists():
+        raise FileExistsError(key_path)
+    _write_api_key_file(key_path, api_key)
+
+
+def cmd_serve(args):
+    """Run the AppGuardrail control-plane API (scan ingest + history)."""
+    from appguardrail_core import controlplane as cp
+
+    db = getattr(args, "db", None) or "appguardrail-control-plane.db"
+    conn = cp.connect(db)
+    create = getattr(args, "create_org", None)
+    if create:
+        key_path = _api_key_output_path(args, db)
+        if key_path.exists():
+            conn.close()
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
+        oid, key = cp.create_org(conn, create)
+        conn.close()
+        try:
+            _persist_api_key(key_path, key)
+        except FileExistsError:
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
+        print(f"✅ Created org '{create}' (id {oid}).")
+        print(f"🔑 API key written to {key_path}")
+        return 0
+    if conn.execute("SELECT COUNT(*) AS c FROM orgs").fetchone()["c"] == 0:
+        key_path = _api_key_output_path(args, db)
+        if key_path.exists():
+            conn.close()
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
+        _oid, key = cp.create_org(conn, "default")
+        try:
+            _persist_api_key(key_path, key)
+        except FileExistsError:
+            conn.close()
+            print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            return 1
+        print("ℹ️  No orgs yet — created 'default'.")
+        print(f"🔑 API key written to {key_path}\n")
+    conn.close()
+
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8788)
+    try:
+        server = cp.make_control_plane_server(host, port, db)
+    except OSError as exc:
+        print(
+            f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr
+        )
+        print("💡 Pass a free port with --port.", file=sys.stderr)
+        return 1
+    actual = server.server_address[1]
+    print(f"🛰️  AppGuardrail control plane on http://{host}:{actual}")
+    print(
+        "   POST /api/v1/scans · GET /api/v1/scans · GET /api/v1/scans/{id} · GET /api/v1/health"
+    )
+    print("   Auth: Authorization: Bearer <api_key>. Ctrl+C to stop.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n👋 Control plane stopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
+def cmd_sbom(args):
+    """Generate a CycloneDX SBOM from dependency manifests."""
+    from appguardrail_core.sbom import build_sbom, collect_components
+
+    base = Path(getattr(args, "path", ".") or ".")
+    if not base.exists():
+        print(f"❌ Path not found: {base}", file=sys.stderr)
+        return 1
+    root = base if base.is_dir() else base.parent
+    components = collect_components(root)
+    if not components:
+        print(
+            "ℹ️  No supported manifests found "
+            "(package.json, package-lock.json, requirements.txt).",
+            file=sys.stderr,
+        )
+        return 1
+    app_name = (
+        getattr(args, "app_name", None) or root.name or "AppGuardrail scan target"
+    )
+    payload = json.dumps(build_sbom(components, app_name), indent=2)
+    out = getattr(args, "out", None)
+    if out:
+        try:
+            Path(out).parent.mkdir(parents=True, exist_ok=True)
+            Path(out).write_text(payload + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Cannot write SBOM: {exc}", file=sys.stderr)
+            return 1
+        print(f"📦 SBOM ({len(components)} components) written: {out}")
+    else:
+        print(payload)
+    return 0
 
 
 def cmd_dashboard(args):
@@ -2965,7 +3368,10 @@ def cmd_dashboard(args):
                 json.loads(tokens_file.read_text(encoding="utf-8"))
             ).encode("utf-8")
         except (ValueError, OSError) as exc:
-            print(f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.", file=sys.stderr)
+            print(
+                f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.",
+                file=sys.stderr,
+            )
 
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8787)
@@ -2988,7 +3394,9 @@ def cmd_dashboard(args):
         except Exception as exc:
             # Non-fatal: the server is already serving; just tell the user to
             # open the URL themselves instead of failing the command.
-            print(f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr)
+            print(
+                f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr
+            )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -3095,6 +3503,17 @@ def main():
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
     )
     scan_parser.add_argument(
+        "--github",
+        action="store_true",
+        help="Emit GitHub Actions annotations + job summary (auto-on inside Actions)",
+    )
+    scan_parser.add_argument(
+        "--push",
+        default=None,
+        metavar="URL",
+        help="POST findings to a control-plane URL (key from APPGUARDRAIL_API_KEY)",
+    )
+    scan_parser.add_argument(
         "--codegraph",
         action="store_true",
         help="Initialize or sync CodeGraph before scanning for structural review context",
@@ -3117,6 +3536,16 @@ def main():
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # report
+    diff_report_parser = subparsers.add_parser(
+        "diff-report",
+        help="Compare two findings JSON snapshots: fixed / new / persisting",
+    )
+    diff_report_parser.add_argument("old", help="Older findings JSON (baseline)")
+    diff_report_parser.add_argument("new", help="Newer findings JSON (current)")
+    diff_report_parser.add_argument(
+        "--out", default=None, help="Write markdown report here instead of stdout"
+    )
+
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3135,9 +3564,7 @@ def main():
         )
         parser.add_argument("--app-name", default=None, help="Application name")
         parser.add_argument("--repository", default=None, help="Repository name")
-        parser.add_argument(
-            "--commit", default=None, help="Commit SHA or version"
-        )
+        parser.add_argument("--commit", default=None, help="Commit SHA or version")
         parser.add_argument(
             "--generated-at", default=None, help="Report timestamp in ISO-8601 form"
         )
@@ -3235,8 +3662,43 @@ def main():
         "path", nargs="?", default=".", help="File or directory to fix"
     )
     fix_parser.add_argument(
-        "--apply", action="store_true",
+        "--apply",
+        action="store_true",
         help="Write fixes to disk (default: show a dry-run diff)",
+    )
+    serve_parser = subparsers.add_parser(
+        "serve", help="Run the control-plane API (multi-tenant scan ingest + history)"
+    )
+    serve_parser.add_argument(
+        "--db",
+        default=None,
+        help="SQLite database path (default: appguardrail-control-plane.db)",
+    )
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
+    serve_parser.add_argument("--port", type=int, default=8788, help="Bind port")
+    serve_parser.add_argument(
+        "--create-org",
+        default=None,
+        metavar="NAME",
+        help="Create an org, write its API key, and exit",
+    )
+    serve_parser.add_argument(
+        "--api-key-file",
+        default=None,
+        metavar="PATH",
+        help="Write newly generated bootstrap API keys to PATH (default: <db>.api-key)",
+    )
+    sbom_parser = subparsers.add_parser(
+        "sbom", help="Generate a CycloneDX SBOM from dependency manifests"
+    )
+    sbom_parser.add_argument(
+        "path", nargs="?", default=".", help="Project directory to inventory"
+    )
+    sbom_parser.add_argument(
+        "--out", default=None, help="Write SBOM JSON here instead of stdout"
+    )
+    sbom_parser.add_argument(
+        "--app-name", default=None, help="Application name for the SBOM metadata"
     )
     dashboard_parser = subparsers.add_parser(
         "dashboard", help="Serve the findings dashboard in your browser"
@@ -3268,12 +3730,18 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
+    elif args.command == "diff-report":
+        sys.exit(cmd_diff_report(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
         sys.exit(cmd_hook(args))
     elif args.command == "fix":
         sys.exit(cmd_fix(args))
+    elif args.command == "serve":
+        sys.exit(cmd_serve(args))
+    elif args.command == "sbom":
+        sys.exit(cmd_sbom(args))
     elif args.command == "dashboard":
         sys.exit(cmd_dashboard(args))
     else:

@@ -1,0 +1,100 @@
+rules:
+  # PHP / WordPress rule pack. The built-in dangerous-eval and
+  # sql-injection-risk rules only cover .js/.ts/.py extensions, so plain PHP
+  # and WordPress (plugin/theme/wp-config) code had no coverage before this
+  # pack. Every rule here is path-scoped to *.php files.
+  - id: php-eval-usage
+    patterns:
+      - pattern-regex: '\beval\s*\('
+    message: |
+      Use of eval() detected in PHP code. eval() executes arbitrary PHP and is
+      a common remote-code-execution vector, especially when any part of the
+      argument is user-controlled. Replace it with explicit logic (call_user_func
+      against an allowlist, json_decode for data, etc.).
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-95]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.php"
+
+  - id: php-sql-concat
+    patterns:
+      - pattern-regex: '(?i)(?:\bmysqli_query|->\s*(?:query|get_results|get_row|get_var|get_col))\s*\((?:(?!prepare)[^;]){0,300}?\$_(?:GET|POST|REQUEST|COOKIE)\b'
+    message: |
+      SQL query built directly from request input ($_GET/$_POST/$_REQUEST/$_COOKIE)
+      detected. Concatenating or interpolating superglobals into mysqli_query()
+      or $wpdb->query()/get_results() is SQL injection. Use parameterized
+      queries: mysqli/PDO prepared statements, or $wpdb->prepare() in WordPress.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-89]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.php"
+
+  - id: php-unserialize-user-input
+    patterns:
+      - pattern-regex: 'unserialize\s*\(\s*(?:base64_decode\s*\(\s*)?\$_(?:GET|POST|REQUEST|COOKIE)\b'
+    message: |
+      unserialize() called on request input. PHP object injection lets an
+      attacker instantiate arbitrary classes and chain magic methods
+      (__wakeup/__destruct) into remote code execution. Use json_decode() for
+      data interchange, or pass ['allowed_classes' => false] at minimum.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-502]
+    owasp: [A08:2021]
+    paths:
+      include:
+        - "**/*.php"
+
+  - id: php-include-user-input
+    patterns:
+      - pattern-regex: '\b(?:include|require)(?:_once)?\s*\(?\s*(?:[\x27"][^\x27"\n]{0,80}[\x27"]\s*\.\s*)?\$_(?:GET|POST|REQUEST|COOKIE)\b'
+    message: |
+      include/require driven by request input detected. This is Local/Remote
+      File Inclusion: an attacker can load arbitrary files (../../wp-config.php)
+      or remote code. Map the request parameter to an allowlist of known page
+      names instead of passing it to include.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-98]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.php"
+
+  - id: php-exec-user-input
+    patterns:
+      - pattern-regex: '\b(?:exec|system|shell_exec|passthru|popen|proc_open)\s*\(\s*[^;)]{0,160}?\$_(?:GET|POST|REQUEST|COOKIE)\b'
+    message: |
+      Shell execution built from request input detected. Passing
+      $_GET/$_POST/$_REQUEST/$_COOKIE into exec()/system()/shell_exec()/passthru()
+      is OS command injection. Avoid shelling out; if unavoidable, validate
+      against a strict allowlist and wrap each argument in escapeshellarg().
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-78]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.php"
+
+  - id: wordpress-debug-enabled
+    patterns:
+      - pattern-regex: 'define\s*\(\s*[\x27"]WP_DEBUG[\x27"]\s*,\s*true'
+    message: |
+      WP_DEBUG is enabled. In production this prints PHP errors (paths, queries,
+      stack traces) to visitors and aids attackers. Set WP_DEBUG to false in
+      production, or pair it with WP_DEBUG_DISPLAY false and WP_DEBUG_LOG true
+      so errors go to a log instead of the page.
+    severity: WARNING
+    languages: [generic]
+    cwe: [CWE-489]
+    owasp: [A05:2021]
+    paths:
+      include:
+        - "**/*.php"

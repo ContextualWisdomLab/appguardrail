@@ -10,15 +10,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from appguardrail_core.org_intelligence import (
-    OrgInventory,
-    PullRequestGateSummary,
-    build_buyer_evidence_pack,
-    build_org_inventory,
-    buyer_evidence_pack_to_dict,
-    render_org_readiness_report,
-    summarize_pr_gates,
-)
+from appguardrail_core.org_intelligence import (OrgInventory,
+                                                PullRequestGateSummary,
+                                                build_buyer_evidence_pack,
+                                                build_org_inventory,
+                                                buyer_evidence_pack_to_dict,
+                                                render_org_readiness_report,
+                                                summarize_pr_gates)
 
 REPO_FIELDS = "name,isFork,isPrivate,defaultBranchRef,url,description,visibility,primaryLanguage,pushedAt"
 PR_DETAIL_FIELDS = "number,title,updatedAt,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,headRefName,baseRefName"
@@ -123,7 +121,9 @@ def write_bundle(
         write_json(bundle_dir / artifacts["manifest"], manifest)
         (bundle_dir / artifacts["readme"]).write_text(bundle_readme(manifest))
     except OSError as exc:
-        raise OrgBundleError(f"Cannot write buyer evidence bundle: {bundle_dir}") from exc
+        raise OrgBundleError(
+            f"Cannot write buyer evidence bundle: {bundle_dir}"
+        ) from exc
     return manifest
 
 
@@ -294,7 +294,9 @@ def gh_json(args: list[str]) -> list[dict[str, Any]]:
     """Run a gh command that returns a JSON array."""
     gh = shutil.which("gh")
     if not gh:
-        raise OrgBundleError("gh CLI is required when JSON source files are not provided")
+        raise OrgBundleError(
+            "gh CLI is required when JSON source files are not provided"
+        )
     try:
         result = subprocess.run(  # noqa: S603 - fixed gh command with explicit argv.
             [gh, *args],
