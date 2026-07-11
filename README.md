@@ -167,9 +167,15 @@ Detects:
 - API routes missing authentication
 - Public Firebase rules (`read/write: true`)
 - Dangerous CORS settings (`origin: "*"`)
+- Vue/Svelte/Nuxt frontend risks (`v-html` and raw HTML template sinks,
+  client-exposed `VITE_`/`NUXT_PUBLIC_` secret env vars, SvelteKit private env
+  imports in components, disabled SvelteKit CSRF origin checks)
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Ansible playbook risks (plaintext `ansible_become_pass`/`ansible_ssh_pass`,
+  shell/command Jinja2 injection, `validate_certs: false`, world-writable file
+  modes, disabled host key checking)
 - Kotlin/Android-native risks in `.kt`/`.kts` sources (raw SQL interpolation,
   trust-all TLS, WebView file-URL access, hardcoded encryption keys,
   world-accessible prefs, sensitive logcat logging)
@@ -185,6 +191,13 @@ Detects:
   assignment, disabled CSRF protection, and hardcoded `secret_key_base`
 - Java/Spring pitfalls (SQL/command concat injection, XXE parser flags,
   trust-all `X509TrustManager`, wide-open Spring Boot Actuator exposure)
+
+List everything the scanner checks for:
+
+```bash
+appguardrail rules          # human-readable, severity-sorted
+appguardrail rules --json   # machine-readable (appguardrail.rules.v1)
+```
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
