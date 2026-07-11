@@ -8,6 +8,13 @@
 
 ### 추가
 - **공식 Docker 이미지 정의**(`Dockerfile` + `.dockerignore`) — 설치 없이 스캔합니다: `docker build -t appguardrail . && docker run --rm -v "$PWD:/src" appguardrail scan /src`. `python:3.12-slim` 이미지를 digest로 고정하고, 로컬 소스를 `PYTHONPATH=/app`에서 모듈로 실행해 컨테이너 빌드 중 `pip install` 공급망 단계를 제거합니다. 비루트(`scanner`) 사용자와 `HEALTHCHECK`를 포함하며, exit code 계약은 CLI와 동일합니다(1 = deploy-blocking).
+- PHP / WordPress 룰팩 `scanner/rules/php-wordpress.yml` 추가 — 바이브 코딩·에이전시 산출물에 많은 PHP/WordPress 코드를 처음으로 커버합니다. 기존 내장 eval/SQL 룰은 `.js`/`.py` 확장자에만 적용되어 `.php` 파일은 사각지대였습니다. 6종 모두 `**/*.php` 경로로 스코프되며, 안전 코드(prepared statement, `$wpdb->prepare()`, 상수 include 등) 오탐 0을 테스트로 검증했습니다.
+  - `php-sql-concat` — `mysqli_query()`/`$wpdb->query()` 등에 `$_GET`/`$_POST`/`$_REQUEST`/`$_COOKIE`를 직접 연결·보간(SQL 주입, CWE-89). CRITICAL.
+  - `php-unserialize-user-input` — 요청 입력을 `unserialize()`(PHP object injection, CWE-502). CRITICAL.
+  - `php-include-user-input` — 요청 입력 기반 `include`/`require`(LFI/RFI, CWE-98). CRITICAL.
+  - `php-exec-user-input` — 요청 입력이 들어간 `exec`/`system`/`shell_exec`/`passthru`(OS 명령 주입, CWE-78). CRITICAL.
+  - `php-eval-usage` — PHP `eval()` 사용(CWE-95). HIGH.
+  - `wordpress-debug-enabled` — `WP_DEBUG` true(프로덕션 정보 노출, CWE-489). WARNING.
 - AWS CloudFormation 템플릿 misconfiguration 룰팩 `scanner/rules/cloudformation.yml`을 추가했습니다(정밀 룰 6종, YAML/JSON/`.template` 대상). Terraform-AWS는 기존 엔진이 커버하지만 raw CFN 템플릿은 공백이었습니다. 모든 패턴을 CFN 고유 컨텍스트(`AWS::` 리소스 타입, PascalCase 속성명)에 앵커링해 Kubernetes 매니페스트·docker-compose·GitHub Actions 워크플로 같은 YAML 유사 파일에서는 발화하지 않음을 테스트로 검증했습니다.
   - `cfn-iam-policy-star-star` — IAM 정책이 `Action`·`Resource` 모두 와일드카드(사실상 계정 전체 관리자 권한). Statement 경계를 넘는 오탐 차단. CRITICAL.
   - `cfn-s3-bucket-public-acl` — S3 버킷 `AccessControl`이 PublicRead/PublicReadWrite(전 세계 공개). HIGH.
