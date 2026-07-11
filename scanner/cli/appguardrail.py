@@ -56,6 +56,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from appguardrail_core import github_actions
 from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
@@ -1557,6 +1558,10 @@ def cmd_scan(args):
         if finding.get("rule_id") in excluded:
             return False
         return core_is_deploy_blocking(finding, blocking)
+
+    # GitHub Actions native output: inline PR annotations + job summary.
+    if github_actions.in_actions() or getattr(args, "github", False):
+        github_actions.emit(findings, files_scanned, _gates)
 
     return 1 if any(_gates(f) for f in findings) else 0
 
@@ -3117,8 +3122,9 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             else:
                 self.send_error(404)
 
-        def log_message(self, *_args):  # keep the console quiet
-            pass
+        def log_message(self, *_args):
+            """Suppress default HTTP request logging for the local dashboard."""
+            return None
 
     return http.server.HTTPServer((host, port), _Handler)
 
@@ -3421,6 +3427,11 @@ def main():
         "--sarif",
         default=None,
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
+    )
+    scan_parser.add_argument(
+        "--github",
+        action="store_true",
+        help="Emit GitHub Actions annotations + job summary (auto-on inside Actions)",
     )
     scan_parser.add_argument(
         "--push",
