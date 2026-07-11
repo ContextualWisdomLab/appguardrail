@@ -63,6 +63,7 @@ def test_post_creates_then_updates(monkeypatch):
         if method == "PATCH":
             state["comments"][0]["body"] = body["body"]
             return {"id": 1}
+        raise AssertionError(f"unexpected request method: {method}")
 
     monkeypatch.setattr(gc, "_request", fake_request)
 

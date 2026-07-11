@@ -31,23 +31,28 @@ def build_comment(findings: list[dict[str, Any]]) -> str:
 
 def _pr_number(event_path: Optional[str], ref: Optional[str]) -> Optional[int]:
     """Resolve the PR number from the Actions event payload or ref."""
+    event: Any = None
     if event_path and os.path.exists(event_path):
         try:
             with open(event_path, encoding="utf-8") as fh:
                 event = json.load(fh)
-            pr = event.get("pull_request") or {}
-            if pr.get("number"):
-                return int(pr["number"])
-            if event.get("number"):
-                return int(event["number"])
-        except (OSError, ValueError, KeyError):
-            pass
+        except (OSError, ValueError):
+            event = None
+    if isinstance(event, dict):
+        pr = event.get("pull_request") or {}
+        number = pr.get("number") or event.get("number")
+        if number is not None:
+            try:
+                return int(number)
+            except (TypeError, ValueError):
+                event = None
     # refs/pull/<n>/merge fallback.
     if ref and ref.startswith("refs/pull/"):
+        parts = ref.split("/")
         try:
-            return int(ref.split("/")[2])
+            return int(parts[2])
         except (IndexError, ValueError):
-            pass
+            return None
     return None
 
 

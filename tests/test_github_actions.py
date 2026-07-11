@@ -1,7 +1,5 @@
 """Tests for GitHub Actions native output (appguardrail_core.github_actions)."""
 
-import os
-
 from appguardrail_core import github_actions as ga
 
 FINDINGS = [
