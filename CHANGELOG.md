@@ -24,6 +24,7 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- **pre-commit 프레임워크 통합**(`.pre-commit-hooks.yaml`, 리포지토리 루트) — https://pre-commit.com 사용자 리포가 `.pre-commit-config.yaml`에 3줄만 추가하면 커밋마다 AppGuardrail 스캔이 실행되고, deploy-blocking 발견 시 커밋이 차단됩니다. 기존 `appguardrail hook`(직접 git hook 설치)과 상호 보완적입니다.
 - `.appguardrailignore`(선택) — 스캔 루트에 gitignore 스타일 glob(한 줄당 하나, `#` 주석)을 두면 vendored 코드·생성물·서드파티 번들을 스캔에서 제외합니다. 이름만 쓰면(`vendor/`) 트리 어디서든 매칭되고, `*.min.js` 같은 glob·`docs/generated` 같은 경로도 지원합니다. 제외 건수를 스캔 출력에 표시해 조용히 빠지는 일이 없습니다.
 - Ruby on Rails 보안 룰 팩 `scanner/rules/rails.yml` — 내장 룰이 다루지 않던 `.rb`/`.erb` 소스를 경로 글롭으로 스코핑해 탐지합니다. 모든 인젝션 룰은 실제 Ruby 문자열 보간(`#{...}`)이나 명백히 위험한 API를 요구하는 고정밀 설계로, 파라미터 바인딩 등 안전한 Rails 관용구는 매치하지 않습니다(안전 코드 오탐 0 검증).
   - `rails-sql-injection-interpolation` — `where`/`find_by_sql`/`order` 등에 보간 문자열로 SQL 조립(CWE-89). CRITICAL.
@@ -36,7 +37,6 @@
 - **GitHub Actions 네이티브 대응** — 스캔이 Actions 안에서 실행되면(`GITHUB_ACTIONS=true`) 자동으로 (1) 발견 항목을 PR diff에 인라인으로 띄우는 워크플로 어노테이션(`::error`/`::warning`, deploy-blocking은 error)과 (2) 실행 화면의 job summary(`$GITHUB_STEP_SUMMARY`, severity 집계 + 상위 목록)를 출력합니다. 로컬에서 강제하려면 `scan --github`. 무의존성(stdlib)이며 어노테이션 이스케이프는 GitHub 규격(`%0A`·`%2C`·`%3A`)을 따릅니다. 기존 `monitor` 워크플로는 변경 없이 인라인 표시를 얻습니다.
 - **재사용 가능한 GitHub Action**(`action.yml`, 리포지토리 루트) — `uses: ContextualWisdomLab/appguardrail@v1` 한 줄로 스캔 + SARIF 업로드 + PR 코멘트 + deploy 게이트를 실행합니다. 입력 `path`·`sarif`·`upload-sarif`·`pr-comment`·`fail-on-blocking`·`version`, 출력 `sarif`·`exit-code`. composite action이라 별도 러너 이미지가 필요 없습니다.
 - **PR 스티키 코멘트** — Actions의 `pull_request` 이벤트에서 발견 요약(severity 집계 + 상위 목록)을 PR에 단일 코멘트로 upsert합니다(매 푸시마다 새 코멘트가 아니라 기존 코멘트를 갱신 → 코멘트 스팸 없음). 숨은 마커로 식별하며 `GITHUB_TOKEN`만 사용합니다(무의존성 urllib). 코멘트 실패는 보안 게이트를 절대 실패시키지 않습니다.
-
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 - `appguardrail serve` — 멀티테넌트 **control-plane API**(스캔 인제스트 + 히스토리). 일회성 CLI를 넘어, CI가 매 스캔의 `appguardrail.findings.v1`을 org별 API 키로 영속 저장하고 시간에 따른 추이를 조회할 수 있는 지속형 백본입니다. stdlib(sqlite3 + http.server)만 사용하며 org별 테넌트 격리를 강제합니다.
   - 엔드포인트: `POST /api/v1/scans`(인제스트), `GET /api/v1/scans`(히스토리), `GET /api/v1/scans/{id}`(상세), `GET /api/v1/health`.
