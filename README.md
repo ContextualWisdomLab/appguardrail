@@ -173,6 +173,9 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Ansible playbook risks (plaintext `ansible_become_pass`/`ansible_ssh_pass`,
+  shell/command Jinja2 injection, `validate_certs: false`, world-writable file
+  modes, disabled host key checking)
 - Kotlin/Android-native risks in `.kt`/`.kts` sources (raw SQL interpolation,
   trust-all TLS, WebView file-URL access, hardcoded encryption keys,
   world-accessible prefs, sensitive logcat logging)
