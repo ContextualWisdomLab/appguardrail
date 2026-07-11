@@ -482,6 +482,24 @@ def test_scan_file_detects_packaged_yaml_regex_rule(tmp_path):
     assert "supabase-service-role-key-in-env" in rule_ids
 
 
+def test_todo_skip_auth_packaged_rule_only_matches_comments(tmp_path):
+    source = tmp_path / "github_comment.py"
+    source.write_text(
+        'req.add_header("Authorization", f"Bearer {token}")\n'
+        "# TODO: add auth check before deploy\n",
+        encoding="utf-8",
+    )
+
+    findings = [
+        finding
+        for finding in _scan_file(source, tmp_path)
+        if finding["rule_id"] == "todo-skip-auth"
+    ]
+
+    assert findings
+    assert {finding["line"] for finding in findings} == {2}
+
+
 def test_scan_file_rule_cache_invalidates_when_scan_rules_change(tmp_path):
     test_file = tmp_path / "unsafe.py"
     test_file.write_text("FIRST_TOKEN\nSECOND_TOKEN\n")
