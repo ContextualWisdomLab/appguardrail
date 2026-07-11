@@ -83,3 +83,8 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI) risks in webhook payloads and CLI push endpoints due to missing URL scheme validation before `urllib.request.urlopen` and insufficient host validation.
 **Learning:** Checking the URL hostname natively with string matches is vulnerable to DNS-based bypasses (e.g. `127.0.0.1.nip.io`). To prevent internal routing from malicious external actors, URL schemes should be validated and the IP address obtained through `socket.gethostbyname` needs to be validated against loopback, private, and link-local ranges.
 **Prevention:** Always validate user-provided URLs by strictly allowing schemas (`http`, `https`) and checking their resolved IPs for safety (`ipaddress.is_loopback`, `ipaddress.is_private`, `ipaddress.is_link_local`).
+
+## 2026-07-10 - GitHub log redirect DNS validation
+**Vulnerability:** GitHub Actions log download redirects accepted DNS hostnames after only scheme, credential, and direct-IP validation, allowing an allowed-looking hostname to resolve to loopback, private, link-local, reserved, or otherwise non-global addresses.
+**Learning:** Runtime SSRF validation must be scoped to the untrusted redirect boundary and must validate both the host class and every DNS resolution result. For GitHub job logs, broad arbitrary host support is unnecessary; redirects should be limited to expected GitHub/Azure log hosts.
+**Prevention:** Validate initial log download URLs and redirect hops with `_validate_log_download_url`, allow only expected log host suffixes, and reject any `socket.getaddrinfo` result that is not a global public IP.
