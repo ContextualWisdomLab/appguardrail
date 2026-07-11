@@ -56,6 +56,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from appguardrail_core import github_actions
 from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
@@ -1397,6 +1398,21 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    ignore_patterns = _load_ignore_patterns(scan_path)
+    ignored_count = 0
+    if ignore_patterns:
+        kept = []
+        for file_path in files_to_scan:
+            if _is_ignored(file_path, scan_path, ignore_patterns):
+                ignored_count += 1
+            else:
+                kept.append(file_path)
+        files_to_scan = kept
+        print(
+            f"🙈 .appguardrailignore: {len(ignore_patterns)} pattern(s), "
+            f"{ignored_count} file(s) skipped\n"
+        )
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -1557,6 +1573,10 @@ def cmd_scan(args):
         if finding.get("rule_id") in excluded:
             return False
         return core_is_deploy_blocking(finding, blocking)
+
+    # GitHub Actions native output: inline PR annotations + job summary.
+    if github_actions.in_actions() or getattr(args, "github", False):
+        github_actions.emit(findings, files_scanned, _gates)
 
     return 1 if any(_gates(f) for f in findings) else 0
 
@@ -1778,6 +1798,31 @@ def cmd_monitor(args):
     print(
         "This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
     )
+    return 0
+
+
+def cmd_diff_report(args):
+    """Render a fixed/new/persisting progress report from two findings files."""
+    from appguardrail_core.diffreport import load_findings, render_diff_report
+
+    try:
+        old = load_findings(args.old)
+        new = load_findings(args.new)
+    except (OSError, ValueError) as exc:
+        print(f"❌ Error: cannot read findings: {exc}", file=sys.stderr)
+        return 1
+    report = render_diff_report(old, new)
+    if args.out:
+        try:
+            out_path = Path(args.out)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(report + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"❌ Error: cannot write report: {exc}", file=sys.stderr)
+            return 1
+        print(f"📊 Diff report written: {out_path}")
+    else:
+        print(report)
     return 0
 
 
@@ -2052,6 +2097,40 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
     return True
+
+
+def _load_ignore_patterns(scan_root: Path) -> list:
+    """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
+    ignore_file = (scan_root if scan_root.is_dir() else scan_root.parent) / ".appguardrailignore"
+    patterns = []
+    try:
+        for line in ignore_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                patterns.append(line.rstrip("/"))
+    except (OSError, UnicodeDecodeError):
+        return []
+    return patterns
+
+
+def _is_ignored(file_path: Path, scan_root: Path, patterns: list) -> bool:
+    """Match a scanned file's relative path against .appguardrailignore globs."""
+    if not patterns:
+        return False
+    try:
+        rel = file_path.relative_to(scan_root).as_posix()
+    except ValueError:
+        rel = file_path.as_posix()
+    for pattern in patterns:
+        # A bare name (no slash/glob) also ignores that file/dir anywhere in the tree.
+        if (
+            _path_matches_glob(rel, pattern)
+            or _path_matches_glob(rel, f"{pattern}/**")
+            or _path_matches_glob(rel, f"**/{pattern}")
+            or _path_matches_glob(rel, f"**/{pattern}/**")
+        ):
+            return True
+    return False
 
 
 def _collect_files(base_path: Path):
@@ -3117,8 +3196,9 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             else:
                 self.send_error(404)
 
-        def log_message(self, *_args):  # keep the console quiet
-            pass
+        def log_message(self, *_args):
+            """Suppress default HTTP request logging for the local dashboard."""
+            return None
 
     return http.server.HTTPServer((host, port), _Handler)
 
@@ -3423,6 +3503,11 @@ def main():
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
     )
     scan_parser.add_argument(
+        "--github",
+        action="store_true",
+        help="Emit GitHub Actions annotations + job summary (auto-on inside Actions)",
+    )
+    scan_parser.add_argument(
         "--push",
         default=None,
         metavar="URL",
@@ -3451,6 +3536,16 @@ def main():
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # report
+    diff_report_parser = subparsers.add_parser(
+        "diff-report",
+        help="Compare two findings JSON snapshots: fixed / new / persisting",
+    )
+    diff_report_parser.add_argument("old", help="Older findings JSON (baseline)")
+    diff_report_parser.add_argument("new", help="Newer findings JSON (current)")
+    diff_report_parser.add_argument(
+        "--out", default=None, help="Write markdown report here instead of stdout"
+    )
+
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3635,6 +3730,8 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
+    elif args.command == "diff-report":
+        sys.exit(cmd_diff_report(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
