@@ -1,0 +1,118 @@
+rules:
+  # Ruby on Rails security rules. The built-in Python rules do not cover
+  # .rb/.erb sources, so this pack scopes generic regex rules to Ruby and
+  # ERB files via path globs. Precision-first: every injection rule requires
+  # actual Ruby string interpolation ("#{...}") or an unambiguous dangerous
+  # API, so parameterized/safe Rails idioms do not match.
+
+  - id: rails-sql-injection-interpolation
+    patterns:
+      - pattern-regex: '\b(?:where|find_by_sql|order|group|having)\s*\(\s*"[^"\n]*#\{'
+    message: |
+      ActiveRecord query builds SQL from an interpolated Ruby string.
+      Anything inside #{...} is spliced into the SQL unescaped, so
+      user-controlled input becomes SQL injection.
+      Use bind parameters instead:
+        User.where("name = ?", params[:name])
+        User.where(name: params[:name])
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-89]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.rb"
+        - "**/*.erb"
+
+  - id: rails-raw-html-output
+    patterns:
+      - pattern-regex: '<%=\s*raw\b'
+      - pattern-regex: '\braw\s*\(\s*params\b'
+      - pattern-regex: 'params\s*\[[^\]\n]*\][^\n]{0,40}\.html_safe\b'
+      - pattern-regex: '"[^"\n]*#\{[^"\n]*\}[^"\n]*"\s*\.html_safe\b'
+    message: |
+      Output bypasses Rails HTML auto-escaping. raw(...) and String#html_safe
+      render the value verbatim, so any user-controlled data in it becomes
+      stored or reflected XSS.
+      Render text normally (<%= value %>) and let Rails escape it, or
+      sanitize the HTML first: <%= sanitize value %>.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-79]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.rb"
+        - "**/*.erb"
+
+  - id: rails-mass-assignment-permit-all
+    patterns:
+      - pattern-regex: '\.permit!'
+    message: |
+      params.permit! whitelists every request parameter, so a client can mass
+      assign any model attribute (admin flags, foreign keys, balances).
+      Permit only the attributes the endpoint needs:
+        params.require(:user).permit(:name, :email)
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-915]
+    owasp: [A08:2021]
+    paths:
+      include:
+        - "**/*.rb"
+
+  - id: rails-command-injection
+    patterns:
+      - pattern-regex: '\b(?:system|exec|IO\.popen|Open3\.\w+)\s*\(\s*"[^"\n]*#\{'
+      - pattern-regex: '`[^`\n]*#\{[^`\n]*(?:params|request)\b'
+    message: |
+      Shell command is built from an interpolated Ruby string. Anything inside
+      #{...} reaches the shell unescaped, so user-controlled input becomes
+      OS command injection.
+      Pass arguments as a list so no shell is involved:
+        system("convert", input_path, output_path)
+      or escape explicitly with Shellwords.escape.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-78]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.rb"
+        - "**/*.erb"
+
+  - id: rails-skip-csrf
+    patterns:
+      - pattern-regex: 'skip_before_(?:action|filter)\s*\(?\s*:verify_authenticity_token'
+    message: |
+      Controller disables Rails CSRF protection by skipping
+      verify_authenticity_token, so state-changing requests can be forged
+      from any site the victim visits.
+      Remove the skip, or restrict it to a token-authenticated API surface
+      (e.g. only: [...] on actions that authenticate every request with a
+      non-cookie credential).
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-352]
+    owasp: [A01:2021]
+    paths:
+      include:
+        - "**/*.rb"
+
+  - id: rails-secrets-in-code
+    patterns:
+      - pattern-regex: '(?i)secret_key_base\s*=\s*["''][0-9a-f]{20,}'
+    message: |
+      secret_key_base is hardcoded in source. This key signs and encrypts
+      Rails session cookies; anyone who reads the repo can forge sessions
+      and impersonate any user.
+      Load it from credentials or the environment instead:
+        config.secret_key_base = Rails.application.credentials.secret_key_base
+      and rotate the leaked key.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-798]
+    owasp: [A07:2021]
+    paths:
+      include:
+        - "**/*.rb"
