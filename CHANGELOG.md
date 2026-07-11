@@ -24,6 +24,14 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- Go 보안 룰 팩 `scanner/rules/go.yml` — 기존 스캐너가 커버하지 않던 `.go` 파일을 경로 스코프(`**/*.go`) 기반으로 탐지합니다(고정밀, 안전 코드 오탐 0 검증):
+  - `go-sql-injection-sprintf` — `Query`/`QueryRow`/`Exec`(+Context)에 `fmt.Sprintf` 또는 문자열 연결로 만든 SQL을 전달. CRITICAL.
+  - `go-command-injection` — `exec.Command(Context)`가 `sh`/`bash` `-c`에 리터럴이 아닌(변수·연결) 명령 문자열을 전달. CRITICAL.
+  - `go-hardcoded-jwt-signing-key` — `SignedString([]byte("리터럴"))`로 JWT 서명 키 하드코딩. CRITICAL.
+  - `go-tls-insecure-skip-verify` — `tls.Config`의 `InsecureSkipVerify: true`(인증서 검증 비활성화). HIGH.
+  - `go-weak-random-token` — token/secret/OTP/session 등 보안 값 생성에 `math/rand` 사용. HIGH.
+  - `go-pprof-import-exposed` — `_ "net/http/pprof"` blank import로 기본 mux에 프로파일링 핸들러 노출. WARNING.
+- `tests/test_go_rules.py` — 룰별 양성·음성 케이스, severity, `.go` 경로 스코프, 임시 파일 end-to-end 스캔 검증을 추가했습니다.
 - **pre-commit 프레임워크 통합**(`.pre-commit-hooks.yaml`, 리포지토리 루트) — https://pre-commit.com 사용자 리포가 `.pre-commit-config.yaml`에 3줄만 추가하면 커밋마다 AppGuardrail 스캔이 실행되고, deploy-blocking 발견 시 커밋이 차단됩니다. 기존 `appguardrail hook`(직접 git hook 설치)과 상호 보완적입니다.
 - `.appguardrailignore`(선택) — 스캔 루트에 gitignore 스타일 glob(한 줄당 하나, `#` 주석)을 두면 vendored 코드·생성물·서드파티 번들을 스캔에서 제외합니다. 이름만 쓰면(`vendor/`) 트리 어디서든 매칭되고, `*.min.js` 같은 glob·`docs/generated` 같은 경로도 지원합니다. 제외 건수를 스캔 출력에 표시해 조용히 빠지는 일이 없습니다.
 - Ruby on Rails 보안 룰 팩 `scanner/rules/rails.yml` — 내장 룰이 다루지 않던 `.rb`/`.erb` 소스를 경로 글롭으로 스코핑해 탐지합니다. 모든 인젝션 룰은 실제 Ruby 문자열 보간(`#{...}`)이나 명백히 위험한 API를 요구하는 고정밀 설계로, 파라미터 바인딩 등 안전한 Rails 관용구는 매치하지 않습니다(안전 코드 오탐 0 검증).

@@ -161,6 +161,7 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
 - Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
   string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
   assignment, disabled CSRF protection, and hardcoded `secret_key_base`
