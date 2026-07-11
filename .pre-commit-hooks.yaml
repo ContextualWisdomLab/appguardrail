@@ -1,0 +1,17 @@
+# pre-commit framework integration (https://pre-commit.com)
+#
+# Usage in a consumer repo's .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/ContextualWisdomLab/appguardrail
+#       rev: v0.1.1
+#       hooks:
+#         - id: appguardrail
+#
+- id: appguardrail
+  name: AppGuardrail security scan
+  description: Block commits that introduce deploy-blocking security findings.
+  entry: appguardrail scan .
+  language: python
+  pass_filenames: false
+  always_run: true

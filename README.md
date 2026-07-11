@@ -151,6 +151,7 @@ Detects:
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
+- PHP/WordPress risks (SQL concatenation with superglobals, `unserialize()`/`include`/shell-exec on request input, `eval()`, `WP_DEBUG` enabled)
 - AWS CloudFormation template misconfigurations (public S3 ACLs, world-open
   security groups, `*:*` IAM policies, public/unencrypted databases, secret
   parameter defaults)
@@ -160,6 +161,11 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- C#/.NET risks — SQL built by string concatenation/interpolation,
+  `BinaryFormatter`-family deserialization, string-built `Process.Start`
+  commands, `ValidateRequest="false"`, insecure cookie flags, and literal
+  connection-string passwords in `appsettings*.json`/`web.config`
+- Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
 - Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
   string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
   assignment, disabled CSRF protection, and hardcoded `secret_key_base`
@@ -371,6 +377,20 @@ This writes `appguardrail-buyer-evidence/` with:
 
 Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
 need a non-default organization, custom artifact path, or offline snapshot.
+
+### Use with the pre-commit framework
+
+If your team uses [pre-commit](https://pre-commit.com), add three lines to
+`.pre-commit-config.yaml` — every commit gets scanned, and deploy-blocking
+findings block the commit:
+
+```yaml
+repos:
+  - repo: https://github.com/ContextualWisdomLab/appguardrail
+    rev: v0.1.1
+    hooks:
+      - id: appguardrail
+```
 
 ### Install continuous monitoring
 
