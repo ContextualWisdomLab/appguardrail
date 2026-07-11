@@ -216,8 +216,8 @@ def _slack_blocks(
 
 def _is_safe_url(url: str) -> bool:
     import ipaddress
-    import socket
     import urllib.parse
+    import socket
 
     try:
         parsed = urllib.parse.urlparse(url)
@@ -643,8 +643,9 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             )
             return self._json(201, summary)
 
-        def log_message(self, *_args):
-            pass
+        def log_message(self, format, *args):
+            """Suppress default logging."""
+            return
 
     return http.server.HTTPServer((host, port), _Handler)
 

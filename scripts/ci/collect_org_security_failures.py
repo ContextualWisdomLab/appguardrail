@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import ipaddress
 import json
 import os
+import ipaddress
 import socket
 import sys
 import urllib.error
@@ -79,9 +79,7 @@ def _validate_resolved_addresses(host: str, port: int | None) -> None:
     try:
         resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
-        raise urllib.error.URLError(
-            f"Could not resolve log download host: {host}"
-        ) from exc
+        raise urllib.error.URLError(f"Could not resolve log download host: {host}") from exc
 
     addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
     if not addresses:

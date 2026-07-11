@@ -59,20 +59,28 @@ if __package__ in (None, ""):
 from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
-from appguardrail_core.findings import \
-    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
 from appguardrail_core.findings import normalize_findings
-from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
-                                        detect_language_axes,
-                                        detect_stack_profile)
-from appguardrail_core.org_bundle import (OrgBundleError,
-                                          annotate_missing_pr_repositories,
-                                          gh_error_message, gh_pr_list,
-                                          gh_repo_list)
+from appguardrail_core.language import (
+    LANGUAGE_EXTENSIONS,
+    detect_language_axes,
+    detect_stack_profile,
+)
+from appguardrail_core.org_bundle import (
+    OrgBundleError,
+    annotate_missing_pr_repositories,
+    gh_error_message,
+    gh_pr_list,
+    gh_repo_list,
+)
 from appguardrail_core.org_bundle import load_json as load_org_json
 from appguardrail_core.org_bundle import render_org_evidence, write_bundle
-from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
-                                       render_report, supported_report_types)
+from appguardrail_core.reports import (
+    REPORT_TYPE_LABELS,
+    ReportContext,
+    render_report,
+    supported_report_types,
+)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1573,8 +1581,8 @@ def _write_findings_json(findings, output_path: Path):
 
 def _is_safe_url(url: str) -> bool:
     import ipaddress
-    import socket
     import urllib.parse
+    import socket
 
     try:
         parsed = urllib.parse.urlparse(url)
@@ -3113,8 +3121,9 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             else:
                 self.send_error(404)
 
-        def log_message(self, *_args):  # keep the console quiet
-            pass
+        def log_message(self, format, *args):  # keep the console quiet
+            """Suppress default logging."""
+            return
 
     return http.server.HTTPServer((host, port), _Handler)
 
@@ -3264,6 +3273,10 @@ def cmd_dashboard(args):
     index = dashboard_index_path()
     if not index.is_file():
         print(f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr)
+        print(
+            "💡 Hint: Check if the path is correct or if you are in the right directory.",
+            file=sys.stderr,
+        )
         print(
             "💡 Run 'appguardrail dashboard' from an AppGuardrail source checkout "
             "that includes dashboard/index.html.",
