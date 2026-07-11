@@ -109,6 +109,13 @@
   - `hardcoded-slack-token`(xoxb/xoxa/xoxp/… Slack 토큰), `hardcoded-twilio-credential`(Twilio Account SID `AC…`/API key `SK…`), `hardcoded-sendgrid-api-key`(`SG.` SendGrid 키), `hardcoded-npm-token`(`npm_` npm 토큰), `hardcoded-pypi-token`(`pypi-AgEIcHlwaS…` PyPI 토큰) — 모두 CRITICAL.
   - `hardcoded-slack-webhook-url`(`hooks.slack.com/services/…` incoming webhook) — HIGH.
   - 모든 룰에 `cwe: [CWE-798]`, `owasp: [A07:2021]` 부여. 기존 룰(OpenAI/Anthropic/Stripe/AWS/GitHub/Google/PEM)과 중복 없음.
+- Ansible 플레이북 룰 팩 6종 추가(`scanner/rules/ansible.yml`, 고정밀 — Kubernetes/Helm/docker-compose/GitHub Actions 등 유사 YAML에는 반응하지 않도록 Ansible 전용 모듈·키에 앵커링, look-alike 음성 케이스 e2e 검증):
+  - `ansible-become-password-literal` — `ansible_become_pass`를 Vault 없이 평문 리터럴로 저장(관리 대상 전 호스트 root 노출). CRITICAL.
+  - `ansible-ssh-password-literal` — `ansible_ssh_pass`/`ansible_password` 평문 리터럴(SSH 접속 자격 증명 노출). CRITICAL.
+  - `ansible-shell-command-injection` — `shell:`/`command:` 태스크에 Jinja2 변수 직접 보간(명령 주입, `| quote` 필터 부재). HIGH.
+  - `ansible-validate-certs-false` — `validate_certs: false`로 TLS 검증 비활성화(중간자 변조 허용). HIGH.
+  - `ansible-file-mode-world-writable` — 파일 배포 권한 0777/0666(로컬 권한 상승 표적). HIGH.
+  - `ansible-host-key-checking-disabled` — SSH host key 검증 비활성화(YAML 변수 및 `ansible.cfg` 모두 탐지). HIGH.
 - Java/Spring 보안 룰팩 `scanner/rules/java-spring.yml` 추가(고정밀 5종, 내장 Java 룰과 중복 없음):
   - `java-sql-injection-concat` — `createQuery`/`prepareStatement`/`executeQuery`에 문자열 리터럴 + 변수 연결로 SQL/JPQL 조립. CRITICAL.
   - `java-runtime-exec-concat` — `Runtime.getRuntime().exec`/`ProcessBuilder`에 문자열 연결로 OS 명령 조립. CRITICAL.
