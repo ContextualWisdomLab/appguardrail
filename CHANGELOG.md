@@ -18,8 +18,10 @@
 
 ### 추가
 - `.appguardrailignore`(선택) — 스캔 루트에 gitignore 스타일 glob(한 줄당 하나, `#` 주석)을 두면 vendored 코드·생성물·서드파티 번들을 스캔에서 제외합니다. 이름만 쓰면(`vendor/`) 트리 어디서든 매칭되고, `*.min.js` 같은 glob·`docs/generated` 같은 경로도 지원합니다. 제외 건수를 스캔 출력에 표시해 조용히 빠지는 일이 없습니다.
-
-### 추가
+- CI/CD 보안 탐지 룰 3종(`scanner/rules/cicd.yml`) — GitHub Actions 공급망/파이프라인 위험: `github-action-mutable-ref`(action을 @main/@master 이동 브랜치에 고정), `github-actions-pull-request-target`(fork PR 컨텍스트에서 secrets 접근), `github-actions-script-injection`(공격자 제어 `github.event.*`를 표현식에 인라인). 각각 SHA 고정·트리거 검토·env 경유 참조를 권고합니다.
+- **GitHub Actions 네이티브 대응** — 스캔이 Actions 안에서 실행되면(`GITHUB_ACTIONS=true`) 자동으로 (1) 발견 항목을 PR diff에 인라인으로 띄우는 워크플로 어노테이션(`::error`/`::warning`, deploy-blocking은 error)과 (2) 실행 화면의 job summary(`$GITHUB_STEP_SUMMARY`, severity 집계 + 상위 목록)를 출력합니다. 로컬에서 강제하려면 `scan --github`. 무의존성(stdlib)이며 어노테이션 이스케이프는 GitHub 규격(`%0A`·`%2C`·`%3A`)을 따릅니다. 기존 `monitor` 워크플로는 변경 없이 인라인 표시를 얻습니다.
+- **재사용 가능한 GitHub Action**(`action.yml`, 리포지토리 루트) — `uses: ContextualWisdomLab/appguardrail@v1` 한 줄로 스캔 + SARIF 업로드 + PR 코멘트 + deploy 게이트를 실행합니다. 입력 `path`·`sarif`·`upload-sarif`·`pr-comment`·`fail-on-blocking`·`version`, 출력 `sarif`·`exit-code`. composite action이라 별도 러너 이미지가 필요 없습니다.
+- **PR 스티키 코멘트** — Actions의 `pull_request` 이벤트에서 발견 요약(severity 집계 + 상위 목록)을 PR에 단일 코멘트로 upsert합니다(매 푸시마다 새 코멘트가 아니라 기존 코멘트를 갱신 → 코멘트 스팸 없음). 숨은 마커로 식별하며 `GITHUB_TOKEN`만 사용합니다(무의존성 urllib). 코멘트 실패는 보안 게이트를 절대 실패시키지 않습니다.
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 - `appguardrail serve` — 멀티테넌트 **control-plane API**(스캔 인제스트 + 히스토리). 일회성 CLI를 넘어, CI가 매 스캔의 `appguardrail.findings.v1`을 org별 API 키로 영속 저장하고 시간에 따른 추이를 조회할 수 있는 지속형 백본입니다. stdlib(sqlite3 + http.server)만 사용하며 org별 테넌트 격리를 강제합니다.
   - 엔드포인트: `POST /api/v1/scans`(인제스트), `GET /api/v1/scans`(히스토리), `GET /api/v1/scans/{id}`(상세), `GET /api/v1/health`.
@@ -47,6 +49,10 @@
   - `hardcoded-aws-access-key-id`(AKIA/ASIA), `hardcoded-github-token`(ghp_/github_pat_), `hardcoded-google-api-key`(AIza), `hardcoded-private-key-block`(PEM) — 모두 CRITICAL.
   - `supabase-auth-admin-client-usage`(auth.admin.* 클라이언트 노출), `node-open-redirect-user-input`(req 입력 redirect), `insecure-random-security-token`(토큰에 Math.random) — HIGH.
   - `wildcard-postmessage-target`(postMessage 대상 '*') — WARNING.
+- 제공자별 고정밀 시크릿 탐지 룰 6종 추가(distinctive prefix 기반, 안전 코드 오탐 0 검증):
+  - `hardcoded-slack-token`(xoxb/xoxa/xoxp/… Slack 토큰), `hardcoded-twilio-credential`(Twilio Account SID `AC…`/API key `SK…`), `hardcoded-sendgrid-api-key`(`SG.` SendGrid 키), `hardcoded-npm-token`(`npm_` npm 토큰), `hardcoded-pypi-token`(`pypi-AgEIcHlwaS…` PyPI 토큰) — 모두 CRITICAL.
+  - `hardcoded-slack-webhook-url`(`hooks.slack.com/services/…` incoming webhook) — HIGH.
+  - 모든 룰에 `cwe: [CWE-798]`, `owasp: [A07:2021]` 부여. 기존 룰(OpenAI/Anthropic/Stripe/AWS/GitHub/Google/PEM)과 중복 없음.
 
 ### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.
