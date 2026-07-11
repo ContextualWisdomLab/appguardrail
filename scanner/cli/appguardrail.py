@@ -3122,8 +3122,9 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             else:
                 self.send_error(404)
 
-        def log_message(self, *_args):  # keep the console quiet
-            pass
+        def log_message(self, *_args):
+            """Suppress default HTTP request logging for the local dashboard."""
+            return None
 
     return http.server.HTTPServer((host, port), _Handler)
 

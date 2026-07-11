@@ -30,6 +30,12 @@ def test_pr_number_from_event(tmp_path):
     assert gc._pr_number(str(ev), None) == 99
 
 
+def test_pr_number_falls_back_to_ref_for_bad_event_number(tmp_path):
+    ev = tmp_path / "event.json"
+    ev.write_text(json.dumps({"pull_request": {"number": "bad"}}), encoding="utf-8")
+    assert gc._pr_number(str(ev), "refs/pull/17/merge") == 17
+
+
 def test_post_skips_without_token(monkeypatch):
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")

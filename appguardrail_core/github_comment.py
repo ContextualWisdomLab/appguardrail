@@ -31,6 +31,14 @@ def build_comment(findings: list[dict[str, Any]]) -> str:
 
 def _pr_number(event_path: Optional[str], ref: Optional[str]) -> Optional[int]:
     """Resolve the PR number from the Actions event payload or ref."""
+    ref_pr: Optional[int] = None
+    if ref and ref.startswith("refs/pull/"):
+        parts = ref.split("/")
+        try:
+            ref_pr = int(parts[2])
+        except (IndexError, ValueError):
+            ref_pr = None
+
     event: Any = None
     if event_path and os.path.exists(event_path):
         try:
@@ -45,15 +53,8 @@ def _pr_number(event_path: Optional[str], ref: Optional[str]) -> Optional[int]:
             try:
                 return int(number)
             except (TypeError, ValueError):
-                event = None
-    # refs/pull/<n>/merge fallback.
-    if ref and ref.startswith("refs/pull/"):
-        parts = ref.split("/")
-        try:
-            return int(parts[2])
-        except (IndexError, ValueError):
-            return None
-    return None
+                return ref_pr
+    return ref_pr
 
 
 def _request(method: str, url: str, token: str, body: Optional[dict] = None) -> Any:
