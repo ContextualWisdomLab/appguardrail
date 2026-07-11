@@ -1,0 +1,101 @@
+rules:
+  - id: vue-v-html-usage
+    patterns:
+      - pattern-regex: '(?i)\sv-html\s*='
+    message: |
+      Vue template uses the v-html directive, which renders raw HTML and is
+      the Vue equivalent of dangerouslySetInnerHTML. If the bound value
+      contains user-controlled content this is an XSS sink. Render text with
+      mustache interpolation instead, or sanitize the HTML with a library
+      like DOMPurify before binding it.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-79]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.vue"
+
+  - id: svelte-html-tag-usage
+    patterns:
+      - pattern-regex: '\{@html\s'
+    message: |
+      Svelte template uses the raw HTML tag, which injects markup without
+      escaping. Svelte does not sanitize these expressions, so any
+      user-controlled value becomes an XSS sink. Render plain expressions
+      instead, or sanitize the HTML with a library like DOMPurify before
+      passing it to the template.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-79]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - "**/*.svelte"
+
+  - id: nuxt-public-env-secret
+    patterns:
+      - pattern-regex: '\bNUXT_PUBLIC_[A-Z0-9_]*(?:SECRET|PASSWORD|PRIVATE_KEY|SERVICE_ROLE|DATABASE_URL|ACCESS_KEY)[A-Z0-9_]*'
+    message: |
+      A secret-named environment variable uses the NUXT_PUBLIC_ prefix.
+      Nuxt embeds every runtimeConfig.public value in the client bundle, so
+      this value ships to every visitor's browser. Drop the public prefix,
+      keep the value in server-only runtimeConfig, and rotate the exposed
+      credential.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-540]
+    owasp: [A02:2021]
+
+  - id: vite-env-secret-exposed
+    patterns:
+      - pattern-regex: '\bVITE_[A-Z0-9_]*(?:SECRET|PASSWORD|PRIVATE_KEY|SERVICE_ROLE|ACCESS_KEY)[A-Z0-9_]*\s*='
+    message: |
+      A secret-named environment variable uses the VITE_ prefix in an env
+      file. Vite statically inlines every VITE_ variable into the client
+      JavaScript bundle, so this value is readable by anyone who loads the
+      app. Remove the VITE_ prefix, move the value to a server-side
+      environment, and rotate the exposed credential.
+    severity: CRITICAL
+    languages: [generic]
+    cwe: [CWE-540]
+    owasp: [A02:2021]
+    paths:
+      include:
+        - "**/.env*"
+
+  - id: sveltekit-private-env-in-client
+    patterns:
+      - pattern-regex: 'from\s+[''"]\$env/(?:static|dynamic)/private[''"]'
+    message: |
+      A Svelte component imports SvelteKit private environment variables.
+      Components can be server-rendered and then hydrated in the browser, so
+      private env values must never be referenced from .svelte files. Read
+      the value in a server-only module (+page.server.ts, +layout.server.ts,
+      or hooks.server.ts) and pass only the data the client needs.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-200]
+    owasp: [A02:2021]
+    paths:
+      include:
+        - "**/*.svelte"
+
+  - id: sveltekit-csrf-origin-check-disabled
+    patterns:
+      - pattern-regex: '\bcheckOrigin\s*:\s*false\b'
+    message: |
+      SvelteKit CSRF origin checking is disabled in svelte.config. With
+      checkOrigin turned off, SvelteKit accepts cross-origin form submissions
+      to your form actions, enabling CSRF attacks against authenticated
+      users. Re-enable the default origin check and, if a trusted external
+      origin must post forms, validate it explicitly in a server hook.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-352]
+    owasp: [A01:2021]
+    paths:
+      include:
+        - "**/svelte.config.js"
+        - "**/svelte.config.ts"
+        - "**/svelte.config.mjs"

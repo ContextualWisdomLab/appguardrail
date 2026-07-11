@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 수정
+- SARIF 출력 견고성: (1) `startLine`을 방어적으로 coerce합니다 — 외부 엔진(Trivy 등)이 `"12-14"`·`"n/a"` 같은 비정수 line을 내면 `int()`가 던져 리포트 전체가 크래시했습니다(불량 finding 1개 → 리포트 전멸). (2) 공백만 있는 message의 shortDescription 추출 시 IndexError를 방지합니다. (3) `ruleIndex` 계산을 O(n²)에서 O(1)로 바꿨습니다(대량 finding 성능).
+
 ### 보안
 - Strix 및 저장소 보안 수정 이력에서 반복 확인된 SSRF/LFI 패턴을 정밀 탐지하는 `scanner/rules/ssrf.yml` 룰팩을 추가했습니다. Python/Node 요청 입력의 직접 네트워크 싱크, HTTP(S) 스킴만 확인하는 불완전한 방어, IPv4 전용 `gethostbyname` 검증, 검증 없이 따라가는 리다이렉트 `Location`을 탐지합니다. 모든 규칙은 정상 대조군을 포함한 회귀 테스트를 제공하며, 단순 동적 URL 사용 전체를 차단하는 광범위 규칙은 오탐 방지를 위해 제외했습니다.
 - 리포트 출력 하드닝 — 생성된 markdown 리포트가 HTML로 렌더될 때 악성 finding 내용(예: 외부 엔진이 스캔한 코드의 `<script>`)이 주입되지 않도록, 프로즈 필드(message/remediation/verification)를 HTML 이스케이프하고 snippet의 code-fence 탈출을 무력화합니다(모든 리포트 타입). rule_id/category/context 등 제약된 식별자는 그대로 둡니다.
@@ -26,6 +29,15 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- `appguardrail rules` — 로드된 전체 탐지 룰(내장 + 패키지 YAML)을 severity 순으로 나열합니다. 상단에 severity별 집계, 룰별로 적용 확장자 스코프를 표시해 "우리 스택이 커버되나?"를 즉시 감사할 수 있습니다. `--json`은 `appguardrail.rules.v1` 스키마로 기계가독 출력합니다.
+- Vue/Svelte/Nuxt 프런트엔드 룰 팩 `scanner/rules/vue-svelte.yml` 6종 추가(고정밀, 경로 스코프 적용). React(`dangerouslySetInnerHTML`)만 다루던 프런트엔드 XSS·시크릿 노출 탐지를 Vue·Svelte 생태계로 확장합니다.
+  - `vue-v-html-usage` — `.vue` 템플릿의 `v-html` 디렉티브(raw HTML 렌더링, XSS 싱크). HIGH.
+  - `svelte-html-tag-usage` — `.svelte` 템플릿의 raw HTML 태그(이스케이프 없이 마크업 주입). HIGH.
+  - `nuxt-public-env-secret` — 시크릿 성격 이름의 환경 변수에 NUXT_PUBLIC_ 접두사 사용(클라이언트 번들에 노출). CRITICAL.
+  - `vite-env-secret-exposed` — `.env*` 파일에서 시크릿 성격 이름의 변수에 VITE_ 접두사 사용(Vite가 클라이언트 번들에 인라인). CRITICAL.
+  - `sveltekit-private-env-in-client` — `.svelte` 컴포넌트에서 SvelteKit private env(`$env/*/private`) import. HIGH.
+  - `sveltekit-csrf-origin-check-disabled` — svelte.config에서 CSRF origin 검사 비활성화. HIGH.
+  - `tests/test_vue_svelte_rules.py`: 룰별 양성·음성 정밀도, severity, 경로 스코프, e2e 스캔(취약/안전 프로젝트) 검증.
 - Kotlin / Android 네이티브 룰 팩 `scanner/rules/kotlin-android.yml` — `.kt`/`.kts` 소스 전용 고정밀 룰 6종을 추가했습니다. 기존 팩이 다루지 않던 Kotlin 소스 사각지대를 메우며, `paths.include`로 Kotlin 파일에만 적용되어 다른 스택에 오탐을 만들지 않습니다.
   - `kotlin-webview-universal-file-access` — WebView `allowUniversalAccessFromFileURLs`/`allowFileAccessFromFileURLs` 활성화(로컬 파일 탈취 경로). CRITICAL.
   - `kotlin-sql-injection-raw` — `rawQuery`/`execSQL`에 문자열 템플릿(`$var`) 또는 `+` 연결로 SQL 조립. CRITICAL.
@@ -107,6 +119,13 @@
   - `hardcoded-slack-token`(xoxb/xoxa/xoxp/… Slack 토큰), `hardcoded-twilio-credential`(Twilio Account SID `AC…`/API key `SK…`), `hardcoded-sendgrid-api-key`(`SG.` SendGrid 키), `hardcoded-npm-token`(`npm_` npm 토큰), `hardcoded-pypi-token`(`pypi-AgEIcHlwaS…` PyPI 토큰) — 모두 CRITICAL.
   - `hardcoded-slack-webhook-url`(`hooks.slack.com/services/…` incoming webhook) — HIGH.
   - 모든 룰에 `cwe: [CWE-798]`, `owasp: [A07:2021]` 부여. 기존 룰(OpenAI/Anthropic/Stripe/AWS/GitHub/Google/PEM)과 중복 없음.
+- Ansible 플레이북 룰 팩 6종 추가(`scanner/rules/ansible.yml`, 고정밀 — Kubernetes/Helm/docker-compose/GitHub Actions 등 유사 YAML에는 반응하지 않도록 Ansible 전용 모듈·키에 앵커링, look-alike 음성 케이스 e2e 검증):
+  - `ansible-become-password-literal` — `ansible_become_pass`를 Vault 없이 평문 리터럴로 저장(관리 대상 전 호스트 root 노출). CRITICAL.
+  - `ansible-ssh-password-literal` — `ansible_ssh_pass`/`ansible_password` 평문 리터럴(SSH 접속 자격 증명 노출). CRITICAL.
+  - `ansible-shell-command-injection` — `shell:`/`command:` 태스크에 Jinja2 변수 직접 보간(명령 주입, `| quote` 필터 부재). HIGH.
+  - `ansible-validate-certs-false` — `validate_certs: false`로 TLS 검증 비활성화(중간자 변조 허용). HIGH.
+  - `ansible-file-mode-world-writable` — 파일 배포 권한 0777/0666(로컬 권한 상승 표적). HIGH.
+  - `ansible-host-key-checking-disabled` — SSH host key 검증 비활성화(YAML 변수 및 `ansible.cfg` 모두 탐지). HIGH.
 - Java/Spring 보안 룰팩 `scanner/rules/java-spring.yml` 추가(고정밀 5종, 내장 Java 룰과 중복 없음):
   - `java-sql-injection-concat` — `createQuery`/`prepareStatement`/`executeQuery`에 문자열 리터럴 + 변수 연결로 SQL/JPQL 조립. CRITICAL.
   - `java-runtime-exec-concat` — `Runtime.getRuntime().exec`/`ProcessBuilder`에 문자열 연결로 OS 명령 조립. CRITICAL.
