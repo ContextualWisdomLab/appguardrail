@@ -114,12 +114,44 @@ gate. Set the `APPGUARDRAIL_CONTROL_PLANE_URL` and `APPGUARDRAIL_API_KEY`
 repository secrets and that workflow also pushes every scan to your control
 plane for history and drift tracking.
 
+### GitHub Actions
+
+Add the scanner to any workflow with one step — it's a composite action:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write   # for SARIF upload
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ContextualWisdomLab/appguardrail@v1
+        # inputs (all optional): path, sarif, upload-sarif, pr-comment, fail-on-blocking, version
+```
+
+For the PR comment, also grant `pull-requests: write`.
+
+Inside Actions the scanner **auto-detects the environment** (`GITHUB_ACTIONS=true`)
+and, with no extra flags, emits:
+
+- **Inline PR annotations** — each finding as a `::error` (deploy-blocking) or
+  `::warning` on the exact file/line, so reviewers see them on the diff.
+- **A job summary** — a severity breakdown and top findings written to the run's
+  summary page (`$GITHUB_STEP_SUMMARY`).
+- **A sticky PR comment** — one comment with the findings roll-up, updated in
+  place on every push (needs `pull-requests: write`; disable with `pr-comment: false`).
+
+Force the same output locally with `appguardrail scan --github .`.
+
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
 - Hardcoded provider API tokens by distinctive prefix: OpenAI/Anthropic (`sk-`, `sk-ant-`), AWS (`AKIA`/`ASIA`), GitHub (`ghp_`/`github_pat_`), Google (`AIza`), Slack (`xoxb-…` tokens and `hooks.slack.com` webhooks), Twilio (`AC…`/`SK…`), SendGrid (`SG.…`), npm (`npm_…`), and PyPI (`pypi-AgEIcHlwaS…`)
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
+- PHP/WordPress risks (SQL concatenation with superglobals, `unserialize()`/`include`/shell-exec on request input, `eval()`, `WP_DEBUG` enabled)
 - AWS CloudFormation template misconfigurations (public S3 ACLs, world-open
   security groups, `*:*` IAM policies, public/unencrypted databases, secret
   parameter defaults)
@@ -131,6 +163,14 @@ Detects:
 - Risky file upload handlers
 - Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
   `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
+- C#/.NET risks — SQL built by string concatenation/interpolation,
+  `BinaryFormatter`-family deserialization, string-built `Process.Start`
+  commands, `ValidateRequest="false"`, insecure cookie flags, and literal
+  connection-string passwords in `appsettings*.json`/`web.config`
+- Go security pitfalls (SQL/command injection via `fmt.Sprintf` and `sh -c`, `InsecureSkipVerify`, `math/rand` tokens, hardcoded JWT signing keys, exposed `pprof`)
+- Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
+  string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
+  assignment, disabled CSRF protection, and hardcoded `secret_key_base`
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
@@ -138,6 +178,20 @@ documented rule fixtures until the lightweight engine grows structural matching.
 
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
+
+#### Skip vendored/generated code with `.appguardrailignore` (optional)
+
+Drop a `.appguardrailignore` at the scan root — gitignore-style globs, one per
+line (`#` comments). A bare name (`vendor/`) matches anywhere in the tree:
+
+```
+# third-party bundles
+vendor/
+*.min.js
+docs/generated
+```
+
+The scan prints how many files were skipped, so nothing disappears silently.
 
 #### Tune the gate with `.appguardrail.json` (optional)
 
@@ -156,6 +210,19 @@ the whole team — no CLI flags needed:
 - `exclude_rules` — rule ids to drop from the gate (findings still show, but
   don't fail the build). An invalid config fails the scan loudly rather than
   silently passing.
+
+### Show progress between scans
+
+```bash
+appguardrail scan --findings-json before.json .
+# ...fix things...
+appguardrail scan --findings-json after.json .
+appguardrail diff-report before.json after.json --out progress.md
+```
+
+The diff report buckets findings into **fixed / new / persisting** (line moves
+count as persisting, not fixed+new) and leads with a verdict — regression,
+improved, in progress, or unchanged — ready to attach as buyer/audit evidence.
 
 ### Auto-fix safe issues
 
@@ -312,6 +379,20 @@ This writes `appguardrail-buyer-evidence/` with:
 
 Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
 need a non-default organization, custom artifact path, or offline snapshot.
+
+### Use with the pre-commit framework
+
+If your team uses [pre-commit](https://pre-commit.com), add three lines to
+`.pre-commit-config.yaml` — every commit gets scanned, and deploy-blocking
+findings block the commit:
+
+```yaml
+repos:
+  - repo: https://github.com/ContextualWisdomLab/appguardrail
+    rev: v0.1.1
+    hooks:
+      - id: appguardrail
+```
 
 ### Install continuous monitoring
 
