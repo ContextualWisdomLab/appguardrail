@@ -24,8 +24,7 @@ CASES = {
     ),
     "hardcoded-slack-webhook-url": (
         [
-            "https://hooks.slack.com/services/T00000000/B00000000/"
-            + "X" * 24,
+            "https://hooks.slack.com/services/T00000000/B00000000/" + "X" * 24,
             "https://hooks.slack.com/services/T1A2B3C4D/B5E6F7G8H/abcDEF123456",
         ],
         [

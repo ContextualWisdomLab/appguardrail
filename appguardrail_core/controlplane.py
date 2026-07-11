@@ -216,8 +216,8 @@ def _slack_blocks(
 
 def _is_safe_url(url: str) -> bool:
     import ipaddress
-    import urllib.parse
     import socket
+    import urllib.parse
 
     try:
         parsed = urllib.parse.urlparse(url)

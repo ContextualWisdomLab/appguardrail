@@ -1208,9 +1208,7 @@ def test_run_codegraph_command_rejects_unexpected_arguments(tmp_path):
 def test_run_codegraph_command_allows_windows_wrapper(tmp_path):
     process = type("Process", (), {"returncode": 0, "stdout": "synced", "stderr": ""})()
 
-    with patch(
-        "scanner.cli.appguardrail.subprocess.run", return_value=process
-    ) as run:
+    with patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
         assert (
             _run_codegraph_command(["codegraph.ps1", "sync"], tmp_path, "sync")
             == "synced"
