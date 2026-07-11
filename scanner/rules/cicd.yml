@@ -1,0 +1,38 @@
+rules:
+  - id: github-action-mutable-ref
+    patterns:
+      - pattern-regex: 'uses:\s*[A-Za-z0-9_./-]+@(?:main|master)\b'
+    message: |
+      GitHub Action pinned to a moving branch (@main/@master). A compromised or
+      updated action then runs in your pipeline with your secrets. Pin third-party
+      actions to a full commit SHA (or at least an immutable release tag).
+    severity: WARNING
+    languages: [generic]
+    cwe: [CWE-829]
+    owasp: [A08:2021]
+
+  - id: github-actions-pull-request-target
+    patterns:
+      - pattern-regex: 'pull_request_target:'
+    message: |
+      Workflow triggered by pull_request_target runs with repository secrets and
+      write access in the context of a fork PR. If it checks out and runs the PR
+      head, an attacker can exfiltrate secrets (poisoned pipeline execution).
+      Avoid it, or never build/run untrusted PR code in this trigger.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-269]
+    owasp: [A08:2021]
+
+  - id: github-actions-script-injection
+    patterns:
+      - pattern-regex: '\$\{\{\s*github\.event\.(?:issue\.(?:title|body)|pull_request\.(?:title|body|head\.ref)|comment\.body|review\.body|head_commit\.message)'
+    message: |
+      Attacker-controllable input (github.event title/body/branch) interpolated
+      into a workflow expression. If used in a run: shell step this is command
+      injection. Pass it via an env: var and reference "$VAR" instead of inlining
+      the ${{ ... }} expression in the script.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-94]
+    owasp: [A03:2021]
