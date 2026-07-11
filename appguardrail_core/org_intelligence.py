@@ -136,15 +136,15 @@ def build_org_inventory(
         }
     )
     supported_nonforks = sum(
-        1
-        for repo in nonforks
-        if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
+        1 for repo in nonforks if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
     )
     return OrgInventory(
         total_repositories=len(repo_list),
         nonfork_repositories=len(nonforks),
         fork_repositories=len(forks),
-        private_repositories=sum(1 for repo in repo_list if _truthy(repo.get("isPrivate"))),
+        private_repositories=sum(
+            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
+        ),
         supported_nonfork_repositories=supported_nonforks,
         unsupported_nonfork_languages=tuple(unsupported),
         primary_language_counts=_sorted_counts(primary_languages),
@@ -359,6 +359,7 @@ def render_org_readiness_report(
 def _recommendations(
     inventory: OrgInventory, pr_summary: PullRequestGateSummary
 ) -> list[str]:
+    """Return narrative recommendations from inventory and PR gate facts."""
     recommendations: list[str] = []
     if inventory.unsupported_nonfork_languages:
         languages = ", ".join(inventory.unsupported_nonfork_languages)
@@ -390,6 +391,7 @@ def _recommendations(
 
 
 def _first_actions(pr_summary: PullRequestGateSummary) -> list[str]:
+    """Return the first operational actions implied by PR action buckets."""
     action_counts = dict(pr_summary.action_bucket_counts)
     actions: list[str] = []
     if action_counts.get("source-work"):
@@ -419,8 +421,13 @@ def _seven_day_plan(
     inventory: OrgInventory,
     pr_summary: PullRequestGateSummary,
 ) -> list[str]:
+    """Build a short execution plan from inventory gaps and PR gates."""
     action_counts = dict(pr_summary.action_bucket_counts)
-    top_repo = pr_summary.top_repositories[0].repository if pr_summary.top_repositories else "the highest-risk repository"
+    top_repo = (
+        pr_summary.top_repositories[0].repository
+        if pr_summary.top_repositories
+        else "the highest-risk repository"
+    )
     plan: list[str] = []
     if action_counts.get("source-work"):
         plan.append(
@@ -450,6 +457,7 @@ def _seven_day_plan(
 
 
 def _primary_language(repo: Mapping[str, Any]) -> str:
+    """Extract a repository primary language from GraphQL or flattened JSON."""
     language = repo.get("primaryLanguage")
     if isinstance(language, Mapping):
         return str(language.get("name") or "Unknown")
@@ -457,6 +465,7 @@ def _primary_language(repo: Mapping[str, Any]) -> str:
 
 
 def _default_branch(repo: Mapping[str, Any]) -> str:
+    """Extract a repository default branch from GraphQL or flattened JSON."""
     branch = repo.get("defaultBranchRef")
     if isinstance(branch, Mapping):
         return str(branch.get("name") or "Unknown")
@@ -464,6 +473,7 @@ def _default_branch(repo: Mapping[str, Any]) -> str:
 
 
 def _pr_repository(pr: Mapping[str, Any]) -> str:
+    """Extract a stable repository name from a PR payload."""
     repo = pr.get("repository")
     if isinstance(repo, Mapping):
         return str(repo.get("nameWithOwner") or repo.get("name") or "unknown")
@@ -474,6 +484,7 @@ def _top_repositories(
     classified: list[tuple[Mapping[str, Any], str]],
     limit: int,
 ) -> tuple[RepositoryGateSummary, ...]:
+    """Rank repositories by actionable PR work and return the top entries."""
     by_repo: dict[str, Counter[str]] = {}
     for pr, gate in classified:
         by_repo.setdefault(_pr_repository(pr), Counter())[gate] += 1
@@ -497,6 +508,7 @@ def _repository_gate_summary(
     repository: str,
     gate_counts: Counter[str],
 ) -> RepositoryGateSummary:
+    """Convert detailed gate counts for one repository into action buckets."""
     bucket_counts = Counter(
         {
             "source-work": 0,
@@ -521,6 +533,7 @@ def _repository_gate_summary(
 
 
 def _check_states(pr: Mapping[str, Any]) -> set[str]:
+    """Collect normalized status check states from a PR payload."""
     states: set[str] = set()
     for check in pr.get("statusCheckRollup") or ():
         if not isinstance(check, Mapping):
@@ -531,20 +544,28 @@ def _check_states(pr: Mapping[str, Any]) -> set[str]:
 
 
 def _truthy(value: Any) -> bool:
+    """Interpret GitHub-style boolean fields and truthy strings."""
     return value is True or str(value).lower() in {"1", "true", "yes"}
 
 
 def _sorted_counts(counter: Counter[str]) -> tuple[tuple[str, int], ...]:
+    """Sort count tuples by descending count and then name."""
     return tuple(sorted(counter.items(), key=lambda item: (-item[1], item[0])))
 
 
 def _table(label: str, rows: tuple[tuple[str, int], ...]) -> list[str]:
+    """Render a two-column Markdown count table."""
     if not rows:
         return [f"| {label} | Count |", "|---|---:|", "| n/a | 0 |"]
-    return [f"| {label} | Count |", "|---|---:|", *[f"| {key} | {count} |" for key, count in rows]]
+    return [
+        f"| {label} | Count |",
+        "|---|---:|",
+        *[f"| {key} | {count} |" for key, count in rows],
+    ]
 
 
 def _repo_gate_table(rows: tuple[RepositoryGateSummary, ...]) -> list[str]:
+    """Render repository gate summaries as a Markdown table."""
     header = (
         "| Repository | Open PRs | Source work | CI failures | External wait | Merge ready | Needs triage |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -561,12 +582,16 @@ def _repo_gate_table(rows: tuple[RepositoryGateSummary, ...]) -> list[str]:
 
 
 def _buyer_metric_table(rows: tuple[BuyerEvidenceMetric, ...]) -> list[str]:
+    """Render buyer evidence metrics as a Markdown table."""
     header = (
         "| KPI | Status | Observed | Target |",
         "|---|---|---|---|",
     )
     if not rows:
-        return [*header, "| n/a | fail | no evidence | evidence pack should include KPI rows |"]
+        return [
+            *header,
+            "| n/a | fail | no evidence | evidence pack should include KPI rows |",
+        ]
     return [
         *header,
         *[
@@ -577,6 +602,7 @@ def _buyer_metric_table(rows: tuple[BuyerEvidenceMetric, ...]) -> list[str]:
 
 
 def _threshold_status(value: float, *, pass_at: float, warn_at: float) -> str:
+    """Return pass, warn, or fail for metrics where higher is better."""
     if value >= pass_at:
         return "pass"
     if value >= warn_at:
@@ -585,6 +611,7 @@ def _threshold_status(value: float, *, pass_at: float, warn_at: float) -> str:
 
 
 def _inverse_threshold_status(value: float, *, pass_at: float, warn_at: float) -> str:
+    """Return pass, warn, or fail for metrics where lower is better."""
     if value <= pass_at:
         return "pass"
     if value <= warn_at:
@@ -593,6 +620,7 @@ def _inverse_threshold_status(value: float, *, pass_at: float, warn_at: float) -
 
 
 def _overall_status(metrics: tuple[BuyerEvidenceMetric, ...]) -> str:
+    """Collapse metric statuses into the most severe overall status."""
     statuses = {metric.status for metric in metrics}
     if "fail" in statuses:
         return "fail"
@@ -602,8 +630,10 @@ def _overall_status(metrics: tuple[BuyerEvidenceMetric, ...]) -> str:
 
 
 def _percent(value: float) -> str:
+    """Format a ratio as a one-decimal percentage."""
     return f"{value:.1%}"
 
 
 def _yes_no(value: bool) -> str:
+    """Format a boolean for the Markdown report."""
     return "yes" if value else "no"
