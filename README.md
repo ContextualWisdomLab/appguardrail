@@ -53,6 +53,15 @@ Agent. See [Release Automation](docs/release-automation.md).
 For the productization roadmap, see the
 [2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
 
+### Or run via Docker (no install)
+
+```bash
+docker build -t appguardrail .
+docker run --rm -v "$PWD:/src" appguardrail scan /src
+```
+
+Runs as a non-root user; exit code 1 means deploy-blocking findings.
+
 ### Initialize security rules in your project
 
 ```bash
@@ -164,6 +173,8 @@ Detects:
 - Missing Stripe webhook signature verification
 - Unprotected admin routes
 - Risky file upload handlers
+- Insecure Electron desktop-app configuration (`nodeIntegration`, disabled
+  `contextIsolation`/`webSecurity`, unvalidated `shell.openExternal`)
 - C#/.NET risks — SQL built by string concatenation/interpolation,
   `BinaryFormatter`-family deserialization, string-built `Process.Start`
   commands, `ValidateRequest="false"`, insecure cookie flags, and literal
@@ -172,6 +183,8 @@ Detects:
 - Ruby on Rails risks (`scanner/rules/rails.yml`): SQL/command injection via
   string interpolation, `raw`/`html_safe` XSS, `params.permit!` mass
   assignment, disabled CSRF protection, and hardcoded `secret_key_base`
+- Java/Spring pitfalls (SQL/command concat injection, XXE parser flags,
+  trust-all `X509TrustManager`, wide-open Spring Boot Actuator exposure)
 
 The scanner loads built-in Python rules and supported `pattern-regex` entries
 from `scanner/rules/*.yml`. Semgrep-style structural `pattern:` entries remain
