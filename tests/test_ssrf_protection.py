@@ -1,4 +1,3 @@
-import pytest
 from appguardrail_core.controlplane import _is_safe_url
 
 

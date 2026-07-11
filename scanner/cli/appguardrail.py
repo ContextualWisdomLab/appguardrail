@@ -1601,6 +1601,7 @@ def _is_safe_url(url: str) -> bool:
         if ip.is_loopback or ip.is_private or ip.is_link_local:
             return False
     except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
         pass
 
     try:
@@ -2700,9 +2701,16 @@ def _run_codegraph_command(command, cwd: Path, action: str):
                 "CodeGraph command argument contains control characters."
             )
 
-    executable = Path(command[0]).name
+    executable = Path(command[0]).name.lower()
+    allowed_executables = {
+        "codegraph",
+        "codegraph.bat",
+        "codegraph.cmd",
+        "codegraph.exe",
+        "codegraph.ps1",
+    }
     allowed_args = {("sync",), ("init", "-i"), ("status",)}
-    if executable != "codegraph" or tuple(command[1:]) not in allowed_args:
+    if executable not in allowed_executables or tuple(command[1:]) not in allowed_args:
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
     try:

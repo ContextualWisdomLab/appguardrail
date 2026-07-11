@@ -236,6 +236,7 @@ def _is_safe_url(url: str) -> bool:
         if ip.is_loopback or ip.is_private or ip.is_link_local:
             return False
     except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
         pass
 
     try:
