@@ -218,6 +218,7 @@ def _is_safe_url(url: str) -> bool:
     import ipaddress
     import urllib.parse
     import socket
+
     try:
         parsed = urllib.parse.urlparse(url)
     except ValueError:
@@ -231,10 +232,20 @@ def _is_safe_url(url: str) -> bool:
     raw = host.split("%", 1)[0].strip("[]")
 
     try:
-        ip_str = socket.gethostbyname(raw)
-        ip = ipaddress.ip_address(ip_str)
+        ip = ipaddress.ip_address(raw)
         if ip.is_loopback or ip.is_private or ip.is_link_local:
             return False
+    except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(raw, None)
+        for entry in resolved:
+            ip_str = entry[4][0].split("%", 1)[0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_loopback or ip.is_private or ip.is_link_local:
+                return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
         # This allows dummy domains in tests like `hook.example`.
@@ -276,7 +287,9 @@ def _send_alert(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(req, timeout=10)  # noqa: S310 - Safe URL scheme validated
+        urllib.request.urlopen(
+            req, timeout=10
+        )  # noqa: S310 - Safe URL scheme validated
         return True
     except (urllib.error.URLError, OSError, ValueError):
         return False
