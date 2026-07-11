@@ -172,6 +172,20 @@ documented rule fixtures until the lightweight engine grows structural matching.
 Deploy-blocking counts focus on app code. Findings in docs, tests, examples,
 and scanner fixtures stay visible but do not fail the deploy gate by default.
 
+#### Skip vendored/generated code with `.appguardrailignore` (optional)
+
+Drop a `.appguardrailignore` at the scan root — gitignore-style globs, one per
+line (`#` comments). A bare name (`vendor/`) matches anywhere in the tree:
+
+```
+# third-party bundles
+vendor/
+*.min.js
+docs/generated
+```
+
+The scan prints how many files were skipped, so nothing disappears silently.
+
 #### Tune the gate with `.appguardrail.json` (optional)
 
 Commit a `.appguardrail.json` at the repo root to configure the deploy gate for
