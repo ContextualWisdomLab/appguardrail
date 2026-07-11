@@ -116,6 +116,7 @@ plane for history and drift tracking.
 
 Detects:
 - Hardcoded secrets (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, etc.)
+- Hardcoded provider API tokens by distinctive prefix: OpenAI/Anthropic (`sk-`, `sk-ant-`), AWS (`AKIA`/`ASIA`), GitHub (`ghp_`/`github_pat_`), Google (`AIza`), Slack (`xoxb-…` tokens and `hooks.slack.com` webhooks), Twilio (`AC…`/`SK…`), SendGrid (`SG.…`), npm (`npm_…`), and PyPI (`pypi-AgEIcHlwaS…`)
 - Trivy-backed dependency vulnerabilities, secrets, and misconfigurations
 - Bandit/Ruff/Semgrep/ZAP findings when their optional external engines are available
 - Dangerous Supabase/Firebase usage patterns
