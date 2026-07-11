@@ -369,6 +369,20 @@ This writes `appguardrail-buyer-evidence/` with:
 Use `--owner`, `--bundle-dir`, `--repos-json`, or `--prs-json` only when you
 need a non-default organization, custom artifact path, or offline snapshot.
 
+### Use with the pre-commit framework
+
+If your team uses [pre-commit](https://pre-commit.com), add three lines to
+`.pre-commit-config.yaml` — every commit gets scanned, and deploy-blocking
+findings block the commit:
+
+```yaml
+repos:
+  - repo: https://github.com/ContextualWisdomLab/appguardrail
+    rev: v0.1.1
+    hooks:
+      - id: appguardrail
+```
+
 ### Install continuous monitoring
 
 ```bash
