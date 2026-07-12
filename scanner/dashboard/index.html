@@ -74,6 +74,7 @@
   .empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:40px;text-align:center;color:var(--muted)}
   .empty code{background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--text)}
   .drop{margin-top:14px}
+  body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
   a{color:var(--primary)}
 </style>
 <!-- Canonical design tokens (scanner/dashboard/tokens.json) served at /tokens.css;
@@ -230,8 +231,27 @@ document.getElementById('file').addEventListener('change', e=>{
   f.text().then(t=>{ try{ load(JSON.parse(t), f.name); }catch(err){ alert('Invalid JSON: '+err.message); } });
 });
 // drag & drop
-addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)f.text().then(t=>{try{load(JSON.parse(t),f.name);}catch(err){alert('Invalid JSON: '+err.message);}});});
+let dragDepth = 0;
+const isFileDrag = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+addEventListener("dragenter", e => {
+  e.preventDefault();
+  if (!isFileDrag(e)) return;
+  dragDepth += 1;
+  document.body.classList.add("drag-active");
+});
+addEventListener("dragover", e => e.preventDefault());
+addEventListener("dragleave", e => {
+  if (!isFileDrag(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) document.body.classList.remove("drag-active");
+});
+addEventListener("drop", e => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove("drag-active");
+  const f=e.dataTransfer.files[0];
+  if(f)f.text().then(t=>{try{load(JSON.parse(t),f.name);}catch(err){alert('Invalid JSON: '+err.message);}});
+});
 
 // auto-load if served alongside a findings file
 (function autoload(){
