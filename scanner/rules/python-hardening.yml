@@ -1,0 +1,86 @@
+rules:
+  # Python hardening rules — a second batch distilled from the ContextualWisdomLab
+  # Strix / .jules sentinel corpus plus classic CWE classes that the existing
+  # AppGuardrail Python coverage did not yet reach. Each rule targets an
+  # unambiguous stdlib idiom and is scoped to `.py`, so it does not overlap the
+  # SSRF (ssrf.yml), deserialization, or secrets rules already shipped.
+
+  - id: python-tarfile-extractall-untrusted
+    patterns:
+      - pattern-regex: '\.extractall\s*\('
+    message: |
+      tarfile/zipfile extractall() extracts every member without validating
+      paths. A crafted archive with members like ../../etc/cron.d/x or an
+      absolute path escapes the destination directory (Tar Slip / Zip Slip),
+      overwriting arbitrary files. Validate each member and skip absolute or
+      parent-traversing names (Python 3.12+: pass filter="data"), or extract
+      members individually into a resolved, contained directory. [CWE-22 -
+      Improper Limitation of a Pathname to a Restricted Directory]
+      [OWASP A01:2021 - Broken Access Control]
+    severity: HIGH
+    languages: [python]
+    cwe: [CWE-22]
+    owasp: [A01:2021]
+
+  - id: python-jwt-signature-verification-disabled
+    patterns:
+      - pattern-regex: '(?i)verify_signature[\x22\x27]?\s*:\s*False|jwt\.decode\s*\((?:(?!\))[\s\S]){0,200}?\bverify\s*=\s*False'
+    message: |
+      JWT signature verification is turned off (verify_signature: False or
+      verify=False). Any attacker can forge a token with arbitrary claims and
+      fully bypass authentication and authorization. Always verify the
+      signature: call jwt.decode with the correct key and an explicit
+      algorithms=[...] allowlist, and validate issuer, audience, and expiry.
+      [CWE-347 - Improper Verification of Cryptographic Signature]
+      [OWASP A02:2021 - Cryptographic Failures]
+    severity: CRITICAL
+    languages: [python]
+    cwe: [CWE-347]
+    owasp: [A02:2021]
+
+  - id: python-weak-ssl-tls-version
+    patterns:
+      - pattern-regex: '\bssl\.PROTOCOL_(?:SSLv2|SSLv3|TLSv1|TLSv1_1)\b'
+    message: |
+      A broken or deprecated TLS/SSL protocol version is selected (SSLv2, SSLv3,
+      TLSv1, or TLSv1.1). These are vulnerable to POODLE/BEAST-class downgrade
+      and cipher attacks. Use ssl.PROTOCOL_TLS_CLIENT / ssl.PROTOCOL_TLS_SERVER
+      (or an SSLContext with minimum_version = ssl.TLSVersion.TLSv1_2) so only
+      TLS 1.2+ is negotiated. [CWE-326 - Inadequate Encryption Strength]
+      [OWASP A02:2021 - Cryptographic Failures]
+    severity: HIGH
+    languages: [python]
+    cwe: [CWE-326]
+    owasp: [A02:2021]
+
+  - id: python-insecure-random-token
+    patterns:
+      - pattern-regex: '(?i)(?:token|secret|otp|nonce|salt|password|passwd|session|api[_-]?key|reset[_-]?(?:code|token)|verif\w*code)\w*\s*=\s*[^\n=]{0,80}\brandom\.(?:random|randint|randrange|choice|choices|getrandbits|shuffle|sample)\s*\('
+    message: |
+      A security-sensitive value (token, secret, OTP, password, session id, …)
+      is generated with the random module. random is a deterministic Mersenne
+      Twister PRNG and is predictable, so generated secrets can be recovered.
+      Use the secrets module (secrets.token_urlsafe, secrets.token_hex,
+      secrets.choice, secrets.randbelow) for anything security-relevant.
+      [CWE-330 - Use of Insufficiently Random Values]
+      [OWASP A02:2021 - Cryptographic Failures]
+    severity: MEDIUM
+    languages: [python]
+    cwe: [CWE-330]
+    owasp: [A02:2021]
+
+  - id: python-world-writable-chmod
+    patterns:
+      - pattern-regex: '\bos\.chmod\s*\((?:(?!\))[\s\S]){0,80}?0o?(?:777|666)\b'
+    message: |
+      A file or directory is made world-writable (mode 0o777 / 0o666). Any local
+      user can then modify its contents — replacing executables, config, or data
+      — which is a privilege-escalation and integrity risk. Grant the least
+      permission needed (e.g. 0o600 for private files, 0o755 for directories) and
+      never include the others-write bit. [CWE-732 - Incorrect Permission
+      Assignment for Critical Resource]
+      [OWASP A05:2021 - Security Misconfiguration]
+    severity: MEDIUM
+    languages: [python]
+    cwe: [CWE-732]
+    owasp: [A05:2021]
