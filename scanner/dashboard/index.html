@@ -113,6 +113,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 
 let ALL = [];
 let filterSev = '', query = '';
+let lastFocus = null;
 
 function render(){
   const app = document.getElementById('app');
@@ -216,8 +217,22 @@ function openDetail(f){
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
         ${refs?`<div style="margin-top:6px">${refs}</div>`:''}</div>`:''}
     </div>`;
+  lastFocus = document.activeElement;
+  d.addEventListener('close', () => {
+    if (lastFocus) {
+      lastFocus.focus();
+      lastFocus = null;
+    }
+  }, { once: true });
   d.showModal();
 }
+
+// Ensure backdrop click closes the dialog
+document.getElementById('detail').addEventListener('click', e => {
+  if (e.target === document.getElementById('detail')) {
+    document.getElementById('detail').close();
+  }
+});
 
 function load(data, srcLabel){
   // Accept the v1 envelope, a raw array, or any object with a `findings` array.
