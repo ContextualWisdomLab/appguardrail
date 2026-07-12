@@ -1,0 +1,71 @@
+rules:
+  # Python cryptography & transport-security rules — a third batch continuing the
+  # ContextualWisdomLab Strix / .jules sentinel hardening effort. These target
+  # broken ciphers, disabled TLS verification, cleartext network protocols, and a
+  # Django XSS sink that the existing Python coverage did not reach. All rules are
+  # scoped to `.py` and anchored on unambiguous stdlib / well-known library
+  # idioms, so they do not overlap the requests-verify-false, SSRF, or hashing
+  # rules already shipped.
+
+  - id: python-weak-cipher-mode
+    patterns:
+      - pattern-regex: '\bMODE_ECB\b|\b(?:DES|DES3|ARC4|ARC2|Blowfish)\.new\s*\('
+    message: |
+      A broken cipher or cipher mode is used: ECB mode leaks plaintext structure
+      (identical blocks encrypt identically), and DES/3DES/RC4(ARC4)/Blowfish are
+      obsolete. Use AES-GCM (or AES-CBC with a random IV and an HMAC) via a
+      maintained library such as `cryptography`, and never ECB. [CWE-327 - Use of
+      a Broken or Risky Cryptographic Algorithm]
+      [OWASP A02:2021 - Cryptographic Failures]
+    severity: HIGH
+    languages: [python]
+    cwe: [CWE-327]
+    owasp: [A02:2021]
+
+  - id: python-ssl-verification-disabled
+    patterns:
+      - pattern-regex: '\bssl\.CERT_NONE\b|\bcheck_hostname\s*=\s*False\b'
+    message: |
+      TLS certificate or hostname verification is disabled (ssl.CERT_NONE or
+      check_hostname = False). This silently accepts any certificate, enabling
+      machine-in-the-middle interception of the connection. Keep verify_mode =
+      ssl.CERT_REQUIRED and check_hostname = True, and use
+      ssl.create_default_context() which sets both securely by default.
+      [CWE-295 - Improper Certificate Validation]
+      [OWASP A07:2021 - Identification and Authentication Failures]
+    severity: HIGH
+    languages: [python]
+    cwe: [CWE-295]
+    owasp: [A07:2021]
+
+  - id: python-cleartext-protocol-client
+    patterns:
+      - pattern-regex: '\bftplib\.FTP\s*\(|\btelnetlib\.Telnet\s*\(|\bpoplib\.POP3\s*\('
+    message: |
+      A cleartext network protocol client is used (FTP, Telnet, or POP3 without
+      TLS). Credentials and data travel unencrypted and can be sniffed or
+      tampered with. Use the TLS variants (ftplib.FTP_TLS, poplib.POP3_SSL) or a
+      secure protocol (SSH/SFTP, IMAPS), and require TLS on the server.
+      [CWE-319 - Cleartext Transmission of Sensitive Information]
+      [OWASP A02:2021 - Cryptographic Failures]
+    severity: MEDIUM
+    languages: [python]
+    cwe: [CWE-319]
+    owasp: [A02:2021]
+
+  - id: python-django-mark-safe-dynamic
+    patterns:
+      - pattern-regex: '\bmark_safe\s*\(\s*[A-Za-z_]'
+    message: |
+      django.utils.safestring.mark_safe() is called on a dynamic (non-literal)
+      value, which disables Django's automatic HTML escaping. If any part of that
+      value is user-controlled, this is a stored/reflected XSS sink. Render
+      through the template auto-escaping instead, or sanitize with a vetted
+      allowlist sanitizer (e.g. bleach/nh3) before marking safe. Reserve
+      mark_safe for constant, developer-authored HTML. [CWE-79 - Improper
+      Neutralization of Input During Web Page Generation]
+      [OWASP A03:2021 - Injection]
+    severity: MEDIUM
+    languages: [python]
+    cwe: [CWE-79]
+    owasp: [A03:2021]
