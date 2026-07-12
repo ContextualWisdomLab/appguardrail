@@ -6,6 +6,7 @@
 - SARIF 출력 견고성: (1) `startLine`을 방어적으로 coerce합니다 — 외부 엔진(Trivy 등)이 `"12-14"`·`"n/a"` 같은 비정수 line을 내면 `int()`가 던져 리포트 전체가 크래시했습니다(불량 finding 1개 → 리포트 전멸). (2) 공백만 있는 message의 shortDescription 추출 시 IndexError를 방지합니다. (3) `ruleIndex` 계산을 O(n²)에서 O(1)로 바꿨습니다(대량 finding 성능).
 
 ### 보안
+- Strix 및 저장소 보안 수정 이력에서 반복 확인된 SSRF/LFI 패턴을 정밀 탐지하는 `scanner/rules/ssrf.yml` 룰팩을 추가했습니다. Python/Node 요청 입력의 직접 네트워크 싱크, HTTP(S) 스킴만 확인하는 불완전한 방어, IPv4 전용 `gethostbyname` 검증, 검증 없이 따라가는 리다이렉트 `Location`을 탐지합니다. 모든 규칙은 정상 대조군을 포함한 회귀 테스트를 제공하며, 단순 동적 URL 사용 전체를 차단하는 광범위 규칙은 오탐 방지를 위해 제외했습니다.
 - 리포트 출력 하드닝 — 생성된 markdown 리포트가 HTML로 렌더될 때 악성 finding 내용(예: 외부 엔진이 스캔한 코드의 `<script>`)이 주입되지 않도록, 프로즈 필드(message/remediation/verification)를 HTML 이스케이프하고 snippet의 code-fence 탈출을 무력화합니다(모든 리포트 타입). rule_id/category/context 등 제약된 식별자는 그대로 둡니다.
 - control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).
 
