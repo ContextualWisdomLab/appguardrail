@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-12
+
+### Changed
+- Bump AppGuardrail CLI/package version to `0.1.2`.
+- PyPI Trusted Publishing release prepared by GitHub Actions Bot.
+
+### Verification
+- GitHub Actions Bot prepared this release PR; central required OpenCode and Strix workflows plus Security Process provide review evidence.
+- PyPI Trusted Publishing will publish this version after the release PR is merged.
+
+
 ### 수정
 - SARIF 출력 견고성: (1) `startLine`을 방어적으로 coerce합니다 — 외부 엔진(Trivy 등)이 `"12-14"`·`"n/a"` 같은 비정수 line을 내면 `int()`가 던져 리포트 전체가 크래시했습니다(불량 finding 1개 → 리포트 전멸). (2) 공백만 있는 message의 shortDescription 추출 시 IndexError를 방지합니다. (3) `ruleIndex` 계산을 O(n²)에서 O(1)로 바꿨습니다(대량 finding 성능).
 
