@@ -28,6 +28,16 @@ def test_is_safe_url_private_ips():
     assert not _is_safe_url("http://172.16.0.1/")
 
 
+def test_is_safe_url_unspecified_ips():
+    assert not _is_safe_url("http://0.0.0.0/")
+    assert not _is_safe_url("http://[::]/")
+
+
+def test_is_safe_url_multicast_ips():
+    assert not _is_safe_url("http://224.0.0.1/")
+    assert not _is_safe_url("http://[ff00::1]/")
+
+
 def test_is_safe_url_unsupported_schemes():
     assert not _is_safe_url("file:///etc/passwd")
     assert not _is_safe_url("ftp://example.com")
