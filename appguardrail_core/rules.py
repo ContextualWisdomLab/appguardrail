@@ -9,7 +9,10 @@ from typing import Any
 REFERENCE_RE = re.compile(r"\[(OWASP [^\]]+|CWE-\d+[^\]]*|CVE-\d{4}-\d+[^\]]*)\]")
 
 CATEGORY_REFERENCE_DEFAULTS = {
-    "authz": ("OWASP A01:2021 - Broken Access Control", "CWE-862 - Missing Authorization"),
+    "authz": (
+        "OWASP A01:2021 - Broken Access Control",
+        "CWE-862 - Missing Authorization",
+    ),
     "dependency": ("OWASP A06:2021 - Vulnerable and Outdated Components",),
     "injection": ("OWASP A03:2021 - Injection", "CWE-74 - Injection"),
     "misconfig": ("OWASP A05:2021 - Security Misconfiguration",),
