@@ -2250,14 +2250,13 @@ def _collect_files(base_path: Path):
                                 not entry.name.startswith(".")
                                 or entry.name in SECURITY_HIDDEN_DIRS
                             ):
-                                dirs.append(entry.path)
+                                stack.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             _, ext = os.path.splitext(entry.name)
                             if ext.lower() not in SKIP_EXTENSIONS:
                                 yield Path(entry.path)
                     except (OSError, PermissionError):
                         continue
-                stack.extend(reversed(dirs))
         except (OSError, PermissionError):
             pass
 
