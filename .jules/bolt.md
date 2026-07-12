@@ -57,3 +57,7 @@
 ## 2024-05-18 - [Optimize string sanitization in terminal output]
 **Learning:** [Character-by-character generator expressions in Python are significantly slower than native C-level string methods like `isprintable()`. In hot-paths, applying these generator expressions universally causes unnecessary overhead for normal strings.]
 **Action:** [Implement a fast-path pre-check using native C-level string methods (like `text.replace('\t', '').isprintable()`) to bypass slower character-by-character evaluations for strings that don't require escaping.]
+
+## 2024-05-24 - File scanning loop bottleneck with pathlib
+**Learning:** `Path.relative_to` incurs significant overhead in large loops due to heavy internal path resolution and validation. In AppGuardrail's `_is_ignored` function, calling it for every single file discovered during a scan was bottlenecking the performance by adding ~10 seconds of overhead per 100k files.
+**Action:** Replace `Path.relative_to` in tight loops with basic POSIX string slicing (`file_posix[len(root_prefix):]`). Pre-compute the root directory string representation outside the loop to avoid redundant string allocations.

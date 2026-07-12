@@ -23,12 +23,19 @@ def test_load_missing_returns_empty(tmp_path):
 def test_is_ignored_matching(tmp_path):
     patterns = ["vendor", "*.min.js", "docs/generated"]
     root = tmp_path
-    assert _is_ignored(root / "vendor" / "lib.js", root, patterns)
-    assert _is_ignored(root / "app" / "vendor" / "x.js", root, patterns)  # anywhere
-    assert _is_ignored(root / "bundle.min.js", root, patterns)
-    assert _is_ignored(root / "docs" / "generated" / "api.md", root, patterns)
-    assert not _is_ignored(root / "src" / "main.js", root, patterns)
-    assert not _is_ignored(root / "src" / "main.js", root, [])
+    root_posix = root.as_posix()
+    root_prefix = root_posix + "/" if not root_posix.endswith("/") else root_posix
+
+    assert _is_ignored(root / "vendor" / "lib.js", root_posix, root_prefix, patterns)
+    assert _is_ignored(
+        root / "app" / "vendor" / "x.js", root_posix, root_prefix, patterns
+    )  # anywhere
+    assert _is_ignored(root / "bundle.min.js", root_posix, root_prefix, patterns)
+    assert _is_ignored(
+        root / "docs" / "generated" / "api.md", root_posix, root_prefix, patterns
+    )
+    assert not _is_ignored(root / "src" / "main.js", root_posix, root_prefix, patterns)
+    assert not _is_ignored(root / "src" / "main.js", root_posix, root_prefix, [])
 
 
 def test_e2e_scan_respects_ignore(tmp_path):
@@ -43,8 +50,14 @@ def test_e2e_scan_respects_ignore(tmp_path):
     (app / "src" / "main.js").write_text(secret, encoding="utf-8")
     (app / ".appguardrailignore").write_text("vendor/\n", encoding="utf-8")
     out = subprocess.run(
-        [sys.executable, str(REPO / "scanner" / "cli" / "appguardrail.py"), "scan", str(app)],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            str(REPO / "scanner" / "cli" / "appguardrail.py"),
+            "scan",
+            str(app),
+        ],
+        capture_output=True,
+        text=True,
     ).stdout
     assert "vendor/lib.js" not in out
     assert "src/main.js" in out

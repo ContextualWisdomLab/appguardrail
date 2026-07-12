@@ -1402,8 +1402,20 @@ def cmd_scan(args):
     ignored_count = 0
     if ignore_patterns:
         kept = []
+
+        # ⚡ Bolt: Cache scan_path posix representations to avoid redundant processing
+        # in the loop within _is_ignored.
+        scan_root_posix = scan_path.as_posix()
+        scan_root_prefix = (
+            scan_root_posix + "/"
+            if not scan_root_posix.endswith("/")
+            else scan_root_posix
+        )
+
         for file_path in files_to_scan:
-            if _is_ignored(file_path, scan_path, ignore_patterns):
+            if _is_ignored(
+                file_path, scan_root_posix, scan_root_prefix, ignore_patterns
+            ):
                 ignored_count += 1
             else:
                 kept.append(file_path)
@@ -1806,7 +1818,10 @@ def cmd_rules(args):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
     rules = sorted(
         SCAN_RULES,
-        key=lambda r: (severity_order.get(r.get("severity", "INFO"), 9), r.get("id", "")),
+        key=lambda r: (
+            severity_order.get(r.get("severity", "INFO"), 9),
+            r.get("id", ""),
+        ),
     )
     if getattr(args, "json", False):
         payload = [
@@ -2152,7 +2167,9 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
 
 def _load_ignore_patterns(scan_root: Path) -> list:
     """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
-    ignore_file = (scan_root if scan_root.is_dir() else scan_root.parent) / ".appguardrailignore"
+    ignore_file = (
+        scan_root if scan_root.is_dir() else scan_root.parent
+    ) / ".appguardrailignore"
     patterns = []
     try:
         for line in ignore_file.read_text(encoding="utf-8").splitlines():
@@ -2164,14 +2181,24 @@ def _load_ignore_patterns(scan_root: Path) -> list:
     return patterns
 
 
-def _is_ignored(file_path: Path, scan_root: Path, patterns: list) -> bool:
+def _is_ignored(
+    file_path: Path,
+    scan_root_posix: str,
+    scan_root_prefix: str,
+    patterns: list,
+) -> bool:
     """Match a scanned file's relative path against .appguardrailignore globs."""
     if not patterns:
         return False
-    try:
-        rel = file_path.relative_to(scan_root).as_posix()
-    except ValueError:
-        rel = file_path.as_posix()
+
+    file_posix = file_path.as_posix()
+    if file_posix == scan_root_posix:
+        rel = "."
+    elif file_posix.startswith(scan_root_prefix):
+        rel = file_posix[len(scan_root_prefix) :]
+    else:
+        rel = file_posix
+
     for pattern in patterns:
         # A bare name (no slash/glob) also ignores that file/dir anywhere in the tree.
         if (
