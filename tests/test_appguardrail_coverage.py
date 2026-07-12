@@ -471,3 +471,10 @@ def test_path_matches_glob():
 
 def test_parse_inline_list():
     assert _parse_inline_list("[]") == []
+
+def test_is_safe_url_cli_coverage():
+    from scanner.cli.appguardrail import _is_safe_url
+    assert not _is_safe_url("http://0.0.0.0/")
+    assert not _is_safe_url("http://224.0.0.1/")
+    assert not _is_safe_url("http://[::]/")
+    assert not _is_safe_url("http://[ff00::1]/")
