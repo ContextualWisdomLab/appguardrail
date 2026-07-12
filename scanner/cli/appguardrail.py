@@ -1618,7 +1618,16 @@ def _is_safe_url(url: str) -> bool:
 
     try:
         ip = ipaddress.ip_address(raw)
-        if ip.is_loopback or ip.is_private or ip.is_link_local:
+        if getattr(ip, "ipv4_mapped", None):
+            ip = ip.ipv4_mapped
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or not ip.is_global
+        ):
             return False
     except ValueError:
         # Non-IP hostnames are expected; validate resolved addresses below.
@@ -1629,7 +1638,16 @@ def _is_safe_url(url: str) -> bool:
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
             ip = ipaddress.ip_address(ip_str)
-            if ip.is_loopback or ip.is_private or ip.is_link_local:
+            if getattr(ip, "ipv4_mapped", None):
+                ip = ip.ipv4_mapped
+            if (
+                ip.is_loopback
+                or ip.is_private
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or not ip.is_global
+            ):
                 return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
@@ -1806,7 +1824,10 @@ def cmd_rules(args):
     severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
     rules = sorted(
         SCAN_RULES,
-        key=lambda r: (severity_order.get(r.get("severity", "INFO"), 9), r.get("id", "")),
+        key=lambda r: (
+            severity_order.get(r.get("severity", "INFO"), 9),
+            r.get("id", ""),
+        ),
     )
     if getattr(args, "json", False):
         payload = [
@@ -2152,7 +2173,9 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
 
 def _load_ignore_patterns(scan_root: Path) -> list:
     """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
-    ignore_file = (scan_root if scan_root.is_dir() else scan_root.parent) / ".appguardrailignore"
+    ignore_file = (
+        scan_root if scan_root.is_dir() else scan_root.parent
+    ) / ".appguardrailignore"
     patterns = []
     try:
         for line in ignore_file.read_text(encoding="utf-8").splitlines():
