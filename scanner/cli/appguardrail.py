@@ -2067,9 +2067,9 @@ def _collect_files(base_path: Path):
     stack = [str(base_path)]
     while stack:
         current_dir = stack.pop()
+        dirs = []
         try:
             with os.scandir(current_dir) as it:
-                dirs = []
                 for entry in it:
                     try:
                         if entry.is_symlink():
