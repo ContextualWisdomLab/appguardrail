@@ -1,0 +1,67 @@
+rules:
+  # These rules intentionally avoid the broad "any dynamic URL is SSRF" shape.
+  # Each pattern requires either a direct web-request source, or a concrete
+  # validation anti-pattern observed in AppGuardrail's own security history.
+
+  - id: python-request-input-ssrf
+    patterns:
+      - pattern-regex: '(?is)\b(?:requests|httpx)\.(?:get|post|put|patch|delete|request)\s*\(\s*(?:request|req)\.(?:args|query_params|GET|POST)\s*(?:\.get\s*\(|\[)'
+      - pattern-regex: '(?is)\burllib\.request\.urlopen\s*\(\s*(?:request|req)\.(?:args|query_params|GET|POST)\s*(?:\.get\s*\(|\[)'
+    message: |
+      A Python network client receives a URL directly from HTTP request input.
+      This creates a server-side request forgery path to loopback, private,
+      link-local, and cloud metadata services. Parse the URL, require an
+      explicit scheme and destination allowlist, resolve every IPv4/IPv6
+      address, reject non-global addresses, and revalidate redirects.
+      [OWASP A10:2021 - Server-Side Request Forgery] [CWE-918]
+    severity: CRITICAL
+    languages: [python]
+
+  - id: node-request-input-ssrf
+    patterns:
+      - pattern-regex: '(?is)\b(?:fetch|axios(?:\.(?:get|post|put|patch|delete|request))?)\s*\(\s*(?:req|request)\.(?:query|body|params)\b'
+    message: |
+      A Node.js network client receives a URL directly from request query,
+      body, or path parameters. Enforce an exact destination allowlist,
+      resolve and reject non-public IPv4/IPv6 addresses, and revalidate every
+      redirect before issuing the request.
+      [OWASP A10:2021 - Server-Side Request Forgery] [CWE-918]
+    severity: CRITICAL
+    languages: [javascript, typescript]
+
+  - id: python-scheme-only-ssrf-validation
+    patterns:
+      - pattern-regex: '(?is)\b(?:urllib\.parse\.)?(?:urlparse|urlsplit)\s*\([^)]*\)(?:(?!\b(?:ip_address|getaddrinfo|gethostbyname_ex|is_private|is_loopback|is_link_local|is_reserved|is_global)\b).){0,1200}\.scheme\s+(?:not\s+in|in)\s*[\{\(\[]\s*["'']https?["''](?:(?!\b(?:ip_address|getaddrinfo|gethostbyname_ex|is_private|is_loopback|is_link_local|is_reserved|is_global)\b).){0,1200}\b(?:urllib\.request\.urlopen|requests\.(?:get|post|put|patch|delete|request)|httpx\.(?:get|post|put|patch|delete|request))\s*\('
+    message: |
+      URL validation permits HTTP(S) by scheme but reaches a network sink
+      without a nearby destination-address control. Scheme checks block
+      file:// LFI but do not prevent SSRF to loopback, private, link-local, or
+      metadata addresses. Resolve all IPv4/IPv6 results, reject non-global
+      destinations, and apply the same validation after redirects.
+      [OWASP A10:2021 - Server-Side Request Forgery] [CWE-918]
+    severity: HIGH
+    languages: [python]
+
+  - id: python-ipv4-only-ssrf-validation
+    patterns:
+      - pattern-regex: '(?is)\bdef\s+\w*(?:safe|valid|allow)\w*(?:url|host)\w*\s*\([^)]*\)\s*:(?:(?!\n\s*(?:async\s+)?def\s).){0,2500}\bsocket\.gethostbyname\s*\('
+    message: |
+      A URL or hostname safety helper uses socket.gethostbyname(), which only
+      returns an IPv4 address and can leave IPv6 loopback, private, link-local,
+      or mapped-address destinations unchecked. Use socket.getaddrinfo() and
+      validate every returned address with ipaddress before connecting.
+      [OWASP A10:2021 - Server-Side Request Forgery] [CWE-918]
+    severity: HIGH
+    languages: [python]
+
+  - id: python-unvalidated-redirect-ssrf
+    patterns:
+      - pattern-regex: '(?is)\b(?:location|redirect_url|download_url)\s*=\s*[^\n]{0,240}\bheaders(?:\s*\[\s*["'']location["'']\s*\]|\.get\s*\(\s*["'']location["'']\s*\))(?:(?!(?:validate|is_safe|safe_url|allowed_url|ip_address|getaddrinfo)).){0,1000}\b(?:urllib\.request\.urlopen|requests\.get|httpx\.get)\s*\(\s*(?:location|redirect_url|download_url)\b'
+    message: |
+      A redirect Location value is fetched without a nearby URL safety check.
+      Redirect targets are attacker-influenced at a trust boundary and must be
+      revalidated for scheme, credentials, allowed host, and every resolved
+      IPv4/IPv6 address before following them.
+      [OWASP A10:2021 - Server-Side Request Forgery] [CWE-918]
+    severity: HIGH
+    languages: [python]
