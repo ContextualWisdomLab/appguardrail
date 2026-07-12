@@ -51,3 +51,14 @@
 ## 2024-07-03 - Deduplicating lists of strings optimally
 **Learning:** Checking `if item not in list` for deduplicating strings requires linearly scanning the list for every item, creating $O(N^2)$ time complexity. This can cause bottlenecks if the list grows large. In modern Python (3.7+), standard dictionaries maintain insertion order.
 **Action:** Replace `if item not in list` iterations with `dict.fromkeys(iterator)` to leverage hash map lookups for $O(1)$ item deduplication, bringing overall complexity from $O(N^2)$ to $O(N)$ while preserving insertion order.
+
+## 2024-07-08 - Path.relative_to overhead in file scanning loops
+**Learning:** Calling `pathlib.Path.relative_to()` inside nested loops (like per-match file scanning) is a massive performance bottleneck due to Pathlib's object instantiation and resolution overhead, far slower than raw string manipulations. Even deferred to the first match per file, string logic is significantly faster.
+**Action:** In performance-critical loops such as file scanners, avoid Path methods for string comparisons. Use standard string manipulation (checking exact matches and `startswith` for prefixes) to determine relative paths. Ensure exact match fallback yields `.` instead of an empty string, to accurately match `relative_to` behavior.
+
+## 2024-07-09 - Path.relative_to overhead in external tool target parsing
+**Learning:** `pathlib.Path.relative_to()` is a significant performance bottleneck not just in file scanning loops, but also when repeatedly parsing large arrays of findings from external security tools (like Trivy or Semgrep). The object instantiation and internal `stat` resolution overhead scales poorly when called hundreds or thousands of times during report normalization.
+**Action:** Avoid `Path.relative_to()` inside loops parsing external tool reports. Use standard string manipulations (e.g., `startswith` prefix checking and slicing) to determine relative paths. Remember to properly format paths using `.replace("\\", "/")` to handle multi-platform target paths seamlessly, and ensure exact match fallbacks yield `.` exactly as `relative_to` would.
+## 2024-05-18 - [Optimize string sanitization in terminal output]
+**Learning:** [Character-by-character generator expressions in Python are significantly slower than native C-level string methods like `isprintable()`. In hot-paths, applying these generator expressions universally causes unnecessary overhead for normal strings.]
+**Action:** [Implement a fast-path pre-check using native C-level string methods (like `text.replace('\t', '').isprintable()`) to bypass slower character-by-character evaluations for strings that don't require escaping.]
