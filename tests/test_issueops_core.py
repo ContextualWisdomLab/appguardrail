@@ -22,11 +22,21 @@ def finding(**overrides):
 
 
 def test_security_scope_conclusions_and_run_url_pattern():
-    for name in ("Strix", "OpenCode Review", "AppGuardRail", "Trivy FS", "CodeQL", "Security Process"):
+    for name in (
+        "Strix",
+        "OpenCode Review",
+        "AppGuardRail",
+        "Trivy FS",
+        "CodeQL",
+        "Security Process",
+    ):
         assert issueops.is_security_name(name)
     assert issueops.is_security_name("Java CI", "typescript CodeQL analyze")
     assert not issueops.is_security_name("pytest", "build")
-    assert all(issueops.is_failure(value) for value in ("failure", "cancelled", "timed_out", "action_required"))
+    assert all(
+        issueops.is_failure(value)
+        for value in ("failure", "cancelled", "timed_out", "action_required")
+    )
     assert not any(issueops.is_failure(value) for value in ("success", "skipped", None))
     repo, run_id = issueops.parse_run_url(
         "https://github.com/ContextualWisdomLab/naruon/actions/runs/28492006630/job/84450511793#step:21:1"
@@ -43,7 +53,11 @@ def test_redaction_and_log_compression_prioritize_security_context():
     redacted = issueops.redact(secret_log)
     assert "\x1b" not in redacted
     assert "2026-07-01T10:20:30.123Z" not in redacted
-    assert "ghp_" not in redacted and "github_pat_" not in redacted and "eyJhbGci" not in redacted
+    assert (
+        "ghp_" not in redacted
+        and "github_pat_" not in redacted
+        and "eyJhbGci" not in redacted
+    )
 
     log = "\n".join(
         [
@@ -68,11 +82,16 @@ def test_marker_body_and_replacement_round_trip():
     item = finding()
     body = issueops.issue_body(item, {issueops.seen_key(item)})
     assert "<!-- appguardrail-org-security-failure:" in body
-    assert "Automated collection of security workflow failures across ContextualWisdomLab." in body
+    assert (
+        "Automated collection of security workflow failures across ContextualWisdomLab."
+        in body
+    )
     assert "- Repository: `ContextualWisdomLab/naruon`" in body
     assert "VULN-0001 CRITICAL example" in body
 
-    replaced = issueops.replace_marker(body, item["repo"], item["workflow"], {"1:2", "3:4"})
+    replaced = issueops.replace_marker(
+        body, item["repo"], item["workflow"], {"1:2", "3:4"}
+    )
     assert issueops.parse_marker(replaced)["seen"] == ["1:2", "3:4"]
 
 
@@ -80,8 +99,14 @@ def test_label_title_comment_and_seen_key_helpers():
     item = finding(job_id=999, snippet="::error:: security failure")
     key = issueops.seen_key(item)
     assert len(key) == 16 and all(char in "0123456789abcdef" for char in key)
-    assert issueops.sanitize_label_value("repo name/with spaces and symbols!") == "repo-name-with-spaces-and-symbols"
-    assert issueops.title(item) == "[security-failure] ContextualWisdomLab/naruon: Strix Security Scan"
+    assert (
+        issueops.sanitize_label_value("repo name/with spaces and symbols!")
+        == "repo-name-with-spaces-and-symbols"
+    )
+    assert (
+        issueops.title(item)
+        == "[security-failure] ContextualWisdomLab/naruon: Strix Security Scan"
+    )
     comment = issueops.issue_comment(item)
     assert "New security workflow failure detected." in comment
     assert "::error:: security failure" in comment
