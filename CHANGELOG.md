@@ -18,6 +18,13 @@
   - `php-exec-user-input` — 요청 입력이 들어간 `exec`/`system`/`shell_exec`/`passthru`(OS 명령 주입, CWE-78). CRITICAL.
   - `php-eval-usage` — PHP `eval()` 사용(CWE-95). HIGH.
   - `wordpress-debug-enabled` — `WP_DEBUG` true(프로덕션 정보 노출, CWE-489). WARNING.
+- 조직 Strix 보안 스캔 코퍼스 취합 룰팩 `scanner/rules/strix-aggregated.yml`을 추가했습니다(신규 룰 6종). ContextualWisdomLab 저장소 전반의 Strix 발견 및 저장소별 `.jules/sentinel.md` 학습 로그를 취합해, 실제로 Strix가 지적했으나 기존 AppGuardrail 룰셋이 감지하지 못하던 취약점 클래스만 골라 정밀 정규식으로 인코딩했습니다. 기존 command-injection / deserialization / crypto 룰과 겹치지 않도록 명확한 API 관용구에 앵커링했고, 각 룰의 양성·음성·severity 테스트와 e2e 스캔 테스트(`tests/test_strix_aggregated_rules.py`, 총 21건)로 검증했습니다. 항상 익스플로잇 가능한 버그가 아니라 하드닝 권고에 해당하는 룰은 배포 차단이 아닌 비차단 경고가 되도록 severity를 MEDIUM으로 두었습니다.
+  - `python-numpy-load-allow-pickle` — `numpy.load(..., allow_pickle=True)`는 신뢰할 수 없는 `.npy/.npz`에서 pickle 역직렬화로 임의 코드 실행(fast-mlsirm 발견). `allow_pickle=False` 사용. CRITICAL. [CWE-502]
+  - `python-xml-insecure-parser` — 표준 라이브러리 XML 파서(`xml.etree`/`minidom`/`pulldom`/`sax`/`expat`)·lxml로 신뢰할 수 없는 XML 파싱 시 XXE(LFI/SSRF)·billion-laughs DoS(naruon 발견, Bandit B314). `defusedxml` 사용. HIGH. [CWE-611]
+  - `python-gethostbyname-ssrf-bypass` — `socket.gethostbyname`은 IPv4 첫 주소만 해석해 IPv6·dotless-decimal·DNS rebinding으로 SSRF 호스트 검증을 우회당함(appguardrail 자체 sentinel). `socket.getaddrinfo` + `ipaddress` private/loopback/reserved 거부. MEDIUM. [CWE-918]
+  - `python-ffmpeg-missing-protocol-whitelist` — `-protocol_whitelist` 없이 ffmpeg/ffprobe 실행 시 http/file/concat 프로토콜을 따라가 SSRF·LFI(codec-carver 발견). `-protocol_whitelist file,crypto,data` + `-nostdin` 지정. HIGH. [CWE-918]
+  - `python-copymode-preserves-setuid` — `shutil.copymode`/`copystat`가 setuid/setgid/sticky 비트를 그대로 복사해 권한 상승 벡터 생성(codec-carver 발견). `os.chmod`로 명시 설정 후 특수 비트 마스킹. MEDIUM. [CWE-732]
+  - `weak-hash-md5-sha1` — MD5/SHA-1 사용(서명·무결성·토큰/ID 파생·충돌 민감 중복제거에 부적합, naruon 발견). SHA-256 이상 사용. Python·JS/TS 공통. MEDIUM. [CWE-328]
 - AWS CloudFormation 템플릿 misconfiguration 룰팩 `scanner/rules/cloudformation.yml`을 추가했습니다(정밀 룰 6종, YAML/JSON/`.template` 대상). Terraform-AWS는 기존 엔진이 커버하지만 raw CFN 템플릿은 공백이었습니다. 모든 패턴을 CFN 고유 컨텍스트(`AWS::` 리소스 타입, PascalCase 속성명)에 앵커링해 Kubernetes 매니페스트·docker-compose·GitHub Actions 워크플로 같은 YAML 유사 파일에서는 발화하지 않음을 테스트로 검증했습니다.
   - `cfn-iam-policy-star-star` — IAM 정책이 `Action`·`Resource` 모두 와일드카드(사실상 계정 전체 관리자 권한). Statement 경계를 넘는 오탐 차단. CRITICAL.
   - `cfn-s3-bucket-public-acl` — S3 버킷 `AccessControl`이 PublicRead/PublicReadWrite(전 세계 공개). HIGH.
