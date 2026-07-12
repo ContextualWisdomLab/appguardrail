@@ -1,12 +1,8 @@
-from appguardrail_core.reports import (
-    ReportContext,
-    render_agency_report,
-    render_buyer_diligence_report,
-    render_fix_pack,
-    render_founder_friendly_report,
-    render_report,
-    supported_report_types,
-)
+from appguardrail_core.reports import (ReportContext, render_agency_report,
+                                       render_buyer_diligence_report,
+                                       render_fix_pack,
+                                       render_founder_friendly_report,
+                                       render_report, supported_report_types)
 
 
 def sample_findings():
@@ -53,7 +49,9 @@ def test_render_buyer_diligence_report_groups_findings_by_risk():
 
     assert "# AppGuardrail Buyer Diligence Report" in report
     assert "**App:** Demo SaaS" in report
-    assert "**Launch posture:** Conditional; resolve high findings before launch" in report
+    assert (
+        "**Launch posture:** Conditional; resolve high findings before launch" in report
+    )
     assert "**Deploy-blocking findings:** 1" in report
     assert "| Critical | 1 |" in report
     assert "| High | 1 |" in report
@@ -92,7 +90,9 @@ def test_render_buyer_diligence_report_handles_empty_findings():
         ),
     )
 
-    assert "**Launch posture:** No deploy-blocking findings in supplied evidence" in report
+    assert (
+        "**Launch posture:** No deploy-blocking findings in supplied evidence" in report
+    )
     assert "No findings were provided for this report." in report
     assert "No detailed findings." in report
 
@@ -130,9 +130,15 @@ def test_render_agency_report_groups_by_severity_and_priority():
 
     assert "# AppGuardrail Agency Security Review Report" in report
     assert "**Client:** Demo Client" in report
-    assert "**Recommendation:** Approved for launch only after high findings are resolved" in report
+    assert (
+        "**Recommendation:** Approved for launch only after high findings are resolved"
+        in report
+    )
     assert "### High Findings" in report
-    assert "| AG-002 | HTTP client disables TLS certificate verifica... | High | Review | Before launch |" in report
+    assert (
+        "| AG-002 | HTTP client disables TLS certificate verifica... | High | Review | Before launch |"
+        in report
+    )
     assert "### Informational Findings" in report
 
 
