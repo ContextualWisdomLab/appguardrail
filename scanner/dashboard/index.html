@@ -61,7 +61,9 @@
   dialog::backdrop{background:rgba(20,23,30,.5)}
   .dlg-head{display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--divider)}
   .dlg-head .t{flex:1;font-size:18px;font-weight:700}
-  .dlg-head button{border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted)}
+  .dlg-head button{border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.2s, color 0.2s}
+  .dlg-head button:hover{background:var(--bg);color:var(--text)}
+  .dlg-head button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .dlg-body{padding:6px 22px 22px}
   .sec{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px 16px;margin-top:14px}
   .sec h3{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
@@ -203,6 +205,9 @@ function openDetail(f){
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
+
+  d.onclick = (e) => { if (e.target === d) d.close(); };
+
   d.innerHTML = `
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span>
