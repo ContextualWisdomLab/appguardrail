@@ -31,6 +31,18 @@ def test_dashboard_index_ships_with_repo():
     assert b"AppGuardrail" in index.read_bytes()
 
 
+def test_dashboard_drag_drop_has_visible_state_and_clears_it():
+    """Drag-and-drop exposes feedback and always clears it after leaving or dropping."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert "body.drag-active::after" in html
+    assert 'document.body.classList.add("drag-active")' in html
+    assert 'document.body.classList.remove("drag-active")' in html
+    assert "addEventListener(\"dragenter\"" in html
+    assert "addEventListener(\"dragleave\"" in html
+    assert "addEventListener(\"drop\"" in html
+
+
 def test_server_serves_index_and_findings(tmp_path):
     findings = tmp_path / "findings.json"
     findings.write_text(

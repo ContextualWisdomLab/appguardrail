@@ -104,11 +104,8 @@ files being scanned, then applies the union of relevant checks. Examples:
   explicit disabled controls are promoted.
 - Broad weak hash use: `md5`/`sha1` often appears in checksums, fixtures, and
   cache keys. Promote later only with a security-context marker.
-- Generic dynamic SSRF URL construction remains too context-dependent. Direct
-  request-input-to-network sinks and concrete SSRF validation anti-patterns are
-  now covered by `scanner/rules/ssrf.yml`; see
-  `docs/security/strix-derived-detection-coverage.md` for the evidence and
-  precision boundaries.
+- Generic SSRF URL fetch from request input: useful, but too context-dependent
+  without framework routing and allowlist analysis.
 - Generic SQL/XSS/command injection families already covered by existing
   AppGuardrail rules or Trivy/CodeQL integration paths. Tool execution dispatch
   is promoted only for the specific endpoint-plus-parameters pattern above.
