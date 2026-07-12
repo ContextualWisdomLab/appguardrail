@@ -52,7 +52,8 @@
   thead th{color:var(--muted);font-size:12px;font-weight:600;background:var(--bg)}
   :focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   tbody tr{cursor:pointer}
-  tbody tr:hover,tbody tr:focus-visible{background:var(--bg)}
+  tbody tr:hover{background:var(--bg)}
+  tbody tr:focus-visible{background:var(--bg);outline-offset:-2px}
   .chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
   .file{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;border:1px solid var(--border);font-size:11px;color:var(--muted)}
@@ -74,6 +75,7 @@
   .empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:40px;text-align:center;color:var(--muted)}
   .empty code{background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--text)}
   .drop{margin-top:14px}
+  body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
   a{color:var(--primary)}
 </style>
 <!-- Canonical design tokens (scanner/dashboard/tokens.json) served at /tokens.css;
@@ -85,7 +87,7 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <input type="file" id="file" aria-label="Load findings JSON file" accept="application/json,.json" style="margin-left:12px">
+  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
 <main id="app"></main>
 
@@ -149,7 +151,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -168,7 +170,7 @@ function render(){
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
       <div>
         <div class="toolbar">
-          <input type="search" id="q" aria-label="Search findings" placeholder="Search message, file, rule, category" value="${esc(query)}">
+          <input type="search" id="q" placeholder="Search message, file, rule, category" aria-label="Search findings" value="${esc(query)}">
           <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
@@ -184,8 +186,14 @@ function render(){
   document.getElementById('q').addEventListener('input', e=>{query=e.target.value.toLowerCase();render();syncFocus('q');});
   document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();});
   app.querySelectorAll('tbody tr[data-i]').forEach(tr=>{
-    tr.addEventListener('click',()=>openDetail(ALL[+tr.dataset.i]));
-    tr.addEventListener('keydown', e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(ALL[+tr.dataset.i]);}});
+    const open = () => openDetail(ALL[+tr.dataset.i]);
+    tr.addEventListener('click', open);
+    tr.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      }
+    });
   });
 }
 function syncFocus(id){const el=document.getElementById(id);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}}
@@ -230,8 +238,27 @@ document.getElementById('file').addEventListener('change', e=>{
   f.text().then(t=>{ try{ load(JSON.parse(t), f.name); }catch(err){ alert('Invalid JSON: '+err.message); } });
 });
 // drag & drop
-addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)f.text().then(t=>{try{load(JSON.parse(t),f.name);}catch(err){alert('Invalid JSON: '+err.message);}});});
+let dragDepth = 0;
+const isFileDrag = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+addEventListener("dragenter", e => {
+  e.preventDefault();
+  if (!isFileDrag(e)) return;
+  dragDepth += 1;
+  document.body.classList.add("drag-active");
+});
+addEventListener("dragover", e => e.preventDefault());
+addEventListener("dragleave", e => {
+  if (!isFileDrag(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) document.body.classList.remove("drag-active");
+});
+addEventListener("drop", e => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove("drag-active");
+  const f=e.dataTransfer.files[0];
+  if(f)f.text().then(t=>{try{load(JSON.parse(t),f.name);}catch(err){alert('Invalid JSON: '+err.message);}});
+});
 
 // auto-load if served alongside a findings file
 (function autoload(){
