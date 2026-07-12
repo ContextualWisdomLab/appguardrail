@@ -51,23 +51,14 @@ jobs:
           retention-days: 7
 
   trivy-fs:
-    # Central Security Scan runs Trivy on PRs; only scan the default branch here.
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - name: Use central Trivy scan on pull requests
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "Central Security Scan runs trivy-fs on pull requests."
-          echo "Repository-local Trivy runs on push, schedule, and manual dispatch."
-
       - name: Checkout repository
-        if: github.event_name != 'pull_request'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Run Trivy FS scan
-        if: github.event_name != 'pull_request'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
@@ -81,7 +72,7 @@ jobs:
 
 
       - name: Upload Trivy SARIF artifact
-        if: github.event_name != 'pull_request' && always() && hashFiles('trivy-results.sarif') != ''
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-results

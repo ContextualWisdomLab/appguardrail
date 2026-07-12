@@ -93,12 +93,12 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    seen: list[str] = []
+    for match in REFERENCE_RE.finditer(message or ""):
+        reference = " ".join(match.group(1).split())
+        if reference not in seen:
+            seen.append(reference)
+    return tuple(seen)
 
 
 def build_rule_metadata(
@@ -143,6 +143,9 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(reference for group in groups for reference in group if reference)
-    )
+    merged: list[str] = []
+    for group in groups:
+        for reference in group:
+            if reference and reference not in merged:
+                merged.append(reference)
+    return tuple(merged)

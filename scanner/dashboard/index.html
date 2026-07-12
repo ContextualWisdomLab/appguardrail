@@ -47,8 +47,6 @@
   .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
   input[type=search],select{padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font:inherit;color:var(--text)}
   input[type=search]{flex:1;min-width:160px}
-  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
-  input[type=search]:focus-visible, select:focus-visible { border-radius: 8px; }
   table{width:100%;border-collapse:collapse;background:var(--surface)}
   th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--divider);vertical-align:top}
   thead th{color:var(--muted);font-size:12px;font-weight:600;background:var(--bg)}
@@ -63,8 +61,7 @@
   dialog::backdrop{background:rgba(20,23,30,.5)}
   .dlg-head{display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--divider)}
   .dlg-head .t{flex:1;font-size:18px;font-weight:700}
-  .dlg-head button{border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted);border-radius:4px}
-  .dlg-head button:hover, .dlg-head button:focus-visible{color:var(--text);background:var(--bg)}
+  .dlg-head button{border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted)}
   .dlg-body{padding:6px 22px 22px}
   .sec{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px 16px;margin-top:14px}
   .sec h3{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
@@ -92,7 +89,7 @@
 </header>
 <main id="app"></main>
 
-<dialog id="detail" aria-labelledby="dlg-title"></dialog>
+<dialog id="detail"></dialog>
 
 <script>
 const SEV = {
@@ -113,7 +110,6 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 
 let ALL = [];
 let filterSev = '', query = '';
-let lastFocus = null;
 
 function render(){
   const app = document.getElementById('app');
@@ -153,7 +149,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View finding details: ${esc(f.rule_id)}">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -203,8 +199,8 @@ function openDetail(f){
   d.innerHTML = `
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span>
-      <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
-      <button aria-label="Close" title="Close (Esc)" onclick="document.getElementById('detail').close()">✕</button>
+      <span class="t">${esc(f.rule_id)}</span>
+      <button aria-label="Close" onclick="document.getElementById('detail').close()">✕</button>
     </div>
     <div class="dlg-body">
       <p class="file">${esc(f.file)}:${esc(f.line)} · ${esc(f.category)} · context: ${esc(f.context||'app-code')}${isDeployBlocking(f)?' · <span class="tag block">deploy-blocking</span>':''}</p>
@@ -217,22 +213,8 @@ function openDetail(f){
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
         ${refs?`<div style="margin-top:6px">${refs}</div>`:''}</div>`:''}
     </div>`;
-  lastFocus = document.activeElement;
-  d.addEventListener('close', () => {
-    if (lastFocus) {
-      lastFocus.focus();
-      lastFocus = null;
-    }
-  }, { once: true });
   d.showModal();
 }
-
-// Ensure backdrop click closes the dialog
-document.getElementById('detail').addEventListener('click', e => {
-  if (e.target === document.getElementById('detail')) {
-    document.getElementById('detail').close();
-  }
-});
 
 function load(data, srcLabel){
   // Accept the v1 envelope, a raw array, or any object with a `findings` array.

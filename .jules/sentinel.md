@@ -97,8 +97,3 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `socket.gethostbyname` failing to properly process and resolve IPv6 literals (e.g., `::1`), throwing exceptions that allowed internal network routing constraints to be circumvented.
 **Learning:** `socket.gethostbyname` only returns IPv4 records and throws errors when encountering IPv6 literals or purely IPv6 DNS records. When constructing network guardrails like `_is_safe_url`, using `socket.gethostbyname` introduces blind spots for IPv6, which is heavily used in modern internal routing.
 **Prevention:** Always use `socket.getaddrinfo(raw, None)` to reliably iterate through all addresses (IPv4 and IPv6) returned for a host, along with directly trying `ipaddress.ip_address` to short-circuit IP literals before doing DNS resolution.
-
-## 2026-07-12 - SSRF bypass via multicast and reserved IP addresses
-**Vulnerability:** Server-Side Request Forgery (SSRF) guardrails in `_is_safe_url` could be bypassed using `0.0.0.0`, `255.255.255.255`, or multicast IP addresses (e.g., `224.0.0.1`), as well as IPv4-mapped IPv6 addresses, because validation only checked `is_loopback`, `is_private`, and `is_link_local`.
-**Learning:** Python's `ipaddress` module classifies `0.0.0.0` and `255.255.255.255` as reserved (not private/loopback) and `224.0.0.1` as multicast. Also, `ipv4_mapped` addresses can bypass naive property checks.
-**Prevention:** Unpack IPv4-mapped IPv6 addresses (`getattr(ip, "ipv4_mapped", None)`) and comprehensively reject any IP that is multicast, reserved, or simply `not ip.is_global`.

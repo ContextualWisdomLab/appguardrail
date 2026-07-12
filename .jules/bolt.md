@@ -57,6 +57,3 @@
 ## 2024-05-18 - [Optimize string sanitization in terminal output]
 **Learning:** [Character-by-character generator expressions in Python are significantly slower than native C-level string methods like `isprintable()`. In hot-paths, applying these generator expressions universally causes unnecessary overhead for normal strings.]
 **Action:** [Implement a fast-path pre-check using native C-level string methods (like `text.replace('\t', '').isprintable()`) to bypass slower character-by-character evaluations for strings that don't require escaping.]
-## 2026-07-02 - List deduplication overhead
-**Learning:** In Python, deduplicating elements while preserving insertion order by appending to a list and checking membership (`if item not in list: list.append(item)`) results in O(N^2) complexity, because each lookup scans the list.
-**Action:** Use `dict.fromkeys(iterator)` for O(N) complexity since dicts preserve insertion order in Python 3.7+ and offer O(1) membership checking.

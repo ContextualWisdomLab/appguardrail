@@ -9,7 +9,3 @@
 ## 2026-07-06 - Clickable table rows and keyboard navigation
 **Learning:** Treating standard `<tr>` elements as interactive clickable rows means they are ignored by screen readers and keyboard users unless specifically configured. Users relying on keyboards couldn't access finding details.
 **Action:** When making custom non-interactive elements (like table rows or divs) clickable, always add `tabindex="0"`, a semantic `role="button"`, appropriate ARIA labels, and explicit `keydown` listeners for 'Enter' and 'Space' to support full accessibility.
-
-## 2026-07-12 - Native dialog accessibility
-**Learning:** Native HTML `<dialog>` elements require manual focus restoration to prevent screen readers and keyboard users from losing context when the dialog closes. Additionally, the backdrop doesn't close the dialog automatically upon click without an explicit event listener on the dialog element.
-**Action:** When implementing native HTML `<dialog>` components, always add manual focus restoration (capturing `document.activeElement` before `showModal()` and restoring it via a `close` event listener) and an explicit backdrop click-to-close event listener (`e.target === dialog`).
