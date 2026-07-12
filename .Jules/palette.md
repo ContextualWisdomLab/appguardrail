@@ -1,4 +1,3 @@
-
 ## 2026-06-23 - Error message UX improvements
 **Learning:** Error messages in CLIs should be explicit, use visual cues (like emojis for attention), and provide actionable hints when appropriate.
 **Action:** When adding or modifying error messages in the CLI, use '❌ Error: [Message]' format and add '💡 Hint: [Actionable advice]' to help users resolve the issue easily.
@@ -10,3 +9,7 @@
 ## 2024-07-08 - Conditionally disable CLI emojis
 **Learning:** Heavy emoji usage in CLI tools can degrade accessibility for screen readers and cause issues in non-UTF8 terminals or log parsers.
 **Action:** Implemented a targeted regex filter toggled by `APPGUARDRAIL_NO_EMOJI` to gracefully degrade CLI output without stripping valid international text, improving overall CLI UX and accessibility.
+
+## 2026-07-06 - Clickable table rows and keyboard navigation
+**Learning:** Treating standard `<tr>` elements as interactive clickable rows means they are ignored by screen readers and keyboard users unless specifically configured. Users relying on keyboards couldn't access finding details.
+**Action:** When making custom non-interactive elements (like table rows or divs) clickable, always add `tabindex="0"`, a semantic `role="button"`, appropriate ARIA labels, and explicit `keydown` listeners for 'Enter' and 'Space' to support full accessibility.
