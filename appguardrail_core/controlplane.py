@@ -233,7 +233,16 @@ def _is_safe_url(url: str) -> bool:
 
     try:
         ip = ipaddress.ip_address(raw)
-        if ip.is_loopback or ip.is_private or ip.is_link_local:
+        if getattr(ip, "ipv4_mapped", None):
+            ip = ip.ipv4_mapped
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or not ip.is_global
+        ):
             return False
     except ValueError:
         # Non-IP hostnames are expected; validate resolved addresses below.
@@ -244,7 +253,16 @@ def _is_safe_url(url: str) -> bool:
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
             ip = ipaddress.ip_address(ip_str)
-            if ip.is_loopback or ip.is_private or ip.is_link_local:
+            if getattr(ip, "ipv4_mapped", None):
+                ip = ip.ipv4_mapped
+            if (
+                ip.is_loopback
+                or ip.is_private
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or not ip.is_global
+            ):
                 return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
