@@ -56,7 +56,6 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from appguardrail_core import github_actions
 from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
@@ -1398,21 +1397,6 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
-    ignore_patterns = _load_ignore_patterns(scan_path)
-    ignored_count = 0
-    if ignore_patterns:
-        kept = []
-        for file_path in files_to_scan:
-            if _is_ignored(file_path, scan_path, ignore_patterns):
-                ignored_count += 1
-            else:
-                kept.append(file_path)
-        files_to_scan = kept
-        print(
-            f"🙈 .appguardrailignore: {len(ignore_patterns)} pattern(s), "
-            f"{ignored_count} file(s) skipped\n"
-        )
-
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
@@ -1574,10 +1558,6 @@ def cmd_scan(args):
             return False
         return core_is_deploy_blocking(finding, blocking)
 
-    # GitHub Actions native output: inline PR annotations + job summary.
-    if github_actions.in_actions() or getattr(args, "github", False):
-        github_actions.emit(findings, files_scanned, _gates)
-
     return 1 if any(_gates(f) for f in findings) else 0
 
 
@@ -1618,16 +1598,7 @@ def _is_safe_url(url: str) -> bool:
 
     try:
         ip = ipaddress.ip_address(raw)
-        if getattr(ip, "ipv4_mapped", None):
-            ip = ip.ipv4_mapped
-        if (
-            ip.is_loopback
-            or ip.is_private
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or not ip.is_global
-        ):
+        if ip.is_loopback or ip.is_private or ip.is_link_local:
             return False
     except ValueError:
         # Non-IP hostnames are expected; validate resolved addresses below.
@@ -1638,16 +1609,7 @@ def _is_safe_url(url: str) -> bool:
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
             ip = ipaddress.ip_address(ip_str)
-            if getattr(ip, "ipv4_mapped", None):
-                ip = ip.ipv4_mapped
-            if (
-                ip.is_loopback
-                or ip.is_private
-                or ip.is_link_local
-                or ip.is_multicast
-                or ip.is_reserved
-                or not ip.is_global
-            ):
+            if ip.is_loopback or ip.is_private or ip.is_link_local:
                 return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
@@ -1735,7 +1697,11 @@ def cmd_fix(args):
 
     base = Path(getattr(args, "path", ".") or ".")
     if not base.exists():
-        print(f"❌ Path not found: {base}", file=sys.stderr)
+        print(f"❌ Error: Path not found: {base}", file=sys.stderr)
+        print(
+            "💡 Hint: Check if the path is correct or if you are in the right directory.",
+            file=sys.stderr,
+        )
         return 1
 
     apply = getattr(args, "apply", False)
@@ -1816,85 +1782,6 @@ def cmd_monitor(args):
     print(
         "This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
     )
-    return 0
-
-
-def cmd_rules(args):
-    """List every loaded detection rule (built-in + packaged YAML)."""
-    severity_order = {"CRITICAL": 0, "HIGH": 1, "WARNING": 2, "INFO": 3}
-    rules = sorted(
-        SCAN_RULES,
-        key=lambda r: (
-            severity_order.get(r.get("severity", "INFO"), 9),
-            r.get("id", ""),
-        ),
-    )
-    if getattr(args, "json", False):
-        payload = [
-            {
-                "id": r.get("id"),
-                "severity": r.get("severity"),
-                "extensions": r.get("extensions"),
-                "message": r.get("message"),
-            }
-            for r in rules
-        ]
-        print(
-            json.dumps(
-                {
-                    "schema": "appguardrail.rules.v1",
-                    "count": len(payload),
-                    "rules": payload,
-                },
-                indent=2,
-            )
-        )
-        return 0
-
-    counts = {}
-    for r in rules:
-        severity = r.get("severity", "INFO")
-        counts[severity] = counts.get(severity, 0) + 1
-    print(f"🛡️  {len(rules)} detection rules loaded")
-    print(
-        "   "
-        + " · ".join(
-            f"{k} {v}"
-            for k, v in sorted(
-                counts.items(), key=lambda kv: severity_order.get(kv[0], 9)
-            )
-        )
-    )
-    print()
-    for r in rules:
-        exts = r.get("extensions")
-        scope = ",".join(sorted(exts)) if exts else "all files"
-        print(f"  [{r.get('severity','INFO'):8}] {r.get('id')}  ({scope})")
-    return 0
-
-
-def cmd_diff_report(args):
-    """Render a fixed/new/persisting progress report from two findings files."""
-    from appguardrail_core.diffreport import load_findings, render_diff_report
-
-    try:
-        old = load_findings(args.old)
-        new = load_findings(args.new)
-    except (OSError, ValueError) as exc:
-        print(f"❌ Error: cannot read findings: {exc}", file=sys.stderr)
-        return 1
-    report = render_diff_report(old, new)
-    if args.out:
-        try:
-            out_path = Path(args.out)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(report + "\n", encoding="utf-8")
-        except OSError as exc:
-            print(f"❌ Error: cannot write report: {exc}", file=sys.stderr)
-            return 1
-        print(f"📊 Diff report written: {out_path}")
-    else:
-        print(report)
     return 0
 
 
@@ -2171,42 +2058,6 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     return True
 
 
-def _load_ignore_patterns(scan_root: Path) -> list:
-    """Read `.appguardrailignore` globs (one per line, # comments) at the scan root."""
-    ignore_file = (
-        scan_root if scan_root.is_dir() else scan_root.parent
-    ) / ".appguardrailignore"
-    patterns = []
-    try:
-        for line in ignore_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                patterns.append(line.rstrip("/"))
-    except (OSError, UnicodeDecodeError):
-        return []
-    return patterns
-
-
-def _is_ignored(file_path: Path, scan_root: Path, patterns: list) -> bool:
-    """Match a scanned file's relative path against .appguardrailignore globs."""
-    if not patterns:
-        return False
-    try:
-        rel = file_path.relative_to(scan_root).as_posix()
-    except ValueError:
-        rel = file_path.as_posix()
-    for pattern in patterns:
-        # A bare name (no slash/glob) also ignores that file/dir anywhere in the tree.
-        if (
-            _path_matches_glob(rel, pattern)
-            or _path_matches_glob(rel, f"{pattern}/**")
-            or _path_matches_glob(rel, f"**/{pattern}")
-            or _path_matches_glob(rel, f"**/{pattern}/**")
-        ):
-            return True
-    return False
-
-
 def _collect_files(base_path: Path):
     """Collect all scannable files, skipping unwanted directories."""
     # ⚡ Bolt: Optimize file traversal using os.scandir and os.path.splitext
@@ -2228,13 +2079,14 @@ def _collect_files(base_path: Path):
                                 not entry.name.startswith(".")
                                 or entry.name in SECURITY_HIDDEN_DIRS
                             ):
-                                stack.append(entry.path)
+                                dirs.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             _, ext = os.path.splitext(entry.name)
                             if ext.lower() not in SKIP_EXTENSIONS:
                                 yield Path(entry.path)
                     except (OSError, PermissionError):
                         continue
+                stack.extend(reversed(dirs))
         except (OSError, PermissionError):
             pass
 
@@ -3269,8 +3121,8 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             else:
                 self.send_error(404)
 
-        def log_message(self, *_args):
-            """Suppress default HTTP request logging for the local dashboard."""
+        def log_message(self, format, *args):  # keep the console quiet
+            """Suppress default logging."""
             return None
 
     return http.server.HTTPServer((host, port), _Handler)
@@ -3381,7 +3233,11 @@ def cmd_sbom(args):
 
     base = Path(getattr(args, "path", ".") or ".")
     if not base.exists():
-        print(f"❌ Path not found: {base}", file=sys.stderr)
+        print(f"❌ Error: Path not found: {base}", file=sys.stderr)
+        print(
+            "💡 Hint: Check if the path is correct or if you are in the right directory.",
+            file=sys.stderr,
+        )
         return 1
     root = base if base.is_dir() else base.parent
     components = collect_components(root)
@@ -3416,7 +3272,11 @@ def cmd_dashboard(args):
 
     index = dashboard_index_path()
     if not index.is_file():
-        print(f"❌ Dashboard assets not found at {index}", file=sys.stderr)
+        print(f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr)
+        print(
+            "💡 Hint: Check if the path is correct or if you are in the right directory.",
+            file=sys.stderr,
+        )
         print(
             "💡 Run 'appguardrail dashboard' from an AppGuardrail source checkout "
             "that includes dashboard/index.html.",
@@ -3576,11 +3436,6 @@ def main():
         help="Write SARIF 2.1.0 for GitHub code scanning, VS Code, and other tools",
     )
     scan_parser.add_argument(
-        "--github",
-        action="store_true",
-        help="Emit GitHub Actions annotations + job summary (auto-on inside Actions)",
-    )
-    scan_parser.add_argument(
         "--push",
         default=None,
         metavar="URL",
@@ -3609,23 +3464,6 @@ def main():
     review_parser.add_argument("--payments", help="Payment provider (e.g. stripe)")
 
     # report
-    rules_parser = subparsers.add_parser(
-        "rules", help="List all loaded detection rules (built-in + packaged YAML)"
-    )
-    rules_parser.add_argument(
-        "--json", action="store_true", help="Machine-readable JSON output"
-    )
-
-    diff_report_parser = subparsers.add_parser(
-        "diff-report",
-        help="Compare two findings JSON snapshots: fixed / new / persisting",
-    )
-    diff_report_parser.add_argument("old", help="Older findings JSON (baseline)")
-    diff_report_parser.add_argument("new", help="Newer findings JSON (current)")
-    diff_report_parser.add_argument(
-        "--out", default=None, help="Write markdown report here instead of stdout"
-    )
-
     report_parser = subparsers.add_parser(
         "report", help="Generate product and diligence reports from findings JSON"
     )
@@ -3810,10 +3648,6 @@ def main():
         cmd_review(args)
     elif args.command == "report":
         sys.exit(cmd_report(args))
-    elif args.command == "rules":
-        sys.exit(cmd_rules(args))
-    elif args.command == "diff-report":
-        sys.exit(cmd_diff_report(args))
     elif args.command == "org-bundle":
         sys.exit(cmd_org_bundle(args))
     elif args.command == "hook":
