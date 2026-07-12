@@ -644,8 +644,8 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             return self._json(201, summary)
 
         def log_message(self, format, *args):
-            """Suppress default logging."""
-            return
+            """Suppress default HTTP request logging for the control plane."""
+            return None
 
     return http.server.HTTPServer((host, port), _Handler)
 

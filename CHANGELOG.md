@@ -2,11 +2,41 @@
 
 ## [Unreleased]
 
+### 수정
+- SARIF 출력 견고성: (1) `startLine`을 방어적으로 coerce합니다 — 외부 엔진(Trivy 등)이 `"12-14"`·`"n/a"` 같은 비정수 line을 내면 `int()`가 던져 리포트 전체가 크래시했습니다(불량 finding 1개 → 리포트 전멸). (2) 공백만 있는 message의 shortDescription 추출 시 IndexError를 방지합니다. (3) `ruleIndex` 계산을 O(n²)에서 O(1)로 바꿨습니다(대량 finding 성능).
+
 ### 보안
+- Strix 및 저장소 보안 수정 이력에서 반복 확인된 SSRF/LFI 패턴을 정밀 탐지하는 `scanner/rules/ssrf.yml` 룰팩을 추가했습니다. Python/Node 요청 입력의 직접 네트워크 싱크, HTTP(S) 스킴만 확인하는 불완전한 방어, IPv4 전용 `gethostbyname` 검증, 검증 없이 따라가는 리다이렉트 `Location`을 탐지합니다. 모든 규칙은 정상 대조군을 포함한 회귀 테스트를 제공하며, 단순 동적 URL 사용 전체를 차단하는 광범위 규칙은 오탐 방지를 위해 제외했습니다.
 - 리포트 출력 하드닝 — 생성된 markdown 리포트가 HTML로 렌더될 때 악성 finding 내용(예: 외부 엔진이 스캔한 코드의 `<script>`)이 주입되지 않도록, 프로즈 필드(message/remediation/verification)를 HTML 이스케이프하고 snippet의 code-fence 탈출을 무력화합니다(모든 리포트 타입). rule_id/category/context 등 제약된 식별자는 그대로 둡니다.
 - control plane API 하드닝: (1) 요청 본문을 10MiB로 캡하고 음수 Content-Length를 거부합니다(유효 키 소지자의 OOM/EOF-hang 방지). (2) `limit`/`offset` 쿼리 파라미터를 클램프합니다 — sqlite에서 `LIMIT -1`은 무제한이므로 음수를 그대로 전달하면 페이지네이션 캡이 우회됐습니다(list 1..1000, trend 1..365, offset ≥0).
 
 ### 추가
+- Python 하드닝 룰팩 `scanner/rules/python-hardening.yml`을 추가했습니다(신규 룰 5종). Strix/sentinel 코퍼스의 2차 배치로, 기존 Python 커버리지(SSRF·역직렬화·시크릿)가 닿지 않던 stdlib 관용구를 정밀 타격합니다. 모두 `.py` 스코프이며 안전 대조 코드 오탐 0을 테스트로 검증했습니다(`tests/test_python_hardening_rules.py`, 총 18건).
+  - `python-tarfile-extractall-untrusted` — tarfile/zipfile `extractall()`(경로 검증 없는 전체 추출 → Tar/Zip Slip 경로 탈출·임의 파일 덮어쓰기). 멤버 검증 또는 3.12+ `filter="data"` 사용. HIGH. [CWE-22]
+  - `python-jwt-signature-verification-disabled` — `verify_signature: False`/`verify=False`로 JWT 서명 검증 비활성화(토큰 위조로 인증·인가 완전 우회). 키+`algorithms=[...]`로 항상 검증. CRITICAL. [CWE-347]
+  - `python-weak-ssl-tls-version` — `ssl.PROTOCOL_SSLv2/SSLv3/TLSv1/TLSv1_1`(POODLE/BEAST류 취약). `PROTOCOL_TLS_CLIENT` + `minimum_version=TLSv1_2` 사용. HIGH. [CWE-326]
+  - `python-insecure-random-token` — 보안값(token/secret/otp/password/session 등)을 `random` 모듈(예측 가능한 Mersenne Twister)로 생성. `secrets` 모듈 사용. MEDIUM. [CWE-330]
+  - `python-world-writable-chmod` — `os.chmod(..., 0o777/0o666)`로 world-writable 부여(로컬 권한 상승·무결성 위험). 최소 권한(0o600/0o755) 부여. MEDIUM. [CWE-732]
+- Python 암호·전송 보안 룰팩 `scanner/rules/python-crypto-transport.yml`을 추가했습니다(신규 룰 4종). Strix/sentinel 하드닝 3차 배치로, 취약 암호·비활성 TLS 검증·평문 프로토콜·Django XSS 싱크를 커버합니다. 모두 `.py` 스코프이며 안전 대조 코드 오탐 0을 테스트로 검증했습니다(`tests/test_python_crypto_transport_rules.py`, 총 15건).
+  - `python-weak-cipher-mode` — ECB 모드 또는 DES/3DES/RC4(ARC4)/Blowfish 사용(취약 암호·모드). AES-GCM 등 사용. HIGH. [CWE-327]
+  - `python-ssl-verification-disabled` — `ssl.CERT_NONE`/`check_hostname=False`로 TLS 인증서·호스트명 검증 비활성화(MITM). `ssl.create_default_context()` 사용. HIGH. [CWE-295]
+  - `python-cleartext-protocol-client` — `ftplib.FTP`/`telnetlib.Telnet`/`poplib.POP3` 평문 프로토콜 클라이언트(자격증명·데이터 평문 전송). TLS 변형(FTP_TLS/POP3_SSL) 사용. MEDIUM. [CWE-319]
+  - `python-django-mark-safe-dynamic` — 동적(비리터럴) 값에 `mark_safe()` 호출(자동 이스케이프 무력화, XSS 싱크). 템플릿 자동 이스케이프 또는 sanitizer 사용. MEDIUM. [CWE-79]
+- **공식 Docker 이미지 정의**(`Dockerfile` + `.dockerignore`) — 설치 없이 스캔합니다: `docker build -t appguardrail . && docker run --rm -v "$PWD:/src" appguardrail scan /src`. `python:3.12-slim` 이미지를 digest로 고정하고, 로컬 소스를 `PYTHONPATH=/app`에서 모듈로 실행해 컨테이너 빌드 중 `pip install` 공급망 단계를 제거합니다. 비루트(`scanner`) 사용자와 `HEALTHCHECK`를 포함하며, exit code 계약은 CLI와 동일합니다(1 = deploy-blocking).
+- PHP / WordPress 룰팩 `scanner/rules/php-wordpress.yml` 추가 — 바이브 코딩·에이전시 산출물에 많은 PHP/WordPress 코드를 처음으로 커버합니다. 기존 내장 eval/SQL 룰은 `.js`/`.py` 확장자에만 적용되어 `.php` 파일은 사각지대였습니다. 6종 모두 `**/*.php` 경로로 스코프되며, 안전 코드(prepared statement, `$wpdb->prepare()`, 상수 include 등) 오탐 0을 테스트로 검증했습니다.
+  - `php-sql-concat` — `mysqli_query()`/`$wpdb->query()` 등에 `$_GET`/`$_POST`/`$_REQUEST`/`$_COOKIE`를 직접 연결·보간(SQL 주입, CWE-89). CRITICAL.
+  - `php-unserialize-user-input` — 요청 입력을 `unserialize()`(PHP object injection, CWE-502). CRITICAL.
+  - `php-include-user-input` — 요청 입력 기반 `include`/`require`(LFI/RFI, CWE-98). CRITICAL.
+  - `php-exec-user-input` — 요청 입력이 들어간 `exec`/`system`/`shell_exec`/`passthru`(OS 명령 주입, CWE-78). CRITICAL.
+  - `php-eval-usage` — PHP `eval()` 사용(CWE-95). HIGH.
+  - `wordpress-debug-enabled` — `WP_DEBUG` true(프로덕션 정보 노출, CWE-489). WARNING.
+- 조직 Strix 보안 스캔 코퍼스 취합 룰팩 `scanner/rules/strix-aggregated.yml`을 추가했습니다(신규 룰 6종). ContextualWisdomLab 저장소 전반의 Strix 발견 및 저장소별 `.jules/sentinel.md` 학습 로그를 취합해, 실제로 Strix가 지적했으나 기존 AppGuardrail 룰셋이 감지하지 못하던 취약점 클래스만 골라 정밀 정규식으로 인코딩했습니다. 기존 command-injection / deserialization / crypto 룰과 겹치지 않도록 명확한 API 관용구에 앵커링했고, 각 룰의 양성·음성·severity 테스트와 e2e 스캔 테스트(`tests/test_strix_aggregated_rules.py`, 총 21건)로 검증했습니다. 항상 익스플로잇 가능한 버그가 아니라 하드닝 권고에 해당하는 룰은 배포 차단이 아닌 비차단 경고가 되도록 severity를 MEDIUM으로 두었습니다.
+  - `python-numpy-load-allow-pickle` — `numpy.load(..., allow_pickle=True)`는 신뢰할 수 없는 `.npy/.npz`에서 pickle 역직렬화로 임의 코드 실행(fast-mlsirm 발견). `allow_pickle=False` 사용. CRITICAL. [CWE-502]
+  - `python-xml-insecure-parser` — 표준 라이브러리 XML 파서(`xml.etree`/`minidom`/`pulldom`/`sax`/`expat`)·lxml로 신뢰할 수 없는 XML 파싱 시 XXE(LFI/SSRF)·billion-laughs DoS(naruon 발견, Bandit B314). `defusedxml` 사용. HIGH. [CWE-611]
+  - `python-gethostbyname-ssrf-bypass` — `socket.gethostbyname`은 IPv4 첫 주소만 해석해 IPv6·dotless-decimal·DNS rebinding으로 SSRF 호스트 검증을 우회당함(appguardrail 자체 sentinel). `socket.getaddrinfo` + `ipaddress` private/loopback/reserved 거부. MEDIUM. [CWE-918]
+  - `python-ffmpeg-missing-protocol-whitelist` — `-protocol_whitelist` 없이 ffmpeg/ffprobe 실행 시 http/file/concat 프로토콜을 따라가 SSRF·LFI(codec-carver 발견). `-protocol_whitelist file,crypto,data` + `-nostdin` 지정. HIGH. [CWE-918]
+  - `python-copymode-preserves-setuid` — `shutil.copymode`/`copystat`가 setuid/setgid/sticky 비트를 그대로 복사해 권한 상승 벡터 생성(codec-carver 발견). `os.chmod`로 명시 설정 후 특수 비트 마스킹. MEDIUM. [CWE-732]
+  - `weak-hash-md5-sha1` — MD5/SHA-1 사용(서명·무결성·토큰/ID 파생·충돌 민감 중복제거에 부적합, naruon 발견). SHA-256 이상 사용. Python·JS/TS 공통. MEDIUM. [CWE-328]
 - AWS CloudFormation 템플릿 misconfiguration 룰팩 `scanner/rules/cloudformation.yml`을 추가했습니다(정밀 룰 6종, YAML/JSON/`.template` 대상). Terraform-AWS는 기존 엔진이 커버하지만 raw CFN 템플릿은 공백이었습니다. 모든 패턴을 CFN 고유 컨텍스트(`AWS::` 리소스 타입, PascalCase 속성명)에 앵커링해 Kubernetes 매니페스트·docker-compose·GitHub Actions 워크플로 같은 YAML 유사 파일에서는 발화하지 않음을 테스트로 검증했습니다.
   - `cfn-iam-policy-star-star` — IAM 정책이 `Action`·`Resource` 모두 와일드카드(사실상 계정 전체 관리자 권한). Statement 경계를 넘는 오탐 차단. CRITICAL.
   - `cfn-s3-bucket-public-acl` — S3 버킷 `AccessControl`이 PublicRead/PublicReadWrite(전 세계 공개). HIGH.
@@ -17,6 +47,65 @@
 - `tests/test_cloudformation_rules.py` — 룰별 양성/음성 패턴 테스트, severity 검증, e2e 스캔(오염 템플릿에서 6종 전부 발화, 안전 템플릿 0건), k8s/compose/GitHub Actions look-alike 음성 테스트 포함(총 29건).
 
 ### 추가
+- `appguardrail rules` — 로드된 전체 탐지 룰(내장 + 패키지 YAML)을 severity 순으로 나열합니다. 상단에 severity별 집계, 룰별로 적용 확장자 스코프를 표시해 "우리 스택이 커버되나?"를 즉시 감사할 수 있습니다. `--json`은 `appguardrail.rules.v1` 스키마로 기계가독 출력합니다.
+- Vue/Svelte/Nuxt 프런트엔드 룰 팩 `scanner/rules/vue-svelte.yml` 6종 추가(고정밀, 경로 스코프 적용). React(`dangerouslySetInnerHTML`)만 다루던 프런트엔드 XSS·시크릿 노출 탐지를 Vue·Svelte 생태계로 확장합니다.
+  - `vue-v-html-usage` — `.vue` 템플릿의 `v-html` 디렉티브(raw HTML 렌더링, XSS 싱크). HIGH.
+  - `svelte-html-tag-usage` — `.svelte` 템플릿의 raw HTML 태그(이스케이프 없이 마크업 주입). HIGH.
+  - `nuxt-public-env-secret` — 시크릿 성격 이름의 환경 변수에 NUXT_PUBLIC_ 접두사 사용(클라이언트 번들에 노출). CRITICAL.
+  - `vite-env-secret-exposed` — `.env*` 파일에서 시크릿 성격 이름의 변수에 VITE_ 접두사 사용(Vite가 클라이언트 번들에 인라인). CRITICAL.
+  - `sveltekit-private-env-in-client` — `.svelte` 컴포넌트에서 SvelteKit private env(`$env/*/private`) import. HIGH.
+  - `sveltekit-csrf-origin-check-disabled` — svelte.config에서 CSRF origin 검사 비활성화. HIGH.
+  - `tests/test_vue_svelte_rules.py`: 룰별 양성·음성 정밀도, severity, 경로 스코프, e2e 스캔(취약/안전 프로젝트) 검증.
+- Kotlin / Android 네이티브 룰 팩 `scanner/rules/kotlin-android.yml` — `.kt`/`.kts` 소스 전용 고정밀 룰 6종을 추가했습니다. 기존 팩이 다루지 않던 Kotlin 소스 사각지대를 메우며, `paths.include`로 Kotlin 파일에만 적용되어 다른 스택에 오탐을 만들지 않습니다.
+  - `kotlin-webview-universal-file-access` — WebView `allowUniversalAccessFromFileURLs`/`allowFileAccessFromFileURLs` 활성화(로컬 파일 탈취 경로). CRITICAL.
+  - `kotlin-sql-injection-raw` — `rawQuery`/`execSQL`에 문자열 템플릿(`$var`) 또는 `+` 연결로 SQL 조립. CRITICAL.
+  - `kotlin-hardcoded-encryption-key` — `SecretKeySpec("리터럴".toByteArray(...))`로 암호화 키를 APK에 하드코딩. CRITICAL.
+  - `kotlin-trust-all-certs` — `checkServerTrusted` 빈 구현(모든 TLS 인증서 수용, MITM 허용). HIGH.
+  - `kotlin-world-accessible-prefs` — `MODE_WORLD_READABLE`/`MODE_WORLD_WRITEABLE` 사용(타 앱에 데이터 노출). HIGH.
+  - `kotlin-log-sensitive-data` — `Log.*`에 password/token/secret 값 로깅(logcat 유출). WARNING.
+  - 검증: `tests/test_kotlin_android_rules.py` — 룰별 양성/음성, severity, Kotlin 경로 스코핑, `_scan_file` end-to-end(발화·비발화) 테스트 18건.
+- Electron 데스크톱 앱 보안 룰 팩 `scanner/rules/electron.yml` 추가(6종, 고정밀 — Electron 전용 식별자에 앵커링해 일반 웹 코드 오탐 0 검증):
+  - `electron-node-integration-enabled` — renderer에서 nodeIntegration 활성화(XSS가 곧 RCE로 확대). CRITICAL.
+  - `electron-context-isolation-disabled` — contextIsolation 비활성화(preload·특권 API 오염 가능). CRITICAL.
+  - `electron-web-security-disabled` — webSecurity 비활성화(same-origin policy 해제, file:// 읽기 가능). HIGH.
+  - `electron-allow-running-insecure-content` — HTTPS 페이지에서 HTTP 스크립트 실행 허용(mixed content 주입). HIGH.
+  - `electron-shell-openexternal-user-input` — `shell.openExternal`에 비리터럴(동적) 인자 전달(임의 프로토콜·실행 파일 구동 위험). HIGH.
+  - `electron-remote-module-enabled` — deprecated remote 모듈 활성화(renderer 침해 영향 확대). WARNING.
+- `tests/test_electron_rules.py` — 룰별 양성/음성 정밀도, severity, 확장자 비제한(generic) 검증과 취약/하드닝된 Electron main 프로세스·비-Electron 코드 e2e 스캔 테스트를 추가했습니다.
+- `appguardrail diff-report <old.json> <new.json>` — 두 `scan --findings-json` 스냅샷을 비교해 **해결됨/신규/잔존**을 마크다운으로 렌더링합니다("나아지고 있는가?"에 대한 바이어·감사 증거). 지문은 control plane의 drift 키(rule+file+message 앞부분)와 동일해 라인만 이동한 finding은 잔존으로 분류됩니다(해결+신규 중복 아님). 회귀/개선/진행 중/변화 없음 판정을 상단에 표시하며 `--out`으로 파일 저장이 가능합니다. 무의존성.
+- C#/ASP.NET 탐지 룰 팩 `scanner/rules/dotnet.yml` 추가 — 기존 룰이 다루지 않던 `.cs`/`.cshtml`/`appsettings*.json`/`web.config` 사각지대를 커버합니다(고정밀, 안전 코드 오탐 0 검증).
+  - `dotnet-sql-injection-concat` — `SqlCommand`/`ExecuteSqlRaw`/`FromSqlRaw`에 문자열 연결·보간으로 SQL을 조립. CRITICAL(CWE-89).
+  - `dotnet-binaryformatter-deserialize` — `BinaryFormatter` 계열(SoapFormatter, NetDataContractSerializer, LosFormatter, ObjectStateFormatter) 사용. 신뢰할 수 없는 데이터 역직렬화 시 RCE. CRITICAL(CWE-502).
+  - `dotnet-process-start-user-input` — `Process.Start`/`ProcessStartInfo`/`Arguments`에 연결·보간으로 명령줄 조립. CRITICAL(CWE-78).
+  - `aspnet-request-validation-disabled` — `ValidateRequest="false"` 또는 `[ValidateInput(false)]`로 요청 검증 비활성화. HIGH(CWE-79).
+  - `dotnet-cookie-secure-false` — `CookieSecurePolicy.None`, `Secure = false`, `requireSSL="false"` 등 Secure 플래그 없는 쿠키. HIGH(CWE-614).
+  - `appsettings-connectionstring-password` — `appsettings*.json`/`web.config` 연결 문자열의 리터럴 `Password=`(플레이스홀더 `${…}`/`{0}`/`%…%`는 제외). HIGH(CWE-798). 스니펫은 자동 마스킹됩니다.
+
+### 검증
+- `tests/test_dotnet_rules.py`: 룰별 양성·음성 케이스, severity, 경로 스코핑(`**/*.cs` 등), `_scan_file` end-to-end 탐지, 시크릿 스니펫 마스킹 테스트를 추가했습니다. 시크릿 형태 픽스처는 런타임에 조립해 리터럴로 커밋하지 않습니다.
+
+### 추가
+- Go 보안 룰 팩 `scanner/rules/go.yml` — 기존 스캐너가 커버하지 않던 `.go` 파일을 경로 스코프(`**/*.go`) 기반으로 탐지합니다(고정밀, 안전 코드 오탐 0 검증):
+  - `go-sql-injection-sprintf` — `Query`/`QueryRow`/`Exec`(+Context)에 `fmt.Sprintf` 또는 문자열 연결로 만든 SQL을 전달. CRITICAL.
+  - `go-command-injection` — `exec.Command(Context)`가 `sh`/`bash` `-c`에 리터럴이 아닌(변수·연결) 명령 문자열을 전달. CRITICAL.
+  - `go-hardcoded-jwt-signing-key` — `SignedString([]byte("리터럴"))`로 JWT 서명 키 하드코딩. CRITICAL.
+  - `go-tls-insecure-skip-verify` — `tls.Config`의 `InsecureSkipVerify: true`(인증서 검증 비활성화). HIGH.
+  - `go-weak-random-token` — token/secret/OTP/session 등 보안 값 생성에 `math/rand` 사용. HIGH.
+  - `go-pprof-import-exposed` — `_ "net/http/pprof"` blank import로 기본 mux에 프로파일링 핸들러 노출. WARNING.
+- `tests/test_go_rules.py` — 룰별 양성·음성 케이스, severity, `.go` 경로 스코프, 임시 파일 end-to-end 스캔 검증을 추가했습니다.
+- **pre-commit 프레임워크 통합**(`.pre-commit-hooks.yaml`, 리포지토리 루트) — https://pre-commit.com 사용자 리포가 `.pre-commit-config.yaml`에 3줄만 추가하면 커밋마다 AppGuardrail 스캔이 실행되고, deploy-blocking 발견 시 커밋이 차단됩니다. 기존 `appguardrail hook`(직접 git hook 설치)과 상호 보완적입니다.
+- `.appguardrailignore`(선택) — 스캔 루트에 gitignore 스타일 glob(한 줄당 하나, `#` 주석)을 두면 vendored 코드·생성물·서드파티 번들을 스캔에서 제외합니다. 이름만 쓰면(`vendor/`) 트리 어디서든 매칭되고, `*.min.js` 같은 glob·`docs/generated` 같은 경로도 지원합니다. 제외 건수를 스캔 출력에 표시해 조용히 빠지는 일이 없습니다.
+- Ruby on Rails 보안 룰 팩 `scanner/rules/rails.yml` — 내장 룰이 다루지 않던 `.rb`/`.erb` 소스를 경로 글롭으로 스코핑해 탐지합니다. 모든 인젝션 룰은 실제 Ruby 문자열 보간(`#{...}`)이나 명백히 위험한 API를 요구하는 고정밀 설계로, 파라미터 바인딩 등 안전한 Rails 관용구는 매치하지 않습니다(안전 코드 오탐 0 검증).
+  - `rails-sql-injection-interpolation` — `where`/`find_by_sql`/`order` 등에 보간 문자열로 SQL 조립(CWE-89). CRITICAL.
+  - `rails-command-injection` — `system`/`exec`/`IO.popen`/`Open3.*`의 보간 문자열 셸 실행, `params`·`request`를 보간한 백틱 실행(CWE-78). CRITICAL.
+  - `rails-secrets-in-code` — `secret_key_base` 하드코딩(세션 서명 키 유출로 세션 위조 가능, CWE-798). CRITICAL.
+  - `rails-raw-html-output` — `raw(...)`/`.html_safe`로 HTML 이스케이프 우회 출력(XSS, CWE-79). HIGH.
+  - `rails-mass-assignment-permit-all` — `params.permit!` 전체 파라미터 허용(대량 할당, CWE-915). HIGH.
+  - `rails-skip-csrf` — `skip_before_action :verify_authenticity_token`으로 CSRF 보호 해제(CWE-352). HIGH.
+- CI/CD 보안 탐지 룰 3종(`scanner/rules/cicd.yml`) — GitHub Actions 공급망/파이프라인 위험: `github-action-mutable-ref`(action을 @main/@master 이동 브랜치에 고정), `github-actions-pull-request-target`(fork PR 컨텍스트에서 secrets 접근), `github-actions-script-injection`(공격자 제어 `github.event.*`를 표현식에 인라인). 각각 SHA 고정·트리거 검토·env 경유 참조를 권고합니다.
+- **GitHub Actions 네이티브 대응** — 스캔이 Actions 안에서 실행되면(`GITHUB_ACTIONS=true`) 자동으로 (1) 발견 항목을 PR diff에 인라인으로 띄우는 워크플로 어노테이션(`::error`/`::warning`, deploy-blocking은 error)과 (2) 실행 화면의 job summary(`$GITHUB_STEP_SUMMARY`, severity 집계 + 상위 목록)를 출력합니다. 로컬에서 강제하려면 `scan --github`. 무의존성(stdlib)이며 어노테이션 이스케이프는 GitHub 규격(`%0A`·`%2C`·`%3A`)을 따릅니다. 기존 `monitor` 워크플로는 변경 없이 인라인 표시를 얻습니다.
+- **재사용 가능한 GitHub Action**(`action.yml`, 리포지토리 루트) — `uses: ContextualWisdomLab/appguardrail@v1` 한 줄로 스캔 + SARIF 업로드 + PR 코멘트 + deploy 게이트를 실행합니다. 입력 `path`·`sarif`·`upload-sarif`·`pr-comment`·`fail-on-blocking`·`version`, 출력 `sarif`·`exit-code`. composite action이라 별도 러너 이미지가 필요 없습니다.
+- **PR 스티키 코멘트** — Actions의 `pull_request` 이벤트에서 발견 요약(severity 집계 + 상위 목록)을 PR에 단일 코멘트로 upsert합니다(매 푸시마다 새 코멘트가 아니라 기존 코멘트를 갱신 → 코멘트 스팸 없음). 숨은 마커로 식별하며 `GITHUB_TOKEN`만 사용합니다(무의존성 urllib). 코멘트 실패는 보안 게이트를 절대 실패시키지 않습니다.
 - `appguardrail fix` 명령 — 안전하고 결정적인 자동 수정을 적용합니다(기본 dry-run diff, `--apply`로 기록). 의미를 바꾸지 않는 순수 additive 변환만 수행하며, 첫 변환으로 외부 `target="_blank"` 링크에 `rel="noopener noreferrer"`를 추가합니다(reverse tabnabbing 방지). 동작을 바꾸는 수정(시크릿→env 등)은 위험하므로 자동 적용하지 않고 fix-pack 프롬프트로 남깁니다. scan→fix→verify 루프를 안전하게 닫습니다.
 - `appguardrail serve` — 멀티테넌트 **control-plane API**(스캔 인제스트 + 히스토리). 일회성 CLI를 넘어, CI가 매 스캔의 `appguardrail.findings.v1`을 org별 API 키로 영속 저장하고 시간에 따른 추이를 조회할 수 있는 지속형 백본입니다. stdlib(sqlite3 + http.server)만 사용하며 org별 테넌트 격리를 강제합니다.
   - 엔드포인트: `POST /api/v1/scans`(인제스트), `GET /api/v1/scans`(히스토리), `GET /api/v1/scans/{id}`(상세), `GET /api/v1/health`.
@@ -48,6 +137,19 @@
   - `hardcoded-slack-token`(xoxb/xoxa/xoxp/… Slack 토큰), `hardcoded-twilio-credential`(Twilio Account SID `AC…`/API key `SK…`), `hardcoded-sendgrid-api-key`(`SG.` SendGrid 키), `hardcoded-npm-token`(`npm_` npm 토큰), `hardcoded-pypi-token`(`pypi-AgEIcHlwaS…` PyPI 토큰) — 모두 CRITICAL.
   - `hardcoded-slack-webhook-url`(`hooks.slack.com/services/…` incoming webhook) — HIGH.
   - 모든 룰에 `cwe: [CWE-798]`, `owasp: [A07:2021]` 부여. 기존 룰(OpenAI/Anthropic/Stripe/AWS/GitHub/Google/PEM)과 중복 없음.
+- Ansible 플레이북 룰 팩 6종 추가(`scanner/rules/ansible.yml`, 고정밀 — Kubernetes/Helm/docker-compose/GitHub Actions 등 유사 YAML에는 반응하지 않도록 Ansible 전용 모듈·키에 앵커링, look-alike 음성 케이스 e2e 검증):
+  - `ansible-become-password-literal` — `ansible_become_pass`를 Vault 없이 평문 리터럴로 저장(관리 대상 전 호스트 root 노출). CRITICAL.
+  - `ansible-ssh-password-literal` — `ansible_ssh_pass`/`ansible_password` 평문 리터럴(SSH 접속 자격 증명 노출). CRITICAL.
+  - `ansible-shell-command-injection` — `shell:`/`command:` 태스크에 Jinja2 변수 직접 보간(명령 주입, `| quote` 필터 부재). HIGH.
+  - `ansible-validate-certs-false` — `validate_certs: false`로 TLS 검증 비활성화(중간자 변조 허용). HIGH.
+  - `ansible-file-mode-world-writable` — 파일 배포 권한 0777/0666(로컬 권한 상승 표적). HIGH.
+  - `ansible-host-key-checking-disabled` — SSH host key 검증 비활성화(YAML 변수 및 `ansible.cfg` 모두 탐지). HIGH.
+- Java/Spring 보안 룰팩 `scanner/rules/java-spring.yml` 추가(고정밀 5종, 내장 Java 룰과 중복 없음):
+  - `java-sql-injection-concat` — `createQuery`/`prepareStatement`/`executeQuery`에 문자열 리터럴 + 변수 연결로 SQL/JPQL 조립. CRITICAL.
+  - `java-runtime-exec-concat` — `Runtime.getRuntime().exec`/`ProcessBuilder`에 문자열 연결로 OS 명령 조립. CRITICAL.
+  - `java-xxe-unsafe-parser` — 외부 엔티티/DTD를 명시적으로 허용하는 XML 파서 설정(`external-*-entities=true`, `disallow-doctype-decl=false`, `SUPPORT_DTD=true`). HIGH.
+  - `java-trustall-trustmanager` — `checkServerTrusted` 본문이 비어 있는 trust-all `X509TrustManager`(TLS 검증 무력화). HIGH.
+  - `spring-actuator-exposed` — `management.endpoints.web.exposure.include=*`(properties·yml 중첩 표기 모두 탐지, `application*` 설정 파일로 경로 스코프). HIGH.
 
 ### 추가
 - `appguardrail scan --sarif <path>` — 정규화된 findings를 SARIF 2.1.0으로 출력합니다. GitHub code scanning(`github/codeql-action/upload-sarif`), VS Code SARIF viewer, Azure DevOps 등 SARIF 소비 도구가 그대로 읽어 Security tab 알림·PR 인라인 주석으로 표시됩니다. severity→level 매핑과 GitHub 랭킹용 `security-severity` 속성, deploy-gate 의미(`deployBlocking`), 재실행 간 안정적인 `partialFingerprints`를 포함합니다.
@@ -58,6 +160,7 @@
   - findings 파일을 `/findings.json`으로 직접 서빙하여 실행 위치(cwd)와 무관하게 로드됩니다.
 
 ### 검증
+- `tests/test_rails_rules.py`: 룰별 positive/negative 스니펫·severity 검증, 임시 Rails 앱 파일 대상 end-to-end 스캔 발화 테스트, 그리고 안전한 컨트롤러와 비 Ruby 경로에서는 침묵하는지 확인하는 테스트를 추가했습니다.
 - `tests/test_dashboard_core.py`: 정적 자산 동봉 여부, HTTP 라우트(`/`, `/findings.json`, 404) 테스트를 추가했습니다.
 - 격리된 venv에 wheel을 설치해 소스 트리 밖에서 `appguardrail dashboard`가 대시보드를 서빙함을 확인했습니다.
 
