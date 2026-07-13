@@ -84,7 +84,7 @@ def test_redaction_and_log_compression_prioritize_security_context():
     secret_log = (
         "\x1b[31m2026-07-01T10:20:30.123Z Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz\n"
         "token='github_pat_abcdefghijklmnopqrstuvwxyz0123456789'\n"
-        "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature\n"
+        "jwt=fakejwt_eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature\n"
     )
     redacted = issueops.redact(secret_log)
     assert "\x1b" not in redacted
