@@ -1787,12 +1787,16 @@ def cmd_fix(args):
         _console_print("✨ No safe auto-fixes to apply.")
         return 0
     if apply:
+        fix_s = "es" if total_fixes != 1 else ""
+        file_s = "s" if changed_files != 1 else ""
         _console_print(
-            f"\n🔧 Applied {total_fixes} safe fix{'es' if total_fixes != 1 else ''} across {changed_files} file{'s' if changed_files != 1 else ''}."
+            f"\n🔧 Applied {total_fixes} safe fix{fix_s} across {changed_files} file{file_s}."
         )
     else:
+        fix_s = "es" if total_fixes != 1 else ""
+        file_s = "s" if changed_files != 1 else ""
         _console_print(
-            f"\n🔧 {total_fixes} safe fix{'es' if total_fixes != 1 else ''} available in {changed_files} file{'s' if changed_files != 1 else ''} "
+            f"\n🔧 {total_fixes} safe fix{fix_s} available in {changed_files} file{file_s}. "
             "Re-run with --apply to write them."
         )
         _console_print("   Other findings need review — see 'appguardrail report fix-pack'.")
