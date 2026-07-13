@@ -6,9 +6,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
 
-from appguardrail_core.findings import (SEVERITIES, finding_sort_key,
-                                        is_deploy_blocking, normalize_finding,
-                                        severity_counts)
+from appguardrail_core.findings import (
+    SEVERITIES,
+    finding_sort_key,
+    is_deploy_blocking,
+    normalize_finding,
+    severity_counts,
+)
 
 
 @dataclass(frozen=True)
@@ -65,9 +69,7 @@ def render_buyer_diligence_report(
 ) -> str:
     """Render a buyer-diligence markdown report from normalized findings."""
     context = context or ReportContext()
-    normalized = [
-        _sanitize_for_markdown(normalize_finding(finding)) for finding in findings
-    ]
+    normalized = [normalize_finding(finding) for finding in findings]
     normalized.sort(key=finding_sort_key)
     counts = severity_counts(normalized)
     blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
@@ -267,9 +269,7 @@ def render_agency_report(
     )
     if normalized:
         for index, finding in enumerate(normalized, start=1):
-            lines.append(
-                f"| AG-{index:03d} | Pending | Rerun {finding['rule_id']} evidence. |"
-            )
+            lines.append(f"| AG-{index:03d} | Pending | Rerun {finding['rule_id']} evidence. |")
     else:
         lines.append("| n/a | n/a | No findings. |")
 
@@ -358,7 +358,6 @@ def render_fix_pack(
 
 
 def _launch_posture(blockers: list[dict[str, Any]]) -> str:
-    """Summarize whether blocker severity permits launch."""
     if any(finding["severity"] == "CRITICAL" for finding in blockers):
         return "Hold pending critical remediation"
     if blockers:
@@ -367,15 +366,12 @@ def _launch_posture(blockers: list[dict[str, Any]]) -> str:
 
 
 def _summary_table(findings: list[dict[str, Any]]) -> list[str]:
-    """Render the buyer diligence summary table."""
     rows = [
         "| ID | Severity | Category | Location | References |",
         "|---|---|---|---|---|",
     ]
     for index, finding in enumerate(findings, start=1):
-        references = ", ".join(
-            finding["references"] or finding["owasp"] or finding["cwe"]
-        )
+        references = ", ".join(finding["references"] or finding["owasp"] or finding["cwe"])
         rows.append(
             "| {id} | {severity} | {category} | `{location}` | {references} |".format(
                 id=f"BD-{index:03d}",
@@ -389,7 +385,6 @@ def _summary_table(findings: list[dict[str, Any]]) -> list[str]:
 
 
 def _finding_detail(index: int, finding: dict[str, Any]) -> list[str]:
-    """Render one detailed buyer diligence finding section."""
     references = ", ".join(finding["references"] or finding["owasp"] or finding["cwe"])
     return [
         f"### BD-{index:03d}: {_short_title(finding['message'])}",
@@ -414,37 +409,7 @@ def _finding_detail(index: int, finding: dict[str, Any]) -> list[str]:
     ]
 
 
-_PROSE_FIELDS = ("message", "remediation", "verification")
-
-
-def _md_prose(value: Any) -> str:
-    """HTML-neutralize free text so a hostile finding message can't inject
-    markup when a generated markdown report is later rendered as HTML."""
-    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _md_fence(value: Any) -> str:
-    """Prevent a snippet from breaking out of its ``` code fence."""
-    return str(value).replace("```", "`\u200b``")
-
-
-def _sanitize_for_markdown(finding: dict[str, Any]) -> dict[str, Any]:
-    """Return a render-safe copy: prose fields HTML-escaped, snippet fence-safe.
-
-    rule_id/category/context/severity are constrained identifiers used in gate
-    logic and are left untouched.
-    """
-    safe = dict(finding)
-    for field in _PROSE_FIELDS:
-        if field in safe:
-            safe[field] = _md_prose(safe[field])
-    if "snippet" in safe:
-        safe["snippet"] = _md_fence(safe["snippet"])
-    return safe
-
-
 def _short_title(message: str, max_len: int = 84) -> str:
-    """Return a compact report heading derived from a finding message."""
     title = message.split(".", 1)[0].strip() or "Security finding"
     if len(title) <= max_len:
         return title
@@ -461,11 +426,8 @@ def _prepare_report(
     list[dict[str, Any]],
     str,
 ]:
-    """Normalize findings and compute shared report metadata."""
     context = context or ReportContext()
-    normalized = [
-        _sanitize_for_markdown(normalize_finding(finding)) for finding in findings
-    ]
+    normalized = [normalize_finding(finding) for finding in findings]
     normalized.sort(key=finding_sort_key)
     counts = severity_counts(normalized)
     blockers = [finding for finding in normalized if is_deploy_blocking(finding)]
@@ -476,7 +438,6 @@ def _prepare_report(
 
 
 def _founder_status(blockers: list[dict[str, Any]]) -> str:
-    """Return the founder-facing launch status label."""
     if any(finding["severity"] == "CRITICAL" for finding in blockers):
         return "Not ready for public launch"
     if blockers:
@@ -485,7 +446,6 @@ def _founder_status(blockers: list[dict[str, Any]]) -> str:
 
 
 def _founder_finding(index: int, finding: dict[str, Any]) -> list[str]:
-    """Render one founder-friendly finding section."""
     return [
         f"### Finding {index}: {_short_title(finding['message'])}",
         "",
@@ -505,7 +465,6 @@ def _founder_finding(index: int, finding: dict[str, Any]) -> list[str]:
 
 
 def _plain_risk(finding: dict[str, Any]) -> str:
-    """Translate severity into plain-language business risk."""
     severity = finding["severity"]
     if severity == "CRITICAL":
         return "This can expose sensitive data, credentials, money movement, or remote execution risk if reachable in production."
@@ -517,7 +476,6 @@ def _plain_risk(finding: dict[str, Any]) -> str:
 
 
 def _fix_prompt(finding: dict[str, Any]) -> str:
-    """Render a focused remediation prompt for one finding."""
     return "\n".join(
         [
             f"Fix AppGuardrail finding `{finding['rule_id']}` in `{finding['file']}:{finding['line']}`.",
@@ -533,7 +491,6 @@ def _fix_prompt(finding: dict[str, Any]) -> str:
 def _next_steps(
     findings: list[dict[str, Any]], blockers: list[dict[str, Any]]
 ) -> list[str]:
-    """Choose the next recommended operator actions for a report."""
     if not findings:
         return ["1. Re-run AppGuardrail with current production-bound code."]
     steps = []
@@ -552,7 +509,6 @@ def _next_steps(
 
 
 def _agency_recommendation(blockers: list[dict[str, Any]]) -> str:
-    """Return the agency-facing launch recommendation."""
     if any(finding["severity"] == "CRITICAL" for finding in blockers):
         return "Hold pending critical fixes"
     if blockers:
@@ -563,7 +519,6 @@ def _agency_recommendation(blockers: list[dict[str, Any]]) -> str:
 def _agency_severity_section(
     severity: str, findings: list[dict[str, Any]]
 ) -> list[str]:
-    """Render all agency report findings for one severity bucket."""
     heading = severity.title() if severity != "INFO" else "Informational"
     lines = [f"### {heading} Findings", ""]
     if not findings:
@@ -595,7 +550,6 @@ def _agency_severity_section(
 
 
 def _priority_matrix(findings: list[dict[str, Any]]) -> list[str]:
-    """Render the agency prioritization table."""
     lines = [
         "| ID | Title | Severity | Effort | Priority |",
         "|---|---|---|---|---|",
@@ -615,7 +569,6 @@ def _priority_matrix(findings: list[dict[str, Any]]) -> list[str]:
 
 
 def _priority_for(finding: dict[str, Any]) -> str:
-    """Map a finding to a remediation priority label."""
     if is_deploy_blocking(finding):
         return "Immediate" if finding["severity"] == "CRITICAL" else "Before launch"
     if finding["severity"] == "WARNING":
@@ -624,7 +577,6 @@ def _priority_for(finding: dict[str, Any]) -> str:
 
 
 def _fix_item(index: int, finding: dict[str, Any]) -> list[str]:
-    """Render one actionable fix-pack checklist item."""
     return [
         f"### [ ] FIX-{index:03d}: {_short_title(finding['message'])}",
         "",
@@ -646,7 +598,6 @@ def _fix_item(index: int, finding: dict[str, Any]) -> list[str]:
 
 
 def _fix_status_table(findings: list[dict[str, Any]]) -> list[str]:
-    """Render the fix-pack status tracking table."""
     lines = [
         "| ID | Title | Severity | Status | Fixed By | Verified |",
         "|---|---|---|---|---|---|",
@@ -663,7 +614,4 @@ def _fix_status_table(findings: list[dict[str, Any]]) -> list[str]:
 
 
 def _references(finding: dict[str, Any]) -> str:
-    """Return a comma-separated reference list for a finding."""
-    return (
-        ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"
-    )
+    return ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"

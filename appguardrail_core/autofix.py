@@ -14,7 +14,9 @@ from typing import Callable
 
 # One opening <a ...> tag (no embedded '>').
 _A_TAG = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
-_HAS_EXTERNAL_BLANK = re.compile(r"target\s*=\s*[\"']_blank[\"']", re.IGNORECASE)
+_HAS_EXTERNAL_BLANK = re.compile(
+    r"target\s*=\s*[\"']_blank[\"']", re.IGNORECASE
+)
 _HAS_EXTERNAL_HREF = re.compile(r"href\s*=\s*[\"']https?://", re.IGNORECASE)
 _HAS_REL_SAFE = re.compile(
     r"rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer)", re.IGNORECASE
@@ -37,13 +39,7 @@ def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
             and not _HAS_REL_SAFE.search(tag)
         ):
             count += 1
-            return re.sub(
-                r"<a\b",
-                '<a rel="noopener noreferrer"',
-                tag,
-                count=1,
-                flags=re.IGNORECASE,
-            )
+            return re.sub(r"<a\b", '<a rel="noopener noreferrer"', tag, count=1, flags=re.IGNORECASE)
         return tag
 
     return _A_TAG.sub(repl, text), count
@@ -51,10 +47,7 @@ def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
 
 # rule_id -> (file extensions it applies to, transform)
 SAFE_FIXES: "dict[str, tuple[tuple[str, ...], Callable[[str], tuple[str, int]]]]" = {
-    "html-target-blank-without-noopener": (
-        (".html", ".htm"),
-        _fix_target_blank_noopener,
-    ),
+    "html-target-blank-without-noopener": ((".html", ".htm"), _fix_target_blank_noopener),
 }
 
 

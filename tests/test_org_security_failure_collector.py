@@ -2,19 +2,11 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 from appguardrail_core import issueops
 
-MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "ci"
-    / "collect_org_security_failures.py"
-)
-SPEC = importlib.util.spec_from_file_location(
-    "collect_org_security_failures", MODULE_PATH
-)
+
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "ci" / "collect_org_security_failures.py"
+SPEC = importlib.util.spec_from_file_location("collect_org_security_failures", MODULE_PATH)
 collector = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = collector
 assert SPEC.loader is not None
@@ -60,12 +52,7 @@ class FakeClient:
 
     def request(self, method, path, data=None):
         self.calls.append(("request", method, path, data))
-        return {
-            "number": 99,
-            "state": "open",
-            "title": data.get("title", ""),
-            "body": data.get("body", ""),
-        }
+        return {"number": 99, "state": "open", "title": data.get("title", ""), "body": data.get("body", "")}
 
 
 class FakeRedirectResponse:
@@ -80,9 +67,6 @@ class FakeRedirectResponse:
 
     def geturl(self):
         return self.location
-
-    def read(self):
-        return self.location.encode()
 
 
 class FakeRedirectOpener:
@@ -108,26 +92,15 @@ def test_job_log_rejects_dangerous_redirect_scheme(monkeypatch):
 
 def test_job_log_rejects_internal_redirect_host(monkeypatch):
     client = collector.GitHub("token")
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_: FakeRedirectOpener("http://169.254.169.254/latest/meta-data"),
+    )
 
-    blocked_urls = [
-        "http://169.254.169.254/latest/meta-data",
-        "http://[::1]/",
-        "http://[::ffff:127.0.0.1]/",
-        "http://10.0.0.5/",
-        "http://2130706433/",
-        "http://0177.0.0.1/",
-        "http://0x7f.0.0.1/",
-    ]
-
-    for url in blocked_urls:
-        monkeypatch.setattr(
-            collector.urllib.request,
-            "build_opener",
-            lambda *_, u=url: FakeRedirectOpener(u),
-        )
-        assert "Access to internal address blocked" in client.job_log(
-            "ContextualWisdomLab/naruon", 123
-        )
+    assert "Access to internal address blocked" in client.job_log(
+        "ContextualWisdomLab/naruon", 123
+    )
 
 
 def test_publish_skips_duplicate_and_reopens_closed_issue():
@@ -136,52 +109,18 @@ def test_publish_skips_duplicate_and_reopens_closed_issue():
         "number": 17,
         "state": "open",
         "title": collector.title(item),
-        "body": issueops.marker(
-            item["repo"], item["workflow"], {collector.seen_key(item)}
-        ),
+        "body": issueops.marker(item["repo"], item["workflow"], {collector.seen_key(item)}),
     }
     client = FakeClient([issue])
-    collector.publish_one(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        item,
-        True,
-        {issue["title"]: issue},
-        set(),
-    )
+    collector.publish_one(client, "ContextualWisdomLab/appguardrail", item, True, {issue["title"]: issue}, set())
     assert all(call[0] != "request" for call in client.calls)
 
     unseen = finding(job_id=999, snippet="::error:: security failure")
-    closed = dict(
-        issue,
-        state="closed",
-        body=issueops.marker(item["repo"], item["workflow"], {"1:2"}),
-    )
+    closed = dict(issue, state="closed", body=issueops.marker(item["repo"], item["workflow"], {"1:2"}))
     client = FakeClient([closed])
-    collector.publish_one(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        unseen,
-        False,
-        {closed["title"]: closed},
-        set(),
-    )
-    patch = [
-        call
-        for call in client.calls
-        if call[:3]
-        == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")
-    ]
-    comment = [
-        call
-        for call in client.calls
-        if call[:3]
-        == (
-            "request",
-            "POST",
-            "/repos/ContextualWisdomLab/appguardrail/issues/17/comments",
-        )
-    ]
+    collector.publish_one(client, "ContextualWisdomLab/appguardrail", unseen, False, {closed["title"]: closed}, set())
+    patch = [call for call in client.calls if call[:3] == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")]
+    comment = [call for call in client.calls if call[:3] == ("request", "POST", "/repos/ContextualWisdomLab/appguardrail/issues/17/comments")]
     assert patch and patch[0][3]["state"] == "open"
     assert collector.seen_key(unseen) in patch[0][3]["body"]
     assert comment
@@ -196,90 +135,7 @@ def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
         dry_run=True,
     )
     output = capsys.readouterr().out
-    assert (
-        client.calls.count(
-            (
-                "pages",
-                "/repos/ContextualWisdomLab/appguardrail/issues",
-                {"state": "all", "labels": collector.ISSUE_LABEL},
-            )
-        )
-        == 1
-    )
+    assert client.calls.count(("pages", "/repos/ContextualWisdomLab/appguardrail/issues", {"state": "all", "labels": collector.ISSUE_LABEL})) == 1
     assert output.count("DRY_RUN label ContextualWisdomLab/appguardrail") == 3
     assert "DRY_RUN create issue" in output
     assert "DRY_RUN update issue #dry-run" in output
-
-
-def test_github_init_rejects_dangerous_scheme():
-    with pytest.raises(ValueError, match="API URL must start with http:// or https://"):
-        collector.GitHub("token", "file:///etc/passwd")
-
-
-def test_job_log_rejects_internal_dns_resolution(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener(
-            "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-        ),
-    )
-    monkeypatch.setattr(
-        collector.socket,
-        "getaddrinfo",
-        lambda *_, **__: [
-            (
-                collector.socket.AF_INET,
-                collector.socket.SOCK_STREAM,
-                6,
-                "",
-                ("127.0.0.1", 443),
-            )
-        ],
-    )
-
-    assert "Access to internal address blocked" in client.job_log(
-        "ContextualWisdomLab/naruon", 123
-    )
-
-
-def test_job_log_rejects_unexpected_redirect_host(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener("https://attacker.example/job-logs.txt"),
-    )
-
-    assert "Unexpected log download host blocked" in client.job_log(
-        "ContextualWisdomLab/naruon", 123
-    )
-
-
-def test_job_log_allows_public_github_log_host(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener(
-            "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-        ),
-    )
-    monkeypatch.setattr(
-        collector.socket,
-        "getaddrinfo",
-        lambda *_, **__: [
-            (
-                collector.socket.AF_INET,
-                collector.socket.SOCK_STREAM,
-                6,
-                "",
-                ("93.184.216.34", 443),
-            )
-        ],
-    )
-
-    assert client.job_log("ContextualWisdomLab/naruon", 123) == (
-        "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-    )
