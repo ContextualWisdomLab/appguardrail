@@ -9,9 +9,9 @@ on:
     - cron: "31 4 * * 1"
   workflow_dispatch:
 
+# Least-privilege top-level token; write scopes are granted per-job below.
 permissions:
   contents: read
-  actions: read
 
 jobs:
   appguardrail-scan:
@@ -57,6 +57,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
