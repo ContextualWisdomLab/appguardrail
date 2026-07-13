@@ -6,20 +6,32 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (SCAN_RULES, _bandit_findings,
-                                      _build_finding, _collect_files,
-                                      _detect_scan_languages,
-                                      _load_packaged_regex_rules,
-                                      _path_allowed_by_rule,
-                                      _print_scan_results, _ruff_findings,
-                                      _run_bandit_scan, _run_codegraph_command,
-                                      _run_codegraph_index,
-                                      _run_ruff_security_scan,
-                                      _run_semgrep_scan, _run_trivy_fs,
-                                      _run_zap_baseline, _scan_file,
-                                      _semgrep_findings, cmd_init, cmd_monitor,
-                                      cmd_org_bundle, cmd_report, cmd_scan,
-                                      cmd_serve)
+from scanner.cli.appguardrail import (
+    SCAN_RULES,
+    _bandit_findings,
+    _build_finding,
+    _collect_files,
+    _detect_scan_languages,
+    _load_packaged_regex_rules,
+    _path_allowed_by_rule,
+    _print_scan_results,
+    _ruff_findings,
+    _run_bandit_scan,
+    _run_codegraph_command,
+    _run_codegraph_index,
+    _run_ruff_security_scan,
+    _run_semgrep_scan,
+    _run_trivy_fs,
+    _run_zap_baseline,
+    _scan_file,
+    _semgrep_findings,
+    cmd_init,
+    cmd_monitor,
+    cmd_org_bundle,
+    cmd_report,
+    cmd_scan,
+    cmd_serve,
+)
 
 MOCK_RULES = [
     {
@@ -466,9 +478,13 @@ def test_packaged_yaml_regex_rules_are_loaded():
 
 def test_yaml_rule_path_filters_match_root_and_nested_paths():
     assert _path_allowed_by_rule(".env.local", ["**/.env*"], [])
-    assert _path_allowed_by_rule("apps/web/.env.production", ["**/.env*"], [])
+    assert _path_allowed_by_rule(
+        "apps/web/.env.production", ["**/.env*"], []
+    )
     assert not _path_allowed_by_rule("src/config.ts", ["**/.env*"], [])
-    assert not _path_allowed_by_rule("tests/mock-auth.ts", [], ["**/tests/**"])
+    assert not _path_allowed_by_rule(
+        "tests/mock-auth.ts", [], ["**/tests/**"]
+    )
 
 
 def test_scan_file_detects_packaged_yaml_regex_rule(tmp_path):
@@ -1208,9 +1224,7 @@ def test_run_codegraph_command_rejects_unexpected_arguments(tmp_path):
 def test_run_codegraph_command_allows_windows_wrapper(tmp_path):
     process = type("Process", (), {"returncode": 0, "stdout": "synced", "stderr": ""})()
 
-    with patch(
-        "scanner.cli.appguardrail.subprocess.run", return_value=process
-    ) as run:
+    with patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
         assert (
             _run_codegraph_command(["codegraph.ps1", "sync"], tmp_path, "sync")
             == "synced"

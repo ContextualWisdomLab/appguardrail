@@ -41,6 +41,7 @@ Options:
 
 import argparse
 import fnmatch
+import functools
 import importlib.resources as resources
 import json
 import os
@@ -85,15 +86,14 @@ from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
 
-_EMOJI_REGEX = re.compile(
-    r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*"
-)
+_EMOJI_REGEX = re.compile(r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*")
 
 
 def _format_msg(msg: str) -> str:
     if os.getenv("APPGUARDRAIL_NO_EMOJI"):
         return _EMOJI_REGEX.sub("", msg)
     return msg
+
 
 # ---------------------------------------------------------------------------
 # Rule templates
@@ -1608,7 +1608,13 @@ def _is_safe_url(url: str) -> bool:
 
     try:
         ip = ipaddress.ip_address(raw)
-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_unspecified
+            or ip.is_multicast
+        ):
             return False
     except ValueError:
         # Non-IP hostnames are expected; validate resolved addresses below.
@@ -1619,7 +1625,13 @@ def _is_safe_url(url: str) -> bool:
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
             ip = ipaddress.ip_address(ip_str)
-            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+            if (
+                ip.is_loopback
+                or ip.is_private
+                or ip.is_link_local
+                or ip.is_unspecified
+                or ip.is_multicast
+            ):
                 return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
@@ -2057,8 +2069,9 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
     return False
 
 
-def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
-    """Return whether a path passes optional YAML include/exclude filters."""
+@functools.lru_cache(maxsize=2048)
+def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths: tuple) -> bool:
+    """Return whether a path passes optional YAML include/exclude filters (cached)."""
     if include_paths and not any(
         _path_matches_glob(path, glob) for glob in include_paths
     ):
@@ -2066,6 +2079,10 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
     return True
+
+def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
+    """Return whether a path passes optional YAML include/exclude filters."""
+    return _path_allowed_by_rule_cached(path, tuple(include_paths) if include_paths else (), tuple(exclude_paths) if exclude_paths else ())
 
 
 def _collect_files(base_path: Path):
@@ -2970,7 +2987,11 @@ def _print_scan_results(findings, files_scanned):
         print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
+        print(
+            _format_msg(
+                f"\n⚠️  High-severity {issue_word} found. Review before deploying."
+            )
+        )
     elif not findings:
         print(_format_msg("\n✅ No issues found in this scan."))
     else:
@@ -2978,7 +2999,11 @@ def _print_scan_results(findings, files_scanned):
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
+        print(
+            _format_msg(
+                f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
+            )
+        )
     print()
 
 
