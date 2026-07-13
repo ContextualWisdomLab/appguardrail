@@ -209,8 +209,6 @@ function openDetail(f){
   const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
 
-  d.onclick = (e) => { if (e.target === d) d.close(); };
-
   d.innerHTML = `
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span>
