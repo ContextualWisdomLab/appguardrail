@@ -3,5 +3,3 @@ __pycache__/
 .coverage
 *.egg-info/
 .codegraph/
-test_files/
-perf.log
