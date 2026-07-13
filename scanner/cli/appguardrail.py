@@ -85,15 +85,14 @@ from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
 
-_EMOJI_REGEX = re.compile(
-    r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*"
-)
+_EMOJI_REGEX = re.compile(r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*")
 
 
 def _format_msg(msg: str) -> str:
     if os.getenv("APPGUARDRAIL_NO_EMOJI"):
         return _EMOJI_REGEX.sub("", msg)
     return msg
+
 
 # ---------------------------------------------------------------------------
 # Rule templates
@@ -1606,9 +1605,23 @@ def _is_safe_url(url: str) -> bool:
     host = (parsed.hostname or "").lower()
     raw = host.split("%", 1)[0].strip("[]")
 
+    def is_bad_ip(ip) -> bool:
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped:
+            ip = mapped
+        return (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_unspecified
+            or ip.is_multicast
+            or getattr(ip, "is_reserved", False)
+            or not getattr(ip, "is_global", True)
+        )
+
     try:
         ip = ipaddress.ip_address(raw)
-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+        if is_bad_ip(ip):
             return False
     except ValueError:
         # Non-IP hostnames are expected; validate resolved addresses below.
@@ -1619,7 +1632,7 @@ def _is_safe_url(url: str) -> bool:
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
             ip = ipaddress.ip_address(ip_str)
-            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+            if is_bad_ip(ip):
                 return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
@@ -2970,7 +2983,11 @@ def _print_scan_results(findings, files_scanned):
         print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
+        print(
+            _format_msg(
+                f"\n⚠️  High-severity {issue_word} found. Review before deploying."
+            )
+        )
     elif not findings:
         print(_format_msg("\n✅ No issues found in this scan."))
     else:
@@ -2978,7 +2995,11 @@ def _print_scan_results(findings, files_scanned):
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
+        print(
+            _format_msg(
+                f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
+            )
+        )
     print()
 
 
