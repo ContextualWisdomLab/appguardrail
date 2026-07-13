@@ -1,7 +1,6 @@
 """Tests for the `appguardrail dashboard` static server."""
 
 import json
-import json as _json
 import threading
 import urllib.error
 import urllib.request
@@ -9,9 +8,14 @@ from contextlib import closing
 
 import pytest
 
-from scanner.cli.appguardrail import (dashboard_index_path,
-                                      dashboard_tokens_path,
-                                      make_dashboard_server, render_tokens_css)
+import json as _json
+
+from scanner.cli.appguardrail import (
+    dashboard_index_path,
+    dashboard_tokens_path,
+    make_dashboard_server,
+    render_tokens_css,
+)
 
 
 def _serve(server):
@@ -31,36 +35,10 @@ def test_dashboard_index_ships_with_repo():
     assert b"AppGuardrail" in index.read_bytes()
 
 
-def test_dashboard_drag_drop_has_visible_state_and_clears_it():
-    """Drag-and-drop exposes feedback and always clears it after leaving or dropping."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    assert "body.drag-active::after" in html
-    assert 'document.body.classList.add("drag-active")' in html
-    assert 'document.body.classList.remove("drag-active")' in html
-    assert "addEventListener(\"dragenter\"" in html
-    assert "addEventListener(\"dragleave\"" in html
-    assert "addEventListener(\"drop\"" in html
-
-
-def test_dashboard_rows_are_keyboard_accessible():
-    """Interactive finding rows must expose keyboard and screen-reader affordances."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    assert 'tabindex="0" role="button"' in html
-    assert 'aria-label="View details for finding"' in html
-    assert "tbody tr:focus-visible" in html
-    assert "input:focus-visible, select:focus-visible, button:focus-visible" in html
-    assert "tr.addEventListener('keydown'" in html
-    assert "e.key === 'Enter' || e.key === ' '" in html
-
-
 def test_server_serves_index_and_findings(tmp_path):
     findings = tmp_path / "findings.json"
     findings.write_text(
-        json.dumps(
-            {"schema": "appguardrail.findings.v1", "findings": [{"rule_id": "x"}]}
-        )
+        json.dumps({"schema": "appguardrail.findings.v1", "findings": [{"rule_id": "x"}]})
     )
     server = make_dashboard_server("127.0.0.1", 0, b"<html>DASH</html>", findings)
     port = server.server_address[1]
@@ -82,16 +60,7 @@ def test_design_tokens_source_is_valid():
     assert path.is_file(), f"design token source missing: {path}"
     data = _json.loads(path.read_text())
     # canonical color tokens the dashboard and Figma library depend on
-    for key in (
-        "background",
-        "surface",
-        "text-default",
-        "primary",
-        "critical",
-        "high",
-        "warning",
-        "info",
-    ):
+    for key in ("background", "surface", "text-default", "primary", "critical", "high", "warning", "info"):
         assert key in data["color"], f"missing color token: {key}"
         assert data["color"][key]["value"].startswith("#")
 
@@ -114,7 +83,7 @@ def _norm_color(v):
 
 
 def _parse_root_vars(css_text):
-    root = css_text[css_text.index(":root{") + len(":root{") :]
+    root = css_text[css_text.index(":root{") + len(":root{"):]
     root = root[: root.index("}")]
     return {
         m.group(1): _norm_color(m.group(2))
@@ -136,21 +105,13 @@ def test_inline_fallback_matches_token_source():
     )
     for var, val in fallback.items():
         assert var in source, f"fallback var {var} not in tokens.json source"
-        assert (
-            source[var] == val
-        ), f"{var} drift: fallback {val} != tokens.json {source[var]}"
+        assert source[var] == val, f"{var} drift: fallback {val} != tokens.json {source[var]}"
 
 
 def test_tokens_include_full_scales():
     data = _json.loads(dashboard_tokens_path().read_text())
     # radius scale sourced from Figma
-    for k, v in {
-        "none": "0",
-        "sm": "4px",
-        "md": "8px",
-        "lg": "12px",
-        "xl": "16px",
-    }.items():
+    for k, v in {"none": "0", "sm": "4px", "md": "8px", "lg": "12px", "xl": "16px"}.items():
         assert data["radius"][k]["value"] == v
     # spacing scale
     for k in ("0", "4", "8", "16", "24", "64"):

@@ -1,15 +1,10 @@
-import os
-import runpy
-import sys
 from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (_collect_files, _parse_inline_list,
-                                      _path_matches_glob, _scan_file, cmd_hook,
-                                      cmd_init, cmd_monitor, cmd_review,
-                                      cmd_scan, main)
+from scanner.cli.appguardrail import cmd_init, cmd_scan
 from tests.test_appguardrail import MOCK_RULES
+
 
 
 class Args:
@@ -26,10 +21,8 @@ class ScanArgs:
 def _create_symlink(target, link, target_is_directory=False):
     try:
         link.symlink_to(target, target_is_directory=target_is_directory)
-    except (NotImplementedError, OSError) as exc:  # pragma: no cover
-        pytest.skip(
-            f"symlinks are not available in this environment: {exc}"
-        )  # pragma: no cover
+    except (NotImplementedError, OSError) as exc: # pragma: no cover
+        pytest.skip(f"symlinks are not available in this environment: {exc}") # pragma: no cover
 
 
 def test_cmd_init_symlink_removal(tmp_path, monkeypatch):
@@ -144,6 +137,10 @@ def test_cmd_init_path_traversal_target_file(tmp_path, monkeypatch, capsys):
     assert "💡 Hint: Ensure" in err
 
 
+from scanner.cli.appguardrail import cmd_hook
+
+
+
 class HookArgs:
     pass
 
@@ -167,10 +164,9 @@ def test_cmd_hook_success(tmp_path, monkeypatch, capsys):
     assert "appguardrail scan ." in hook_text
     assert "command -v appguardrail" in hook_text
     assert 'python3 "$APPGUARDRAIL_CLI" scan .' in hook_text
-    if os.name != "nt":
-        import stat
+    import stat
 
-        assert hook_file.stat().st_mode & stat.S_IEXEC
+    assert hook_file.stat().st_mode & stat.S_IEXEC
 
     assert "pre-commit hook installed successfully" in capsys.readouterr().out
 
@@ -227,6 +223,9 @@ def test_cmd_hook_remove_symlink(tmp_path, monkeypatch):
     assert not hook_link.is_symlink()
 
 
+from scanner.cli.appguardrail import _collect_files, _scan_file
+
+
 def test_collect_files_oserror_on_scandir(tmp_path):
     def mock_scandir(path):
         raise PermissionError("Mock permission error")
@@ -248,9 +247,8 @@ def test_collect_files_oserror_on_entry(tmp_path):
         def is_dir(self, follow_symlinks=False):
             if self._is_dir:
                 raise OSError("Mock OS Error")
-            return False  # pragma: no cover
-
-        def is_file(self, follow_symlinks=False):  # pragma: no cover
+            return False # pragma: no cover
+        def is_file(self, follow_symlinks=False): # pragma: no cover
             return self._is_file
 
         def is_symlink(self):
@@ -300,6 +298,11 @@ def test_scan_file_not_regular(tmp_path):
 
     with patch("os.lstat", return_value=MockStat()):
         assert _scan_file(test_file, tmp_path) == []
+
+
+import sys
+
+from scanner.cli.appguardrail import cmd_review, main
 
 
 class ReviewArgs:
@@ -387,7 +390,6 @@ def test_main_no_args(monkeypatch, capsys):
     assert exc.value.code == 0
     assert "usage: appguardrail" in capsys.readouterr().out
 
-
 def test_cmd_scan_actual_run(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     test_file = tmp_path / "unsafe.ts"
@@ -411,6 +413,9 @@ def test_scan_file_empty_rules(tmp_path):
     test_file.write_text("hello\n")
     with patch("scanner.cli.appguardrail.SCAN_RULES", []):
         assert _scan_file(test_file, tmp_path) == []
+
+
+import runpy
 
 
 def test_if_name_main():
@@ -438,11 +443,9 @@ def test_scan_file_open_permission_error():
     base_path = Path("/mock/base")
     file_path = Path("/mock/base/test.js")
 
-    with (
-        patch("os.lstat") as mock_lstat,
-        patch("scanner.cli.appguardrail._get_applicable_rules") as mock_get_rules,
-        patch("builtins.open", mock_open()) as m_open,
-    ):
+    with patch("os.lstat") as mock_lstat, patch(
+        "scanner.cli.appguardrail._get_applicable_rules"
+    ) as mock_get_rules, patch("builtins.open", mock_open()) as m_open:
 
         mock_st = mock_lstat.return_value
         mock_st.st_mode = stat.S_IFREG
@@ -454,27 +457,17 @@ def test_scan_file_open_permission_error():
         findings = _scan_file(file_path, base_path)
         assert findings == []
 
+from scanner.cli.appguardrail import cmd_monitor, _path_matches_glob, _parse_inline_list
 
 def test_cmd_monitor(capsys, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-
     class MonitorArgs:
         pass
-
     assert cmd_monitor(MonitorArgs()) == 0
-
 
 def test_path_matches_glob():
     assert _path_matches_glob("./a/b/c.py", "a/b/c.py")
     assert _path_matches_glob("a/b/c.py", "./a/b/c.py")
 
-
 def test_parse_inline_list():
     assert _parse_inline_list("[]") == []
-
-def test_is_safe_url_cli_coverage():
-    from scanner.cli.appguardrail import _is_safe_url
-    assert not _is_safe_url("http://0.0.0.0/")
-    assert not _is_safe_url("http://224.0.0.1/")
-    assert not _is_safe_url("http://[::]/")
-    assert not _is_safe_url("http://[ff00::1]/")

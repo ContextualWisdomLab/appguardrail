@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
+
 AvailabilityChecker = Callable[[str, tuple[str, ...]], object | None]
 
 
@@ -39,9 +40,7 @@ class ExternalScanPlan:
 
     @property
     def selected_names(self) -> tuple[str, ...]:
-        return tuple(
-            decision.name for decision in self.decisions if decision.should_run
-        )
+        return tuple(decision.name for decision in self.decisions if decision.should_run)
 
 
 def build_external_scan_plan(
@@ -85,9 +84,7 @@ def build_external_scan_plan(
             auto_mode=auto_mode,
             auto_applicable="python" in language_set,
             available=_check_if_needed(
-                checker,
-                force_bandit or (auto_mode and "python" in language_set),
-                "bandit",
+                checker, force_bandit or (auto_mode and "python" in language_set), "bandit"
             ),
             hint="Install Bandit or run without --bandit.",
         ),

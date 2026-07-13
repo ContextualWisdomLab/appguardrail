@@ -3,33 +3,15 @@
 from appguardrail_core.sarif import findings_to_sarif
 
 FINDINGS = [
-    {
-        "severity": "CRITICAL",
-        "rule_id": "hardcoded-stripe-secret-key",
-        "message": "Hardcoded Stripe key\nsecond line",
-        "file": "src/pay.ts",
-        "line": 12,
-        "cwe": ["CWE-798"],
-        "owasp": ["A05:2021"],
-        "context": "app-code",
-        "references": ["https://stripe.com/docs/keys"],
-    },
-    {
-        "severity": "WARNING",
-        "rule_id": "hardcoded-stripe-secret-key",
-        "message": "Hardcoded Stripe key",
-        "file": "src/other.ts",
-        "line": 3,
-        "context": "app-code",
-    },
-    {
-        "severity": "INFO",
-        "rule_id": "note",
-        "message": "fyi",
-        "file": "README.md",
-        "line": 1,
-        "context": "doc",
-    },
+    {"severity": "CRITICAL", "rule_id": "hardcoded-stripe-secret-key",
+     "message": "Hardcoded Stripe key\nsecond line", "file": "src/pay.ts",
+     "line": 12, "cwe": ["CWE-798"], "owasp": ["A05:2021"], "context": "app-code",
+     "references": ["https://stripe.com/docs/keys"]},
+    {"severity": "WARNING", "rule_id": "hardcoded-stripe-secret-key",
+     "message": "Hardcoded Stripe key", "file": "src/other.ts", "line": 3,
+     "context": "app-code"},
+    {"severity": "INFO", "rule_id": "note", "message": "fyi", "file": "README.md",
+     "line": 1, "context": "doc"},
 ]
 
 
