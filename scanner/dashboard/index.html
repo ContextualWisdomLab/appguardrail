@@ -226,7 +226,12 @@ function openDetail(f){
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
         ${refs?`<div style="margin-top:6px">${refs}</div>`:''}</div>`:''}
     </div>`;
+  const activeEl = document.activeElement;
   d.showModal();
+  d.addEventListener('close', function onDlgClose() {
+    if (activeEl) activeEl.focus();
+    d.removeEventListener('close', onDlgClose);
+  });
 }
 
 function load(data, srcLabel){
