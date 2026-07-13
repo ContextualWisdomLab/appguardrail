@@ -98,7 +98,7 @@
 **Learning:** `socket.gethostbyname` only returns IPv4 records and throws errors when encountering IPv6 literals or purely IPv6 DNS records. When constructing network guardrails like `_is_safe_url`, using `socket.gethostbyname` introduces blind spots for IPv6, which is heavily used in modern internal routing.
 **Prevention:** Always use `socket.getaddrinfo(raw, None)` to reliably iterate through all addresses (IPv4 and IPv6) returned for a host, along with directly trying `ipaddress.ip_address` to short-circuit IP literals before doing DNS resolution.
 
-## 2025-02-28 - [Incomplete SSRF Protection with ipaddress]
-**Vulnerability:** The SSRF protection `_is_safe_url` previously missed checking for `is_unspecified` (e.g., `0.0.0.0`) and `is_multicast` IP addresses using `ipaddress`.
-**Learning:** `ipaddress.is_private` does not return `True` for unspecified IPs or multicast IPs in Python. This means internal routing addresses could bypass validation if explicit checks for `is_unspecified` and `is_multicast` are omitted.
-**Prevention:** When building IP validation checks with the `ipaddress` library, always include `ip.is_unspecified` and `ip.is_multicast` alongside `is_private`, `is_loopback`, and `is_link_local` to enforce a strict blocklist against unsafe destinations.
+## 2026-07-12 - Complete SSRF protection for unspecified and multicast IPs
+**Vulnerability:** The SSRF protection `_is_safe_url` previously missed `is_unspecified` (for example, `0.0.0.0` or `::`) and `is_multicast` addresses, allowing webhook or CLI push URLs to target non-routable or multicast infrastructure despite rejecting loopback/private/link-local addresses.
+**Learning:** `ipaddress.is_private` does not cover every unsafe network class. Unspecified and multicast addresses must be rejected explicitly for both direct IP literals and every address returned by DNS resolution.
+**Prevention:** When building URL/IP guardrails with the `ipaddress` library, include `ip.is_unspecified` and `ip.is_multicast` alongside `is_private`, `is_loopback`, and `is_link_local`, and keep focused regression tests for both control-plane webhook delivery and CLI push validation.
