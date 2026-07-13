@@ -48,3 +48,13 @@ def test_is_safe_url_unsupported_schemes():
 def test_is_safe_url_unresolvable_domain():
     # An unresolvable domain is considered safe by _is_safe_url
     assert _is_safe_url("http://this-domain-should-not-exist-12345.com/")
+
+
+def test_is_safe_url_mapped_ips():
+    assert not _is_safe_url("http://[::ffff:127.0.0.1]/")
+    assert not _is_safe_url("http://[::ffff:192.168.1.1]/")
+
+
+def test_is_safe_url_reserved_and_not_global_ips():
+    assert not _is_safe_url("http://255.255.255.255/")
+    assert not _is_safe_url("http://0.0.0.0/")

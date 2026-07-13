@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 import tempfile
@@ -1819,3 +1820,28 @@ def test_cmd_init_can_disable_emoji_prefixes(tmp_path, monkeypatch, capsys):
     assert "Next steps:" in out
     assert "✨" not in out
     assert "🚀" not in out
+
+
+def test_console_print_applies_no_emoji_to_every_string_argument(
+    monkeypatch, capsys
+):
+    from scanner.cli.appguardrail import _console_print
+
+    monkeypatch.setenv("APPGUARDRAIL_NO_EMOJI", "1")
+    _console_print("🔎 Scan enabled", 7, "❌ Failure", sep=" | ")
+
+    assert capsys.readouterr().out == "Scan enabled | 7 | Failure\n"
+
+
+def test_cli_routes_console_calls_through_accessibility_wrapper():
+    module_path = Path(__file__).parents[1] / "scanner" / "cli" / "appguardrail.py"
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    direct_print_lines = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "print"
+    ]
+
+    assert direct_print_lines == []
