@@ -6,6 +6,10 @@
 **Learning:** Adding subtle emojis to informative CLI output headers (like "Created/updated files" and "Next steps") provides clearer visual cues for developers scanning long CLI output.
 **Action:** Always include relevant emojis in summary output text to make success and informational messages more visually distinguishable from routine command logs.
 
+## 2024-07-08 - Conditionally disable CLI emojis
+**Learning:** Heavy emoji usage in CLI tools can degrade accessibility for screen readers and cause issues in non-UTF8 terminals or log parsers.
+**Action:** Implemented a targeted regex filter toggled by `APPGUARDRAIL_NO_EMOJI` to gracefully degrade CLI output without stripping valid international text, improving overall CLI UX and accessibility.
+
 ## 2026-07-06 - Clickable table rows and keyboard navigation
 **Learning:** Treating standard `<tr>` elements as interactive clickable rows means they are ignored by screen readers and keyboard users unless specifically configured. Users relying on keyboards couldn't access finding details.
 **Action:** When making custom non-interactive elements (like table rows or divs) clickable, always add `tabindex="0"`, a semantic `role="button"`, appropriate ARIA labels, and explicit `keydown` listeners for 'Enter' and 'Space' to support full accessibility.

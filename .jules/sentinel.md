@@ -98,7 +98,12 @@
 **Learning:** `socket.gethostbyname` only returns IPv4 records and throws errors when encountering IPv6 literals or purely IPv6 DNS records. When constructing network guardrails like `_is_safe_url`, using `socket.gethostbyname` introduces blind spots for IPv6, which is heavily used in modern internal routing.
 **Prevention:** Always use `socket.getaddrinfo(raw, None)` to reliably iterate through all addresses (IPv4 and IPv6) returned for a host, along with directly trying `ipaddress.ip_address` to short-circuit IP literals before doing DNS resolution.
 
-## 2025-02-28 - [Incomplete SSRF Protection with ipaddress]
-**Vulnerability:** The SSRF protection `_is_safe_url` previously missed checking for `is_unspecified` (e.g., `0.0.0.0`) and `is_multicast` IP addresses using `ipaddress`.
-**Learning:** `ipaddress.is_private` does not return `True` for unspecified IPs or multicast IPs in Python. This means internal routing addresses could bypass validation if explicit checks for `is_unspecified` and `is_multicast` are omitted.
-**Prevention:** When building IP validation checks with the `ipaddress` library, always include `ip.is_unspecified` and `ip.is_multicast` alongside `is_private`, `is_loopback`, and `is_link_local` to enforce a strict blocklist against unsafe destinations.
+## 2026-07-12 - Complete SSRF protection for unspecified and multicast IPs
+**Vulnerability:** The SSRF protection `_is_safe_url` previously missed `is_unspecified` (for example, `0.0.0.0` or `::`) and `is_multicast` addresses, allowing webhook or CLI push URLs to target non-routable or multicast infrastructure despite rejecting loopback/private/link-local addresses.
+**Learning:** `ipaddress.is_private` does not cover every unsafe network class. Unspecified and multicast addresses must be rejected explicitly for both direct IP literals and every address returned by DNS resolution.
+**Prevention:** When building URL/IP guardrails with the `ipaddress` library, include `ip.is_unspecified` and `ip.is_multicast` alongside `is_private`, `is_loopback`, and `is_link_local`, and keep focused regression tests for both control-plane webhook delivery and CLI push validation.
+
+## 2026-07-11 - SSRF and IPv6 mapped bypassing due to incomplete validation
+**Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `_is_safe_url` only checking `is_loopback` and `is_private`. This fails to correctly evaluate mapped IPv4 addresses disguised as IPv6 (e.g. `[::ffff:127.0.0.1]`) and misses restricted IP designations like `is_reserved` or non `is_global` IPs, allowing SSRF to `0.0.0.0` or `255.255.255.255`.
+**Learning:** Python's `ipaddress` objects for mapped IPv6 don't inherit properties of their IPv4 wrapped content directly. Using `is_loopback` without checking `.ipv4_mapped` leaves blind spots.
+**Prevention:** Always extract `getattr(ip, 'ipv4_mapped', None)` before evaluation, and combine checks spanning `is_reserved`, `not is_global`, `is_multicast`, `is_unspecified`, `is_private`, and `is_loopback` to fully protect endpoints.
