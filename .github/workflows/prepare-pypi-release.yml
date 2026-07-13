@@ -18,6 +18,7 @@ on:
         default: PyPI Trusted Publishing release prepared by GitHub Actions Bot.
         type: string
 
+# Least-privilege top-level token; the single job below elevates only what it needs.
 permissions:
   contents: read
 
@@ -25,9 +26,9 @@ jobs:
   prepare-release:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
-      contents: write
-      pull-requests: write
+      actions: write        # dispatch security-process.yml on the release branch
+      contents: write       # commit/push the release branch
+      pull-requests: write  # open/update the release PR
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       RELEASE_VERSION: ${{ inputs.version }}
