@@ -6,13 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
 
-from appguardrail_core.findings import (
-    SEVERITIES,
-    finding_sort_key,
-    is_deploy_blocking,
-    normalize_finding,
-    severity_counts,
-)
+from appguardrail_core.findings import (SEVERITIES, finding_sort_key,
+                                        is_deploy_blocking, normalize_finding,
+                                        severity_counts)
 
 
 @dataclass(frozen=True)
@@ -269,7 +265,9 @@ def render_agency_report(
     )
     if normalized:
         for index, finding in enumerate(normalized, start=1):
-            lines.append(f"| AG-{index:03d} | Pending | Rerun {finding['rule_id']} evidence. |")
+            lines.append(
+                f"| AG-{index:03d} | Pending | Rerun {finding['rule_id']} evidence. |"
+            )
     else:
         lines.append("| n/a | n/a | No findings. |")
 
@@ -371,7 +369,9 @@ def _summary_table(findings: list[dict[str, Any]]) -> list[str]:
         "|---|---|---|---|---|",
     ]
     for index, finding in enumerate(findings, start=1):
-        references = ", ".join(finding["references"] or finding["owasp"] or finding["cwe"])
+        references = ", ".join(
+            finding["references"] or finding["owasp"] or finding["cwe"]
+        )
         rows.append(
             "| {id} | {severity} | {category} | `{location}` | {references} |".format(
                 id=f"BD-{index:03d}",
@@ -614,4 +614,6 @@ def _fix_status_table(findings: list[dict[str, Any]]) -> list[str]:
 
 
 def _references(finding: dict[str, Any]) -> str:
-    return ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"
+    return (
+        ", ".join(finding["references"] or finding["owasp"] or finding["cwe"]) or "n/a"
+    )

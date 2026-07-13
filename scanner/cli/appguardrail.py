@@ -56,35 +56,39 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.config import load_config
-from appguardrail_core.findings import (
-    NON_BLOCKING_CONTEXTS,
-    is_deploy_blocking as core_is_deploy_blocking,
-    normalize_findings,
-)
-from appguardrail_core.language import (
-    LANGUAGE_EXTENSIONS,
-    detect_language_axes,
-    detect_stack_profile,
-)
-from appguardrail_core.org_bundle import (
-    OrgBundleError,
-    annotate_missing_pr_repositories,
-    gh_error_message,
-    gh_pr_list,
-    gh_repo_list,
-    load_json as load_org_json,
-    render_org_evidence,
-    write_bundle,
-)
-from appguardrail_core.reports import (
-    REPORT_TYPE_LABELS,
-    ReportContext,
-    render_report,
-    supported_report_types,
-)
+from appguardrail_core.external import build_external_scan_plan
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import \
+    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import normalize_findings
+from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
+                                        detect_language_axes,
+                                        detect_stack_profile)
+from appguardrail_core.org_bundle import (OrgBundleError,
+                                          annotate_missing_pr_repositories,
+                                          gh_error_message, gh_pr_list,
+                                          gh_repo_list)
+from appguardrail_core.org_bundle import load_json as load_org_json
+from appguardrail_core.org_bundle import render_org_evidence, write_bundle
+from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
+                                       render_report, supported_report_types)
 from appguardrail_core.rules import build_rule_metadata
+
+_EMOJI_PATTERN = re.compile(r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*")
+
+
+def _cprint(*args, **kwargs):
+    if os.getenv("APPGUARDRAIL_NO_EMOJI"):
+        new_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                new_args.append(_EMOJI_PATTERN.sub("", arg))
+            else:
+                new_args.append(arg)
+        args = tuple(new_args)
+    print(*args, **kwargs)
+
 
 __version__ = "0.1.1"
 
@@ -1195,8 +1199,8 @@ def cmd_init(args):
         selected for selected in selected_tools if selected not in tool_configs
     ]
     if unknown_tools:
-        print(f"❌ Error: Unknown tool '{tool}'", file=sys.stderr)
-        print(
+        _cprint(f"❌ Error: Unknown tool '{tool}'", file=sys.stderr)
+        _cprint(
             f"💡 Hint: Supported tools are {', '.join([*tool_groups.keys(), *tool_configs.keys()])}",
             file=sys.stderr,
         )
@@ -1211,11 +1215,11 @@ def cmd_init(args):
 
         # SECURITY: Prevent Arbitrary File Write via symlink path traversal
         if not target_file.resolve().is_relative_to(project_root):
-            print(
+            _cprint(
                 f"❌ Error: Target path {target_file} escapes the project root. Aborting.",
                 file=sys.stderr,
             )
-            print(
+            _cprint(
                 "💡 Hint: Ensure the target file or its symlinks do not point outside the repository.",
                 file=sys.stderr,
             )
@@ -1240,11 +1244,11 @@ def cmd_init(args):
 
     # SECURITY: Prevent Arbitrary File Write via symlink path traversal
     if not checklist_file.resolve().is_relative_to(project_root):
-        print(
+        _cprint(
             f"❌ Error: Checklist path {checklist_file} escapes the project root. Aborting.",
             file=sys.stderr,
         )
-        print(
+        _cprint(
             "💡 Hint: Ensure the checklist file or its symlinks do not point outside the repository.",
             file=sys.stderr,
         )
@@ -1261,33 +1265,33 @@ def cmd_init(args):
     if stack and "supabase" in stack:
         _print_supabase_reminder()
 
-    print("\n✅ AppGuardrail initialized successfully!\n")
+    _cprint("\n✅ AppGuardrail initialized successfully!\n")
     if installed:
-        print("✨ Created/updated files:")
+        _cprint("✨ Created/updated files:")
         for f in installed:
-            print(f"  {f}")
-        print()
+            _cprint(f"  {f}")
+        _cprint()
 
     if skipped:
-        print("⏭️  Skipped (already configured):")
+        _cprint("⏭️  Skipped (already configured):")
         for f in skipped:
-            print(f"  {f}")
-        print()
+            _cprint(f"  {f}")
+        _cprint()
 
-    print("🚀 Next steps:")
-    print("  1. Review the installed rules and customize for your project")
-    print("  2. Run 'appguardrail scan .' to check for existing issues")
-    print("  3. Check APPGUARDRAIL_CHECKLIST.md before deploying")
-    print()
+    _cprint("🚀 Next steps:")
+    _cprint("  1. Review the installed rules and customize for your project")
+    _cprint("  2. Run 'appguardrail scan .' to check for existing issues")
+    _cprint("  3. Check APPGUARDRAIL_CHECKLIST.md before deploying")
+    _cprint()
 
 
 def _print_supabase_reminder():
     """Print extra operational reminders for Supabase-backed projects."""
-    print("\n💡 Supabase stack detected. Quick reminders:")
-    print("  - Enable RLS on every user-data table")
-    print("  - Use getUser() not getSession() on the server")
-    print("  - Keep SUPABASE_SERVICE_ROLE_KEY server-side only")
-    print()
+    _cprint("\n💡 Supabase stack detected. Quick reminders:")
+    _cprint("  - Enable RLS on every user-data table")
+    _cprint("  - Use getUser() not getSession() on the server")
+    _cprint("  - Keep SUPABASE_SERVICE_ROLE_KEY server-side only")
+    _cprint()
 
 
 def _detect_scan_languages(files):
@@ -1325,10 +1329,10 @@ def _print_external_auto_skips(plan):
     ]
     if not skipped:
         return
-    print("⚙️  External auto mode:")
+    _cprint("⚙️  External auto mode:")
     for decision in skipped:
-        print(f"   Skipped {decision.display_name}: {decision.skip_reason}")
-    print()
+        _cprint(f"   Skipped {decision.display_name}: {decision.skip_reason}")
+    _cprint()
 
 
 def cmd_scan(args):
@@ -1351,33 +1355,33 @@ def cmd_scan(args):
     run_codegraph = getattr(args, "codegraph", False)
 
     if not scan_arg.exists():
-        print(f"❌ Error: Path does not exist: {scan_path}", file=sys.stderr)
-        print(
+        _cprint(f"❌ Error: Path does not exist: {scan_path}", file=sys.stderr)
+        _cprint(
             "💡 Hint: Check if the path is correct or if you are in the right directory.",
             file=sys.stderr,
         )
         sys.exit(1)
 
     if scan_arg.is_symlink():
-        print(f"Skipping symlink path: {scan_arg}")
+        _cprint(f"Skipping symlink path: {scan_arg}")
         return 0
 
-    print(f"\n🔍 AppGuardrail scanning: {scan_path}\n")
+    _cprint(f"\n🔍 AppGuardrail scanning: {scan_path}\n")
 
     if run_codegraph:
-        print("🧭 CodeGraph enabled: initializing or syncing structural index\n")
+        _cprint("🧭 CodeGraph enabled: initializing or syncing structural index\n")
         try:
             status = _run_codegraph_index(scan_path)
         except RuntimeError as exc:
-            print(f"❌ Error: {exc}", file=sys.stderr)
-            print(
+            _cprint(f"❌ Error: {exc}", file=sys.stderr)
+            _cprint(
                 "💡 Hint: Install the CodeGraph CLI or run without --codegraph.",
                 file=sys.stderr,
             )
             return 1
         if status:
-            print(status)
-            print()
+            _cprint(status)
+            _cprint()
 
     findings = []
     files_scanned = 0
@@ -1397,16 +1401,18 @@ def cmd_scan(args):
     profile = detect_stack_profile(scanned_files)
     languages = set(profile.languages)
     if profile.languages:
-        print(f"🧩 Detected language axes: {', '.join(profile.languages)}")
-        print(f"🧭 Beginner profile: {profile.display_name}")
-        print(f"   {profile.beginner_summary}")
+        _cprint(f"🧩 Detected language axes: {', '.join(profile.languages)}")
+        _cprint(f"🧭 Beginner profile: {profile.display_name}")
+        _cprint(f"   {profile.beginner_summary}")
         if profile.frameworks:
-            print(f"   Framework signals: {', '.join(profile.frameworks)}")
+            _cprint(f"   Framework signals: {', '.join(profile.frameworks)}")
         if profile.external_tools:
-            print(f"   Optional external engines: {', '.join(profile.external_tools)}")
+            _cprint(
+                f"   Optional external engines: {', '.join(profile.external_tools)}"
+            )
         if profile.zap_recommended:
-            print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
-        print()
+            _cprint("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
+        _cprint()
 
     external_plan = build_external_scan_plan(
         languages,
@@ -1422,72 +1428,72 @@ def cmd_scan(args):
     _print_external_auto_skips(external_plan)
 
     if external_plan.trivy.should_run:
-        print("🔎 Trivy FS enabled: vuln, secret, misconfig\n")
+        _cprint("🔎 Trivy FS enabled: vuln, secret, misconfig\n")
         try:
             findings.extend(_run_trivy_fs(scan_path))
         except RuntimeError as exc:
-            print(f"❌ Error: {exc}", file=sys.stderr)
-            print(
+            _cprint(f"❌ Error: {exc}", file=sys.stderr)
+            _cprint(
                 "💡 Hint: Ensure Trivy is installed and running correctly, or run without --trivy.",
                 file=sys.stderr,
             )
             return 1
 
     if external_plan.bandit.should_run:
-        print("🐍 Bandit enabled: Python SAST\n")
+        _cprint("🐍 Bandit enabled: Python SAST\n")
         try:
             findings.extend(_run_bandit_scan(scan_path))
         except RuntimeError as exc:
             if external_plan.bandit.auto_selected and not external_plan.bandit.forced:
-                print(f"⚠️  Skipping Bandit auto integration: {exc}\n")
+                _cprint(f"⚠️  Skipping Bandit auto integration: {exc}\n")
             else:
-                print(f"❌ Error: {exc}", file=sys.stderr)
-                print(
+                _cprint(f"❌ Error: {exc}", file=sys.stderr)
+                _cprint(
                     f"💡 Hint: {external_plan.bandit.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
     if external_plan.ruff.should_run:
-        print("🐍 Ruff security rules enabled: select S\n")
+        _cprint("🐍 Ruff security rules enabled: select S\n")
         try:
             findings.extend(_run_ruff_security_scan(scan_path))
         except RuntimeError as exc:
             if external_plan.ruff.auto_selected and not external_plan.ruff.forced:
-                print(f"⚠️  Skipping Ruff auto integration: {exc}\n")
+                _cprint(f"⚠️  Skipping Ruff auto integration: {exc}\n")
             else:
-                print(f"❌ Error: {exc}", file=sys.stderr)
-                print(
+                _cprint(f"❌ Error: {exc}", file=sys.stderr)
+                _cprint(
                     f"💡 Hint: {external_plan.ruff.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
     if external_plan.semgrep.should_run:
-        print(f"🔎 Semgrep enabled: config {semgrep_config}\n")
+        _cprint(f"🔎 Semgrep enabled: config {semgrep_config}\n")
         try:
             findings.extend(_run_semgrep_scan(scan_path, semgrep_config))
         except RuntimeError as exc:
             if external_plan.semgrep.auto_selected and not external_plan.semgrep.forced:
-                print(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
+                _cprint(f"⚠️  Skipping Semgrep auto integration: {exc}\n")
             else:
-                print(f"❌ Error: {exc}", file=sys.stderr)
-                print(
+                _cprint(f"❌ Error: {exc}", file=sys.stderr)
+                _cprint(
                     f"💡 Hint: {external_plan.semgrep.hint}",
                     file=sys.stderr,
                 )
                 return 1
 
     if external_plan.zap.should_run:
-        print(f"🌐 OWASP ZAP baseline enabled: {zap_baseline_url}\n")
+        _cprint(f"🌐 OWASP ZAP baseline enabled: {zap_baseline_url}\n")
         try:
             findings.extend(_run_zap_baseline(zap_baseline_url))
         except RuntimeError as exc:
             if external_plan.zap.auto_selected and not external_plan.zap.forced:
-                print(f"⚠️  Skipping ZAP auto integration: {exc}\n")
+                _cprint(f"⚠️  Skipping ZAP auto integration: {exc}\n")
             else:
-                print(f"❌ Error: {exc}", file=sys.stderr)
-                print(
+                _cprint(f"❌ Error: {exc}", file=sys.stderr)
+                _cprint(
                     f"💡 Hint: {external_plan.zap.hint}",
                     file=sys.stderr,
                 )
@@ -1497,8 +1503,8 @@ def cmd_scan(args):
         try:
             _write_findings_json(findings, Path(findings_json))
         except RuntimeError as exc:
-            print(f"❌ Error: {exc}", file=sys.stderr)
-            print(
+            _cprint(f"❌ Error: {exc}", file=sys.stderr)
+            _cprint(
                 "💡 Hint: Check the output path and directory permissions.",
                 file=sys.stderr,
             )
@@ -1509,8 +1515,8 @@ def cmd_scan(args):
         try:
             _write_sarif(findings, Path(sarif_path))
         except RuntimeError as exc:
-            print(f"❌ Error: {exc}", file=sys.stderr)
-            print(
+            _cprint(f"❌ Error: {exc}", file=sys.stderr)
+            _cprint(
                 "💡 Hint: Check the output path and directory permissions.",
                 file=sys.stderr,
             )
@@ -1525,7 +1531,7 @@ def cmd_scan(args):
     try:
         config = load_config([config_dir, Path.cwd()])
     except RuntimeError as exc:
-        print(f"❌ Error: {exc}", file=sys.stderr)
+        _cprint(f"❌ Error: {exc}", file=sys.stderr)
         return 1
     if config.get("_path"):
         notes = []
@@ -1533,7 +1539,7 @@ def cmd_scan(args):
             notes.append(f"fail_on={config['fail_on']}")
         if config.get("exclude_rules"):
             notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
-        print(
+        _cprint(
             f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
         )
 
@@ -1563,7 +1569,7 @@ def _write_findings_json(findings, output_path: Path):
         )
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
-    print(f"🧾 Findings JSON written: {output_path}")
+    _cprint(f"🧾 Findings JSON written: {output_path}")
 
 
 def _write_sarif(findings, output_path: Path):
@@ -1578,7 +1584,7 @@ def _write_sarif(findings, output_path: Path):
         )
     except OSError as exc:
         raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
-    print(f"🛡️  SARIF written: {output_path}")
+    _cprint(f"🛡️  SARIF written: {output_path}")
 
 
 def cmd_fix(args):
@@ -1589,7 +1595,7 @@ def cmd_fix(args):
 
     base = Path(getattr(args, "path", ".") or ".")
     if not base.exists():
-        print(f"❌ Path not found: {base}", file=sys.stderr)
+        _cprint(f"❌ Path not found: {base}", file=sys.stderr)
         return 1
 
     apply = getattr(args, "apply", False)
@@ -1613,9 +1619,9 @@ def cmd_fix(args):
         if apply:
             try:
                 f.write_text(new_text, encoding="utf-8")
-                print(f"✅ Fixed {count} issue(s) in {f}")
+                _cprint(f"✅ Fixed {count} issue(s) in {f}")
             except OSError as exc:
-                print(f"❌ Could not write {f}: {exc}", file=sys.stderr)
+                _cprint(f"❌ Could not write {f}: {exc}", file=sys.stderr)
                 return 1
         else:
             sys.stdout.writelines(
@@ -1628,18 +1634,18 @@ def cmd_fix(args):
             )
 
     if total_fixes == 0:
-        print("✨ No safe auto-fixes to apply.")
+        _cprint("✨ No safe auto-fixes to apply.")
         return 0
     if apply:
-        print(
+        _cprint(
             f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s)."
         )
     else:
-        print(
+        _cprint(
             f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
             "Re-run with --apply to write them."
         )
-        print("   Other findings need review — see 'appguardrail report fix-pack'.")
+        _cprint("   Other findings need review — see 'appguardrail report fix-pack'.")
     return 0
 
 
@@ -1649,11 +1655,11 @@ def cmd_monitor(args):
     workflow_file = project_root / ".github" / "workflows" / "appguardrail-monitor.yml"
 
     if not workflow_file.resolve().is_relative_to(project_root):
-        print(
+        _cprint(
             f"❌ Error: Monitor workflow path {workflow_file} escapes the project root. Aborting.",
             file=sys.stderr,
         )
-        print(
+        _cprint(
             "💡 Hint: Ensure .github/workflows and its symlinks stay inside the repository.",
             file=sys.stderr,
         )
@@ -1664,10 +1670,10 @@ def cmd_monitor(args):
         workflow_file.unlink()
     workflow_file.write_text(MONITOR_WORKFLOW)
 
-    print("\n✅ AppGuardrail monitor workflow installed!\n")
-    print(f"Created/updated: {workflow_file.relative_to(project_root)}")
-    print()
-    print(
+    _cprint("\n✅ AppGuardrail monitor workflow installed!\n")
+    _cprint(f"Created/updated: {workflow_file.relative_to(project_root)}")
+    _cprint()
+    _cprint(
         "This workflow runs `appguardrail scan .` on pull requests, pushes, and manual dispatches."
     )
     return 0
@@ -1677,8 +1683,8 @@ def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
     if report_type not in supported_report_types():
-        print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
-        print(
+        _cprint(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
+        _cprint(
             "💡 Hint: Supported report types are: "
             + ", ".join(supported_report_types()),
             file=sys.stderr,
@@ -1688,8 +1694,8 @@ def cmd_report(args):
     try:
         findings = _load_findings_json(Path(getattr(args, "findings")))
     except (TypeError, RuntimeError) as exc:
-        print(f"❌ Error: {exc}", file=sys.stderr)
-        print(
+        _cprint(f"❌ Error: {exc}", file=sys.stderr)
+        _cprint(
             "💡 Hint: Provide a JSON array or an object with a `findings` array.",
             file=sys.stderr,
         )
@@ -1715,9 +1721,9 @@ def cmd_report(args):
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(report, encoding="utf-8")
-        print(f"✅ {REPORT_TYPE_LABELS[report_type]} written: {target}")
+        _cprint(f"✅ {REPORT_TYPE_LABELS[report_type]} written: {target}")
     else:
-        print(report, end="")
+        _cprint(report, end="")
     return 0
 
 
@@ -1766,34 +1772,34 @@ def cmd_org_bundle(args):
             collection_warnings=collection_warnings,
         )
     except OrgBundleError as exc:
-        print(f"❌ Error: {exc}", file=sys.stderr)
-        print(
+        _cprint(f"❌ Error: {exc}", file=sys.stderr)
+        _cprint(
             "💡 Hint: Authenticate `gh` or provide --repos-json and --prs-json.",
             file=sys.stderr,
         )
         return 1
     except subprocess.CalledProcessError as exc:
-        print(
+        _cprint(
             f"❌ Error: GitHub command failed: {gh_error_message(exc)}", file=sys.stderr
         )
-        print(
+        _cprint(
             "💡 Hint: Retry later or provide --repos-json and --prs-json.",
             file=sys.stderr,
         )
         return 1
 
     summary = manifest["summary"]
-    print(f"\n✅ Buyer evidence bundle written: {bundle_dir}\n")
-    print("Files:")
-    print("  - org-readiness.md")
-    print("  - buyer-evidence.json")
-    print("  - manifest.json")
-    print("  - README.md")
-    print()
-    print(f"Open PRs analyzed: {summary['open_pull_requests']}")
-    print(f"Buyer evidence status: {summary['buyer_evidence_status']}")
+    _cprint(f"\n✅ Buyer evidence bundle written: {bundle_dir}\n")
+    _cprint("Files:")
+    _cprint("  - org-readiness.md")
+    _cprint("  - buyer-evidence.json")
+    _cprint("  - manifest.json")
+    _cprint("  - README.md")
+    _cprint()
+    _cprint(f"Open PRs analyzed: {summary['open_pull_requests']}")
+    _cprint(f"Buyer evidence status: {summary['buyer_evidence_status']}")
     if manifest["collection_warnings"]:
-        print(f"Collection warnings: {len(manifest['collection_warnings'])}")
+        _cprint(f"Collection warnings: {len(manifest['collection_warnings'])}")
     return 0
 
 
@@ -1822,8 +1828,8 @@ def cmd_hook(args):
     run_codegraph = getattr(args, "codegraph", False)
 
     if not git_dir.is_dir():
-        print("❌ Error: Not a git repository.", file=sys.stderr)
-        print(
+        _cprint("❌ Error: Not a git repository.", file=sys.stderr)
+        _cprint(
             "💡 Hint: Run 'git init' first to initialize a git repository.",
             file=sys.stderr,
         )
@@ -1832,11 +1838,11 @@ def cmd_hook(args):
     hooks_dir = git_dir / "hooks"
     # SECURITY: Prevent Arbitrary File Write via symlink path traversal
     if not hooks_dir.resolve().is_relative_to(project_root):
-        print(
+        _cprint(
             f"❌ Error: Target path {hooks_dir} escapes the project root. Aborting.",
             file=sys.stderr,
         )
-        print(
+        _cprint(
             "💡 Hint: Ensure your .git directory or hooks path is contained within the project.",
             file=sys.stderr,
         )
@@ -1878,15 +1884,15 @@ echo "✅ AppGuardrail scan passed."
     pre_commit_file.write_text(hook_content)
     pre_commit_file.chmod(pre_commit_file.stat().st_mode | stat.S_IEXEC)
 
-    print(
+    _cprint(
         "\n✅ AppGuardrail pre-commit hook installed successfully at .git/hooks/pre-commit!\n"
     )
     hook_scan_command = f"appguardrail scan{scan_flags} ."
-    print(
+    _cprint(
         f"This will run '{hook_scan_command}' before every commit and block commits if vulnerabilities are found."
     )
     if run_codegraph:
-        print("CodeGraph mode is enabled for this hook.")
+        _cprint("CodeGraph mode is enabled for this hook.")
     return 0
 
 
@@ -2760,25 +2766,25 @@ def _print_scan_results(findings, files_scanned):
         elif f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
             non_blocking += 1
         icon = _SEVERITY_ICONS.get(f["severity"], f["severity"])
-        print(f"[{icon}] {f['file']}:{f['line']}")
-        print(f"  Rule:    {f['rule_id']}")
-        print(
+        _cprint(f"[{icon}] {f['file']}:{f['line']}")
+        _cprint(f"  Rule:    {f['rule_id']}")
+        _cprint(
             f"  Details: {f.get('source', 'appguardrail-rule')} | {f.get('category', 'misconfig')} | {f.get('context', 'app-code')}"
         )
-        print(f"  Message: {f['message']}")
-        print(f"  Code:    {f['snippet']}")
+        _cprint(f"  Message: {f['message']}")
+        _cprint(f"  Code:    {f['snippet']}")
         if f.get("context", "app-code") in NON_BLOCKING_CONTEXTS:
-            print("  Gate:    non-blocking context")
-        print()
+            _cprint("  Gate:    non-blocking context")
+        _cprint()
 
-    print("─" * 60)
+    _cprint("─" * 60)
     files_word = "file" if files_scanned == 1 else "files"
     critical_word = "critical issue" if counts["CRITICAL"] == 1 else "critical issues"
     high_word = "high issue" if counts["HIGH"] == 1 else "high issues"
     warnings_word = "warning" if counts["WARNING"] == 1 else "warnings"
     info_word = "info issue" if counts["INFO"] == 1 else "info issues"
 
-    print(
+    _cprint(
         f"Scanned {files_scanned} {files_word}  |  Deploy blockers: "
         f"🔴 {counts['CRITICAL']} {critical_word}  "
         f"🟠 {counts['HIGH']} {high_word}  "
@@ -2787,29 +2793,29 @@ def _print_scan_results(findings, files_scanned):
     )
     if non_blocking:
         finding_word = "finding" if non_blocking == 1 else "findings"
-        print(
+        _cprint(
             f"Non-blocking {finding_word} in docs/tests/examples/fixtures: {non_blocking}"
         )
 
     if files_scanned == 0:
-        print("\n⚠️  No files were scanned. Are you in the right directory?")
+        _cprint("\n⚠️  No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
-        print(f"\n❌ Critical {issue_word} found. Fix before deploying.")
+        _cprint(f"\n❌ Critical {issue_word} found. Fix before deploying.")
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        print(f"\n⚠️  High-severity {issue_word} found. Review before deploying.")
+        _cprint(f"\n⚠️  High-severity {issue_word} found. Review before deploying.")
     elif not findings:
-        print("\n✅ No issues found in this scan.")
+        _cprint("\n✅ No issues found in this scan.")
     else:
-        print("\n✅ No deploy-blocking critical or high issues found.")
+        _cprint("\n✅ No deploy-blocking critical or high issues found.")
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        print(
+        _cprint(
             f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
         )
-    print()
+    _cprint()
 
 
 def cmd_review(args):
@@ -2831,16 +2837,16 @@ def cmd_review(args):
 
     prompt += REVIEW_PROMPT_FOOTER
 
-    print("\n" + "═" * 60)
-    print("  AppGuardrail — Copy this prompt into your AI coding assistant")
-    print("═" * 60 + "\n")
-    print(prompt)
-    print("═" * 60 + "\n")
-    print("💡 Tips:")
-    print("  - Paste this into Claude Code, Cursor, or any AI assistant")
-    print("  - Include relevant files as context (API routes, DB schema, etc.)")
-    print("  - Run 'appguardrail scan .' first to identify specific files to review")
-    print()
+    _cprint("\n" + "═" * 60)
+    _cprint("  AppGuardrail — Copy this prompt into your AI coding assistant")
+    _cprint("═" * 60 + "\n")
+    _cprint(prompt)
+    _cprint("═" * 60 + "\n")
+    _cprint("💡 Tips:")
+    _cprint("  - Paste this into Claude Code, Cursor, or any AI assistant")
+    _cprint("  - Include relevant files as context (API routes, DB schema, etc.)")
+    _cprint("  - Run 'appguardrail scan .' first to identify specific files to review")
+    _cprint()
 
 
 def dashboard_index_path():
@@ -2960,7 +2966,7 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
                 self.send_error(404)
 
         def log_message(self, *_args):  # keep the console quiet
-            pass
+            return
 
     return http.server.HTTPServer((host, port), _Handler)
 
@@ -2971,8 +2977,8 @@ def cmd_dashboard(args):
 
     index = dashboard_index_path()
     if not index.is_file():
-        print(f"❌ Dashboard assets not found at {index}", file=sys.stderr)
-        print(
+        _cprint(f"❌ Dashboard assets not found at {index}", file=sys.stderr)
+        _cprint(
             "💡 Run 'appguardrail dashboard' from an AppGuardrail source checkout "
             "that includes dashboard/index.html.",
             file=sys.stderr,
@@ -2981,12 +2987,12 @@ def cmd_dashboard(args):
 
     findings_path = Path(getattr(args, "findings", None) or "reports/findings.json")
     if not findings_path.is_file():
-        print(f"ℹ️  No findings file at {findings_path}.")
-        print(
+        _cprint(f"ℹ️  No findings file at {findings_path}.")
+        _cprint(
             "   Generate one with: "
             "appguardrail scan --findings-json reports/findings.json ."
         )
-        print("   The dashboard opens with instructions — reload after generating.\n")
+        _cprint("   The dashboard opens with instructions — reload after generating.\n")
 
     tokens_css = b""
     tokens_file = dashboard_tokens_path()
@@ -2996,7 +3002,7 @@ def cmd_dashboard(args):
                 json.loads(tokens_file.read_text(encoding="utf-8"))
             ).encode("utf-8")
         except (ValueError, OSError) as exc:
-            print(
+            _cprint(
                 f"⚠️  Could not read design tokens ({exc}); using stylesheet defaults.",
                 file=sys.stderr,
             )
@@ -3008,27 +3014,27 @@ def cmd_dashboard(args):
             host, port, index.read_bytes(), findings_path, tokens_css
         )
     except OSError as exc:
-        print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
-        print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
+        _cprint(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
+        _cprint("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
         return 1
 
     actual_port = server.server_address[1]
     url = f"http://{host}:{actual_port}/"
-    print(f"🛡️  AppGuardrail dashboard: {url}")
-    print("   Press Ctrl+C to stop.")
+    _cprint(f"🛡️  AppGuardrail dashboard: {url}")
+    _cprint("   Press Ctrl+C to stop.")
     if not getattr(args, "no_open", False):
         try:
             webbrowser.open(url)
         except Exception as exc:
             # Non-fatal: the server is already serving; just tell the user to
             # open the URL themselves instead of failing the command.
-            print(
+            _cprint(
                 f"⚠️  Could not open a browser automatically ({exc}).", file=sys.stderr
             )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n👋 Dashboard stopped.")
+        _cprint("\n👋 Dashboard stopped.")
     finally:
         server.server_close()
     return 0
