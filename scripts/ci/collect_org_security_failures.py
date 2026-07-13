@@ -7,8 +7,6 @@ import argparse
 import datetime as dt
 import json
 import os
-import ipaddress
-import socket
 import sys
 import urllib.error
 import urllib.parse
@@ -29,129 +27,40 @@ ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
 BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
-ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
-    ".actions.githubusercontent.com",
-    ".blob.core.windows.net",
-    ".githubusercontent.com",
-)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Redirect handler that exposes GitHub log download redirects safely."""
-
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Prevent automatic redirect following so the caller can validate URLs."""
         return None
 
 
 class SecureRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Redirect handler that validates every GitHub log download hop."""
-
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Validate redirected log URLs before urllib opens them."""
         _validate_log_download_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _redacted_url(parsed: urllib.parse.ParseResult) -> str:
-    """Return a credential-free URL string safe for error messages."""
     return f"{parsed.scheme}://{parsed.hostname or ''}{parsed.path}"
 
 
-def _is_allowed_log_host(host: str) -> bool:
-    """Return whether a redirect host is expected for GitHub job logs."""
-    return any(
-        host == suffix.removeprefix(".") or host.endswith(suffix)
-        for suffix in ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES
-    )
-
-
-def _is_blocked_ip(raw: str) -> bool:
-    """Return whether an IP literal or resolved address is unsafe to contact."""
-    ip = ipaddress.ip_address(raw)
-    if getattr(ip, "ipv4_mapped", None):
-        ip = ip.ipv4_mapped
-    return not ip.is_global
-
-
-def _validate_resolved_addresses(host: str, port: int | None) -> None:
-    """Resolve a host and reject any internal or non-global address result."""
-    try:
-        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise urllib.error.URLError(f"Could not resolve log download host: {host}") from exc
-
-    addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
-    if not addresses:
-        raise urllib.error.URLError(f"Could not resolve log download host: {host}")
-    for address in addresses:
-        if _is_blocked_ip(address):
-            parsed = urllib.parse.urlparse(f"https://{host}/")
-            raise urllib.error.URLError(
-                f"Access to internal address blocked: {_redacted_url(parsed)}"
-            )
-
-
 def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
-    """Reject non-HTTP(S), credentialed, untrusted, or internal log URLs."""
     parsed = urllib.parse.urlparse(url)
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in {"http", "https"}:
+    if parsed.scheme not in {"http", "https"}:
         raise urllib.error.URLError(
             f"Invalid or dangerous URL scheme in location: {_redacted_url(parsed)}"
         )
-    if parsed.username or parsed.password:
-        raise urllib.error.URLError(
-            f"Credentials not allowed in URL: {_redacted_url(parsed)}"
-        )
-    host = (parsed.hostname or "").lower()
-    if host in BLOCKED_LOG_HOSTS:
+    if parsed.hostname in BLOCKED_LOG_HOSTS:
         raise urllib.error.URLError(
             f"Access to internal address blocked: {_redacted_url(parsed)}"
         )
-    raw = host.split("%", 1)[0].strip("[]")
-    if raw.isdigit():  # dotless decimal numeric host
-        raise urllib.error.URLError(
-            f"Access to internal address blocked: {_redacted_url(parsed)}"
-        )
-
-    # Check for octal/hex IP formats that urllib might accept but ipaddress rejects
-    parts = raw.split(".")
-    if any(p.startswith("0") and len(p) > 1 and p != "0" for p in parts) or any(
-        p.startswith("0x") for p in parts
-    ):
-        raise urllib.error.URLError(
-            f"Access to internal address blocked: {_redacted_url(parsed)}"
-        )
-
-    try:
-        if _is_blocked_ip(raw):
-            raise urllib.error.URLError(
-                f"Access to internal address blocked: {_redacted_url(parsed)}"
-            )
-        raise urllib.error.URLError(
-            f"Unexpected log download host blocked: {_redacted_url(parsed)}"
-        )
-    except ValueError:
-        if not _is_allowed_log_host(host):
-            raise urllib.error.URLError(
-                f"Unexpected log download host blocked: {_redacted_url(parsed)}"
-            )
-        _validate_resolved_addresses(host, parsed.port)
-        return parsed
+    return parsed
 
 
 class GitHub:
-    """Small GitHub REST client for workflow, job, issue, and log APIs."""
-
     def __init__(self, token: str, api: str = API):
-        """Create a client using a bearer token and API root."""
         self.token = token
         self.api = api.rstrip("/")
-        # Security concern: Prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI)
-        # by ensuring the API base URL only uses secure, safe HTTP schemes before opening connections.
-        if not self.api.startswith(("http://", "https://")):
-            raise ValueError("API URL must start with http:// or https://")
 
     def request(
         self,
@@ -160,7 +69,6 @@ class GitHub:
         data: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> Any:
-        """Send one JSON GitHub API request and return the decoded payload."""
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
@@ -176,9 +84,9 @@ class GitHub:
             },
         )
         try:
-            with urllib.request.urlopen(  # noqa: S310 - GitHub API URL
+            with urllib.request.urlopen(
                 req, timeout=30
-            ) as res:
+            ) as res:  # noqa: S310 - GitHub API URL
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
@@ -192,7 +100,6 @@ class GitHub:
         return json.loads(text) if "application/json" in content_type else text
 
     def pages(self, path: str, params: dict[str, Any] | None = None) -> list[Any]:
-        """Collect all pages for common GitHub list endpoints."""
         items: list[Any] = []
         page = 1
         while True:
@@ -211,7 +118,6 @@ class GitHub:
             page += 1
 
     def job_log(self, repo: str, job_id: int) -> str:
-        """Fetch a job log through GitHub's validated redirected download URL."""
         path = f"/repos/{repo}/actions/jobs/{job_id}/logs"
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
             f"{self.api}{path}",
@@ -252,12 +158,10 @@ class GitHub:
 
 
 def utc_now() -> dt.datetime:
-    """Return the current UTC timestamp with timezone information."""
     return dt.datetime.now(dt.timezone.utc)
 
 
 def parse_time(value: str) -> dt.datetime:
-    """Parse GitHub ISO timestamps and ensure the result is timezone-aware."""
     parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
@@ -269,7 +173,6 @@ def build_finding(
     job: dict[str, Any],
     args: argparse.Namespace,
 ) -> dict[str, Any]:
-    """Build one normalized security workflow failure record from run/job data."""
     job_id = int(job["id"])
     return {
         "repo": repo,
@@ -293,7 +196,6 @@ def build_finding(
 
 
 def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
-    """Collect failed security workflow jobs across the configured organization."""
     if args.run_url:
         repo, run_id = parse_run_url(args.run_url)
         repos = [{"full_name": repo}]
@@ -337,7 +239,6 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
 def ensure_label(
     client: GitHub, target_repo: str, name: str, dry_run: bool, cache: set[str]
 ) -> None:
-    """Ensure a GitHub issue label exists, caching labels within one run."""
     if name in cache:
         return
     cache.add(name)
@@ -360,7 +261,6 @@ def ensure_label(
 
 
 def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
-    """Return existing non-PR issues keyed by title for deduplication."""
     issues = client.pages(
         f"/repos/{target_repo}/issues", {"state": "all", "labels": ISSUE_LABEL}
     )
@@ -379,7 +279,6 @@ def publish_one(
     issues: dict[str, dict[str, Any]],
     labels_seen: set[str],
 ) -> None:
-    """Create, reopen, or update one issue for a collected failure."""
     labels = [
         ISSUE_LABEL,
         SECURITY_LABEL,
@@ -448,7 +347,6 @@ def publish_one(
 def publish_findings(
     client: GitHub, target_repo: str, findings: list[dict[str, Any]], dry_run: bool
 ) -> None:
-    """Publish every collected failure to the target repository."""
     issues = issue_index(client, target_repo) if findings else {}
     labels_seen: set[str] = set()
     for finding in findings:
@@ -456,12 +354,10 @@ def publish_findings(
 
 
 def parse_bool(value: str | None) -> bool:
-    """Parse truthy environment-style strings."""
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Parse command-line arguments for the collector."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--owner", default=os.getenv("GITHUB_REPOSITORY_OWNER", "ContextualWisdomLab")
@@ -487,7 +383,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run collection and issue publication, returning a process exit code."""
     args = parse_args(argv or sys.argv[1:])
     token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
     if not token:

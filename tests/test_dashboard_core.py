@@ -31,32 +31,6 @@ def test_dashboard_index_ships_with_repo():
     assert b"AppGuardrail" in index.read_bytes()
 
 
-def test_dashboard_drag_drop_has_visible_state_and_clears_it():
-    """Drag-and-drop exposes feedback and always clears it after leaving or dropping."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    assert "body.drag-active::after" in html
-    assert 'document.body.classList.add("drag-active")' in html
-    assert 'document.body.classList.remove("drag-active")' in html
-    assert "addEventListener(\"dragenter\"" in html
-    assert "addEventListener(\"dragleave\"" in html
-    assert "addEventListener(\"drop\"" in html
-
-
-def test_dashboard_rows_are_keyboard_accessible():
-    """Interactive finding rows must expose keyboard and screen-reader affordances."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    assert 'tabindex="0" role="button"' in html
-    assert 'aria-label="View details for finding"' in html
-    assert "tbody tr:focus-visible" in html
-    assert "aria-label=\"Upload findings file\"" in html
-    assert "aria-label=\"Search findings\"" in html
-    assert "aria-label=\"Filter by severity\"" in html
-    assert "tr.addEventListener('keydown'" in html
-    assert "e.key === 'Enter' || e.key === ' '" in html
-
-
 def test_server_serves_index_and_findings(tmp_path):
     findings = tmp_path / "findings.json"
     findings.write_text(

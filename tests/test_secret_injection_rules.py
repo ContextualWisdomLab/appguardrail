@@ -24,8 +24,7 @@ CASES = {
         ["ghpage", "ghp_tooshort123", "github.com/owner/repo"],
     ),
     "hardcoded-google-api-key": (
-        # Assemble at runtime so repository secret scanning never sees a full key.
-        ["AIza" + ("A" * 35)],
+        ["AIzaSyD-abc1234567890defghijklmnopqrstu"],
         ["AIzaLikePrefix", "projectId = 'my-project'"],
     ),
     "hardcoded-private-key-block": (
