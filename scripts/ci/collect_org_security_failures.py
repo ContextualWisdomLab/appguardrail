@@ -176,7 +176,7 @@ class GitHub:
             },
         )
         try:
-            with urllib.request.urlopen(  # noqa: S310 - GitHub API URL
+            with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
                 req, timeout=30
             ) as res:
                 payload = res.read()
