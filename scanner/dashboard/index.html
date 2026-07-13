@@ -186,7 +186,17 @@ function render(){
       </div>
     </div>`;
 
-  document.getElementById('q').addEventListener('input', e=>{query=e.target.value.toLowerCase();render();syncFocus('q');});
+  document.getElementById('q').addEventListener('input', e=>{
+    const start = e.target.selectionStart;
+    const end = e.target.selectionEnd;
+    query = e.target.value.toLowerCase();
+    render();
+    const el = document.getElementById('q');
+    if (el) {
+      el.focus();
+      el.setSelectionRange(start, end);
+    }
+  });
   document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();});
   app.querySelectorAll('tbody tr[data-i]').forEach(tr=>{
     const open = () => openDetail(ALL[+tr.dataset.i]);
@@ -199,7 +209,6 @@ function render(){
     });
   });
 }
-function syncFocus(id){const el=document.getElementById(id);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}}
 
 function openDetail(f){
   lastFocus = document.activeElement;

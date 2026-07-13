@@ -42,7 +42,7 @@ Options:
 import argparse
 import fnmatch
 import functools
-import importlib.resources as resources
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import os
 import re
@@ -1608,7 +1608,7 @@ def _is_safe_url(url: str) -> bool:
     import socket
 
     try:
-        parsed = urllib.parse.urlparse(url)
+        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except ValueError:
         return False
 
@@ -1692,7 +1692,7 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(
+        with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=15
         ) as resp:  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
