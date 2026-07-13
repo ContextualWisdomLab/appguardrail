@@ -9,14 +9,15 @@ on:
     - cron: "31 4 * * 1"
   workflow_dispatch:
 
+# Least-privilege top-level token; write scopes are granted per-job below.
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 jobs:
   appguardrail-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -53,6 +54,10 @@ jobs:
 
   trivy-fs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -60,7 +65,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Run Trivy FS scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -77,7 +82,7 @@ jobs:
           && hashFiles('trivy-results.sarif') != ''
           && (github.event_name != 'pull_request'
               || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@24ea975727876cf496b1eb0c5b36e96e01600b51 # v4.37.0
         with:
           sarif_file: trivy-results.sarif
 

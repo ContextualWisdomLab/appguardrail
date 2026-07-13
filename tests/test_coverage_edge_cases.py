@@ -1,14 +1,11 @@
-import json
-import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scanner.cli.appguardrail import (_build_finding, _confidence,
-                                      _finding_category, _finding_context,
-                                      _is_deploy_blocking,
+from scanner.cli.appguardrail import (_confidence, _finding_category,
+                                      _finding_context, _is_deploy_blocking,
                                       _run_codegraph_command,
                                       _run_codegraph_index, _run_trivy_fs,
                                       _scan_file, _trivy_findings, _trivy_line,
@@ -99,7 +96,7 @@ def test_finding_category_secrets_for_credentials():
 
 
 def test_trivy_target_empty(tmp_path):
-    assert _trivy_target("", tmp_path) == str(tmp_path)
+    assert _trivy_target("", tmp_path) == tmp_path.as_posix()
 
 
 def test_trivy_target_absolute_valueerror(tmp_path):
@@ -262,10 +259,10 @@ def test_confidence():
 
 
 def test_is_deploy_blocking():
-    assert _is_deploy_blocking({"severity": "CRITICAL", "context": "app-code"}) == True
-    assert _is_deploy_blocking({"severity": "HIGH", "context": "app-code"}) == True
-    assert _is_deploy_blocking({"severity": "MEDIUM", "context": "app-code"}) == False
-    assert _is_deploy_blocking({"severity": "CRITICAL", "context": "test"}) == False
+    assert _is_deploy_blocking({"severity": "CRITICAL", "context": "app-code"})
+    assert _is_deploy_blocking({"severity": "HIGH", "context": "app-code"})
+    assert not _is_deploy_blocking({"severity": "MEDIUM", "context": "app-code"})
+    assert not _is_deploy_blocking({"severity": "CRITICAL", "context": "test"})
 
 
 def test_trivy_target_value_error():
@@ -324,4 +321,4 @@ def test_scan_file_uses_absolute_path_when_base_is_unrelated(tmp_path):
         findings = _scan_file(test_file, base_dir)
 
     assert len(findings) == 1
-    assert findings[0]["file"] == str(test_file)
+    assert findings[0]["file"] == test_file.as_posix()

@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 import tempfile
@@ -18,7 +19,8 @@ from scanner.cli.appguardrail import (SCAN_RULES, _bandit_findings,
                                       _run_semgrep_scan, _run_trivy_fs,
                                       _run_zap_baseline, _scan_file,
                                       _semgrep_findings, cmd_init, cmd_monitor,
-                                      cmd_org_bundle, cmd_report, cmd_scan)
+                                      cmd_org_bundle, cmd_report, cmd_scan,
+                                      cmd_serve)
 
 MOCK_RULES = [
     {
@@ -95,6 +97,17 @@ class OrgBundleArgs:
         self.per_repo_pr_limit = 30
         self.active_repository_target = 2
         self.generated_at = "2026-07-03T00:00:00Z"
+
+
+class ServeArgs:
+    def __init__(
+        self, db, create_org=None, api_key_file=None, host="127.0.0.1", port=0
+    ):
+        self.db = str(db)
+        self.create_org = create_org
+        self.api_key_file = str(api_key_file) if api_key_file else None
+        self.host = host
+        self.port = port
 
 
 def _create_symlink(target, link, target_is_directory=False):
@@ -697,6 +710,54 @@ def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
     assert "Findings JSON written" in capsys.readouterr().out
 
 
+def test_cmd_serve_create_org_writes_api_key_file(tmp_path, capsys):
+    key_file = tmp_path / "acme.api-key"
+
+    assert (
+        cmd_serve(
+            ServeArgs(tmp_path / "cp.db", create_org="Acme", api_key_file=key_file)
+        )
+        == 0
+    )
+
+    out = capsys.readouterr().out
+    key = key_file.read_text(encoding="utf-8").strip()
+    assert key.startswith("agk_")
+    assert key not in out
+    assert "API key written to" in out
+
+
+def test_cmd_serve_default_bootstrap_writes_api_key_file(tmp_path, monkeypatch, capsys):
+    class FakeServer:
+        server_address = ("127.0.0.1", 8788)
+
+        def __init__(self):
+            self.closed = False
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            self.closed = True
+
+    fake = FakeServer()
+    monkeypatch.setattr(
+        "appguardrail_core.controlplane.make_control_plane_server",
+        lambda *_args, **_kwargs: fake,
+    )
+    key_file = tmp_path / "default.api-key"
+
+    assert cmd_serve(ServeArgs(tmp_path / "cp.db", api_key_file=key_file)) == 0
+
+    out = capsys.readouterr().out
+    key = key_file.read_text(encoding="utf-8").strip()
+    assert key.startswith("agk_")
+    assert key not in out
+    assert "No orgs yet" in out
+    assert "API key written to" in out
+    assert fake.closed
+
+
 def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
     files = [tmp_path / "first.py", tmp_path / "second.py"]
     for file_path in files:
@@ -1145,6 +1206,20 @@ def test_run_codegraph_command_rejects_unexpected_arguments(tmp_path):
         )
 
 
+def test_run_codegraph_command_allows_windows_wrapper(tmp_path):
+    process = type("Process", (), {"returncode": 0, "stdout": "synced", "stderr": ""})()
+
+    with patch(
+        "scanner.cli.appguardrail.subprocess.run", return_value=process
+    ) as run:
+        assert (
+            _run_codegraph_command(["codegraph.ps1", "sync"], tmp_path, "sync")
+            == "synced"
+        )
+
+    assert run.call_args_list[0].args[0] == ["codegraph.ps1", "sync"]
+
+
 @patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES)
 def test_cmd_scan_does_not_block_doc_findings(tmp_path, capsys):
     docs = tmp_path / "docs"
@@ -1472,9 +1547,12 @@ def test_cmd_monitor_installs_github_actions_workflow(tmp_path, monkeypatch, cap
     workflow_text = workflow.read_text()
     assert workflow.exists()
     assert "name: AppGuardrail Monitor" in workflow_text
-    assert "appguardrail scan --sarif appguardrail.sarif ." in workflow_text
+    assert "appguardrail scan --sarif appguardrail.sarif $PUSH ." in workflow_text
     assert "github/codeql-action/upload-sarif" in workflow_text
     assert "security-events: write" in workflow_text
+    # optional control-plane push wiring
+    assert "APPGUARDRAIL_CONTROL_PLANE_URL" in workflow_text
+    assert "APPGUARDRAIL_API_KEY" in workflow_text
     assert "appguardrail-monitor.yml" in capsys.readouterr().out
 
 
@@ -1712,20 +1790,44 @@ def test_cmd_init_prints_emoji_prefixes(tmp_path, monkeypatch, capsys):
     assert "🚀 Next steps:" in out
 
 
-def test_cprint_conditionally_removes_emojis(capsys, monkeypatch):
-    from scanner.cli.appguardrail import _cprint
+def test_cmd_init_can_disable_emoji_prefixes(tmp_path, monkeypatch, capsys):
+    from collections import namedtuple
 
-    # Test with emoji (default)
-    _cprint("✨ Created", 1, 2)
-    _cprint("❌ Error")
-    out = capsys.readouterr().out
-    assert "✨ Created 1 2\n" in out
-    assert "❌ Error\n" in out
+    from scanner.cli.appguardrail import cmd_init
 
-    # Test without emoji
+    Args = namedtuple("Args", ["tool", "stack"])
+
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("APPGUARDRAIL_NO_EMOJI", "1")
-    _cprint("✨ Created", 1, 2)
-    _cprint("❌ Error")
+    cmd_init(Args(tool="cursor", stack=None))
+
     out = capsys.readouterr().out
-    assert "Created 1 2\n" in out
-    assert "Error\n" in out
+    assert "Created/updated files:" in out
+    assert "Next steps:" in out
+    assert "✨" not in out
+    assert "🚀" not in out
+
+
+def test_console_print_applies_no_emoji_to_every_string_argument(
+    monkeypatch, capsys
+):
+    from scanner.cli.appguardrail import _console_print
+
+    monkeypatch.setenv("APPGUARDRAIL_NO_EMOJI", "1")
+    _console_print("🔎 Scan enabled", 7, "❌ Failure", sep=" | ")
+
+    assert capsys.readouterr().out == "Scan enabled | 7 | Failure\n"
+
+
+def test_cli_routes_console_calls_through_accessibility_wrapper():
+    module_path = Path(__file__).parents[1] / "scanner" / "cli" / "appguardrail.py"
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    direct_print_lines = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "print"
+    ]
+
+    assert direct_print_lines == []
