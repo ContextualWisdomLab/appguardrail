@@ -3002,9 +3002,7 @@ def _print_scan_results(findings, files_scanned):
         _console_print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        _console_print(
-            f"\n⚠️  High-severity {issue_word} found. Review before deploying."
-        )
+        _console_print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
     elif not findings:
         _console_print(_format_msg("\n✅ No issues found in this scan."))
     else:
@@ -3012,9 +3010,7 @@ def _print_scan_results(findings, files_scanned):
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        _console_print(
-            f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
-        )
+        _console_print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
     _console_print()
 
 
