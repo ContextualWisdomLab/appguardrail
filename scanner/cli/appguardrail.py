@@ -41,6 +41,7 @@ Options:
 
 import argparse
 import fnmatch
+import functools
 import importlib.resources as resources
 import json
 import os
@@ -2083,8 +2084,9 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
     return False
 
 
-def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
-    """Return whether a path passes optional YAML include/exclude filters."""
+@functools.lru_cache(maxsize=2048)
+def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths: tuple) -> bool:
+    """Return whether a path passes optional YAML include/exclude filters (cached)."""
     if include_paths and not any(
         _path_matches_glob(path, glob) for glob in include_paths
     ):
@@ -2092,6 +2094,10 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
     return True
+
+def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
+    """Return whether a path passes optional YAML include/exclude filters."""
+    return _path_allowed_by_rule_cached(path, tuple(include_paths) if include_paths else (), tuple(exclude_paths) if exclude_paths else ())
 
 
 def _collect_files(base_path: Path):
