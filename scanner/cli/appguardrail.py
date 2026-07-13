@@ -1562,13 +1562,19 @@ def cmd_scan(args):
         config = load_config([config_dir, Path.cwd()])
     except RuntimeError as exc:
         _console_print(f"❌ Error: {exc}", file=sys.stderr)
+        _console_print(
+            "💡 Hint: Check configuration syntax or file permissions.",
+            file=sys.stderr,
+        )
         return 1
     if config.get("_path"):
         notes = []
         if config.get("fail_on"):
             notes.append(f"fail_on={config['fail_on']}")
         if config.get("exclude_rules"):
-            notes.append(f"{len(config['exclude_rules'])} rule(s) excluded")
+            count = len(config["exclude_rules"])
+            s_suffix = "s" if count != 1 else ""
+            notes.append(f"{count} rule{s_suffix} excluded")
         _console_print(
             f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
         )
@@ -1762,7 +1768,8 @@ def cmd_fix(args):
         if apply:
             try:
                 f.write_text(new_text, encoding="utf-8")
-                _console_print(f"✅ Fixed {count} issue(s) in {f}")
+                s_suffix = "s" if count != 1 else ""
+                _console_print(f"✅ Fixed {count} issue{s_suffix} in {f}")
             except OSError as exc:
                 _console_print(f"❌ Could not write {f}: {exc}", file=sys.stderr)
                 return 1
@@ -1780,12 +1787,16 @@ def cmd_fix(args):
         _console_print("✨ No safe auto-fixes to apply.")
         return 0
     if apply:
+        fix_s = "es" if total_fixes != 1 else ""
+        file_s = "s" if changed_files != 1 else ""
         _console_print(
-            f"\n🔧 Applied {total_fixes} safe fix(es) across {changed_files} file(s)."
+            f"\n🔧 Applied {total_fixes} safe fix{fix_s} across {changed_files} file{file_s}."
         )
     else:
+        fix_s = "es" if total_fixes != 1 else ""
+        file_s = "s" if changed_files != 1 else ""
         _console_print(
-            f"\n🔧 {total_fixes} safe fix(es) available in {changed_files} file(s). "
+            f"\n🔧 {total_fixes} safe fix{fix_s} available in {changed_files} file{file_s}. "
             "Re-run with --apply to write them."
         )
         _console_print("   Other findings need review — see 'appguardrail report fix-pack'.")

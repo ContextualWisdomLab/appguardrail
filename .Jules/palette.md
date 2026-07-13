@@ -23,3 +23,7 @@
 **Learning:** Native HTML `<dialog>` elements do not automatically restore focus to the triggering element upon closure or close when the backdrop is clicked. This significantly breaks keyboard navigation flow for screen readers and power users.
 **Action:** When implementing or modifying `<dialog>` elements, always manually capture the `document.activeElement` before calling `showModal()`, and restore focus to it via a `'close'` event listener. Also, add a `'click'` listener to the dialog to close it if `e.target === dialog` to support standard backdrop click UX.
 >>>>>>> origin/develop
+
+## 2024-07-13 - CLI 출력의 영문법적 복수형 및 에러 메시지 힌트 개선
+**Learning:** CLI 출력에서 `file(s)`, `issue(s)`, `rule(s) excluded`와 같이 괄호를 사용한 복수형 표기법은 가독성을 떨어뜨리고 투박한(developer-centric) 느낌을 줍니다. 또한, 에러 발생 시 단순 예외 내용만 출력하는 것보다 즉시 실행 가능한 해결책(Hint)을 함께 제공하는 것이 CLI 사용자 경험(DX) 향상에 매우 효과적입니다.
+**Action:** 조건부 f-string(예: `s_suffix = "s" if count != 1 else ""`)을 활용하여 동적으로 정확한 복수형 단어(file/files)를 출력하도록 개선하고, 예외 발생 로직에는 항상 `💡 Hint:`를 포함하여 후속 액션을 안내하도록 표준화해야 합니다. (단, Python 3.12 환경의 `black` 포매터 호환성을 위해 백슬래시가 포함된 중첩 f-string 사용을 피하고 변수 추출을 권장합니다.)
