@@ -114,6 +114,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 
 let ALL = [];
 let filterSev = '', query = '';
+let lastFocus = null;
 
 function render(){
   const app = document.getElementById('app');
@@ -201,6 +202,7 @@ function render(){
 function syncFocus(id){const el=document.getElementById(id);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}}
 
 function openDetail(f){
+  lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
   const refs = (f.references||[]).map(r=>`<a href="${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
@@ -233,6 +235,15 @@ function openDetail(f){
     d.removeEventListener('close', onDlgClose);
   });
 }
+
+// Dialog event listeners for a11y and UX
+const detailDialog = document.getElementById('detail');
+detailDialog.addEventListener('close', () => {
+  if (lastFocus) lastFocus.focus();
+});
+detailDialog.addEventListener('click', (e) => {
+  if (e.target === detailDialog) detailDialog.close();
+});
 
 function load(data, srcLabel){
   // Accept the v1 envelope, a raw array, or any object with a `findings` array.

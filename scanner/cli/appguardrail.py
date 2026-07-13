@@ -41,6 +41,7 @@ Options:
 
 import argparse
 import fnmatch
+import functools
 import importlib.resources as resources
 import json
 import os
@@ -85,9 +86,7 @@ from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
 
-_EMOJI_REGEX = re.compile(
-    r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*"
-)
+_EMOJI_REGEX = re.compile(r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*")
 
 _ORIGINAL_PRINT = print
 
@@ -107,6 +106,7 @@ def _console_print(*values, **kwargs) -> None:
         ),
         **kwargs,
     )
+
 
 # ---------------------------------------------------------------------------
 # Rule templates
@@ -1619,9 +1619,23 @@ def _is_safe_url(url: str) -> bool:
     host = (parsed.hostname or "").lower()
     raw = host.split("%", 1)[0].strip("[]")
 
+    def is_bad_ip(ip) -> bool:
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped:
+            ip = mapped
+        return (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_unspecified
+            or ip.is_multicast
+            or getattr(ip, "is_reserved", False)
+            or not getattr(ip, "is_global", True)
+        )
+
     try:
         ip = ipaddress.ip_address(raw)
-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+        if is_bad_ip(ip):
             return False
     except ValueError:
         # Non-IP hostnames are expected; validate resolved addresses below.
@@ -1632,7 +1646,7 @@ def _is_safe_url(url: str) -> bool:
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
             ip = ipaddress.ip_address(ip_str)
-            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+            if is_bad_ip(ip):
                 return False
     except socket.gaierror:
         # Ignore DNS resolution failures. We just want to prevent known internal IPs.
@@ -2070,8 +2084,9 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
     return False
 
 
-def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
-    """Return whether a path passes optional YAML include/exclude filters."""
+@functools.lru_cache(maxsize=2048)
+def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths: tuple) -> bool:
+    """Return whether a path passes optional YAML include/exclude filters (cached)."""
     if include_paths and not any(
         _path_matches_glob(path, glob) for glob in include_paths
     ):
@@ -2079,6 +2094,10 @@ def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
         return False
     return True
+
+def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
+    """Return whether a path passes optional YAML include/exclude filters."""
+    return _path_allowed_by_rule_cached(path, tuple(include_paths) if include_paths else (), tuple(exclude_paths) if exclude_paths else ())
 
 
 def _collect_files(base_path: Path):
