@@ -1787,3 +1787,21 @@ def test_cmd_init_prints_emoji_prefixes(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "✨ Created/updated files:" in out
     assert "🚀 Next steps:" in out
+
+
+def test_cmd_init_can_disable_emoji_prefixes(tmp_path, monkeypatch, capsys):
+    from collections import namedtuple
+
+    from scanner.cli.appguardrail import cmd_init
+
+    Args = namedtuple("Args", ["tool", "stack"])
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("APPGUARDRAIL_NO_EMOJI", "1")
+    cmd_init(Args(tool="cursor", stack=None))
+
+    out = capsys.readouterr().out
+    assert "Created/updated files:" in out
+    assert "Next steps:" in out
+    assert "✨" not in out
+    assert "🚀" not in out
