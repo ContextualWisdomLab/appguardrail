@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2024-09-06 - Table Row Button Accessibility
+**Learning:** When using `role="button"` on a `<tr>` element, screen readers will announce the element as a button. However, the generic `aria-label="View details for finding"` overrides the entire row's text content, making it impossible for users to know *which* finding they are activating. Furthermore, dynamic filtering needs `aria-live="polite"` on the result count so users know their search or filter changed the number of results.
+**Action:** Always provide unique context in `aria-label` attributes on rows or buttons (e.g., incorporating the file name or ID). Always wrap filter result counts in `aria-live="polite"` regions.
