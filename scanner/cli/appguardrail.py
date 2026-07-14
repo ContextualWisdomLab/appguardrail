@@ -2714,7 +2714,9 @@ def _run_zap_baseline(target_url: str):
         raise RuntimeError("--zap-baseline requires an http(s) URL.")
     zap = shutil.which("zap-baseline.py")
     if not zap:
-        raise RuntimeError("zap-baseline.py executable not found.")
+        raise RuntimeError(
+            "zap-baseline.py executable not found.\n💡 Hint: Install OWASP ZAP and ensure zap-baseline.py is in your PATH."
+        )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
