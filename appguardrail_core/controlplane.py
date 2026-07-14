@@ -20,10 +20,12 @@ import sqlite3
 import sys
 from datetime import datetime, timezone
 
+# fmt: off
 if sys.version_info < (3, 9):
     import importlib_resources as resources
 else:
     import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+# fmt: on
 
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
