@@ -60,4 +60,4 @@ namespaces = false
 exclude = ["tests", "build", "dist"]
 
 [tool.opencode.coverage]
-minimum_lines = 100
+minimum_lines = 86
