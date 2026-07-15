@@ -58,3 +58,6 @@ namespaces = false
 
 [tool.interrogate]
 exclude = ["tests", "build", "dist"]
+
+[tool.opencode.coverage]
+minimum_lines = 100
