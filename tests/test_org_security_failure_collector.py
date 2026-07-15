@@ -130,6 +130,28 @@ def test_job_log_rejects_internal_redirect_host(monkeypatch):
         )
 
 
+def test_workflow_fails_closed_when_collector_app_is_unconfigured():
+    """Keep scheduled collection from reporting green after doing no work."""
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "org-security-failure-collector.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID" in workflow
+    assert (
+        "secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || "
+        "secrets.NOEMA_GITHUB_APP_PRIVATE_KEY"
+    ) in workflow
+    assert "::error::Org security failure collection cannot run" in workflow
+    assert "Skipping org security failure collection" not in workflow
+    assert "exit 1" in workflow
+    assert "if: steps.app-config.outputs.configured == 'true'" not in workflow
+    assert "python3 -m scripts.ci.collect_org_security_failures" in workflow
+    assert "python3 scripts/ci/collect_org_security_failures.py" not in workflow
+
+
 def test_publish_skips_duplicate_and_reopens_closed_issue():
     item = finding()
     issue = {

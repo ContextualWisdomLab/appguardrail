@@ -33,8 +33,11 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
       LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_hours || '48' }}
-      ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID }}
-      ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+      # Prefer a dedicated least-privilege collector App when configured. Until
+      # then, reuse the centrally managed Noema App rather than silently turning
+      # this scheduled governance control into a no-op.
+      ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID }}
+      ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -46,12 +49,11 @@ jobs:
           if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping org security failure collection because ORG_SECURITY_FAILURE_APP_ID or ORG_SECURITY_FAILURE_APP_PRIVATE_KEY is not configured."
+            echo "::error::Org security failure collection cannot run: neither the dedicated collector App nor the centrally managed Noema App has a complete App ID/private-key configuration."
+            exit 1
           fi
 
       - name: Create org installation token
-        if: steps.app-config.outputs.configured == 'true'
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -63,12 +65,11 @@ jobs:
           permission-issues: write
 
       - name: Collect security workflow failures
-        if: steps.app-config.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          python3 scripts/ci/collect_org_security_failures.py \
+          python3 -m scripts.ci.collect_org_security_failures \
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --target-repo "$GITHUB_REPOSITORY" \
             --lookback-hours "$LOOKBACK_HOURS"
