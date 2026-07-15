@@ -123,6 +123,7 @@ function render(){
       <h1>No findings loaded</h1>
       <p>Generate a report-safe findings file, then load it above (or place it next to this page).</p>
       <p><code>appguardrail scan --findings-json reports/findings.json .</code></p>
+      <p style="margin:20px 0;"><button type="button" onclick="document.getElementById('file').click()">Browse for file...</button></p>
       <p class="drop">Serve the repo (<code>python3 -m http.server</code>) and open <code>/dashboard/</code>, or drag a <code>findings.json</code> onto this window.</p>
     </div>`;
     return;
@@ -173,7 +174,9 @@ function render(){
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
       <div>
         <div class="toolbar">
+          <label for="q" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Search findings</label>
           <input type="search" id="q" placeholder="Search message, file, rule, category" aria-label="Search findings" value="${esc(query)}">
+          <label for="sev" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Filter by severity</label>
           <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
@@ -181,7 +184,7 @@ function render(){
         </div>
         <div class="panel"><table>
           <thead><tr><th>Severity</th><th>Finding</th><th>File</th><th>Category</th><th>Status</th></tr></thead>
-          <tbody>${rows||'<tr><td colspan="5" style="color:var(--muted);padding:24px">No findings match the filter.</td></tr>'}</tbody>
+          <tbody>${rows||`<tr><td colspan="5"><div class="empty">No findings match the filter.<br><br><button type="button" onclick="document.getElementById('q').value=''; document.getElementById('sev').value=''; query=''; filterSev=''; render();">Clear filters</button></div></td></tr>`}</tbody>
         </table></div>
       </div>
     </div>`;
