@@ -60,28 +60,20 @@ if __package__ in (None, ""):
 from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
-from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import \
+    is_deploy_blocking as core_is_deploy_blocking
 from appguardrail_core.findings import normalize_findings
-from appguardrail_core.language import (
-    LANGUAGE_EXTENSIONS,
-    detect_language_axes,
-    detect_stack_profile,
-)
-from appguardrail_core.org_bundle import (
-    OrgBundleError,
-    annotate_missing_pr_repositories,
-    gh_error_message,
-    gh_pr_list,
-    gh_repo_list,
-)
+from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
+                                        detect_language_axes,
+                                        detect_stack_profile)
+from appguardrail_core.org_bundle import (OrgBundleError,
+                                          annotate_missing_pr_repositories,
+                                          gh_error_message, gh_pr_list,
+                                          gh_repo_list)
 from appguardrail_core.org_bundle import load_json as load_org_json
 from appguardrail_core.org_bundle import render_org_evidence, write_bundle
-from appguardrail_core.reports import (
-    REPORT_TYPE_LABELS,
-    ReportContext,
-    render_report,
-    supported_report_types,
-)
+from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
+                                       render_report, supported_report_types)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -100,10 +92,7 @@ def _format_msg(msg: str) -> str:
 def _console_print(*values, **kwargs) -> None:
     """Print CLI values after applying accessibility formatting to strings."""
     _ORIGINAL_PRINT(
-        *(
-            _format_msg(value) if isinstance(value, str) else value
-            for value in values
-        ),
+        *(_format_msg(value) if isinstance(value, str) else value for value in values),
         **kwargs,
     )
 
@@ -1397,7 +1386,9 @@ def cmd_scan(args):
     _console_print(f"\n🔍 AppGuardrail scanning: {scan_path}\n")
 
     if run_codegraph:
-        _console_print("🧭 CodeGraph enabled: initializing or syncing structural index\n")
+        _console_print(
+            "🧭 CodeGraph enabled: initializing or syncing structural index\n"
+        )
         try:
             status = _run_codegraph_index(scan_path)
         except RuntimeError as exc:
@@ -1435,9 +1426,13 @@ def cmd_scan(args):
         if profile.frameworks:
             _console_print(f"   Framework signals: {', '.join(profile.frameworks)}")
         if profile.external_tools:
-            _console_print(f"   Optional external engines: {', '.join(profile.external_tools)}")
+            _console_print(
+                f"   Optional external engines: {', '.join(profile.external_tools)}"
+            )
         if profile.zap_recommended:
-            _console_print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
+            _console_print(
+                "   ZAP baseline: provide --zap-baseline <url> for authorized DAST"
+            )
         _console_print()
 
     external_plan = build_external_scan_plan(
@@ -1610,11 +1605,13 @@ def _write_findings_json(findings, output_path: Path):
 
 def _is_safe_url(url: str) -> bool:
     import ipaddress
-    import urllib.parse
     import socket
+    import urllib.parse
 
     try:
-        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        parsed = urllib.parse.urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except ValueError:
         return False
 
@@ -1771,7 +1768,10 @@ def cmd_fix(args):
                 s_suffix = "s" if count != 1 else ""
                 _console_print(f"✅ Fixed {count} issue{s_suffix} in {f}")
             except OSError as exc:
-                _console_print(f"❌ Could not write {f}: {exc}", file=sys.stderr)
+                _console_print(f"❌ Error: Could not write {f}: {exc}", file=sys.stderr)
+                _console_print(
+                    "💡 Hint: Check file permissions or disk space.", file=sys.stderr
+                )
                 return 1
         else:
             sys.stdout.writelines(
@@ -1799,7 +1799,9 @@ def cmd_fix(args):
             f"\n🔧 {total_fixes} safe fix{fix_s} available in {changed_files} file{file_s}. "
             "Re-run with --apply to write them."
         )
-        _console_print("   Other findings need review — see 'appguardrail report fix-pack'.")
+        _console_print(
+            "   Other findings need review — see 'appguardrail report fix-pack'."
+        )
     return 0
 
 
@@ -1837,7 +1839,9 @@ def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
     if report_type not in supported_report_types():
-        _console_print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
+        _console_print(
+            f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr
+        )
         _console_print(
             "💡 Hint: Supported report types are: "
             + ", ".join(supported_report_types()),
@@ -2096,7 +2100,9 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
 
 
 @functools.lru_cache(maxsize=2048)
-def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths: tuple) -> bool:
+def _path_allowed_by_rule_cached(
+    path: str, include_paths: tuple, exclude_paths: tuple
+) -> bool:
     """Return whether a path passes optional YAML include/exclude filters (cached)."""
     if include_paths and not any(
         _path_matches_glob(path, glob) for glob in include_paths
@@ -2106,9 +2112,14 @@ def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths:
         return False
     return True
 
+
 def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     """Return whether a path passes optional YAML include/exclude filters."""
-    return _path_allowed_by_rule_cached(path, tuple(include_paths) if include_paths else (), tuple(exclude_paths) if exclude_paths else ())
+    return _path_allowed_by_rule_cached(
+        path,
+        tuple(include_paths) if include_paths else (),
+        tuple(exclude_paths) if exclude_paths else (),
+    )
 
 
 def _collect_files(base_path: Path):
@@ -3010,18 +3021,30 @@ def _print_scan_results(findings, files_scanned):
         _console_print("\n⚠️  No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
-        _console_print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
+        _console_print(
+            _format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying.")
+        )
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        _console_print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
+        _console_print(
+            _format_msg(
+                f"\n⚠️  High-severity {issue_word} found. Review before deploying."
+            )
+        )
     elif not findings:
         _console_print(_format_msg("\n✅ No issues found in this scan."))
     else:
-        _console_print(_format_msg("\n✅ No deploy-blocking critical or high issues found."))
+        _console_print(
+            _format_msg("\n✅ No deploy-blocking critical or high issues found.")
+        )
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        _console_print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
+        _console_print(
+            _format_msg(
+                f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
+            )
+        )
     _console_print()
 
 
@@ -3051,8 +3074,12 @@ def cmd_review(args):
     _console_print("═" * 60 + "\n")
     _console_print("💡 Tips:")
     _console_print("  - Paste this into Claude Code, Cursor, or any AI assistant")
-    _console_print("  - Include relevant files as context (API routes, DB schema, etc.)")
-    _console_print("  - Run 'appguardrail scan .' first to identify specific files to review")
+    _console_print(
+        "  - Include relevant files as context (API routes, DB schema, etc.)"
+    )
+    _console_print(
+        "  - Run 'appguardrail scan .' first to identify specific files to review"
+    )
     _console_print()
 
 
@@ -3220,16 +3247,24 @@ def cmd_serve(args):
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
-            _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            _console_print(
+                f"❌ Error: API key file already exists: {key_path}", file=sys.stderr
+            )
+            _console_print(
+                "💡 Hint: Pass --api-key-file with a new path.", file=sys.stderr
+            )
             return 1
         oid, key = cp.create_org(conn, create)
         conn.close()
         try:
             _persist_api_key(key_path, key)
         except FileExistsError:
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
-            _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            _console_print(
+                f"❌ Error: API key file already exists: {key_path}", file=sys.stderr
+            )
+            _console_print(
+                "💡 Hint: Pass --api-key-file with a new path.", file=sys.stderr
+            )
             return 1
         _console_print(f"✅ Created org '{create}' (id {oid}).")
         _console_print(f"🔑 API key written to {key_path}")
@@ -3238,16 +3273,24 @@ def cmd_serve(args):
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
-            _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            _console_print(
+                f"❌ Error: API key file already exists: {key_path}", file=sys.stderr
+            )
+            _console_print(
+                "💡 Hint: Pass --api-key-file with a new path.", file=sys.stderr
+            )
             return 1
         _oid, key = cp.create_org(conn, "default")
         try:
             _persist_api_key(key_path, key)
         except FileExistsError:
             conn.close()
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
-            _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
+            _console_print(
+                f"❌ Error: API key file already exists: {key_path}", file=sys.stderr
+            )
+            _console_print(
+                "💡 Hint: Pass --api-key-file with a new path.", file=sys.stderr
+            )
             return 1
         _console_print("ℹ️  No orgs yet — created 'default'.")
         _console_print(f"🔑 API key written to {key_path}\n")
@@ -3259,9 +3302,10 @@ def cmd_serve(args):
         server = cp.make_control_plane_server(host, port, db)
     except OSError as exc:
         _console_print(
-            f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr
+            f"❌ Error: Cannot start control plane on {host}:{port} ({exc}).",
+            file=sys.stderr,
         )
-        _console_print("💡 Pass a free port with --port.", file=sys.stderr)
+        _console_print("💡 Hint: Pass a free port with --port.", file=sys.stderr)
         return 1
     actual = server.server_address[1]
     _console_print(f"🛰️  AppGuardrail control plane on http://{host}:{actual}")
@@ -3309,7 +3353,11 @@ def cmd_sbom(args):
             Path(out).parent.mkdir(parents=True, exist_ok=True)
             Path(out).write_text(payload + "\n", encoding="utf-8")
         except OSError as exc:
-            _console_print(f"❌ Cannot write SBOM: {exc}", file=sys.stderr)
+            _console_print(f"❌ Error: Cannot write SBOM: {exc}", file=sys.stderr)
+            _console_print(
+                "💡 Hint: Check the output path and directory permissions.",
+                file=sys.stderr,
+            )
             return 1
         _console_print(f"📦 SBOM ({len(components)} components) written: {out}")
     else:
@@ -3323,13 +3371,15 @@ def cmd_dashboard(args):
 
     index = dashboard_index_path()
     if not index.is_file():
-        _console_print(f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr)
+        _console_print(
+            f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr
+        )
         _console_print(
             "💡 Hint: Check if the path is correct or if you are in the right directory.",
             file=sys.stderr,
         )
         _console_print(
-            "💡 Run 'appguardrail dashboard' from an AppGuardrail source checkout "
+            "💡 Hint: Run 'appguardrail dashboard' from an AppGuardrail source checkout "
             "that includes dashboard/index.html.",
             file=sys.stderr,
         )
@@ -3342,7 +3392,9 @@ def cmd_dashboard(args):
             "   Generate one with: "
             "appguardrail scan --findings-json reports/findings.json ."
         )
-        _console_print("   The dashboard opens with instructions — reload after generating.\n")
+        _console_print(
+            "   The dashboard opens with instructions — reload after generating.\n"
+        )
 
     tokens_css = b""
     tokens_file = dashboard_tokens_path()
@@ -3364,8 +3416,13 @@ def cmd_dashboard(args):
             host, port, index.read_bytes(), findings_path, tokens_css
         )
     except OSError as exc:
-        _console_print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
-        _console_print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
+        _console_print(
+            f"❌ Error: Cannot start dashboard on {host}:{port} ({exc}).",
+            file=sys.stderr,
+        )
+        _console_print(
+            "💡 Hint: Pass a free port with --port, e.g. --port 8899.", file=sys.stderr
+        )
         return 1
 
     actual_port = server.server_address[1]
