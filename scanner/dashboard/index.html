@@ -154,7 +154,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding: ${s}, ${esc(f.message)} in ${esc(f.file)}">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -179,7 +179,7 @@ function render(){
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
           </select>
         </div>
-        <div class="panel"><table>
+        <div class="panel" aria-live="polite"><table>
           <thead><tr><th>Severity</th><th>Finding</th><th>File</th><th>Category</th><th>Status</th></tr></thead>
           <tbody>${rows||'<tr><td colspan="5" style="color:var(--muted);padding:24px">No findings match the filter.</td></tr>'}</tbody>
         </table></div>

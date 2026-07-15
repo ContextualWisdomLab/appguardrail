@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2026-08-01 - Dynamic filtering ARIA live regions and contextual ARIA labels
+**Learning:** When creating interactive UI components like search-filterable tables, dynamically updating DOM structures are not announced to screen readers by default. Additionally, providing `role="button"` to elements like table rows masks their text content for some screen readers, requiring a fully descriptive `aria-label`.
+**Action:** Always wrap dynamically changing content areas (like search results tables) in an `aria-live="polite"` region. When giving container elements (like `<tr>` or `<div>`) a `role="button"`, construct a dynamic `aria-label` that includes all necessary contextual text inside the container, as the implicit text node might be ignored.
