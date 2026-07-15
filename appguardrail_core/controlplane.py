@@ -301,7 +301,16 @@ def _send_alert(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+
+        class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                if not _is_safe_url(newurl):
+                    raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+        opener = urllib.request.build_opener(SafeRedirectHandler)
+
+        opener.open(
             req, timeout=10
         )  # noqa: S310 - Safe URL scheme validated
         return True

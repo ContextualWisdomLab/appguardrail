@@ -352,16 +352,18 @@ def test_slack_blocks_caps_and_escapes():
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
 
-    def _fake_urlopen(req, timeout=None):
-        posted["url"] = req.full_url
-        posted["body"] = json.loads(req.data.decode())
+    class MockOpener:
+        def open(self, req, timeout=None):
+            posted["url"] = req.full_url
+            posted["body"] = json.loads(req.data.decode())
+            class _R:
+                pass
+            return _R()
 
-        class _R:  # minimal stand-in, urlopen result is ignored
-            pass
+    def _fake_build_opener(*handlers):
+        return MockOpener()
 
-        return _R()
-
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
