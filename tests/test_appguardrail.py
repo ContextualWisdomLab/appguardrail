@@ -1209,7 +1209,9 @@ def test_run_codegraph_command_rejects_unexpected_arguments(tmp_path):
 def test_run_codegraph_command_allows_windows_wrapper(tmp_path):
     process = type("Process", (), {"returncode": 0, "stdout": "synced", "stderr": ""})()
 
-    with patch("scanner.cli.appguardrail.subprocess.run", return_value=process) as run:
+    with patch(
+        "scanner.cli.appguardrail.subprocess.run", return_value=process
+    ) as run:
         assert (
             _run_codegraph_command(["codegraph.ps1", "sync"], tmp_path, "sync")
             == "synced"
@@ -1806,7 +1808,9 @@ def test_cmd_init_can_disable_emoji_prefixes(tmp_path, monkeypatch, capsys):
     assert "🚀" not in out
 
 
-def test_console_print_applies_no_emoji_to_every_string_argument(monkeypatch, capsys):
+def test_console_print_applies_no_emoji_to_every_string_argument(
+    monkeypatch, capsys
+):
     from scanner.cli.appguardrail import _console_print
 
     monkeypatch.setenv("APPGUARDRAIL_NO_EMOJI", "1")
