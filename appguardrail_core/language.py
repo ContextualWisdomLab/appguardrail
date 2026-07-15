@@ -94,7 +94,9 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        path = Path(file_path)
+        # ⚡ Bolt: Optimize Path coercion using isinstance to avoid redundant object creation.
+        # Calling Path(f) on an object that is already a Path allocates a new object in Python 3.11-.
+        path = file_path if isinstance(file_path, Path) else Path(file_path)
         language = LANGUAGE_BY_EXTENSION.get(path.suffix.lower())
         if language:
             languages.add(language)
@@ -111,7 +113,9 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
 
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    paths = [Path(file_path) for file_path in files]
+    # ⚡ Bolt: Optimize Path coercion using isinstance to avoid redundant object creation.
+    # This saves significant CPU overhead in large codebases when `files` contains Path objects.
+    paths = [f if isinstance(f, Path) else Path(f) for f in files]
     languages = detect_language_axes(paths)
     frameworks = _detect_framework_markers(paths)
     signals = _detect_signals(paths, frameworks)

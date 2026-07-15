@@ -66,3 +66,6 @@
 ## 2024-07-20 - Optimizing redundant path glob matching
 **Learning:** During file scanning, evaluating inclusion and exclusion path globs using `fnmatch` for every rule on every file is a significant bottleneck. This redundant work consumes excessive time when many rules share the same glob patterns and are checked against thousands of files.
 **Action:** Use `@functools.lru_cache(maxsize=2048)` on `_path_allowed_by_rule_cached` to memoize the glob matching results for a given path and rule patterns. Ensure that `include_paths` and `exclude_paths` are passed as hashable tuples to support caching using a non-cached wrapper `_path_allowed_by_rule`.
+## 2026-07-15 - Path Instantiation Overhead in Python
+**Learning:** Instantiating `Path(p)` when `p` is already a `Path` object is surprisingly expensive in Python, especially prior to Python 3.12 (where `Path` caching was removed). In tight loops or large collections (e.g. 100,000 files during project discovery), doing `[Path(f) for f in files]` unconditionally introduces measurable CPU overhead due to redundant object allocation.
+**Action:** Always wrap `Path()` instantiations with a type check like `f if isinstance(f, Path) else Path(f)` in performance-critical hot paths or when operating on large datasets where the input elements might already be `Path` objects.
