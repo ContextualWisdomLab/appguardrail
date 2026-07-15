@@ -66,3 +66,7 @@
 ## 2024-07-20 - Optimizing redundant path glob matching
 **Learning:** During file scanning, evaluating inclusion and exclusion path globs using `fnmatch` for every rule on every file is a significant bottleneck. This redundant work consumes excessive time when many rules share the same glob patterns and are checked against thousands of files.
 **Action:** Use `@functools.lru_cache(maxsize=2048)` on `_path_allowed_by_rule_cached` to memoize the glob matching results for a given path and rule patterns. Ensure that `include_paths` and `exclude_paths` are passed as hashable tuples to support caching using a non-cached wrapper `_path_allowed_by_rule`.
+
+## 2024-07-21 - Hoisting Redundant Pathlib Operations in Outer Scope
+**Learning:** During directory scans, repeatedly calling `base_path.is_dir()` and `Path(".").resolve()` inside `_scan_file` for *every* individual file processed creates substantial performance bottlenecks due to the underlying synchronous `stat()` I/O calls scaling with O(N) files. Passing the same static root directory triggers redundant system calls tens of thousands of times across large codebases.
+**Action:** Hoist the static `base_path` resolution and pre-compute the string conversions of the scan root directory out into `cmd_scan` entirely. Pass the already resolved variables as parameters to `_scan_file` so they do not execute inside the tight O(N) file iteration loop. Ensure mocked `_scan_file` signatures in tests use `**kwargs` to prevent breaks when new arguments are added.
