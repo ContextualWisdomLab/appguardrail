@@ -84,7 +84,7 @@ from appguardrail_core.reports import (
 )
 from appguardrail_core.rules import build_rule_metadata
 
-__version__ = "0.1.1"
+__version__ = "1.8.5"
 
 _EMOJI_REGEX = re.compile(r"[ℹ⏭⚙⚠⚡✅✨❌🌐🐍👋💡🔍🔎🔧🔴🔵🚀🛡🟠🟡🧩🧭🧾]\uFE0F?\s*")
 
