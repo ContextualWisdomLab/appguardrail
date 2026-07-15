@@ -18,8 +18,11 @@ import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
-from importlib import \
-    resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+
+try:
+    from importlib import resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+except ImportError:
+    import importlib_resources as resources
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
