@@ -3,4 +3,3 @@ __pycache__/
 .coverage
 *.egg-info/
 .codegraph/
-uv.lock
