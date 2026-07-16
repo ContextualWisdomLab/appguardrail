@@ -1,7 +1,9 @@
 """Tests for the multi-tenant control-plane store + API."""
 
 import json
+import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 from contextlib import closing
@@ -450,3 +452,23 @@ def test_negative_content_length_rejected(server):
     resp = conn.getresponse()
     assert resp.status == 400
     conn.close()
+
+
+def test_slow_control_plane_client_does_not_block_health(tmp_path):
+    db = str(tmp_path / "cp.db")
+    srv = make_control_plane_server("127.0.0.1", 0, db, client_timeout=2.0)
+    _serve(srv)
+    port = srv.server_address[1]
+    slow_client = socket.create_connection(("127.0.0.1", port), timeout=2)
+    try:
+        slow_client.sendall(b"POST /api/v1/scans HTTP/1.1\r\nHost: localhost\r\n")
+        started = time.monotonic()
+        status, body = _req("GET", f"http://127.0.0.1:{port}/api/v1/health")
+        elapsed = time.monotonic() - started
+        assert status == 200
+        assert body == {"status": "ok"}
+        assert elapsed < 1.0
+    finally:
+        slow_client.close()
+        srv.shutdown()
+        srv.server_close()

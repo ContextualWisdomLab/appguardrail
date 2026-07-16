@@ -1594,14 +1594,41 @@ def _write_findings_json(findings, output_path: Path):
         "findings": list(normalized),
     }
     try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+        _atomic_write_private_text(
+            output_path, json.dumps(payload, indent=2, sort_keys=True) + "\n"
         )
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     _console_print(f"🧾 Findings JSON written: {output_path}")
+
+
+def _atomic_write_private_text(output_path: Path, text: str) -> None:
+    """Atomically replace a report without following a final-path symlink."""
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(
+        dir=output_path.parent,
+        prefix=f".{output_path.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            fd = -1
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        # os.replace replaces the directory entry itself. If output_path is a
+        # symlink, its target remains untouched and the report replaces the link.
+        os.replace(temporary_path, output_path)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            temporary_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 import urllib.error
@@ -1731,9 +1758,8 @@ def _write_sarif(findings, output_path: Path):
 
     log = findings_to_sarif(findings, tool_version=__version__)
     try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            json.dumps(log, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        _atomic_write_private_text(
+            output_path, json.dumps(log, indent=2, sort_keys=True) + "\n"
         )
     except OSError as exc:
         raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
@@ -2182,9 +2208,25 @@ _SENSITIVE_RULE_TOKENS = (
     "anthropic",
     "google",
     "github",
+    "slack",
     "api-key",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
+_REDACTED_SENSITIVE_MESSAGE = "Sensitive finding details suppressed."
+_SENSITIVE_SNIPPET_PATTERNS = (
+    re.compile(
+        r"(?i)\b(?:password|passwd|api[_-]?key|access[_-]?token|auth[_-]?token|"
+        r"client[_-]?secret|secret|credential|authorization)\b\s*[:=]\s*"
+        r"[\"']?[^\s\"',;]{4,}"
+    ),
+    re.compile(
+        r"(?i)\b(?:bearer\s+[a-z0-9._~+/=-]{8,}|sk-[a-z0-9_-]{8,}|"
+        r"ghp_[a-z0-9]{8,}|github_pat_[a-z0-9_]{8,}|"
+        r"xox(?:a|b|p|r|s)-[a-z0-9-]{8,}|AKIA[0-9A-Z]{12,})\b"
+    ),
+    re.compile(r"https://hooks\.slack\.com/services/[^\s\"']+"),
+    re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----"),
+)
 
 
 def _is_sensitive_rule(rule_id: str) -> bool:
@@ -2193,9 +2235,19 @@ def _is_sensitive_rule(rule_id: str) -> bool:
     return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
 
 
+def _snippet_contains_secret(snippet: str) -> bool:
+    """Detect secret-shaped content even when a provider uses an opaque rule id."""
+    text = snippet if isinstance(snippet, str) else str(snippet or "")
+    return any(pattern.search(text) for pattern in _SENSITIVE_SNIPPET_PATTERNS)
+
+
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
     """Redact sensitive snippets and sanitize non-sensitive terminal output."""
-    if category == "secrets" or _is_sensitive_rule(rule_id):
+    if (
+        category == "secrets"
+        or _is_sensitive_rule(rule_id)
+        or _snippet_contains_secret(snippet)
+    ):
         return _REDACTED_SENSITIVE_SNIPPET
     return _sanitize_terminal_output(snippet)
 
@@ -2268,6 +2320,9 @@ def _build_finding(
     """Build the normalized finding dictionary emitted by scan providers."""
     context = _finding_context(file, snippet)
     category = category or _finding_category(rule_id)
+    message = _sanitize_terminal_output(message)
+    if _snippet_contains_secret(message):
+        message = _REDACTED_SENSITIVE_MESSAGE
     metadata = build_rule_metadata(
         rule_id,
         severity,
@@ -2477,6 +2532,7 @@ def _bandit_findings(report: dict, base_path: Path):
                 filename,
                 result.get("line_number") or 1,
                 result.get("code") or "",
+                category="secrets" if test_id in {"B105", "B106", "B107"} else None,
             )
         )
     return findings
@@ -2623,6 +2679,19 @@ def _semgrep_findings(report: dict, base_path: Path):
         )
         # fmt: on
         check_id = item.get("check_id") or "semgrep"
+        secret_evidence = json.dumps(
+            {
+                "check_id": check_id,
+                "message": extra.get("message"),
+                "metadata": extra.get("metadata"),
+            },
+            sort_keys=True,
+        ).lower()
+        secret_category = (
+            "secrets"
+            if any(token in secret_evidence for token in _SENSITIVE_RULE_TOKENS)
+            else None
+        )
         findings.append(
             _build_finding(
                 "semgrep",
@@ -2632,6 +2701,7 @@ def _semgrep_findings(report: dict, base_path: Path):
                 path,
                 start.get("line") or 1,
                 extra.get("lines") or extra.get("message") or check_id,
+                category=secret_category,
             )
         )
     return findings
@@ -3147,7 +3217,14 @@ def render_tokens_css(tokens: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_bytes=b""):
+def make_dashboard_server(
+    host,
+    port,
+    index_bytes,
+    findings_path,
+    tokens_css_bytes=b"",
+    client_timeout=10.0,
+):
     """Build (but do not start) an HTTP server that serves the dashboard.
 
     Serves the dashboard HTML at ``/``, the design tokens at ``/tokens.css``,
@@ -3155,10 +3232,35 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
     of the caller's cwd.
     """
     import http.server
+    import ipaddress
+
+    normalized_host = (host or "").strip().lower()
+    if normalized_host != "localhost":
+        try:
+            address = ipaddress.ip_address(normalized_host.split("%", 1)[0])
+        except ValueError as exc:
+            raise ValueError(
+                "Dashboard host must be localhost or a loopback IP address"
+            ) from exc
+        if not address.is_loopback:
+            raise ValueError(
+                "Dashboard host must be localhost or a loopback IP address"
+            )
+    try:
+        client_timeout = float(client_timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Dashboard client timeout must be a positive number") from exc
+    if client_timeout <= 0:
+        raise ValueError("Dashboard client timeout must be a positive number")
 
     findings_path = Path(findings_path)
 
     class _Handler(http.server.BaseHTTPRequestHandler):
+        def setup(self):
+            """Bound how long one client may occupy a request thread."""
+            super().setup()
+            self.connection.settimeout(client_timeout)
+
         def _send(self, body, content_type):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
@@ -3184,7 +3286,14 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
             """Suppress default logging."""
             return None
 
-    return http.server.HTTPServer((host, port), _Handler)
+    class _ThreadingHTTPServer(http.server.ThreadingHTTPServer):
+        """Thread-per-request server with bounded shutdown behavior."""
+
+        daemon_threads = True
+        block_on_close = False
+        request_queue_size = 128
+
+    return _ThreadingHTTPServer((normalized_host, port), _Handler)
 
 
 def _api_key_output_path(args, db_path):
@@ -3371,9 +3480,13 @@ def cmd_dashboard(args):
         server = make_dashboard_server(
             host, port, index.read_bytes(), findings_path, tokens_css
         )
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         _console_print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
-        _console_print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
+        _console_print(
+            "💡 Use a loopback host and a free port, e.g. "
+            "--host 127.0.0.1 --port 8899.",
+            file=sys.stderr,
+        )
         return 1
 
     actual_port = server.server_address[1]

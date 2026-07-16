@@ -76,13 +76,20 @@ def load_config(search_dirs: "list[Path]") -> dict[str, Any]:
 if __name__ == "__main__":  # pragma: no cover - self-check
     import tempfile
 
+    # Executable module self-checks; these assertions do not validate user input.
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / CONFIG_NAME).write_text(
             '{"fail_on": "WARNING", "exclude_rules": ["noisy-rule"]}'
         )
         cfg = load_config([Path(d)])
-        assert cfg["fail_on"] == "WARNING"
-        assert cfg["blocking_severities"] == {"CRITICAL", "HIGH", "WARNING"}
-        assert cfg["exclude_rules"] == {"noisy-rule"}
-        assert load_config([Path(d) / "nope"]) == {}
+        assert cfg["fail_on"] == "WARNING"  # noqa: S101  # nosec B101
+        assert cfg["blocking_severities"] == {  # noqa: S101  # nosec B101
+            "CRITICAL",
+            "HIGH",
+            "WARNING",
+        }
+        assert cfg["exclude_rules"] == {  # noqa: S101  # nosec B101
+            "noisy-rule"
+        }
+        assert load_config([Path(d) / "nope"]) == {}  # noqa: S101  # nosec B101
     print("config self-check OK")

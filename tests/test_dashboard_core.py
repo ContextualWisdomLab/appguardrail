@@ -2,7 +2,9 @@
 
 import json
 import json as _json
+import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 from contextlib import closing
@@ -212,5 +214,38 @@ def test_server_404s_missing_findings(tmp_path):
             _get(f"http://127.0.0.1:{port}/findings.json")
         assert exc.value.code == 404
     finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.0.2.1", "example.com"])
+def test_server_rejects_non_loopback_binding(tmp_path, host):
+    with pytest.raises(ValueError, match="loopback"):
+        make_dashboard_server(host, 0, b"<html></html>", tmp_path / "findings.json")
+
+
+def test_slow_dashboard_client_does_not_block_other_requests(tmp_path):
+    findings = tmp_path / "findings.json"
+    findings.write_text('{"findings":[]}', encoding="utf-8")
+    server = make_dashboard_server(
+        "127.0.0.1",
+        0,
+        b"<html>DASH</html>",
+        findings,
+        client_timeout=2.0,
+    )
+    port = server.server_address[1]
+    _serve(server)
+    slow_client = socket.create_connection(("127.0.0.1", port), timeout=2)
+    try:
+        slow_client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+        started = time.monotonic()
+        status, body = _get(f"http://127.0.0.1:{port}/")
+        elapsed = time.monotonic() - started
+        assert status == 200
+        assert b"DASH" in body
+        assert elapsed < 1.0
+    finally:
+        slow_client.close()
         server.shutdown()
         server.server_close()

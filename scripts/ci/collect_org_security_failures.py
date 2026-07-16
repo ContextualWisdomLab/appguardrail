@@ -28,7 +28,13 @@ UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
-BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
+BLOCKED_LOG_HOSTS = {  # nosec B104  # noqa: S104 - denylist values, not a bind
+    "localhost",
+    "127.0.0.1",
+    "169.254.169.254",
+    "0.0.0.0",  # noqa: S104 - denylist value, not a socket bind
+    "::1",
+}
 ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
     ".actions.githubusercontent.com",
     ".blob.core.windows.net",
@@ -176,7 +182,7 @@ class GitHub:
             },
         )
         try:
-            with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
+            with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - allowlisted GitHub artifact URL  # nosec B310
                 req, timeout=30
             ) as res:
                 payload = res.read()

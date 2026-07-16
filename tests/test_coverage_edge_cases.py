@@ -132,7 +132,8 @@ def test_scan_file_no_newline_after_match(tmp_path):
     with patch("scanner.cli.appguardrail.SCAN_RULES", MOCK_RULES):
         findings = _scan_file(test_file, tmp_path)
         assert len(findings) > 0
-        assert findings[0]["snippet"].startswith("const password")
+        assert "verysecretpassword" not in findings[0]["snippet"]
+        assert findings[0]["snippet"] == "[REDACTED: sensitive match suppressed]"
 
 
 def test_cmd_scan_trivy_error_handled(tmp_path, monkeypatch, capsys):

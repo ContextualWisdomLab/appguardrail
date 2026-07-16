@@ -516,7 +516,9 @@ def console_html() -> bytes:
         return b"<!doctype html><title>AppGuardrail Console</title><p>Console asset missing.</p>"
 
 
-def make_control_plane_server(host: str, port: int, db_path: str):
+def make_control_plane_server(
+    host: str, port: int, db_path: str, client_timeout: float = 10.0
+):
     """Build an HTTP API for scan ingest + history, scoped by API key.
 
     Endpoints (JSON):
@@ -527,14 +529,28 @@ def make_control_plane_server(host: str, port: int, db_path: str):
     Auth: Authorization: Bearer <api_key>.
     """
     import http.server
+    import threading
+
+    try:
+        client_timeout = float(client_timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Control-plane client timeout must be a positive number") from exc
+    if client_timeout <= 0:
+        raise ValueError("Control-plane client timeout must be a positive number")
 
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     conn.commit()
+    db_lock = threading.RLock()
     console = console_html()
 
     class _Handler(http.server.BaseHTTPRequestHandler):
+        def setup(self):
+            """Bound how long one client may occupy a request thread."""
+            super().setup()
+            self.connection.settimeout(client_timeout)
+
         def _json(self, code, obj):
             body = json.dumps(obj).encode("utf-8")
             self.send_response(code)
@@ -546,7 +562,8 @@ def make_control_plane_server(host: str, port: int, db_path: str):
         def _auth(self):
             hdr = self.headers.get("Authorization", "")
             key = hdr[7:] if hdr.startswith("Bearer ") else ""
-            return role_for_key(conn, key)
+            with db_lock:
+                return role_for_key(conn, key)
 
         def do_GET(self):
             parsed = urlparse(self.path)
@@ -576,24 +593,22 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 return self._json(401, {"error": "invalid or missing API key"})
             org, _role = auth
             if path == "/api/v1/scans":
-                return self._json(
-                    200,
-                    {
-                        "scans": list_scans(
-                            conn,
-                            org,
-                            _qint("limit", 100, 1, 1000),
-                            _qint("offset", 0, 0, 10**9),
-                        )
-                    },
-                )
+                with db_lock:
+                    scans = list_scans(
+                        conn,
+                        org,
+                        _qint("limit", 100, 1, 1000),
+                        _qint("offset", 0, 0, 10**9),
+                    )
+                return self._json(200, {"scans": scans})
             if path == "/api/v1/scans/trend":
-                return self._json(
-                    200, {"trend": scan_trend(conn, org, _qint("limit", 30, 1, 365))}
-                )
+                with db_lock:
+                    trend = scan_trend(conn, org, _qint("limit", 30, 1, 365))
+                return self._json(200, {"trend": trend})
             m = re.match(r"^/api/v1/scans/(\d+)$", path)
             if m:
-                scan = get_scan(conn, org, int(m.group(1)))
+                with db_lock:
+                    scan = get_scan(conn, org, int(m.group(1)))
                 return (
                     self._json(200, scan)
                     if scan
@@ -612,8 +627,11 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 # Negative reads until EOF; oversized bodies exhaust memory.
                 return None
             try:
-                return json.loads(self.rfile.read(length) or b"{}")
-            except (ValueError, TypeError):
+                raw = self.rfile.read(length)
+                if len(raw) != length:
+                    return None
+                return json.loads(raw or b"{}")
+            except (OSError, ValueError, TypeError):
                 return None
 
         def do_POST(self):
@@ -631,7 +649,8 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 body = self._body()
                 if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
-                set_webhook(conn, org, (body or {}).get("url"))
+                with db_lock:
+                    set_webhook(conn, org, (body or {}).get("url"))
                 return self._json(200, {"webhook_url": (body or {}).get("url")})
 
             if path == "/api/v1/keys":
@@ -641,9 +660,10 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
                 new_role = (body or {}).get("role", "member")
-                _kid, new_key = create_key(
-                    conn, org, new_role, (body or {}).get("label")
-                )
+                with db_lock:
+                    _kid, new_key = create_key(
+                        conn, org, new_role, (body or {}).get("label")
+                    )
                 return self._json(
                     201,
                     {
@@ -664,23 +684,32 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                     400, {"error": 'expected a findings array or {"findings":[...]}'}
                 )
             meta = data if isinstance(data, dict) else {}
-            summary = add_scan(
-                conn, org, findings, meta.get("repo"), meta.get("commit")
-            )
+            with db_lock:
+                summary = add_scan(
+                    conn, org, findings, meta.get("repo"), meta.get("commit")
+                )
             return self._json(201, summary)
 
         def log_message(self, format, *args):
             """Suppress default logging."""
             return None
 
-    return http.server.HTTPServer((host, port), _Handler)
+    class _ThreadingHTTPServer(http.server.ThreadingHTTPServer):
+        """Thread-per-request server with bounded shutdown behavior."""
+
+        daemon_threads = True
+        block_on_close = False
+        request_queue_size = 128
+
+    return _ThreadingHTTPServer((host, port), _Handler)
 
 
 if __name__ == "__main__":  # pragma: no cover - self-check
+    # Executable module self-checks; these assertions do not validate user input.
     conn = connect(":memory:")
     oid, key = create_org(conn, "Acme")
-    assert org_for_key(conn, key) == oid
-    assert org_for_key(conn, "agk_wrong") is None
+    assert org_for_key(conn, key) == oid  # noqa: S101  # nosec B101
+    assert org_for_key(conn, "agk_wrong") is None  # noqa: S101  # nosec B101
     s = add_scan(
         conn,
         oid,
@@ -691,13 +720,13 @@ if __name__ == "__main__":  # pragma: no cover - self-check
         repo="acme/app",
         commit_sha="abc123",
     )
-    assert s["total"] == 2 and s["deploy_blocking"] == 1, s
+    assert s["total"] == 2 and s["deploy_blocking"] == 1, s  # noqa: S101  # nosec B101
     listed = list_scans(conn, oid)
-    assert len(listed) == 1 and listed[0]["repo"] == "acme/app"
+    assert len(listed) == 1 and listed[0]["repo"] == "acme/app"  # noqa: S101  # nosec B101
     full = get_scan(conn, oid, s["id"])
-    assert full and len(full["findings"]) == 2
+    assert full and len(full["findings"]) == 2  # noqa: S101  # nosec B101
     # tenant isolation: another org can't read the first org's scan
     oid2, _ = create_org(conn, "Beta")
-    assert get_scan(conn, oid2, s["id"]) is None
-    assert list_scans(conn, oid2) == []
+    assert get_scan(conn, oid2, s["id"]) is None  # noqa: S101  # nosec B101
+    assert list_scans(conn, oid2) == []  # noqa: S101  # nosec B101
     print("controlplane self-check OK")
