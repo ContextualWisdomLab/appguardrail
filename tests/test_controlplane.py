@@ -10,13 +10,24 @@ from contextlib import closing
 
 import pytest
 
-from appguardrail_core.controlplane import (_is_slack_webhook, _send_alert,
-                                            _slack_blocks, add_scan, connect,
-                                            create_key, create_org, get_scan,
-                                            has_role, list_scans,
-                                            make_control_plane_server,
-                                            org_for_key, role_for_key,
-                                            scan_trend, set_webhook)
+import appguardrail_core.controlplane as controlplane
+from appguardrail_core.controlplane import (
+    _is_slack_webhook,
+    _send_alert,
+    _slack_blocks,
+    add_scan,
+    connect,
+    create_key,
+    create_org,
+    get_scan,
+    has_role,
+    list_scans,
+    make_control_plane_server,
+    org_for_key,
+    role_for_key,
+    scan_trend,
+    set_webhook,
+)
 
 FINDINGS = [
     {"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
@@ -354,20 +365,33 @@ def test_slack_blocks_caps_and_escapes():
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
 
-    def _fake_build_opener(*handlers):
-        class _Opener:
-            def open(self, req, timeout=None):
-                posted["url"] = req.full_url
-                posted["body"] = json.loads(req.data.decode())
+    class _Response:
+        status = 204
 
-                class _R:  # minimal stand-in
-                    pass
+        def read(self, _limit):
+            return b""
 
-                return _R()
+    class _Connection:
+        def request(self, method, path, body=None, headers=None):
+            posted["method"] = method
+            posted["path"] = path
+            posted["body"] = json.loads(body.decode())
+            posted["headers"] = headers
 
-        return _Opener()
+        def getresponse(self):
+            return _Response()
 
-    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
+        def close(self):
+            return None
+
+    monkeypatch.setattr(
+        controlplane,
+        "_resolve_safe_url",
+        lambda url: (controlplane.urlparse(url), "93.184.216.34", 443),
+    )
+    monkeypatch.setattr(
+        controlplane, "_PinnedHTTPSConnection", lambda *args, **kwargs: _Connection()
+    )
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
@@ -388,6 +412,7 @@ def test_send_alert_slack_vs_generic(monkeypatch):
         )
         is True
     )
+    assert posted["path"] == "/services/x"
     assert "blocks" in posted["body"]
     assert "Acme" in json.dumps(posted["body"])
     assert (
@@ -403,6 +428,88 @@ def test_send_alert_slack_vs_generic(monkeypatch):
     )
     assert posted["body"] == generic
     assert "blocks" not in posted["body"]
+
+
+def test_send_alert_resolves_once_and_pins_connection(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        controlplane.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: (
+            calls.append(args)
+            or [
+                (
+                    socket.AF_INET,
+                    socket.SOCK_STREAM,
+                    socket.IPPROTO_TCP,
+                    "",
+                    ("93.184.216.34", 443),
+                )
+            ]
+        ),
+    )
+
+    class _Response:
+        status = 200
+
+        def read(self, _limit):
+            return b"ok"
+
+    class _Connection:
+        def __init__(self, host, address, port, timeout):
+            assert (host, address, port, timeout) == (
+                "hook.example",
+                "93.184.216.34",
+                443,
+                10,
+            )
+
+        def request(self, *_args, **_kwargs):
+            return None
+
+        def getresponse(self):
+            return _Response()
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(controlplane, "_PinnedHTTPSConnection", _Connection)
+    assert _send_alert("https://hook.example/x", {"event": "test"}) is True
+    assert len(calls) == 1
+
+
+def test_auth_rejects_malformed_key_without_hashing(monkeypatch):
+    conn = connect(":memory:")
+    monkeypatch.setattr(
+        controlplane,
+        "_hash_key",
+        lambda _key: pytest.fail("malformed keys must not be hashed"),
+    )
+    assert role_for_key(conn, "x" * 10_000) is None
+
+
+def test_auth_hashes_valid_unknown_key_once(monkeypatch):
+    conn = connect(":memory:")
+    calls = []
+    original = controlplane._hash_key
+
+    def _counted(key):
+        calls.append(key)
+        return original(key)
+
+    monkeypatch.setattr(controlplane, "_hash_key", _counted)
+    assert role_for_key(conn, "agk_" + "A" * 43) is None
+    assert len(calls) == 1
+
+
+def test_api_key_hash_does_not_invoke_memory_hard_kdf(monkeypatch):
+    monkeypatch.setattr(
+        controlplane.hashlib,
+        "scrypt",
+        lambda *_args, **_kwargs: pytest.fail("scrypt must not run during API auth"),
+    )
+    assert controlplane._hash_key("agk_" + "A" * 43).startswith("hmac-sha256$v2$")
 
 
 # ---- API hardening: body cap + query clamps ----
@@ -470,5 +577,35 @@ def test_slow_control_plane_client_does_not_block_health(tmp_path):
         assert elapsed < 1.0
     finally:
         slow_client.close()
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_webhook_delivery_does_not_hold_database_lock(tmp_path, monkeypatch):
+    db = str(tmp_path / "cp.db")
+    conn = connect(db)
+    oid, key = create_org(conn, "Acme")
+    set_webhook(conn, oid, "https://hook.example/x")
+    conn.close()
+    srv = make_control_plane_server("127.0.0.1", 0, db)
+    _serve(srv)
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    nested = []
+
+    def _alert(*_args, **_kwargs):
+        nested.append(_req("GET", f"{base}/api/v1/scans", key)[0])
+        return True
+
+    monkeypatch.setattr(controlplane, "_send_alert", _alert)
+    try:
+        status, _summary = _req(
+            "POST",
+            f"{base}/api/v1/scans",
+            key,
+            {"repo": "acme/app", "findings": FINDINGS},
+        )
+        assert status == 201
+        assert nested == [200]
+    finally:
         srv.shutdown()
         srv.server_close()

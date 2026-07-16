@@ -3,8 +3,8 @@
 import pytest
 
 from appguardrail_core.config import CONFIG_NAME, load_config
-from appguardrail_core.findings import (is_deploy_blocking,
-                                        severities_at_or_above)
+from appguardrail_core.findings import is_deploy_blocking, severities_at_or_above
+from scanner.cli.appguardrail import _finding_is_blocked_by_policy
 
 
 def _write(tmp_path, text):
@@ -62,3 +62,18 @@ def test_gate_threshold_lets_high_pass_when_critical_only():
     assert is_deploy_blocking(high, {"CRITICAL"}) is False  # fail_on=CRITICAL
     crit = {"severity": "CRITICAL", "context": "app-code", "rule_id": "r"}
     assert is_deploy_blocking(crit, {"CRITICAL"}) is True
+
+
+def test_repository_policy_cannot_weaken_default_gate():
+    high = {"severity": "HIGH", "context": "app-code", "rule_id": "r"}
+    config = {
+        "blocking_severities": {"CRITICAL"},
+        "exclude_rules": {"r"},
+    }
+    assert _finding_is_blocked_by_policy(high, config) is True
+
+
+def test_repository_policy_may_tighten_default_gate():
+    warning = {"severity": "WARNING", "context": "app-code", "rule_id": "r"}
+    config = {"blocking_severities": {"CRITICAL", "HIGH", "WARNING"}}
+    assert _finding_is_blocked_by_policy(warning, config) is True

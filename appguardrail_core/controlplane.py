@@ -13,12 +13,21 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
+import hmac
+import http.client
+import ipaddress
 import json
+import os
 import re
 import secrets
+import socket
+import ssl
 import sqlite3
+import warnings
 from datetime import datetime, timezone
-from importlib import resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+from importlib import (
+    resources,
+)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
@@ -59,38 +68,52 @@ CREATE TABLE IF NOT EXISTS keys (
 
 
 def _now() -> str:
+    """Return the current UTC time in the persisted control-plane format."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-# scrypt work factors (stdlib ``hashlib.scrypt``). n must be a power of two;
-# these are the interactive-login reference parameters and stay well within the
-# default 32 MiB ``maxmem`` (n*r*128 ≈ 16 MiB).
-_SCRYPT_N = 2**14
-_SCRYPT_R = 8
-_SCRYPT_P = 1
-# Fixed application salt (pepper). API-key hashes are looked up by equality
-# (``WHERE api_key_hash = ?``), so hashing must be deterministic — a per-call
-# random salt would make every stored key unfindable. A constant salt keeps the
-# lookup working while scrypt's memory-hard cost defeats offline brute-force.
-_KEY_SALT = b"appguardrail.controlplane.key.v1"
+# API keys contain 256 bits of randomness, so password-style memory-hard hashing
+# does not improve resistance to guessing.  It does let an unauthenticated
+# request force a costly allocation, however.  A keyed, deterministic digest is
+# both safe for high-entropy tokens and suitable for an indexed lookup.
+_KEY_HASH_PREFIX = "hmac-sha256$v2$"
+_DEFAULT_KEY_PEPPER = "appguardrail.controlplane.key.v2"
+_API_KEY_PATTERN = re.compile(r"^agk_[A-Za-z0-9_-]{32,128}$")
+
+
+def _key_pepper() -> bytes:
+    """Return the deployment pepper used to fingerprint high-entropy API keys."""
+    return os.environ.get("APPGUARDRAIL_API_KEY_PEPPER", _DEFAULT_KEY_PEPPER).encode(
+        "utf-8"
+    )
 
 
 def _hash_key(api_key: str) -> str:
-    """Derive a deterministic, brute-force-resistant hash of an API key.
+    """Return a constant-cost keyed fingerprint for a random API key."""
+    digest = hmac.new(_key_pepper(), api_key.encode("utf-8"), hashlib.sha256)
+    return _KEY_HASH_PREFIX + digest.hexdigest()
 
-    Uses scrypt (a memory-hard KDF from the stdlib) instead of a fast hash such
-    as SHA-256: API keys are secrets, so if the store leaks, an attacker must
-    pay scrypt's tunable compute/memory cost per guess rather than hashing
-    billions of candidates per second. The fixed application salt keeps the
-    output deterministic so keys remain findable by an indexed equality lookup.
-    """
-    return hashlib.scrypt(
-        api_key.encode("utf-8"),
-        salt=_KEY_SALT,
-        n=_SCRYPT_N,
-        r=_SCRYPT_R,
-        p=_SCRYPT_P,
-    ).hex()
+
+def _valid_api_key(api_key: str) -> bool:
+    """Reject malformed or oversized bearer values before hashing or SQL work."""
+    return isinstance(api_key, str) and bool(_API_KEY_PATTERN.fullmatch(api_key))
+
+
+def _warn_for_legacy_key_hashes(conn: sqlite3.Connection) -> None:
+    """Make the required one-time key rotation visible to operators."""
+    row = conn.execute(
+        "SELECT "
+        "(SELECT COUNT(*) FROM keys WHERE key_hash NOT LIKE ?) + "
+        "(SELECT COUNT(*) FROM orgs WHERE api_key_hash NOT LIKE ?) AS legacy_count",
+        (f"{_KEY_HASH_PREFIX}%", f"{_KEY_HASH_PREFIX}%"),
+    ).fetchone()
+    if row and row["legacy_count"]:
+        warnings.warn(
+            "Legacy scrypt API-key hashes are disabled to prevent authentication "
+            "resource exhaustion; rotate affected AppGuardrail control-plane keys.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
 
 def connect(db_path: str) -> sqlite3.Connection:
@@ -99,20 +122,22 @@ def connect(db_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     conn.commit()
+    _warn_for_legacy_key_hashes(conn)
     return conn
 
 
 def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
     """Create an org and return (org_id, api_key). The key is shown only here."""
     api_key = "agk_" + secrets.token_urlsafe(32)
+    key_hash = _hash_key(api_key)
     cur = conn.execute(
         "INSERT INTO orgs (name, api_key_hash, created_at) VALUES (?, ?, ?)",
-        (name, _hash_key(api_key), _now()),
+        (name, key_hash, _now()),
     )
     org_id = cur.lastrowid
     conn.execute(
         "INSERT INTO keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
-        (org_id, _hash_key(api_key), "owner", "owner (bootstrap)", _now()),
+        (org_id, key_hash, "owner", "owner (bootstrap)", _now()),
     )
     conn.commit()
     return org_id, api_key
@@ -120,7 +145,7 @@ def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
 
 def org_for_key(conn: sqlite3.Connection, api_key: str) -> "int | None":
     """Return the org id for a presented API key, or None."""
-    if not api_key:
+    if not _valid_api_key(api_key):
         return None
     row = conn.execute(
         "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
@@ -214,71 +239,82 @@ def _slack_blocks(
     }
 
 
-import urllib.error
-import urllib.request
+def _is_public_ip(value: str) -> bool:
+    """Return whether an address is globally routable, including mapped IPv4."""
+    try:
+        address = ipaddress.ip_address(value.split("%", 1)[0])
+    except ValueError:
+        return False
+    mapped = getattr(address, "ipv4_mapped", None)
+    address = mapped or address
+    return bool(
+        address.is_global
+        and not address.is_multicast
+        and not address.is_reserved
+        and not address.is_unspecified
+    )
 
 
-class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not _is_safe_url(newurl):
-            raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+def _resolve_safe_url(url: str) -> "tuple[Any, str, int] | None":
+    """Resolve and validate a webhook once, returning a pinned public address."""
+    try:
+        parsed = urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+    except (TypeError, ValueError):
+        return None
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return None
+    if not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
+        return None
+    host = parsed.hostname.rstrip(".").lower()
+    try:
+        addresses = socket.getaddrinfo(
+            host,
+            port,
+            type=socket.SOCK_STREAM,
+            proto=socket.IPPROTO_TCP,
+        )
+    except (OSError, UnicodeError):
+        return None
+    resolved = []
+    for entry in addresses:
+        address = entry[4][0]
+        if not _is_public_ip(address):
+            return None
+        if address not in resolved:
+            resolved.append(address)
+    if not resolved:
+        return None
+    return parsed, resolved[0], port
 
 
 def _is_safe_url(url: str) -> bool:
-    import ipaddress
-    import urllib.parse
-    import socket
+    """Return whether a webhook resolves exclusively to public addresses."""
+    return _resolve_safe_url(url) is not None
 
-    try:
-        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-    except ValueError:
-        return False
 
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in {"http", "https"}:
-        return False
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Connect to a validated IP while authenticating the original TLS host."""
 
-    host = (parsed.hostname or "").lower()
-    raw = host.split("%", 1)[0].strip("[]")
-
-    def is_bad_ip(ip) -> bool:
-        mapped = getattr(ip, "ipv4_mapped", None)
-        if mapped:
-            ip = mapped
-        return (
-            ip.is_loopback
-            or ip.is_private
-            or ip.is_link_local
-            or ip.is_unspecified
-            or ip.is_multicast
-            or getattr(ip, "is_reserved", False)
-            or not getattr(ip, "is_global", True)
+    def __init__(self, host: str, address: str, port: int, timeout: float):
+        """Store the validated address separately from the TLS host name."""
+        super().__init__(
+            host, port, timeout=timeout, context=ssl.create_default_context()
         )
+        self._validated_address = address
 
-    try:
-        ip = ipaddress.ip_address(raw)
-        if is_bad_ip(ip):
-            return False
-    except ValueError:
-        # Non-IP hostnames are expected; validate resolved addresses below.
-        pass
-
-    try:
-        resolved = socket.getaddrinfo(raw, None)
-        for entry in resolved:
-            ip_str = entry[4][0].split("%", 1)[0]
-            ip = ipaddress.ip_address(ip_str)
-            if is_bad_ip(ip):
-                return False
-    except socket.gaierror:
-        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
-        # This allows dummy domains in tests like `hook.example`.
-        pass
-    except ValueError:
-        return False
-
-    return True
+    def connect(self) -> None:
+        """Open the socket to the already validated address without a DNS redo."""
+        self.sock = self._create_connection(
+            (self._validated_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        if self._tunnel_host:
+            self._tunnel()
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
 
 
 def _send_alert(
@@ -294,31 +330,49 @@ def _send_alert(
     rendered as a Block Kit message so Slack shows a readable card; every other
     URL receives the generic JSON ``payload`` unchanged (backward compatible).
     """
-    import urllib.error
-    import urllib.request
-
-    if not _is_safe_url(url):
+    target = _resolve_safe_url(url)
+    if target is None:
         return False
+    parsed, address, port = target
 
     if _is_slack_webhook(url):
         body = _slack_blocks(org_name, payload, new_findings or [])
     else:
         body = payload
 
-    try:
-        req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
-            url,
-            data=json.dumps(body).encode("utf-8"),
-            method="POST",
-            headers={"Content-Type": "application/json"},
+    encoded = json.dumps(body).encode("utf-8")
+    host = parsed.hostname or ""
+    if parsed.scheme.lower() == "https":
+        connection: http.client.HTTPConnection = _PinnedHTTPSConnection(
+            host, address, port, 10
         )
-        opener = urllib.request.build_opener(SafeRedirectHandler())
-        opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-            req, timeout=10
-        )  # noqa: S310 - Safe URL scheme validated
-        return True
-    except (urllib.error.URLError, OSError, ValueError):
+    else:
+        connection = http.client.HTTPConnection(address, port, timeout=10)
+    path = parsed.path or "/"
+    if parsed.query:
+        path += "?" + parsed.query
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    host_header = host if port == default_port else f"{host}:{port}"
+    try:
+        connection.request(
+            "POST",
+            path,
+            body=encoded,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(encoded)),
+                "Host": host_header,
+            },
+        )
+        response = connection.getresponse()
+        response.read(4096)
+        # Redirects are deliberately not followed: a second URL would require a
+        # second DNS resolution and could redirect the payload into private space.
+        return 200 <= response.status < 300
+    except (OSError, ValueError, http.client.HTTPException, ssl.SSLError):
         return False
+    finally:
+        connection.close()
 
 
 ROLES = ("viewer", "member", "owner")
@@ -349,34 +403,30 @@ def create_key(
 
 def role_for_key(conn: sqlite3.Connection, api_key: str) -> "tuple[int, str] | None":
     """Return (org_id, role) for a presented key, or None."""
-    if not api_key:
+    if not _valid_api_key(api_key):
         return None
+    key_hash = _hash_key(api_key)
     row = conn.execute(
-        "SELECT org_id, role FROM keys WHERE key_hash = ?", (_hash_key(api_key),)
+        "SELECT org_id, role FROM keys WHERE key_hash = ? "
+        "UNION ALL SELECT id, 'owner' FROM orgs WHERE api_key_hash = ? LIMIT 1",
+        (key_hash, key_hash),
     ).fetchone()
-    if row:
-        return (row["org_id"], row["role"])
-    # legacy/bootstrap key stored on orgs is an owner key
-    row = conn.execute(
-        "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
-    ).fetchone()
-    return (row["id"], "owner") if row else None
+    return (row["org_id"], row["role"]) if row else None
 
 
-def add_scan(
+def _record_scan(
     conn: sqlite3.Connection,
     org_id: int,
     findings: Iterable[dict[str, Any]],
     repo: "str | None" = None,
     commit_sha: "str | None" = None,
-) -> dict[str, Any]:
-    """Store a scan for an org, computing counts from the findings."""
+) -> "tuple[dict[str, Any], dict[str, Any] | None]":
+    """Store a scan and return its summary plus any pending webhook delivery."""
     normalized = list(normalize_findings(findings))
     counts = severity_counts(normalized)
     blocking_findings = [f for f in normalized if is_deploy_blocking(f)]
     blocking = len(blocking_findings)
 
-    # Drift: deploy-blocking findings new since this org+repo's previous scan.
     prev = conn.execute(
         "SELECT findings FROM scans WHERE org_id = ? AND IFNULL(repo, '') = IFNULL(?, '') "
         "ORDER BY id DESC LIMIT 1",
@@ -409,16 +459,16 @@ def add_scan(
     )
     conn.commit()
 
-    # Drift alert: notify the org's webhook when new blockers were introduced.
+    pending_alert = None
     if new_blocking > 0:
         row = conn.execute(
             "SELECT name, webhook_url FROM orgs WHERE id = ?", (org_id,)
         ).fetchone()
         hook = row["webhook_url"] if row else None
         if hook:
-            _send_alert(
-                hook,
-                {
+            pending_alert = {
+                "url": hook,
+                "payload": {
                     "event": "drift.new_blocking",
                     "org_id": org_id,
                     "scan_id": cur.lastrowid,
@@ -428,11 +478,11 @@ def add_scan(
                     "deploy_blocking": blocking,
                     "created_at": created_at,
                 },
-                org_name=row["name"] if row else None,
-                new_findings=new_findings,
-            )
+                "org_name": row["name"] if row else None,
+                "new_findings": new_findings,
+            }
 
-    return {
+    summary = {
         "id": cur.lastrowid,
         "created_at": created_at,
         "total": len(normalized),
@@ -440,6 +490,29 @@ def add_scan(
         "new_blocking": new_blocking,
         "severity_counts": counts,
     }
+    return summary, pending_alert
+
+
+def _deliver_pending_alert(pending_alert: "dict[str, Any] | None") -> bool:
+    """Deliver a prepared alert without retaining a database lock."""
+    if not pending_alert:
+        return False
+    return _send_alert(**pending_alert)
+
+
+def add_scan(
+    conn: sqlite3.Connection,
+    org_id: int,
+    findings: Iterable[dict[str, Any]],
+    repo: "str | None" = None,
+    commit_sha: "str | None" = None,
+) -> dict[str, Any]:
+    """Store a scan for an org, computing counts from the findings."""
+    summary, pending_alert = _record_scan(
+        conn, org_id, findings, repo=repo, commit_sha=commit_sha
+    )
+    _deliver_pending_alert(pending_alert)
+    return summary
 
 
 def list_scans(
@@ -534,7 +607,9 @@ def make_control_plane_server(
     try:
         client_timeout = float(client_timeout)
     except (TypeError, ValueError) as exc:
-        raise ValueError("Control-plane client timeout must be a positive number") from exc
+        raise ValueError(
+            "Control-plane client timeout must be a positive number"
+        ) from exc
     if client_timeout <= 0:
         raise ValueError("Control-plane client timeout must be a positive number")
 
@@ -542,16 +617,21 @@ def make_control_plane_server(
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     conn.commit()
+    _warn_for_legacy_key_hashes(conn)
     db_lock = threading.RLock()
+    auth_slots = threading.BoundedSemaphore(32)
     console = console_html()
 
     class _Handler(http.server.BaseHTTPRequestHandler):
+        """Serve the tenant-scoped control-plane JSON API."""
+
         def setup(self):
             """Bound how long one client may occupy a request thread."""
             super().setup()
             self.connection.settimeout(client_timeout)
 
         def _json(self, code, obj):
+            """Write one bounded JSON response."""
             body = json.dumps(obj).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
@@ -560,17 +640,25 @@ def make_control_plane_server(
             self.wfile.write(body)
 
         def _auth(self):
+            """Authenticate a bounded bearer value without expensive KDF work."""
             hdr = self.headers.get("Authorization", "")
             key = hdr[7:] if hdr.startswith("Bearer ") else ""
-            with db_lock:
-                return role_for_key(conn, key)
+            if not _valid_api_key(key) or not auth_slots.acquire(blocking=False):
+                return None
+            try:
+                with db_lock:
+                    return role_for_key(conn, key)
+            finally:
+                auth_slots.release()
 
         def do_GET(self):
+            """Serve health, console, and authenticated scan queries."""
             parsed = urlparse(self.path)
             path = parsed.path
             qs = parse_qs(parsed.query)
 
             def _qint(name, default, lo, hi):
+                """Parse and clamp one integer query parameter."""
                 # Clamp: sqlite treats LIMIT -1 as "no limit", so never pass
                 # negatives through; hi keeps a single request bounded.
                 try:
@@ -619,6 +707,7 @@ def make_control_plane_server(
         _MAX_BODY = 10 * 1024 * 1024  # 10 MiB — plenty for findings, blocks OOM posts
 
         def _body(self):
+            """Read one size-bounded JSON request body."""
             try:
                 length = int(self.headers.get("Content-Length", 0))
             except (ValueError, TypeError):
@@ -635,6 +724,7 @@ def make_control_plane_server(
                 return None
 
         def do_POST(self):
+            """Handle authenticated webhook, key, and scan mutations."""
             path = self.path.split("?", 1)[0]
             if path not in ("/api/v1/scans", "/api/v1/webhook", "/api/v1/keys"):
                 return self._json(404, {"error": "not found"})
@@ -685,9 +775,12 @@ def make_control_plane_server(
                 )
             meta = data if isinstance(data, dict) else {}
             with db_lock:
-                summary = add_scan(
+                summary, pending_alert = _record_scan(
                     conn, org, findings, meta.get("repo"), meta.get("commit")
                 )
+            # Network delivery is intentionally outside the global SQLite lock,
+            # so one slow webhook cannot stall every tenant's reads and writes.
+            _deliver_pending_alert(pending_alert)
             return self._json(201, summary)
 
         def log_message(self, format, *args):
