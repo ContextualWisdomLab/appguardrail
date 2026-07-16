@@ -33,17 +33,21 @@ SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so an authenticated request cannot change origins."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Return no follow-up request, causing urllib to raise for redirects."""
+        return None
+
+
 class GitHub:
     """Small GitHub REST client for workflow, job, and issue APIs."""
 
-    def __init__(self, token: str, api: str = API):
-        """Create a client using a bearer token and API root."""
+    def __init__(self, token: str):
+        """Create a client whose bearer token is pinned to GitHub's API origin."""
         self.token = token
-        self.api = api.rstrip("/")
-        # Security concern: Prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI)
-        # by ensuring the API base URL only uses secure, safe HTTP schemes before opening connections.
-        if not self.api.startswith(("http://", "https://")):
-            raise ValueError("API URL must start with http:// or https://")
+        self.opener = urllib.request.build_opener(NoRedirect)
 
     def request(
         self,
@@ -53,10 +57,12 @@ class GitHub:
         params: dict[str, Any] | None = None,
     ) -> Any:
         """Send one JSON GitHub API request and return the decoded payload."""
+        if not path.startswith("/"):
+            raise ValueError("GitHub API path must start with /")
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
-            f"{self.api}{path}{query}",
+            f"{API}{path}{query}",
             data=body,
             method=method,
             headers={
@@ -68,11 +74,7 @@ class GitHub:
             },
         )
         try:
-            with (
-                urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
-                    req, timeout=30
-                ) as res
-            ):
+            with self.opener.open(req, timeout=30) as res:  # noqa: S310
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
