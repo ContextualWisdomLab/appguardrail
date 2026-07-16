@@ -17,6 +17,14 @@ import re
 from pathlib import Path
 from typing import Any
 
+MAX_JSON_MANIFEST_BYTES = 8 * 1024 * 1024
+MAX_JSON_MANIFEST_DEPTH = 128
+
+
+class ManifestParseError(ValueError):
+    """Raised when a dependency manifest cannot be parsed safely."""
+
+
 _RANGE_PREFIX = re.compile(r"^[\^~>=<\s]+")
 # name==1.2.3 style; capture name and pinned version if present.
 _REQ_LINE = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:==\s*([A-Za-z0-9._+!-]+))?")
@@ -30,6 +38,60 @@ _PNPM_AT = re.compile(r"^\s+/(@?[^@\s/]+(?:/[^@\s/]+)?)@([^:@\s()]+)")
 _PNPM_SLASH = re.compile(r"^\s+/(@[^/\s]+/[^/\s]+|[^/@\s]+)/([^:/\s()]+)")
 # yarn.lock: a ``version "x"`` line inside an entry block.
 _YARN_VERSION = re.compile(r'^\s+version\s+"?([^"\s]+)"?')
+
+
+def _load_json_manifest(path: Path) -> dict[str, Any]:
+    """Load a bounded JSON object without exposing the decoder to deep nesting."""
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ManifestParseError(
+            f"Cannot read dependency manifest {path}: {exc}"
+        ) from exc
+    if len(raw) > MAX_JSON_MANIFEST_BYTES:
+        raise ManifestParseError(
+            f"Dependency manifest {path} exceeds {MAX_JSON_MANIFEST_BYTES} bytes"
+        )
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ManifestParseError(f"Dependency manifest {path} is not UTF-8") from exc
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > MAX_JSON_MANIFEST_DEPTH:
+                raise ManifestParseError(
+                    f"Dependency manifest {path} exceeds maximum JSON nesting depth "
+                    f"{MAX_JSON_MANIFEST_DEPTH}"
+                )
+        elif char in "]}":
+            depth = max(0, depth - 1)
+
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, RecursionError) as exc:
+        raise ManifestParseError(
+            f"Dependency manifest {path} is invalid JSON: {exc}"
+        ) from exc
+    if not isinstance(data, dict):
+        raise ManifestParseError(
+            f"Dependency manifest {path} must contain a JSON object"
+        )
+    return data
 
 
 def _clean_version(value: str) -> str:
@@ -57,8 +119,8 @@ def _component(
 
 def parse_package_lock(path: Path) -> list[dict[str, Any]]:
     """npm package-lock.json -> components with resolved versions."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    out: dict[str, dict[str, Any]] = {}
+    data = _load_json_manifest(path)
+    out: dict[tuple[str, str], dict[str, Any]] = {}
     # lockfile v2/v3: "packages" keyed by "node_modules/name"
     for key, meta in (data.get("packages") or {}).items():
         if not key or not isinstance(meta, dict):
@@ -66,17 +128,22 @@ def parse_package_lock(path: Path) -> list[dict[str, Any]]:
         name = key.split("node_modules/")[-1]
         version = str(meta.get("version") or "")
         if name and version:
-            out[name] = _component(name, version, "npm", resolved=True)
+            out.setdefault(
+                (name, version), _component(name, version, "npm", resolved=True)
+            )
     # lockfile v1: "dependencies"
     for name, meta in (data.get("dependencies") or {}).items():
-        if name not in out and isinstance(meta, dict) and meta.get("version"):
-            out[name] = _component(name, str(meta["version"]), "npm", resolved=True)
+        if isinstance(meta, dict) and meta.get("version"):
+            version = str(meta["version"])
+            out.setdefault(
+                (name, version), _component(name, version, "npm", resolved=True)
+            )
     return list(out.values())
 
 
 def parse_package_json(path: Path) -> list[dict[str, Any]]:
     """package.json -> components with declared version ranges."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = _load_json_manifest(path)
     out = []
     for field in ("dependencies", "devDependencies", "optionalDependencies"):
         for name, rng in (data.get(field) or {}).items():

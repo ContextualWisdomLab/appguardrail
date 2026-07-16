@@ -34,6 +34,24 @@ def test_idempotent_and_extension_scoped():
     assert ".html" in fixable_extensions()
 
 
+def test_rel_substrings_are_not_treated_as_safe_tokens():
+    unsafe_values = ("notnoopener", "noopenerx", "noreferrerfoo", "foo noopenerbar baz")
+    for value in unsafe_values:
+        source = f'<a href="https://example.com" target="_blank" rel="{value}">x</a>'
+        fixed, count = apply_safe_fixes(source, ".html")
+        assert count == 1
+        assert f'rel="{value} noopener noreferrer"' in fixed
+
+
+def test_exact_safe_rel_token_remains_unchanged():
+    source = (
+        '<a href="https://example.com" target="_blank" rel="nofollow noopener">x</a>'
+    )
+    fixed, count = apply_safe_fixes(source, ".html")
+    assert count == 0
+    assert fixed == source
+
+
 def test_cmd_fix_dry_run_does_not_write(tmp_path, capsys):
     f = tmp_path / "page.html"
     f.write_text('<a href="https://x.com" target="_blank">x</a>')

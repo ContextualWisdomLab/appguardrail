@@ -16,9 +16,15 @@ from typing import Callable
 _A_TAG = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
 _HAS_EXTERNAL_BLANK = re.compile(r"target\s*=\s*[\"']_blank[\"']", re.IGNORECASE)
 _HAS_EXTERNAL_HREF = re.compile(r"href\s*=\s*[\"']https?://", re.IGNORECASE)
-_HAS_REL_SAFE = re.compile(
-    r"rel\s*=\s*[\"'][^\"']*(?:noopener|noreferrer)", re.IGNORECASE
-)
+_REL_ATTR = re.compile(r"\brel\s*=\s*([\"'])([^\"']*)\1", re.IGNORECASE)
+
+
+def _safe_rel_tokens(tag: str) -> set[str]:
+    """Return exact space-separated rel tokens from the first rel attribute."""
+    match = _REL_ATTR.search(tag)
+    if not match:
+        return set()
+    return {token.casefold() for token in match.group(2).split()}
 
 
 def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
@@ -34,9 +40,14 @@ def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
         if (
             _HAS_EXTERNAL_BLANK.search(tag)
             and _HAS_EXTERNAL_HREF.search(tag)
-            and not _HAS_REL_SAFE.search(tag)
+            and not (_safe_rel_tokens(tag) & {"noopener", "noreferrer"})
         ):
             count += 1
+            rel_match = _REL_ATTR.search(tag)
+            if rel_match:
+                existing = rel_match.group(2).strip()
+                replacement = f'rel="{existing} noopener noreferrer"'
+                return _REL_ATTR.sub(replacement, tag, count=1)
             return re.sub(
                 r"<a\b",
                 '<a rel="noopener noreferrer"',

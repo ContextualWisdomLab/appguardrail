@@ -40,26 +40,28 @@ Options:
 """
 
 import argparse
+import errno
 import fnmatch
 import functools
+import http.client
 import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import os
 import re
 import shlex
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
 import tempfile
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
+from appguardrail_core.controlplane import request_pinned_url, resolve_public_url
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
 from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
@@ -1169,6 +1171,125 @@ def _display_path(path: str | Path) -> str:
     return Path(path).as_posix()
 
 
+def _secure_project_write(
+    project_root: Path,
+    relative_path: Path,
+    content: str,
+    *,
+    append_marker: "str | None" = None,
+    skip_existing: bool = False,
+) -> str:
+    """Write inside a project without following raced directory or file symlinks."""
+    relative_path = Path(relative_path)
+    if relative_path.is_absolute() or any(
+        part in {"", ".", ".."} for part in relative_path.parts
+    ):
+        raise ValueError(f"unsafe project-relative path: {relative_path}")
+
+    required_flags = all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW"))
+    if os.name == "nt" or not required_flags:  # pragma: no cover - Windows fallback
+        target = project_root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.parent.resolve().is_relative_to(project_root):
+            raise ValueError(f"target parent escapes project root: {relative_path}")
+        existing = None
+        if target.exists() and not target.is_symlink():
+            existing = target.read_text(encoding="utf-8")
+        if skip_existing and existing is not None:
+            return "skipped"
+        if append_marker and existing is not None:
+            if append_marker in existing:
+                return "skipped"
+            content = existing + "\n\n" + content
+            action = "appended"
+        else:
+            action = "written"
+        _atomic_write_private_text(target, content)
+        return action
+
+    directory_fds: list[int] = []
+    temporary_name: "str | None" = None
+    try:
+        current_fd = os.open(
+            project_root,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+        directory_fds.append(current_fd)
+        for part in relative_path.parts[:-1]:
+            try:
+                next_fd = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=current_fd,
+                )
+            except FileNotFoundError:
+                os.mkdir(part, mode=0o755, dir_fd=current_fd)
+                next_fd = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=current_fd,
+                )
+            directory_fds.append(next_fd)
+            current_fd = next_fd
+
+        name = relative_path.name
+        existing: "str | None" = None
+        try:
+            read_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=current_fd)
+        except FileNotFoundError:
+            read_fd = -1
+        except OSError as exc:
+            # A final-path symlink is intentionally treated as absent; the atomic
+            # replacement below replaces the link itself instead of its target.
+            if exc.errno != errno.ELOOP:
+                raise
+            read_fd = -1
+        if read_fd >= 0:
+            with os.fdopen(read_fd, "r", encoding="utf-8") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise ValueError(f"target is not a regular file: {relative_path}")
+                existing = stream.read()
+
+        if skip_existing and existing is not None:
+            return "skipped"
+        if append_marker and existing is not None:
+            if append_marker in existing:
+                return "skipped"
+            content = existing + "\n\n" + content
+            action = "appended"
+        else:
+            action = "written"
+
+        temporary_name = f".{name}.appguardrail-{os.getpid()}-{os.urandom(8).hex()}.tmp"
+        write_fd = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=current_fd,
+        )
+        with os.fdopen(write_fd, "w", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(
+            temporary_name,
+            name,
+            src_dir_fd=current_fd,
+            dst_dir_fd=current_fd,
+        )
+        temporary_name = None
+        os.fsync(current_fd)
+        return action
+    finally:
+        if temporary_name is not None and directory_fds:
+            try:
+                os.unlink(temporary_name, dir_fd=directory_fds[-1])
+            except FileNotFoundError:
+                pass
+        for directory_fd in reversed(directory_fds):
+            os.close(directory_fd)
+
+
 # ---------------------------------------------------------------------------
 # Command implementations
 # ---------------------------------------------------------------------------
@@ -1248,19 +1369,24 @@ def cmd_init(args):
             )
             sys.exit(1)
 
-        target_file.parent.mkdir(parents=True, exist_ok=True)
-        if target_file.is_symlink():
-            target_file.unlink()
-
-        if "append_marker" in config and target_file.exists():
-            existing = target_file.read_text()
-            if config["append_marker"] not in existing:
-                target_file.write_text(existing + "\n\n" + config["content"])
-                installed.append(f"{_display_path(config['path'])} (appended)")
-            else:
-                skipped.append(_display_path(config["path"]))
+        try:
+            action = _secure_project_write(
+                project_root,
+                config["path"],
+                config["content"],
+                append_marker=config.get("append_marker"),
+            )
+        except (OSError, ValueError) as exc:
+            _console_print(
+                f"❌ Error: Refusing unsafe target {_display_path(config['path'])}: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if action == "skipped":
+            skipped.append(_display_path(config["path"]))
+        elif action == "appended":
+            installed.append(f"{_display_path(config['path'])} (appended)")
         else:
-            target_file.write_text(config["content"])
             installed.append(_display_path(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "APPGUARDRAIL_CHECKLIST.md"
@@ -1277,10 +1403,19 @@ def cmd_init(args):
         )
         sys.exit(1)
 
-    if checklist_file.is_symlink():
-        checklist_file.unlink()
-    if not checklist_file.exists():
-        checklist_file.write_text(CHECKLIST_TEMPLATE)
+    try:
+        checklist_action = _secure_project_write(
+            project_root,
+            Path("APPGUARDRAIL_CHECKLIST.md"),
+            CHECKLIST_TEMPLATE,
+            skip_existing=True,
+        )
+    except (OSError, ValueError) as exc:
+        _console_print(
+            f"❌ Error: Refusing unsafe checklist target: {exc}", file=sys.stderr
+        )
+        sys.exit(1)
+    if checklist_action == "written":
         installed.append("APPGUARDRAIL_CHECKLIST.md")
     else:
         skipped.append("APPGUARDRAIL_CHECKLIST.md")
@@ -1639,76 +1774,13 @@ def _atomic_write_private_text(output_path: Path, text: str) -> None:
             pass
 
 
-class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not _is_safe_url(newurl):
-            raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
 def _is_safe_url(url: str) -> bool:
-    import ipaddress
-    import urllib.parse
-    import socket
-
-    try:
-        parsed = urllib.parse.urlparse(
-            url
-        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-    except ValueError:
-        return False
-
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in {"http", "https"}:
-        return False
-
-    host = (parsed.hostname or "").lower()
-    raw = host.split("%", 1)[0].strip("[]")
-
-    def is_bad_ip(ip) -> bool:
-        mapped = getattr(ip, "ipv4_mapped", None)
-        if mapped:
-            ip = mapped
-        return (
-            ip.is_loopback
-            or ip.is_private
-            or ip.is_link_local
-            or ip.is_unspecified
-            or ip.is_multicast
-            or getattr(ip, "is_reserved", False)
-            or not getattr(ip, "is_global", True)
-        )
-
-    try:
-        ip = ipaddress.ip_address(raw)
-        if is_bad_ip(ip):
-            return False
-    except ValueError:
-        # Non-IP hostnames are expected; validate resolved addresses below.
-        pass
-
-    try:
-        resolved = socket.getaddrinfo(raw, None)
-        for entry in resolved:
-            ip_str = entry[4][0].split("%", 1)[0]
-            ip = ipaddress.ip_address(ip_str)
-            if is_bad_ip(ip):
-                return False
-    except socket.gaierror:
-        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
-        # This allows dummy domains in tests like `hook.example`.
-        pass
-    except ValueError:
-        return False
-
-    return True
+    """Return whether a push URL resolves exclusively to public HTTPS addresses."""
+    return resolve_public_url(url, allowed_schemes={"https"}) is not None
 
 
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
-    import urllib.error
-    import urllib.request
-
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
         _console_print(
@@ -1716,9 +1788,11 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
-    if not _is_safe_url(url):
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    target = resolve_public_url(endpoint, allowed_schemes={"https"})
+    if target is None:
         _console_print(
-            f"⚠️  --push URL must be a valid http/https URL and not point to internal infrastructure, got {url}",
+            f"⚠️  --push URL must be a resolvable public HTTPS URL, got {url}",
             file=sys.stderr,
         )
         return
@@ -1727,33 +1801,30 @@ def _push_findings(url, findings):
         "repo": os.environ.get("GITHUB_REPOSITORY"),
         "commit": os.environ.get("GITHUB_SHA"),
     }
-    endpoint = url.rstrip("/") + "/api/v1/scans"
-    req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-    )
+    encoded = json.dumps(payload).encode("utf-8")
     try:
-        opener = urllib.request.build_opener(SafeRedirectHandler())
-        with (
-            opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                req, timeout=15
-            ) as resp
-        ):  # noqa: S310 - Safe URL scheme validated
-            body = json.loads(resp.read() or b"{}")
+        status, _headers, response = request_pinned_url(
+            target,
+            method="POST",
+            body=encoded,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            timeout=15,
+            max_response_bytes=1024 * 1024,
+        )
+        if not 200 <= status < 300:
+            _console_print(
+                f"⚠️  Control-plane push failed ({status}); scan still completed.",
+                file=sys.stderr,
+            )
+            return
+        body = json.loads(response or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""
         _console_print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
-    except urllib.error.HTTPError as exc:
-        _console_print(
-            f"⚠️  Control-plane push failed ({exc.code}); scan still completed.",
-            file=sys.stderr,
-        )
-    except (urllib.error.URLError, OSError, ValueError) as exc:
+    except (OSError, ValueError, http.client.HTTPException, ssl.SSLError) as exc:
         _console_print(
             f"⚠️  Control-plane push failed ({exc}); scan still completed.",
             file=sys.stderr,
@@ -3436,7 +3507,11 @@ def cmd_serve(args):
 
 def cmd_sbom(args):
     """Generate a CycloneDX SBOM from dependency manifests."""
-    from appguardrail_core.sbom import build_sbom, collect_components
+    from appguardrail_core.sbom import (
+        ManifestParseError,
+        build_sbom,
+        collect_components,
+    )
 
     base = Path(getattr(args, "path", ".") or ".")
     if not base.exists():
@@ -3447,7 +3522,11 @@ def cmd_sbom(args):
         )
         return 1
     root = base if base.is_dir() else base.parent
-    components = collect_components(root)
+    try:
+        components = collect_components(root)
+    except ManifestParseError as exc:
+        _console_print(f"❌ Cannot generate SBOM: {exc}", file=sys.stderr)
+        return 1
     if not components:
         _console_print(
             "ℹ️  No supported manifests found "

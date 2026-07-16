@@ -5,16 +5,17 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import http.client
 import json
 import os
 import ipaddress
-import socket
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
 
+from appguardrail_core.controlplane import request_pinned_url, resolve_public_url
 from appguardrail_core.issueops import (
     DEFAULT_MAX_LOG_CHARS,
     DEFAULT_MAX_LOG_LINES,
@@ -48,6 +49,23 @@ ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
     ".blob.core.windows.net",
     ".githubusercontent.com",
 )
+
+
+def _terminal_safe(value: Any) -> Any:
+    """Escape terminal control bytes while preserving readable lines and tabs."""
+    if not isinstance(value, str):
+        return value
+    return "".join(
+        char
+        if char in {"\n", "\t"} or (char.isprintable() and char != "\x7f")
+        else f"\\x{ord(char):02x}"
+        for char in value
+    )
+
+
+def _safe_print(*values: Any, **kwargs: Any) -> None:
+    """Print collector status without allowing ANSI, OSC, or C0 injection."""
+    print(*(_terminal_safe(value) for value in values), **kwargs)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -88,28 +106,8 @@ def _is_blocked_ip(raw: str) -> bool:
     return not ip.is_global
 
 
-def _validate_resolved_addresses(host: str, port: int | None) -> None:
-    """Resolve a host and reject any internal or non-global address result."""
-    try:
-        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise urllib.error.URLError(
-            f"Could not resolve log download host: {host}"
-        ) from exc
-
-    addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
-    if not addresses:
-        raise urllib.error.URLError(f"Could not resolve log download host: {host}")
-    for address in addresses:
-        if _is_blocked_ip(address):
-            parsed = urllib.parse.urlparse(f"https://{host}/")
-            raise urllib.error.URLError(
-                f"Access to internal address blocked: {_redacted_url(parsed)}"
-            )
-
-
-def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
-    """Reject non-HTTP(S), credentialed, untrusted, or internal log URLs."""
+def _validate_log_download_url(url: str) -> "tuple[Any, str, int]":
+    """Validate and resolve a GitHub log URL once for a pinned connection."""
     parsed = urllib.parse.urlparse(url)
     scheme = (parsed.scheme or "").lower()
     if scheme not in {"http", "https"}:
@@ -153,8 +151,17 @@ def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
             raise urllib.error.URLError(
                 f"Unexpected log download host blocked: {_redacted_url(parsed)}"
             )
-        _validate_resolved_addresses(host, parsed.port)
-        return parsed
+        if scheme != "https":
+            raise urllib.error.URLError(
+                f"Log download URL must use HTTPS: {_redacted_url(parsed)}"
+            )
+        target = resolve_public_url(url, allowed_schemes={"https"})
+        if target is None:
+            raise urllib.error.URLError(
+                "Access to internal address blocked or host could not be resolved: "
+                f"{_redacted_url(parsed)}"
+            )
+        return target
 
 
 class GitHub:
@@ -263,20 +270,27 @@ class GitHub:
                 detail = exc.read().decode("utf-8", errors="replace")
                 return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
         try:
-            _validate_log_download_url(location)
-            download_req = urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
-                location, headers={"User-Agent": UA}
-            )
-            opener = urllib.request.build_opener(SecureRedirectHandler)
-            with opener.open(download_req, timeout=30) as res:
-                return res.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            return (
-                f"Could not fetch job log: GitHub download failed: {exc.code} {detail}"
-            )
+            for _hop in range(4):
+                target = _validate_log_download_url(location)
+                status, headers, payload = request_pinned_url(
+                    target,
+                    method="GET",
+                    headers={"User-Agent": UA},
+                    timeout=30,
+                    max_response_bytes=32 * 1024 * 1024,
+                )
+                if 300 <= status < 400 and headers.get("location"):
+                    location = urllib.parse.urljoin(location, headers["location"])
+                    continue
+                if 200 <= status < 300:
+                    return payload.decode("utf-8", errors="replace")
+                detail = payload.decode("utf-8", errors="replace")
+                return f"Could not fetch job log: GitHub download failed: {status} {detail}"
+            return "Could not fetch job log: too many validated redirects"
         except urllib.error.URLError as exc:
             return f"Could not fetch job log: {exc.reason}"
+        except (OSError, ValueError, http.client.HTTPException) as exc:
+            return f"Could not fetch job log: pinned download failed: {exc}"
 
 
 def utc_now() -> dt.datetime:
@@ -370,7 +384,7 @@ def ensure_label(
         return
     cache.add(name)
     if dry_run:
-        print(f"DRY_RUN label {target_repo}: {name}")
+        _safe_print(f"DRY_RUN label {target_repo}: {name}")
         return
     try:
         client.request(
@@ -421,7 +435,7 @@ def publish_one(
         seen = {seen_key(finding)}
         body = issue_body(finding, seen)
         if dry_run:
-            print(f"DRY_RUN create issue: {issue_title}\n{body}\n")
+            _safe_print(f"DRY_RUN create issue: {issue_title}\n{body}\n")
             issues[issue_title] = {
                 "number": "dry-run",
                 "state": "open",
@@ -439,7 +453,7 @@ def publish_one(
             if isinstance(created, dict)
             else {"state": "open", "title": issue_title, "body": body}
         )
-        print(
+        _safe_print(
             f"created issue for {finding['repo']} {finding['workflow']} {seen_key(finding)}"
         )
         return
@@ -447,16 +461,16 @@ def publish_one(
     seen = set(parse_marker(issue.get("body")).get("seen", []))
     key = seen_key(finding)
     if key in seen:
-        print(f"skip duplicate {finding['repo']} {finding['workflow']} {key}")
+        _safe_print(f"skip duplicate {finding['repo']} {finding['workflow']} {key}")
         return
     reopen = issue.get("state") == "closed"
     seen.add(key)
     body = replace_marker(issue.get("body"), finding["repo"], finding["workflow"], seen)
     if dry_run:
-        print(
+        _safe_print(
             f"DRY_RUN {'reopen/update' if reopen else 'update'} issue #{issue['number']}: {issue_title}"
         )
-        print(issue_comment(finding))
+        _safe_print(issue_comment(finding))
     else:
         data = {"state": "open", "body": body} if reopen else {"body": body}
         client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", data)
@@ -465,7 +479,7 @@ def publish_one(
             f"/repos/{target_repo}/issues/{issue['number']}/comments",
             {"body": issue_comment(finding)},
         )
-        print(
+        _safe_print(
             f"updated issue #{issue['number']} for {finding['repo']} {finding['workflow']} {key}"
         )
     issue["body"] = body
@@ -522,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("GH_TOKEN or GITHUB_TOKEN is required")
     client = GitHub(token)
     findings = collect_findings(client, args)
-    print(f"collected {len(findings)} security workflow failure job(s)")
+    _safe_print(f"collected {len(findings)} security workflow failure job(s)")
     publish_findings(client, args.target_repo, findings, args.dry_run)
     return 0
 

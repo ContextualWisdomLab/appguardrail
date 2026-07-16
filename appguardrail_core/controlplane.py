@@ -290,6 +290,19 @@ def _resolve_safe_url(url: str) -> "tuple[Any, str, int] | None":
     return parsed, resolved[0], port
 
 
+def resolve_public_url(
+    url: str, *, allowed_schemes: "set[str] | None" = None
+) -> "tuple[Any, str, int] | None":
+    """Resolve a URL once and return a public address pinned to that validation."""
+    target = _resolve_safe_url(url)
+    if target is None:
+        return None
+    parsed, _address, _port = target
+    if allowed_schemes is not None and parsed.scheme.lower() not in allowed_schemes:
+        return None
+    return target
+
+
 def _is_safe_url(url: str) -> bool:
     """Return whether a webhook resolves exclusively to public addresses."""
     return _resolve_safe_url(url) is not None
@@ -315,6 +328,71 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
         if self._tunnel_host:
             self._tunnel()
         self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """Connect plain HTTP to an address that was validated before the request."""
+
+    def __init__(self, host: str, address: str, port: int, timeout: float):
+        """Store the validated address separately from the HTTP Host header."""
+        super().__init__(host, port, timeout=timeout)
+        self._validated_address = address
+
+    def connect(self) -> None:
+        """Open the socket to the validated address without a second DNS lookup."""
+        self.sock = self._create_connection(
+            (self._validated_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        if self._tunnel_host:
+            self._tunnel()
+
+
+def request_pinned_url(
+    target: "tuple[Any, str, int]",
+    *,
+    method: str,
+    body: "bytes | None" = None,
+    headers: "dict[str, str] | None" = None,
+    timeout: float = 15,
+    max_response_bytes: int = 8 * 1024 * 1024,
+) -> "tuple[int, dict[str, str], bytes]":
+    """Request an already-resolved URL without DNS rebinding or redirects."""
+    parsed, address, port = target
+    host = parsed.hostname or ""
+    connection_type = (
+        _PinnedHTTPSConnection
+        if parsed.scheme.lower() == "https"
+        else _PinnedHTTPConnection
+    )
+    connection = connection_type(host, address, port, timeout)
+    path = parsed.path or "/"
+    if parsed.params:
+        path += ";" + parsed.params
+    if parsed.query:
+        path += "?" + parsed.query
+    request_headers = dict(headers or {})
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    request_headers.setdefault(
+        "Host", host if port == default_port else f"{host}:{port}"
+    )
+    if body is not None:
+        request_headers.setdefault("Content-Length", str(len(body)))
+    try:
+        connection.request(method, path, body=body, headers=request_headers)
+        response = connection.getresponse()
+        payload = response.read(max_response_bytes + 1)
+        if len(payload) > max_response_bytes:
+            raise ValueError(
+                f"HTTP response exceeds the {max_response_bytes}-byte safety limit"
+            )
+        response_headers = {
+            name.lower(): value for name, value in response.getheaders()
+        }
+        return response.status, response_headers, payload
+    finally:
+        connection.close()
 
 
 def _send_alert(

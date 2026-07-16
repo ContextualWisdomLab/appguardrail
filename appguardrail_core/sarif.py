@@ -32,6 +32,20 @@ def _tags(finding: dict[str, Any]) -> list[str]:
     return tags
 
 
+def _nonempty_text(value: Any, fallback: str) -> str:
+    """Return stripped text, replacing malformed empty values with a fallback."""
+    text = str(value or "").strip()
+    return text or fallback
+
+
+def _start_line(value: Any) -> int:
+    """Return a valid positive SARIF line number for untrusted finding input."""
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return 1
+
+
 def findings_to_sarif(
     findings: Iterable[dict[str, Any]], *, tool_version: str = "0.0.0"
 ) -> dict[str, Any]:
@@ -41,17 +55,18 @@ def findings_to_sarif(
     rules: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
     for f in normalized:
-        rule_id = f["rule_id"]
+        rule_id = _nonempty_text(f["rule_id"], "unknown-rule")
         severity = f["severity"]
+        message = _nonempty_text(f["message"], "No message provided.")
+        file_name = _nonempty_text(f["file"], "n/a")
+        line = _start_line(f.get("line"))
         refs = f.get("references") or ()
         if rule_id not in rules:
             rule: dict[str, Any] = {
                 "id": rule_id,
                 "name": rule_id,
-                "shortDescription": {
-                    "text": f["message"].strip().splitlines()[0][:200]
-                },
-                "fullDescription": {"text": f["message"].strip()},
+                "shortDescription": {"text": message.splitlines()[0][:200]},
+                "fullDescription": {"text": message},
                 "helpUri": (
                     refs[0]
                     if refs
@@ -70,18 +85,18 @@ def findings_to_sarif(
                 "ruleId": rule_id,
                 "ruleIndex": list(rules).index(rule_id),
                 "level": _LEVEL.get(severity, "note"),
-                "message": {"text": f["message"].strip()},
+                "message": {"text": message},
                 "locations": [
                     {
                         "physicalLocation": {
-                            "artifactLocation": {"uri": f["file"]},
-                            "region": {"startLine": max(1, int(f["line"] or 1))},
+                            "artifactLocation": {"uri": file_name},
+                            "region": {"startLine": line},
                         }
                     }
                 ],
                 # Stable across runs so code scanning can track/dedupe alerts.
                 "partialFingerprints": {
-                    "appguardrail/v1": f"{rule_id}:{f['file']}:{f['line']}"
+                    "appguardrail/v1": f"{rule_id}:{file_name}:{line}"
                 },
                 "properties": {
                     "severity": severity,
