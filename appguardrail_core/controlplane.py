@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import http.client
+import importlib
 import ipaddress
 import json
 import os
@@ -25,13 +26,12 @@ import ssl
 import sqlite3
 import warnings
 from datetime import datetime, timezone
-from importlib import (
-    resources,
-)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
+
+resources = importlib.import_module("importlib.resources")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS orgs (
