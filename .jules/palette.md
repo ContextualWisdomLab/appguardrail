@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2024-05-20 - CLI Output Grammar Standardization
+**Learning:** Developers notice tiny UI/CLI grammar mistakes (e.g. "1 components"). Proper singular/plural logic in terminal outputs demonstrates attention to detail and improves the perceived quality of the tool.
+**Action:** When printing quantities in CLI output, always dynamically choose between the singular and plural forms (e.g., using a ternary operator) instead of hardcoding the plural suffix.
