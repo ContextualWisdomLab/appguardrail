@@ -3,20 +3,11 @@ name: Org Security Failure Collector
 on:
   schedule:
     - cron: "*/30 * * * *"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Print planned issue writes without creating/updating issues
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-      lookback_hours:
-        description: Completed workflow run lookback window
-        required: false
-        default: "48"
+  # repository_dispatch workflows are always loaded from the default branch.
+  # Unlike workflow_dispatch, a caller cannot select a feature-branch workflow
+  # definition or collector module to run with the organization App token.
+  repository_dispatch:
+    types: [collect-org-security-failures]
 
 permissions:
   contents: read
@@ -31,16 +22,39 @@ jobs:
     timeout-minutes: 30
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
-      LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_hours || '48' }}
+      DRY_RUN: "false"
+      LOOKBACK_HOURS: "48"
       # Prefer a dedicated least-privilege collector App when configured. Until
       # then, reuse the centrally managed Noema App rather than silently turning
       # this scheduled governance control into a no-op.
       ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID }}
       ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
     steps:
+      - name: Authorize manual default-branch collection dispatch
+        if: github.event_name == 'repository_dispatch'
+        env:
+          DISPATCH_ACTOR: ${{ github.actor }}
+          DISPATCH_SENDER: ${{ github.event.sender.login || '' }}
+          ALLOWED_DISPATCH_ACTOR: ${{ vars.ORG_SECURITY_FAILURE_DISPATCH_ACTOR }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ALLOWED_DISPATCH_ACTOR" ]] || \
+            [[ "$DISPATCH_ACTOR" != "$ALLOWED_DISPATCH_ACTOR" ]] || \
+            [[ "$DISPATCH_SENDER" != "$ALLOWED_DISPATCH_ACTOR" ]]; then
+            printf '::error::Org security failure collection dispatch rejected actor=%s sender=%s; both must match the configured exact identity.\n' \
+              "${DISPATCH_ACTOR:-<empty>}" "${DISPATCH_SENDER:-<empty>}"
+            exit 1
+          fi
+          printf 'Authorized default-branch org security failure collection dispatch by %s.\n' "$DISPATCH_ACTOR"
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # schedule and repository_dispatch both bind github.sha to the default
+          # branch commit selected when the event was created. Keep that exact
+          # reviewed source and do not persist the runner token into Git config.
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Check GitHub App collector configuration
         id: app-config
