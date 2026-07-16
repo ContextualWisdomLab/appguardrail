@@ -109,8 +109,8 @@ def _warn_for_legacy_key_hashes(conn: sqlite3.Connection) -> None:
     ).fetchone()
     if row and row["legacy_count"]:
         warnings.warn(
-            "Legacy scrypt API-key hashes are disabled to prevent authentication "
-            "resource exhaustion; rotate affected AppGuardrail control-plane keys.",
+            "Legacy scrypt API-key rows require rotation; a slow compatibility "
+            "fallback would permit request-driven memory exhaustion.",
             RuntimeWarning,
             stacklevel=2,
         )
