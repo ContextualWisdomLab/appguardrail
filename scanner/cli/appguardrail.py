@@ -1074,9 +1074,6 @@ SCAN_RULES.extend(_load_packaged_regex_rules())
 SKIP_DIRS = {
     ".git",
     "node_modules",
-    ".next",
-    "dist",
-    "build",
     ".cache",
     "__pycache__",
     ".venv",
@@ -1113,7 +1110,6 @@ SKIP_EXTENSIONS = {
     ".tar",
     ".gz",
     ".lock",
-    ".map",
     ".log",
 }
 
