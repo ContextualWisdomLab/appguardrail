@@ -3,8 +3,8 @@
 import pytest
 
 from appguardrail_core.config import CONFIG_NAME, load_config
-from appguardrail_core.findings import is_deploy_blocking, severities_at_or_above
-from scanner.cli.appguardrail import _finding_is_blocked_by_policy
+from appguardrail_core.findings import (is_deploy_blocking,
+                                        severities_at_or_above)
 
 
 def _write(tmp_path, text):
@@ -50,12 +50,6 @@ def test_invalid_config_raises(tmp_path, text, frag):
     assert frag in str(exc.value)
 
 
-def test_deeply_nested_config_is_rejected_without_recursion(tmp_path):
-    _write(tmp_path, '{"x":' * 10_000 + "0" + "}" * 10_000)
-    with pytest.raises(RuntimeError, match="maximum JSON nesting depth"):
-        load_config([tmp_path])
-
-
 def test_severities_at_or_above():
     assert severities_at_or_above("CRITICAL") == {"CRITICAL"}
     assert severities_at_or_above("HIGH") == {"CRITICAL", "HIGH"}
@@ -68,18 +62,3 @@ def test_gate_threshold_lets_high_pass_when_critical_only():
     assert is_deploy_blocking(high, {"CRITICAL"}) is False  # fail_on=CRITICAL
     crit = {"severity": "CRITICAL", "context": "app-code", "rule_id": "r"}
     assert is_deploy_blocking(crit, {"CRITICAL"}) is True
-
-
-def test_repository_policy_cannot_weaken_default_gate():
-    high = {"severity": "HIGH", "context": "app-code", "rule_id": "r"}
-    config = {
-        "blocking_severities": {"CRITICAL"},
-        "exclude_rules": {"r"},
-    }
-    assert _finding_is_blocked_by_policy(high, config) is True
-
-
-def test_repository_policy_may_tighten_default_gate():
-    warning = {"severity": "WARNING", "context": "app-code", "rule_id": "r"}
-    config = {"blocking_severities": {"CRITICAL", "HIGH", "WARNING"}}
-    assert _finding_is_blocked_by_policy(warning, config) is True

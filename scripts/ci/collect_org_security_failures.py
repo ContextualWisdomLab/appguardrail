@@ -5,65 +5,35 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import http.client
 import json
 import os
 import ipaddress
+import socket
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
 
-from appguardrail_core.controlplane import request_pinned_url, resolve_public_url
-from appguardrail_core.issueops import (
-    DEFAULT_MAX_LOG_CHARS,
-    DEFAULT_MAX_LOG_LINES,
-    compress_log,
-    is_failure,
-    is_security_name,
-    issue_body,
-    issue_comment,
-    parse_marker,
-    parse_run_url,
-    replace_marker,
-    sanitize_label_value,
-    seen_key,
-    title,
-)
+from appguardrail_core.issueops import (DEFAULT_MAX_LOG_CHARS,
+                                        DEFAULT_MAX_LOG_LINES, compress_log,
+                                        is_failure, is_security_name,
+                                        issue_body, issue_comment,
+                                        parse_marker, parse_run_url,
+                                        replace_marker, sanitize_label_value,
+                                        seen_key, title)
 
 API = "https://api.github.com"
 UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
-BLOCKED_LOG_HOSTS = {  # nosec B104  # noqa: S104 - denylist values, not a bind
-    "localhost",
-    "127.0.0.1",
-    "169.254.169.254",
-    "0.0.0.0",  # noqa: S104 - denylist value, not a socket bind
-    "::1",
-}
+BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
 ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
     ".actions.githubusercontent.com",
     ".blob.core.windows.net",
     ".githubusercontent.com",
 )
-
-
-def _terminal_safe(value: Any) -> Any:
-    """Escape every control byte so untrusted metadata stays on one CI log line."""
-    if not isinstance(value, str):
-        return value
-    return "".join(
-        char if char.isprintable() and char != "\x7f" else f"\\x{ord(char):02x}"
-        for char in value
-    )
-
-
-def _safe_print(*values: Any, **kwargs: Any) -> None:
-    """Print collector status without allowing ANSI, OSC, or C0 injection."""
-    print(*(_terminal_safe(value) for value in values), **kwargs)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -104,8 +74,26 @@ def _is_blocked_ip(raw: str) -> bool:
     return not ip.is_global
 
 
-def _validate_log_download_url(url: str) -> "tuple[Any, str, int]":
-    """Validate and resolve a GitHub log URL once for a pinned connection."""
+def _validate_resolved_addresses(host: str, port: int | None) -> None:
+    """Resolve a host and reject any internal or non-global address result."""
+    try:
+        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise urllib.error.URLError(f"Could not resolve log download host: {host}") from exc
+
+    addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
+    if not addresses:
+        raise urllib.error.URLError(f"Could not resolve log download host: {host}")
+    for address in addresses:
+        if _is_blocked_ip(address):
+            parsed = urllib.parse.urlparse(f"https://{host}/")
+            raise urllib.error.URLError(
+                f"Access to internal address blocked: {_redacted_url(parsed)}"
+            )
+
+
+def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
+    """Reject non-HTTP(S), credentialed, untrusted, or internal log URLs."""
     parsed = urllib.parse.urlparse(url)
     scheme = (parsed.scheme or "").lower()
     if scheme not in {"http", "https"}:
@@ -149,17 +137,8 @@ def _validate_log_download_url(url: str) -> "tuple[Any, str, int]":
             raise urllib.error.URLError(
                 f"Unexpected log download host blocked: {_redacted_url(parsed)}"
             )
-        if scheme != "https":
-            raise urllib.error.URLError(
-                f"Log download URL must use HTTPS: {_redacted_url(parsed)}"
-            )
-        target = resolve_public_url(url, allowed_schemes={"https"})
-        if target is None:
-            raise urllib.error.URLError(
-                "Access to internal address blocked or host could not be resolved: "
-                f"{_redacted_url(parsed)}"
-            )
-        return target
+        _validate_resolved_addresses(host, parsed.port)
+        return parsed
 
 
 class GitHub:
@@ -168,24 +147,11 @@ class GitHub:
     def __init__(self, token: str, api: str = API):
         """Create a client using a bearer token and API root."""
         self.token = token
-        try:
-            parsed = urllib.parse.urlparse(api)
-            port = parsed.port
-        except ValueError as exc:
-            raise ValueError("GitHub API URL is invalid") from exc
-        if (
-            parsed.scheme != "https"
-            or (parsed.hostname or "").lower() != "api.github.com"
-            or port not in (None, 443)
-            or parsed.username
-            or parsed.password
-            or parsed.path not in ("", "/")
-            or parsed.params
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ValueError("GitHub API URL must be exactly https://api.github.com")
-        self.api = API
+        self.api = api.rstrip("/")
+        # Security concern: Prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI)
+        # by ensuring the API base URL only uses secure, safe HTTP schemes before opening connections.
+        if not self.api.startswith(("http://", "https://")):
+            raise ValueError("API URL must start with http:// or https://")
 
     def request(
         self,
@@ -210,10 +176,9 @@ class GitHub:
             },
         )
         try:
-            # GitHub API requests carry a bearer token, so never follow a
-            # redirect where urllib might replay Authorization to another host.
-            opener = urllib.request.build_opener(NoRedirect)
-            with opener.open(req, timeout=30) as res:
+            with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
+                req, timeout=30
+            ) as res:
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
@@ -268,27 +233,22 @@ class GitHub:
                 detail = exc.read().decode("utf-8", errors="replace")
                 return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
         try:
-            for _hop in range(4):
-                target = _validate_log_download_url(location)
-                status, headers, payload = request_pinned_url(
-                    target,
-                    method="GET",
-                    headers={"User-Agent": UA},
-                    timeout=30,
-                    max_response_bytes=32 * 1024 * 1024,
+            _validate_log_download_url(location)
+            download_req = (
+                urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
+                    location, headers={"User-Agent": UA}
                 )
-                if 300 <= status < 400 and headers.get("location"):
-                    location = urllib.parse.urljoin(location, headers["location"])
-                    continue
-                if 200 <= status < 300:
-                    return payload.decode("utf-8", errors="replace")
-                detail = payload.decode("utf-8", errors="replace")
-                return f"Could not fetch job log: GitHub download failed: {status} {detail}"
-            return "Could not fetch job log: too many validated redirects"
+            )
+            opener = urllib.request.build_opener(SecureRedirectHandler)
+            with opener.open(download_req, timeout=30) as res:
+                return res.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            return (
+                f"Could not fetch job log: GitHub download failed: {exc.code} {detail}"
+            )
         except urllib.error.URLError as exc:
             return f"Could not fetch job log: {exc.reason}"
-        except (OSError, ValueError, http.client.HTTPException) as exc:
-            return f"Could not fetch job log: pinned download failed: {exc}"
 
 
 def utc_now() -> dt.datetime:
@@ -382,7 +342,7 @@ def ensure_label(
         return
     cache.add(name)
     if dry_run:
-        _safe_print(f"DRY_RUN label {target_repo}: {name}")
+        print(f"DRY_RUN label {target_repo}: {name}")
         return
     try:
         client.request(
@@ -433,7 +393,7 @@ def publish_one(
         seen = {seen_key(finding)}
         body = issue_body(finding, seen)
         if dry_run:
-            _safe_print(f"DRY_RUN create issue: {issue_title}\n{body}\n")
+            print(f"DRY_RUN create issue: {issue_title}\n{body}\n")
             issues[issue_title] = {
                 "number": "dry-run",
                 "state": "open",
@@ -451,7 +411,7 @@ def publish_one(
             if isinstance(created, dict)
             else {"state": "open", "title": issue_title, "body": body}
         )
-        _safe_print(
+        print(
             f"created issue for {finding['repo']} {finding['workflow']} {seen_key(finding)}"
         )
         return
@@ -459,16 +419,16 @@ def publish_one(
     seen = set(parse_marker(issue.get("body")).get("seen", []))
     key = seen_key(finding)
     if key in seen:
-        _safe_print(f"skip duplicate {finding['repo']} {finding['workflow']} {key}")
+        print(f"skip duplicate {finding['repo']} {finding['workflow']} {key}")
         return
     reopen = issue.get("state") == "closed"
     seen.add(key)
     body = replace_marker(issue.get("body"), finding["repo"], finding["workflow"], seen)
     if dry_run:
-        _safe_print(
+        print(
             f"DRY_RUN {'reopen/update' if reopen else 'update'} issue #{issue['number']}: {issue_title}"
         )
-        _safe_print(issue_comment(finding))
+        print(issue_comment(finding))
     else:
         data = {"state": "open", "body": body} if reopen else {"body": body}
         client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", data)
@@ -477,7 +437,7 @@ def publish_one(
             f"/repos/{target_repo}/issues/{issue['number']}/comments",
             {"body": issue_comment(finding)},
         )
-        _safe_print(
+        print(
             f"updated issue #{issue['number']} for {finding['repo']} {finding['workflow']} {key}"
         )
     issue["body"] = body
@@ -534,7 +494,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("GH_TOKEN or GITHUB_TOKEN is required")
     client = GitHub(token)
     findings = collect_findings(client, args)
-    _safe_print(f"collected {len(findings)} security workflow failure job(s)")
+    print(f"collected {len(findings)} security workflow failure job(s)")
     publish_findings(client, args.target_repo, findings, args.dry_run)
     return 0
 

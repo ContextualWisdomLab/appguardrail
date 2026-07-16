@@ -21,53 +21,6 @@ from typing import Any
 from .findings import SEVERITIES, severities_at_or_above
 
 CONFIG_NAME = ".appguardrail.json"
-MAX_CONFIG_BYTES = 1024 * 1024
-MAX_CONFIG_DEPTH = 128
-
-
-def _load_bounded_json(path: Path) -> Any:
-    """Decode bounded JSON after rejecting excessive object/array nesting."""
-    try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise RuntimeError(f"Invalid {CONFIG_NAME} at {path}: {exc}") from exc
-    if len(raw) > MAX_CONFIG_BYTES:
-        raise RuntimeError(
-            f"Invalid {CONFIG_NAME} at {path}: exceeds {MAX_CONFIG_BYTES} bytes"
-        )
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RuntimeError(f"Invalid {CONFIG_NAME} at {path}: not UTF-8") from exc
-
-    depth = 0
-    in_string = False
-    escaped = False
-    for char in text:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char in "[{":
-            depth += 1
-            if depth > MAX_CONFIG_DEPTH:
-                raise RuntimeError(
-                    f"Invalid {CONFIG_NAME} at {path}: exceeds maximum JSON nesting "
-                    f"depth {MAX_CONFIG_DEPTH}"
-                )
-        elif char in "]}":
-            depth = max(0, depth - 1)
-
-    try:
-        return json.loads(text)
-    except (ValueError, RecursionError) as exc:
-        raise RuntimeError(f"Invalid {CONFIG_NAME} at {path}: {exc}") from exc
 
 
 def find_config(search_dirs: "list[Path]") -> "Path | None":
@@ -93,7 +46,10 @@ def load_config(search_dirs: "list[Path]") -> dict[str, Any]:
     path = find_config(search_dirs)
     if path is None:
         return {}
-    data = _load_bounded_json(path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Invalid {CONFIG_NAME} at {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise RuntimeError(f"{CONFIG_NAME} at {path} must be a JSON object.")
 
@@ -120,20 +76,13 @@ def load_config(search_dirs: "list[Path]") -> dict[str, Any]:
 if __name__ == "__main__":  # pragma: no cover - self-check
     import tempfile
 
-    # Executable module self-checks; these assertions do not validate user input.
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / CONFIG_NAME).write_text(
             '{"fail_on": "WARNING", "exclude_rules": ["noisy-rule"]}'
         )
         cfg = load_config([Path(d)])
-        assert cfg["fail_on"] == "WARNING"  # noqa: S101  # nosec B101
-        assert cfg["blocking_severities"] == {  # noqa: S101  # nosec B101
-            "CRITICAL",
-            "HIGH",
-            "WARNING",
-        }
-        assert cfg["exclude_rules"] == {  # noqa: S101  # nosec B101
-            "noisy-rule"
-        }
-        assert load_config([Path(d) / "nope"]) == {}  # noqa: S101  # nosec B101
+        assert cfg["fail_on"] == "WARNING"
+        assert cfg["blocking_severities"] == {"CRITICAL", "HIGH", "WARNING"}
+        assert cfg["exclude_rules"] == {"noisy-rule"}
+        assert load_config([Path(d) / "nope"]) == {}
     print("config self-check OK")
