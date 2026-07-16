@@ -1,4 +1,5 @@
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -169,6 +170,48 @@ def test_documented_docker_scan_mount_is_read_only():
     assert "--read-only" in dockerfile
     assert "--tmpfs /tmp:rw,nosuid,nodev,noexec" in dockerfile
     assert '-v "$PWD:/src" appguardrail' not in dockerfile
+
+
+def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
+    """Resolve the trusted CLI even when scan input contains a scanner package."""
+    root = Path(__file__).resolve().parents[1]
+    attacker = tmp_path / "scanner" / "cli"
+    attacker.mkdir(parents=True)
+    marker = tmp_path / "attacker-executed"
+    (attacker.parent / "__init__.py").write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('scanner init')\n",
+        encoding="utf-8",
+    )
+    (attacker / "__init__.py").write_text("", encoding="utf-8")
+    (attacker / "appguardrail.py").write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('entrypoint')\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            str(root / "scanner" / "cli" / "appguardrail.py"),
+            "--version",
+        ],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.startswith("appguardrail ")
+    assert not marker.exists()
+
+    dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+    assert (
+        'ENTRYPOINT ["python", "-I", "/app/scanner/cli/appguardrail.py"]'
+        in dockerfile
+    )
+    assert "python -I /app/scanner/cli/appguardrail.py --help" in dockerfile
+    assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
 
 
 def test_publish_skips_duplicate_and_reopens_closed_issue():

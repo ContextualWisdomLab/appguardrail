@@ -17,8 +17,11 @@ COPY appguardrail_core/ appguardrail_core/
 RUN useradd --create-home scanner
 USER scanner
 
-HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 CMD python -m scanner.cli.appguardrail --help >/dev/null || exit 1
+HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 CMD python -I /app/scanner/cli/appguardrail.py --help >/dev/null || exit 1
 
 WORKDIR /src
-ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]
+# Resolve the trusted entrypoint by absolute path in isolated mode. The scanned
+# repository is attacker-controlled and may contain a shadow `scanner` package;
+# neither the current directory nor PYTHONPATH may select executable code.
+ENTRYPOINT ["python", "-I", "/app/scanner/cli/appguardrail.py"]
 CMD ["--help"]
