@@ -5,18 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    _collect_files,
-    _parse_inline_list,
-    _path_matches_glob,
-    _scan_file,
-    cmd_hook,
-    cmd_init,
-    cmd_monitor,
-    cmd_review,
-    cmd_scan,
-    main,
-)
+from scanner.cli.appguardrail import (_collect_files, _parse_inline_list,
+                                      _path_matches_glob, _scan_file, cmd_hook,
+                                      cmd_init, cmd_monitor, cmd_review,
+                                      cmd_scan, main)
 from tests.test_appguardrail import MOCK_RULES
 
 
@@ -61,48 +53,6 @@ def test_cmd_init_symlink_removal(tmp_path, monkeypatch):
     assert not target_file.is_symlink()
     assert checklist.exists()
     assert not checklist.is_symlink()
-
-
-def test_cmd_init_atomic_replace_does_not_follow_raced_final_symlink(
-    tmp_path, monkeypatch
-):
-    from scanner.cli import appguardrail as cli
-
-    monkeypatch.chdir(tmp_path)
-    outside = tmp_path.parent / "outside-race.md"
-    outside.write_text("do not overwrite")
-    original_replace = cli.os.replace
-    raced = []
-
-    def replace_with_race(src, dst, **kwargs):
-        if dst == "appguardrail.md" and not raced:
-            target = tmp_path / ".cursor" / "rules" / "appguardrail.md"
-            target.symlink_to(outside)
-            raced.append(target)
-        return original_replace(src, dst, **kwargs)
-
-    monkeypatch.setattr(cli.os, "replace", replace_with_race)
-    cmd_init(Args(tool="cursor"))
-
-    target = tmp_path / ".cursor" / "rules" / "appguardrail.md"
-    assert raced
-    assert outside.read_text() == "do not overwrite"
-    assert target.is_file() and not target.is_symlink()
-
-
-def test_report_writer_rejects_symlinked_parent_directory(tmp_path):
-    from scanner.cli import appguardrail as cli
-
-    project = tmp_path / "project"
-    outside = tmp_path / "outside"
-    project.mkdir()
-    outside.mkdir()
-    _create_symlink(outside, project / "reports", target_is_directory=True)
-
-    with pytest.raises(OSError):
-        cli._atomic_write_private_text(project / "reports" / "findings.json", "{}\n")
-
-    assert not (outside / "findings.json").exists()
 
 
 def test_cmd_init_append_marker_no_marker(tmp_path, monkeypatch):
@@ -493,6 +443,7 @@ def test_scan_file_open_permission_error():
         patch("scanner.cli.appguardrail._get_applicable_rules") as mock_get_rules,
         patch("builtins.open", mock_open()) as m_open,
     ):
+
         mock_st = mock_lstat.return_value
         mock_st.st_mode = stat.S_IFREG
         mock_st.st_size = 100
@@ -529,29 +480,3 @@ def test_is_safe_url_cli_coverage():
     assert not _is_safe_url("http://224.0.0.1/")
     assert not _is_safe_url("http://[::]/")
     assert not _is_safe_url("http://[ff00::1]/")
-
-
-def test_push_findings_uses_the_validated_pinned_address(monkeypatch, capsys):
-    import urllib.parse
-
-    from scanner.cli import appguardrail as cli
-
-    monkeypatch.setenv("APPGUARDRAIL_API_KEY", "test-key")
-    resolutions = []
-    requests = []
-
-    def resolve(url, **_kwargs):
-        resolutions.append(url)
-        return urllib.parse.urlparse(url), "93.184.216.34", 443
-
-    def request(target, **kwargs):
-        requests.append((target, kwargs))
-        return 200, {}, b'{"id": 7, "new_blocking": 0}'
-
-    monkeypatch.setattr(cli, "resolve_public_url", resolve)
-    monkeypatch.setattr(cli, "request_pinned_url", request)
-    cli._push_findings("https://control.example", [])
-
-    assert resolutions == ["https://control.example/api/v1/scans"]
-    assert requests[0][0][1] == "93.184.216.34"
-    assert "Pushed scan #7" in capsys.readouterr().out

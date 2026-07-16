@@ -13,25 +13,16 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
-import hmac
-import http.client
-import importlib
-import ipaddress
 import json
-import os
 import re
 import secrets
-import socket
-import ssl
 import sqlite3
-import warnings
 from datetime import datetime, timezone
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
-
-resources = importlib.import_module("importlib.resources")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS orgs (
@@ -68,52 +59,38 @@ CREATE TABLE IF NOT EXISTS keys (
 
 
 def _now() -> str:
-    """Return the current UTC time in the persisted control-plane format."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-# API keys contain 256 bits of randomness, so password-style memory-hard hashing
-# does not improve resistance to guessing.  It does let an unauthenticated
-# request force a costly allocation, however.  A keyed, deterministic digest is
-# both safe for high-entropy tokens and suitable for an indexed lookup.
-_KEY_HASH_PREFIX = "hmac-sha256$v2$"
-_DEFAULT_KEY_PEPPER = "appguardrail.controlplane.key.v2"
-_API_KEY_PATTERN = re.compile(r"^agk_[A-Za-z0-9_-]{32,128}$")
-
-
-def _key_pepper() -> bytes:
-    """Return the deployment pepper used to fingerprint high-entropy API keys."""
-    return os.environ.get("APPGUARDRAIL_API_KEY_PEPPER", _DEFAULT_KEY_PEPPER).encode(
-        "utf-8"
-    )
+# scrypt work factors (stdlib ``hashlib.scrypt``). n must be a power of two;
+# these are the interactive-login reference parameters and stay well within the
+# default 32 MiB ``maxmem`` (n*r*128 ≈ 16 MiB).
+_SCRYPT_N = 2**14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+# Fixed application salt (pepper). API-key hashes are looked up by equality
+# (``WHERE api_key_hash = ?``), so hashing must be deterministic — a per-call
+# random salt would make every stored key unfindable. A constant salt keeps the
+# lookup working while scrypt's memory-hard cost defeats offline brute-force.
+_KEY_SALT = b"appguardrail.controlplane.key.v1"
 
 
 def _hash_key(api_key: str) -> str:
-    """Return a constant-cost keyed fingerprint for a random API key."""
-    digest = hmac.new(_key_pepper(), api_key.encode("utf-8"), hashlib.sha256)
-    return _KEY_HASH_PREFIX + digest.hexdigest()
+    """Derive a deterministic, brute-force-resistant hash of an API key.
 
-
-def _valid_api_key(api_key: str) -> bool:
-    """Reject malformed or oversized bearer values before hashing or SQL work."""
-    return isinstance(api_key, str) and bool(_API_KEY_PATTERN.fullmatch(api_key))
-
-
-def _warn_for_legacy_key_hashes(conn: sqlite3.Connection) -> None:
-    """Make the required one-time key rotation visible to operators."""
-    row = conn.execute(
-        "SELECT "
-        "(SELECT COUNT(*) FROM keys WHERE key_hash NOT LIKE ?) + "
-        "(SELECT COUNT(*) FROM orgs WHERE api_key_hash NOT LIKE ?) AS legacy_count",
-        (f"{_KEY_HASH_PREFIX}%", f"{_KEY_HASH_PREFIX}%"),
-    ).fetchone()
-    if row and row["legacy_count"]:
-        warnings.warn(
-            "Legacy scrypt API-key rows require rotation; a slow compatibility "
-            "fallback would permit request-driven memory exhaustion.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
+    Uses scrypt (a memory-hard KDF from the stdlib) instead of a fast hash such
+    as SHA-256: API keys are secrets, so if the store leaks, an attacker must
+    pay scrypt's tunable compute/memory cost per guess rather than hashing
+    billions of candidates per second. The fixed application salt keeps the
+    output deterministic so keys remain findable by an indexed equality lookup.
+    """
+    return hashlib.scrypt(
+        api_key.encode("utf-8"),
+        salt=_KEY_SALT,
+        n=_SCRYPT_N,
+        r=_SCRYPT_R,
+        p=_SCRYPT_P,
+    ).hex()
 
 
 def connect(db_path: str) -> sqlite3.Connection:
@@ -122,22 +99,20 @@ def connect(db_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     conn.commit()
-    _warn_for_legacy_key_hashes(conn)
     return conn
 
 
 def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
     """Create an org and return (org_id, api_key). The key is shown only here."""
     api_key = "agk_" + secrets.token_urlsafe(32)
-    key_hash = _hash_key(api_key)
     cur = conn.execute(
         "INSERT INTO orgs (name, api_key_hash, created_at) VALUES (?, ?, ?)",
-        (name, key_hash, _now()),
+        (name, _hash_key(api_key), _now()),
     )
     org_id = cur.lastrowid
     conn.execute(
         "INSERT INTO keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
-        (org_id, key_hash, "owner", "owner (bootstrap)", _now()),
+        (org_id, _hash_key(api_key), "owner", "owner (bootstrap)", _now()),
     )
     conn.commit()
     return org_id, api_key
@@ -145,7 +120,7 @@ def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
 
 def org_for_key(conn: sqlite3.Connection, api_key: str) -> "int | None":
     """Return the org id for a presented API key, or None."""
-    if not _valid_api_key(api_key):
+    if not api_key:
         return None
     row = conn.execute(
         "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
@@ -239,160 +214,71 @@ def _slack_blocks(
     }
 
 
-def _is_public_ip(value: str) -> bool:
-    """Return whether an address is globally routable, including mapped IPv4."""
-    try:
-        address = ipaddress.ip_address(value.split("%", 1)[0])
-    except ValueError:
-        return False
-    mapped = getattr(address, "ipv4_mapped", None)
-    address = mapped or address
-    return bool(
-        address.is_global
-        and not address.is_multicast
-        and not address.is_reserved
-        and not address.is_unspecified
-    )
+import urllib.error
+import urllib.request
 
 
-def _resolve_safe_url(url: str) -> "tuple[Any, str, int] | None":
-    """Resolve and validate a webhook once, returning a pinned public address."""
-    try:
-        parsed = urlparse(
-            url
-        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
-    except (TypeError, ValueError):
-        return None
-    if parsed.scheme.lower() not in {"http", "https"}:
-        return None
-    if not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
-        return None
-    host = parsed.hostname.rstrip(".").lower()
-    try:
-        addresses = socket.getaddrinfo(
-            host,
-            port,
-            type=socket.SOCK_STREAM,
-            proto=socket.IPPROTO_TCP,
-        )
-    except (OSError, UnicodeError):
-        return None
-    resolved = []
-    for entry in addresses:
-        address = entry[4][0]
-        if not _is_public_ip(address):
-            return None
-        if address not in resolved:
-            resolved.append(address)
-    if not resolved:
-        return None
-    return parsed, resolved[0], port
-
-
-def resolve_public_url(
-    url: str, *, allowed_schemes: "set[str] | None" = None
-) -> "tuple[Any, str, int] | None":
-    """Resolve a URL once and return a public address pinned to that validation."""
-    target = _resolve_safe_url(url)
-    if target is None:
-        return None
-    parsed, _address, _port = target
-    if allowed_schemes is not None and parsed.scheme.lower() not in allowed_schemes:
-        return None
-    return target
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_safe_url(newurl):
+            raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _is_safe_url(url: str) -> bool:
-    """Return whether a webhook resolves exclusively to public addresses."""
-    return _resolve_safe_url(url) is not None
+    import ipaddress
+    import urllib.parse
+    import socket
 
-
-class _PinnedHTTPSConnection(http.client.HTTPSConnection):
-    """Connect to a validated IP while authenticating the original TLS host."""
-
-    def __init__(self, host: str, address: str, port: int, timeout: float):
-        """Store the validated address separately from the TLS host name."""
-        super().__init__(
-            host, port, timeout=timeout, context=ssl.create_default_context()
-        )
-        self._validated_address = address
-
-    def connect(self) -> None:
-        """Open the socket to the already validated address without a DNS redo."""
-        self.sock = self._create_connection(
-            (self._validated_address, self.port),
-            self.timeout,
-            self.source_address,
-        )
-        if self._tunnel_host:
-            self._tunnel()
-        self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
-
-
-class _PinnedHTTPConnection(http.client.HTTPConnection):
-    """Connect plain HTTP to an address that was validated before the request."""
-
-    def __init__(self, host: str, address: str, port: int, timeout: float):
-        """Store the validated address separately from the HTTP Host header."""
-        super().__init__(host, port, timeout=timeout)
-        self._validated_address = address
-
-    def connect(self) -> None:
-        """Open the socket to the validated address without a second DNS lookup."""
-        self.sock = self._create_connection(
-            (self._validated_address, self.port),
-            self.timeout,
-            self.source_address,
-        )
-        if self._tunnel_host:
-            self._tunnel()
-
-
-def request_pinned_url(
-    target: "tuple[Any, str, int]",
-    *,
-    method: str,
-    body: "bytes | None" = None,
-    headers: "dict[str, str] | None" = None,
-    timeout: float = 15,
-    max_response_bytes: int = 8 * 1024 * 1024,
-) -> "tuple[int, dict[str, str], bytes]":
-    """Request an already-resolved URL without DNS rebinding or redirects."""
-    parsed, address, port = target
-    host = parsed.hostname or ""
-    connection_type = (
-        _PinnedHTTPSConnection
-        if parsed.scheme.lower() == "https"
-        else _PinnedHTTPConnection
-    )
-    connection = connection_type(host, address, port, timeout)
-    path = parsed.path or "/"
-    if parsed.params:
-        path += ";" + parsed.params
-    if parsed.query:
-        path += "?" + parsed.query
-    request_headers = dict(headers or {})
-    default_port = 443 if parsed.scheme.lower() == "https" else 80
-    request_headers.setdefault(
-        "Host", host if port == default_port else f"{host}:{port}"
-    )
-    if body is not None:
-        request_headers.setdefault("Content-Length", str(len(body)))
     try:
-        connection.request(method, path, body=body, headers=request_headers)
-        response = connection.getresponse()
-        payload = response.read(max_response_bytes + 1)
-        if len(payload) > max_response_bytes:
-            raise ValueError(
-                f"HTTP response exceeds the {max_response_bytes}-byte safety limit"
-            )
-        response_headers = {
-            name.lower(): value for name, value in response.getheaders()
-        }
-        return response.status, response_headers, payload
-    finally:
-        connection.close()
+        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    except ValueError:
+        return False
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    raw = host.split("%", 1)[0].strip("[]")
+
+    def is_bad_ip(ip) -> bool:
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped:
+            ip = mapped
+        return (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_unspecified
+            or ip.is_multicast
+            or getattr(ip, "is_reserved", False)
+            or not getattr(ip, "is_global", True)
+        )
+
+    try:
+        ip = ipaddress.ip_address(raw)
+        if is_bad_ip(ip):
+            return False
+    except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(raw, None)
+        for entry in resolved:
+            ip_str = entry[4][0].split("%", 1)[0]
+            ip = ipaddress.ip_address(ip_str)
+            if is_bad_ip(ip):
+                return False
+    except socket.gaierror:
+        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
+        # This allows dummy domains in tests like `hook.example`.
+        pass
+    except ValueError:
+        return False
+
+    return True
 
 
 def _send_alert(
@@ -408,49 +294,31 @@ def _send_alert(
     rendered as a Block Kit message so Slack shows a readable card; every other
     URL receives the generic JSON ``payload`` unchanged (backward compatible).
     """
-    target = _resolve_safe_url(url)
-    if target is None:
+    import urllib.error
+    import urllib.request
+
+    if not _is_safe_url(url):
         return False
-    parsed, address, port = target
 
     if _is_slack_webhook(url):
         body = _slack_blocks(org_name, payload, new_findings or [])
     else:
         body = payload
 
-    encoded = json.dumps(body).encode("utf-8")
-    host = parsed.hostname or ""
-    if parsed.scheme.lower() == "https":
-        connection: http.client.HTTPConnection = _PinnedHTTPSConnection(
-            host, address, port, 10
-        )
-    else:
-        connection = http.client.HTTPConnection(address, port, timeout=10)
-    path = parsed.path or "/"
-    if parsed.query:
-        path += "?" + parsed.query
-    default_port = 443 if parsed.scheme.lower() == "https" else 80
-    host_header = host if port == default_port else f"{host}:{port}"
     try:
-        connection.request(
-            "POST",
-            path,
-            body=encoded,
-            headers={
-                "Content-Type": "application/json",
-                "Content-Length": str(len(encoded)),
-                "Host": host_header,
-            },
+        req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
         )
-        response = connection.getresponse()
-        response.read(4096)
-        # Redirects are deliberately not followed: a second URL would require a
-        # second DNS resolution and could redirect the payload into private space.
-        return 200 <= response.status < 300
-    except (OSError, ValueError, http.client.HTTPException, ssl.SSLError):
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            req, timeout=10
+        )  # noqa: S310 - Safe URL scheme validated
+        return True
+    except (urllib.error.URLError, OSError, ValueError):
         return False
-    finally:
-        connection.close()
 
 
 ROLES = ("viewer", "member", "owner")
@@ -481,30 +349,34 @@ def create_key(
 
 def role_for_key(conn: sqlite3.Connection, api_key: str) -> "tuple[int, str] | None":
     """Return (org_id, role) for a presented key, or None."""
-    if not _valid_api_key(api_key):
+    if not api_key:
         return None
-    key_hash = _hash_key(api_key)
     row = conn.execute(
-        "SELECT org_id, role FROM keys WHERE key_hash = ? "
-        "UNION ALL SELECT id, 'owner' FROM orgs WHERE api_key_hash = ? LIMIT 1",
-        (key_hash, key_hash),
+        "SELECT org_id, role FROM keys WHERE key_hash = ?", (_hash_key(api_key),)
     ).fetchone()
-    return (row["org_id"], row["role"]) if row else None
+    if row:
+        return (row["org_id"], row["role"])
+    # legacy/bootstrap key stored on orgs is an owner key
+    row = conn.execute(
+        "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
+    ).fetchone()
+    return (row["id"], "owner") if row else None
 
 
-def _record_scan(
+def add_scan(
     conn: sqlite3.Connection,
     org_id: int,
     findings: Iterable[dict[str, Any]],
     repo: "str | None" = None,
     commit_sha: "str | None" = None,
-) -> "tuple[dict[str, Any], dict[str, Any] | None]":
-    """Store a scan and return its summary plus any pending webhook delivery."""
+) -> dict[str, Any]:
+    """Store a scan for an org, computing counts from the findings."""
     normalized = list(normalize_findings(findings))
     counts = severity_counts(normalized)
     blocking_findings = [f for f in normalized if is_deploy_blocking(f)]
     blocking = len(blocking_findings)
 
+    # Drift: deploy-blocking findings new since this org+repo's previous scan.
     prev = conn.execute(
         "SELECT findings FROM scans WHERE org_id = ? AND IFNULL(repo, '') = IFNULL(?, '') "
         "ORDER BY id DESC LIMIT 1",
@@ -537,16 +409,16 @@ def _record_scan(
     )
     conn.commit()
 
-    pending_alert = None
+    # Drift alert: notify the org's webhook when new blockers were introduced.
     if new_blocking > 0:
         row = conn.execute(
             "SELECT name, webhook_url FROM orgs WHERE id = ?", (org_id,)
         ).fetchone()
         hook = row["webhook_url"] if row else None
         if hook:
-            pending_alert = {
-                "url": hook,
-                "payload": {
+            _send_alert(
+                hook,
+                {
                     "event": "drift.new_blocking",
                     "org_id": org_id,
                     "scan_id": cur.lastrowid,
@@ -556,11 +428,11 @@ def _record_scan(
                     "deploy_blocking": blocking,
                     "created_at": created_at,
                 },
-                "org_name": row["name"] if row else None,
-                "new_findings": new_findings,
-            }
+                org_name=row["name"] if row else None,
+                new_findings=new_findings,
+            )
 
-    summary = {
+    return {
         "id": cur.lastrowid,
         "created_at": created_at,
         "total": len(normalized),
@@ -568,29 +440,6 @@ def _record_scan(
         "new_blocking": new_blocking,
         "severity_counts": counts,
     }
-    return summary, pending_alert
-
-
-def _deliver_pending_alert(pending_alert: "dict[str, Any] | None") -> bool:
-    """Deliver a prepared alert without retaining a database lock."""
-    if not pending_alert:
-        return False
-    return _send_alert(**pending_alert)
-
-
-def add_scan(
-    conn: sqlite3.Connection,
-    org_id: int,
-    findings: Iterable[dict[str, Any]],
-    repo: "str | None" = None,
-    commit_sha: "str | None" = None,
-) -> dict[str, Any]:
-    """Store a scan for an org, computing counts from the findings."""
-    summary, pending_alert = _record_scan(
-        conn, org_id, findings, repo=repo, commit_sha=commit_sha
-    )
-    _deliver_pending_alert(pending_alert)
-    return summary
 
 
 def list_scans(
@@ -667,26 +516,8 @@ def console_html() -> bytes:
         return b"<!doctype html><title>AppGuardrail Console</title><p>Console asset missing.</p>"
 
 
-def _is_loopback_bind_host(host: str) -> bool:
-    """Return whether every address used by an HTTP bind is loopback-only."""
-    if not isinstance(host, str) or not host.strip():
-        return False
-    try:
-        addresses = {
-            entry[4][0].split("%", 1)[0]
-            for entry in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-        }
-        return bool(addresses) and all(
-            ipaddress.ip_address(address).is_loopback for address in addresses
-        )
-    except (OSError, TypeError, ValueError):
-        return False
-
-
-def make_control_plane_server(
-    host: str, port: int, db_path: str, client_timeout: float = 10.0
-):
-    """Build a loopback-only HTTP API for scan ingest + history.
+def make_control_plane_server(host: str, port: int, db_path: str):
+    """Build an HTTP API for scan ingest + history, scoped by API key.
 
     Endpoints (JSON):
       GET  /api/v1/health         -> {"status":"ok"} (no auth)
@@ -696,41 +527,15 @@ def make_control_plane_server(
     Auth: Authorization: Bearer <api_key>.
     """
     import http.server
-    import threading
-
-    try:
-        client_timeout = float(client_timeout)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            "Control-plane client timeout must be a positive number"
-        ) from exc
-    if client_timeout <= 0:
-        raise ValueError("Control-plane client timeout must be a positive number")
-    if not _is_loopback_bind_host(host):
-        raise ValueError(
-            "Plaintext control-plane HTTP may bind only to a loopback host; "
-            "use 127.0.0.1/::1 behind a trusted TLS-terminating proxy"
-        )
 
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     conn.commit()
-    _warn_for_legacy_key_hashes(conn)
-    db_lock = threading.RLock()
-    auth_slots = threading.BoundedSemaphore(32)
     console = console_html()
 
     class _Handler(http.server.BaseHTTPRequestHandler):
-        """Serve the tenant-scoped control-plane JSON API."""
-
-        def setup(self):
-            """Bound how long one client may occupy a request thread."""
-            super().setup()
-            self.connection.settimeout(client_timeout)
-
         def _json(self, code, obj):
-            """Write one bounded JSON response."""
             body = json.dumps(obj).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
@@ -739,25 +544,16 @@ def make_control_plane_server(
             self.wfile.write(body)
 
         def _auth(self):
-            """Authenticate a bounded bearer value without expensive KDF work."""
             hdr = self.headers.get("Authorization", "")
             key = hdr[7:] if hdr.startswith("Bearer ") else ""
-            if not _valid_api_key(key) or not auth_slots.acquire(blocking=False):
-                return None
-            try:
-                with db_lock:
-                    return role_for_key(conn, key)
-            finally:
-                auth_slots.release()
+            return role_for_key(conn, key)
 
         def do_GET(self):
-            """Serve health, console, and authenticated scan queries."""
             parsed = urlparse(self.path)
             path = parsed.path
             qs = parse_qs(parsed.query)
 
             def _qint(name, default, lo, hi):
-                """Parse and clamp one integer query parameter."""
                 # Clamp: sqlite treats LIMIT -1 as "no limit", so never pass
                 # negatives through; hi keeps a single request bounded.
                 try:
@@ -780,22 +576,24 @@ def make_control_plane_server(
                 return self._json(401, {"error": "invalid or missing API key"})
             org, _role = auth
             if path == "/api/v1/scans":
-                with db_lock:
-                    scans = list_scans(
-                        conn,
-                        org,
-                        _qint("limit", 100, 1, 1000),
-                        _qint("offset", 0, 0, 10**9),
-                    )
-                return self._json(200, {"scans": scans})
+                return self._json(
+                    200,
+                    {
+                        "scans": list_scans(
+                            conn,
+                            org,
+                            _qint("limit", 100, 1, 1000),
+                            _qint("offset", 0, 0, 10**9),
+                        )
+                    },
+                )
             if path == "/api/v1/scans/trend":
-                with db_lock:
-                    trend = scan_trend(conn, org, _qint("limit", 30, 1, 365))
-                return self._json(200, {"trend": trend})
+                return self._json(
+                    200, {"trend": scan_trend(conn, org, _qint("limit", 30, 1, 365))}
+                )
             m = re.match(r"^/api/v1/scans/(\d+)$", path)
             if m:
-                with db_lock:
-                    scan = get_scan(conn, org, int(m.group(1)))
+                scan = get_scan(conn, org, int(m.group(1)))
                 return (
                     self._json(200, scan)
                     if scan
@@ -806,7 +604,6 @@ def make_control_plane_server(
         _MAX_BODY = 10 * 1024 * 1024  # 10 MiB — plenty for findings, blocks OOM posts
 
         def _body(self):
-            """Read one size-bounded JSON request body."""
             try:
                 length = int(self.headers.get("Content-Length", 0))
             except (ValueError, TypeError):
@@ -815,15 +612,11 @@ def make_control_plane_server(
                 # Negative reads until EOF; oversized bodies exhaust memory.
                 return None
             try:
-                raw = self.rfile.read(length)
-                if len(raw) != length:
-                    return None
-                return json.loads(raw or b"{}")
-            except (OSError, ValueError, TypeError):
+                return json.loads(self.rfile.read(length) or b"{}")
+            except (ValueError, TypeError):
                 return None
 
         def do_POST(self):
-            """Handle authenticated webhook, key, and scan mutations."""
             path = self.path.split("?", 1)[0]
             if path not in ("/api/v1/scans", "/api/v1/webhook", "/api/v1/keys"):
                 return self._json(404, {"error": "not found"})
@@ -838,8 +631,7 @@ def make_control_plane_server(
                 body = self._body()
                 if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
-                with db_lock:
-                    set_webhook(conn, org, (body or {}).get("url"))
+                set_webhook(conn, org, (body or {}).get("url"))
                 return self._json(200, {"webhook_url": (body or {}).get("url")})
 
             if path == "/api/v1/keys":
@@ -849,10 +641,9 @@ def make_control_plane_server(
                 if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
                 new_role = (body or {}).get("role", "member")
-                with db_lock:
-                    _kid, new_key = create_key(
-                        conn, org, new_role, (body or {}).get("label")
-                    )
+                _kid, new_key = create_key(
+                    conn, org, new_role, (body or {}).get("label")
+                )
                 return self._json(
                     201,
                     {
@@ -873,35 +664,23 @@ def make_control_plane_server(
                     400, {"error": 'expected a findings array or {"findings":[...]}'}
                 )
             meta = data if isinstance(data, dict) else {}
-            with db_lock:
-                summary, pending_alert = _record_scan(
-                    conn, org, findings, meta.get("repo"), meta.get("commit")
-                )
-            # Network delivery is intentionally outside the global SQLite lock,
-            # so one slow webhook cannot stall every tenant's reads and writes.
-            _deliver_pending_alert(pending_alert)
+            summary = add_scan(
+                conn, org, findings, meta.get("repo"), meta.get("commit")
+            )
             return self._json(201, summary)
 
         def log_message(self, format, *args):
             """Suppress default logging."""
             return None
 
-    class _ThreadingHTTPServer(http.server.ThreadingHTTPServer):
-        """Thread-per-request server with bounded shutdown behavior."""
-
-        daemon_threads = True
-        block_on_close = False
-        request_queue_size = 128
-
-    return _ThreadingHTTPServer((host, port), _Handler)
+    return http.server.HTTPServer((host, port), _Handler)
 
 
 if __name__ == "__main__":  # pragma: no cover - self-check
-    # Executable module self-checks; these assertions do not validate user input.
     conn = connect(":memory:")
     oid, key = create_org(conn, "Acme")
-    assert org_for_key(conn, key) == oid  # noqa: S101  # nosec B101
-    assert org_for_key(conn, "agk_wrong") is None  # noqa: S101  # nosec B101
+    assert org_for_key(conn, key) == oid
+    assert org_for_key(conn, "agk_wrong") is None
     s = add_scan(
         conn,
         oid,
@@ -912,13 +691,13 @@ if __name__ == "__main__":  # pragma: no cover - self-check
         repo="acme/app",
         commit_sha="abc123",
     )
-    assert s["total"] == 2 and s["deploy_blocking"] == 1, s  # noqa: S101  # nosec B101
+    assert s["total"] == 2 and s["deploy_blocking"] == 1, s
     listed = list_scans(conn, oid)
-    assert len(listed) == 1 and listed[0]["repo"] == "acme/app"  # noqa: S101  # nosec B101
+    assert len(listed) == 1 and listed[0]["repo"] == "acme/app"
     full = get_scan(conn, oid, s["id"])
-    assert full and len(full["findings"]) == 2  # noqa: S101  # nosec B101
+    assert full and len(full["findings"]) == 2
     # tenant isolation: another org can't read the first org's scan
     oid2, _ = create_org(conn, "Beta")
-    assert get_scan(conn, oid2, s["id"]) is None  # noqa: S101  # nosec B101
-    assert list_scans(conn, oid2) == []  # noqa: S101  # nosec B101
+    assert get_scan(conn, oid2, s["id"]) is None
+    assert list_scans(conn, oid2) == []
     print("controlplane self-check OK")

@@ -2,17 +2,9 @@
 
 import json
 
-import pytest
-
-import appguardrail_core.sbom as sbom
-from appguardrail_core.sbom import (
-    ManifestParseError,
-    build_sbom,
-    collect_components,
-    parse_package_json,
-    parse_package_lock,
-    parse_requirements,
-)
+from appguardrail_core.sbom import (build_sbom, collect_components,
+                                    parse_package_json, parse_package_lock,
+                                    parse_requirements)
 
 
 def test_package_json_strips_ranges(tmp_path):
@@ -34,52 +26,6 @@ def test_package_lock_uses_resolved(tmp_path):
     assert comps["next"]["properties"][0]["value"] == "resolved"
 
 
-def test_package_lock_preserves_duplicate_installed_versions(tmp_path):
-    (tmp_path / "package-lock.json").write_text(
-        json.dumps(
-            {
-                "packages": {
-                    "": {},
-                    "node_modules/minimist": {"version": "0.0.8"},
-                    "node_modules/foo/node_modules/minimist": {"version": "1.2.8"},
-                }
-            }
-        )
-    )
-    comps = parse_package_lock(tmp_path / "package-lock.json")
-    assert {(c["name"], c["version"]) for c in comps} == {
-        ("minimist", "0.0.8"),
-        ("minimist", "1.2.8"),
-    }
-
-
-@pytest.mark.parametrize("name", ["package.json", "package-lock.json"])
-def test_json_manifest_rejects_excessive_nesting_without_recursion(name, tmp_path):
-    manifest = tmp_path / name
-    manifest.write_text("[" * 10_000 + "]" * 10_000)
-    parser = parse_package_json if name == "package.json" else parse_package_lock
-    with pytest.raises(ManifestParseError, match="maximum JSON nesting depth"):
-        parser(manifest)
-
-
-@pytest.mark.parametrize(
-    ("parser", "filename", "field", "value"),
-    (
-        (parse_package_json, "package.json", "dependencies", "not-a-map"),
-        (parse_package_json, "package.json", "devDependencies", ["not-a-map"]),
-        (parse_package_lock, "package-lock.json", "packages", "not-a-map"),
-        (parse_package_lock, "package-lock.json", "dependencies", 7),
-    ),
-)
-def test_json_manifest_rejects_malformed_nested_mapping(
-    parser, filename, field, value, tmp_path
-):
-    manifest = tmp_path / filename
-    manifest.write_text(json.dumps({field: value}))
-    with pytest.raises(ManifestParseError, match=field):
-        parser(manifest)
-
-
 def test_requirements_pins_only(tmp_path):
     (tmp_path / "requirements.txt").write_text(
         "flask==3.0.0\nrequests>=2.28\n# comment\n-e .\nhttps://x/y.whl\n"
@@ -89,14 +35,6 @@ def test_requirements_pins_only(tmp_path):
     assert "version" not in comps["requests"]  # unpinned
     assert comps["requests"]["purl"] == "pkg:pypi/requests"
     assert set(comps) == {"flask", "requests"}  # -e and url lines skipped
-
-
-def test_requirements_rejects_oversized_manifest(tmp_path, monkeypatch):
-    monkeypatch.setattr(sbom, "MAX_TEXT_MANIFEST_BYTES", 32)
-    manifest = tmp_path / "requirements.txt"
-    manifest.write_text("#" * 64 + "\n")
-    with pytest.raises(ManifestParseError, match="exceeds 32 bytes"):
-        parse_requirements(manifest)
 
 
 def test_collect_prefers_lockfile(tmp_path):

@@ -17,64 +17,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-MAX_JSON_MANIFEST_BYTES = 8 * 1024 * 1024
-MAX_JSON_MANIFEST_DEPTH = 128
-MAX_TEXT_MANIFEST_BYTES = 8 * 1024 * 1024
-MAX_TEXT_MANIFEST_LINES = 200_000
-MAX_TEXT_MANIFEST_LINE_BYTES = 64 * 1024
-
-
-class ManifestParseError(ValueError):
-    """Raised when a dependency manifest cannot be parsed safely."""
-
-
-def _iter_text_manifest_lines(path: Path):
-    """Yield bounded UTF-8 manifest lines without materializing the whole file."""
-    total_bytes = 0
-    try:
-        with path.open("r", encoding="utf-8") as stream:
-            for line_number, raw in enumerate(stream, start=1):
-                encoded_size = len(raw.encode("utf-8"))
-                total_bytes += encoded_size
-                if total_bytes > MAX_TEXT_MANIFEST_BYTES:
-                    raise ManifestParseError(
-                        f"Dependency manifest {path} exceeds {MAX_TEXT_MANIFEST_BYTES} bytes"
-                    )
-                if line_number > MAX_TEXT_MANIFEST_LINES:
-                    raise ManifestParseError(
-                        f"Dependency manifest {path} exceeds {MAX_TEXT_MANIFEST_LINES} lines"
-                    )
-                if encoded_size > MAX_TEXT_MANIFEST_LINE_BYTES:
-                    raise ManifestParseError(
-                        f"Dependency manifest {path} line {line_number} exceeds "
-                        f"{MAX_TEXT_MANIFEST_LINE_BYTES} bytes"
-                    )
-                yield raw.rstrip("\r\n")
-    except UnicodeDecodeError as exc:
-        raise ManifestParseError(f"Dependency manifest {path} is not UTF-8") from exc
-    except OSError as exc:
-        raise ManifestParseError(
-            f"Cannot read dependency manifest {path}: {exc}"
-        ) from exc
-
-
-def _read_text_manifest(path: Path) -> str:
-    """Return a bounded text manifest for parsers that require whole-file regexes."""
-    return "\n".join(_iter_text_manifest_lines(path))
-
-
-def _mapping_field(data: dict[str, Any], path: Path, field: str) -> dict[str, Any]:
-    """Return a manifest mapping field or reject its malformed shape."""
-    value = data.get(field)
-    if value is None:
-        return {}
-    if not isinstance(value, dict):
-        raise ManifestParseError(
-            f"Dependency manifest {path} field {field!r} must contain a JSON object"
-        )
-    return value
-
-
 _RANGE_PREFIX = re.compile(r"^[\^~>=<\s]+")
 # name==1.2.3 style; capture name and pinned version if present.
 _REQ_LINE = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:==\s*([A-Za-z0-9._+!-]+))?")
@@ -88,60 +30,6 @@ _PNPM_AT = re.compile(r"^\s+/(@?[^@\s/]+(?:/[^@\s/]+)?)@([^:@\s()]+)")
 _PNPM_SLASH = re.compile(r"^\s+/(@[^/\s]+/[^/\s]+|[^/@\s]+)/([^:/\s()]+)")
 # yarn.lock: a ``version "x"`` line inside an entry block.
 _YARN_VERSION = re.compile(r'^\s+version\s+"?([^"\s]+)"?')
-
-
-def _load_json_manifest(path: Path) -> dict[str, Any]:
-    """Load a bounded JSON object without exposing the decoder to deep nesting."""
-    try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise ManifestParseError(
-            f"Cannot read dependency manifest {path}: {exc}"
-        ) from exc
-    if len(raw) > MAX_JSON_MANIFEST_BYTES:
-        raise ManifestParseError(
-            f"Dependency manifest {path} exceeds {MAX_JSON_MANIFEST_BYTES} bytes"
-        )
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ManifestParseError(f"Dependency manifest {path} is not UTF-8") from exc
-
-    depth = 0
-    in_string = False
-    escaped = False
-    for char in text:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char in "[{":
-            depth += 1
-            if depth > MAX_JSON_MANIFEST_DEPTH:
-                raise ManifestParseError(
-                    f"Dependency manifest {path} exceeds maximum JSON nesting depth "
-                    f"{MAX_JSON_MANIFEST_DEPTH}"
-                )
-        elif char in "]}":
-            depth = max(0, depth - 1)
-
-    try:
-        data = json.loads(text)
-    except (json.JSONDecodeError, RecursionError) as exc:
-        raise ManifestParseError(
-            f"Dependency manifest {path} is invalid JSON: {exc}"
-        ) from exc
-    if not isinstance(data, dict):
-        raise ManifestParseError(
-            f"Dependency manifest {path} must contain a JSON object"
-        )
-    return data
 
 
 def _clean_version(value: str) -> str:
@@ -169,34 +57,29 @@ def _component(
 
 def parse_package_lock(path: Path) -> list[dict[str, Any]]:
     """npm package-lock.json -> components with resolved versions."""
-    data = _load_json_manifest(path)
-    out: dict[tuple[str, str], dict[str, Any]] = {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, dict[str, Any]] = {}
     # lockfile v2/v3: "packages" keyed by "node_modules/name"
-    for key, meta in _mapping_field(data, path, "packages").items():
+    for key, meta in (data.get("packages") or {}).items():
         if not key or not isinstance(meta, dict):
             continue  # "" is the root project
         name = key.split("node_modules/")[-1]
         version = str(meta.get("version") or "")
         if name and version:
-            out.setdefault(
-                (name, version), _component(name, version, "npm", resolved=True)
-            )
+            out[name] = _component(name, version, "npm", resolved=True)
     # lockfile v1: "dependencies"
-    for name, meta in _mapping_field(data, path, "dependencies").items():
-        if isinstance(meta, dict) and meta.get("version"):
-            version = str(meta["version"])
-            out.setdefault(
-                (name, version), _component(name, version, "npm", resolved=True)
-            )
+    for name, meta in (data.get("dependencies") or {}).items():
+        if name not in out and isinstance(meta, dict) and meta.get("version"):
+            out[name] = _component(name, str(meta["version"]), "npm", resolved=True)
     return list(out.values())
 
 
 def parse_package_json(path: Path) -> list[dict[str, Any]]:
     """package.json -> components with declared version ranges."""
-    data = _load_json_manifest(path)
+    data = json.loads(path.read_text(encoding="utf-8"))
     out = []
     for field in ("dependencies", "devDependencies", "optionalDependencies"):
-        for name, rng in _mapping_field(data, path, field).items():
+        for name, rng in (data.get(field) or {}).items():
             out.append(_component(name, _clean_version(rng), "npm", resolved=False))
     return out
 
@@ -204,7 +87,7 @@ def parse_package_json(path: Path) -> list[dict[str, Any]]:
 def parse_requirements(path: Path) -> list[dict[str, Any]]:
     """requirements.txt -> components (pinned versions only get a version)."""
     out = []
-    for raw in _iter_text_manifest_lines(path):
+    for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.split("#", 1)[0].strip()
         if not line or line.startswith(("-", "git+", "http://", "https://")):
             continue
@@ -225,7 +108,7 @@ def parse_poetry_lock(path: Path) -> list[dict[str, Any]]:
     ``version`` keys (sub-tables like ``[package.dependencies]`` use the dep
     name as the key, never ``name =``/``version =`` at column 0).
     """
-    text = _read_text_manifest(path)
+    text = path.read_text(encoding="utf-8")
     out: dict[str, dict[str, Any]] = {}
     # First chunk is the file preamble (before any [[package]]); skip it.
     for block in text.split("[[package]]")[1:]:
@@ -245,7 +128,7 @@ def parse_pnpm_lock(path: Path) -> list[dict[str, Any]]:
     suffixes such as ``(react@18.0.0)`` are excluded by the regexes.
     """
     out: dict[str, dict[str, Any]] = {}
-    for raw in _iter_text_manifest_lines(path):
+    for raw in path.read_text(encoding="utf-8").splitlines():
         m = _PNPM_AT.match(raw) or _PNPM_SLASH.match(raw)
         if not m:
             continue
@@ -265,7 +148,7 @@ def parse_yarn_lock(path: Path) -> list[dict[str, Any]]:
     """
     out: dict[str, dict[str, Any]] = {}
     current: str | None = None
-    for raw in _iter_text_manifest_lines(path):
+    for raw in path.read_text(encoding="utf-8").splitlines():
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         if not raw[0].isspace():
@@ -340,7 +223,6 @@ def build_sbom(
 if __name__ == "__main__":  # pragma: no cover - self-check
     import tempfile
 
-    # Executable module self-checks; these assertions do not validate user input.
     with tempfile.TemporaryDirectory() as d:
         base = Path(d)
         (base / "package.json").write_text(
@@ -351,12 +233,12 @@ if __name__ == "__main__":  # pragma: no cover - self-check
         )
         comps = collect_components(base)
         names = {c["name"]: c for c in comps}
-        assert names["next"]["version"] == "14.1.0"  # noqa: S101  # nosec B101
-        assert names["next"]["purl"] == "pkg:npm/next@14.1.0"  # noqa: S101  # nosec B101
-        assert names["flask"]["version"] == "3.0.0"  # noqa: S101  # nosec B101
-        assert "version" not in names["requests"]  # noqa: S101  # nosec B101
-        assert names["requests"]["purl"] == "pkg:pypi/requests"  # noqa: S101  # nosec B101
+        assert names["next"]["version"] == "14.1.0"  # ^ stripped
+        assert names["next"]["purl"] == "pkg:npm/next@14.1.0"
+        assert names["flask"]["version"] == "3.0.0"
+        assert "version" not in names["requests"]  # unpinned -> no version
+        assert names["requests"]["purl"] == "pkg:pypi/requests"
         sbom = build_sbom(comps, "demo")
-        assert sbom["bomFormat"] == "CycloneDX" and sbom["specVersion"] == "1.5"  # noqa: S101  # nosec B101
-        assert len(sbom["components"]) == 4  # noqa: S101  # nosec B101
+        assert sbom["bomFormat"] == "CycloneDX" and sbom["specVersion"] == "1.5"
+        assert len(sbom["components"]) == 4
         print("sbom self-check OK")
