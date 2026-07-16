@@ -79,10 +79,15 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     ).read_text(encoding="utf-8")
 
     assert "vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID" in workflow
-    assert (
-        "secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || "
-        "secrets.NOEMA_GITHUB_APP_PRIVATE_KEY"
-    ) in workflow
+    private_key_expression = (
+        "${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || "
+        "secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}"
+    )
+    assert workflow.count(f"private-key: {private_key_expression}") == 2
+    assert workflow.count(private_key_expression) == 2
+    assert "ORG_SECURITY_FAILURE_APP_PRIVATE_KEY:" not in workflow
+    assert "env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" not in workflow
+    assert "Scope the long-lived credential to this pinned token action only" in workflow
     assert "::error::Org security failure collection cannot run" in workflow
     assert "Skipping org security failure collection" not in workflow
     assert "exit 1" in workflow

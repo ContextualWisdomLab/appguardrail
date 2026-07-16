@@ -28,7 +28,6 @@ jobs:
       # then, reuse the centrally managed Noema App rather than silently turning
       # this scheduled governance control into a no-op.
       ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID }}
-      ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
       ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES: ${{ vars.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}
     steps:
       - name: Authorize manual default-branch collection dispatch
@@ -59,16 +58,15 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Check GitHub App collector configuration
+      - name: Check non-secret GitHub App collector configuration
         id: app-config
         run: |
           set -euo pipefail
           if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && \
-            -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" && \
             -n "$ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Org security failure collection cannot run: configure a complete dedicated/Noema App credential and the explicit ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES allowlist."
+            echo "::error::Org security failure collection cannot run: configure the dedicated/Noema App ID and the explicit ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES allowlist; token creation reports a missing private key separately."
             exit 1
           fi
 
@@ -77,7 +75,8 @@ jobs:
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
-          private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          # Scope the long-lived credential to this pinned token action only.
+          private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}
           permission-actions: read
@@ -88,7 +87,8 @@ jobs:
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
-          private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          # Scope the long-lived credential to this pinned token action only.
+          private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           # Keep schedule and repository_dispatch fail-closed. An empty value
           # would grant issue-write across every repository in the App install.
