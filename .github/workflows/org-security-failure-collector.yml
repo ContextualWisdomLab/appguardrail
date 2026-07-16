@@ -24,11 +24,48 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DRY_RUN: "false"
       LOOKBACK_HOURS: "48"
-      # Prefer a dedicated least-privilege collector App when configured. Until
-      # then, reuse the centrally managed Noema App rather than silently turning
-      # this scheduled governance control into a no-op.
-      ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID }}
-      ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES: ${{ vars.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}
+      # These are public authorization controls, not secrets. Keep them in the
+      # reviewed default-branch workflow so repository variables cannot shadow
+      # organization governance. The private key remains an Actions secret.
+      ORG_SECURITY_FAILURE_APP_ID: "4291520"
+      ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR: "seonghobae"
+      ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES: |
+        .github
+        aFIPC
+        appguardrail
+        argos
+        bandscope
+        clearfolio
+        codec-carver
+        contextual-orchestrator
+        ContextualWisdomLab.github.io
+        disksage
+        EgressWeave
+        fast-mlsirm
+        feelanet-adfs
+        free-router
+        gyeot
+        html4tree
+        hyosung-itx-slogan-brief
+        inkspan
+        IRT-bibliography-set
+        kaefa
+        keyverse
+        linux-cluster-ops
+        naruon
+        newsdom-api
+        noema
+        nonnest2
+        pg-erd-cloud
+        pg-llm-batch
+        RankWeave
+        scopeweave
+        seedream_evasepic
+        semantic-data-portal
+        ThreadWeave
+        vooster
+        wardnet
+        xtrmLLMBatchPython
     steps:
       - name: Authorize manual default-branch collection dispatch
         if: github.event_name == 'repository_dispatch'
@@ -37,7 +74,7 @@ jobs:
           # actor and the event payload retain the original dispatch identity.
           DISPATCH_ACTOR: ${{ github.triggering_actor }}
           DISPATCH_SENDER: ${{ github.event.sender.login || '' }}
-          ALLOWED_DISPATCH_ACTOR: ${{ vars.ORG_SECURITY_FAILURE_DISPATCH_ACTOR }}
+          ALLOWED_DISPATCH_ACTOR: ${{ env.ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR }}
         run: |
           set -euo pipefail
           if [[ -z "$ALLOWED_DISPATCH_ACTOR" ]] || \
@@ -62,13 +99,39 @@ jobs:
         id: app-config
         run: |
           set -euo pipefail
-          if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && \
-            -n "$ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::Org security failure collection cannot run: configure the dedicated/Noema App ID and the explicit ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES allowlist; token creation reports a missing private key separately."
+          if [[ ! "$ORG_SECURITY_FAILURE_APP_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Org security failure collection requires a positive reviewed GitHub App ID."
             exit 1
           fi
+
+          declare -A seen_repositories=()
+          repositories=()
+          while IFS= read -r repository || [[ -n "$repository" ]]; do
+            repository="${repository#"${repository%%[![:space:]]*}"}"
+            repository="${repository%"${repository##*[![:space:]]}"}"
+            if [[ -z "$repository" || ! "$repository" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+              printf '::error::Invalid or blank collector repository allowlist entry: %q.\n' "$repository"
+              exit 1
+            fi
+            if [[ -n "${seen_repositories[$repository]+configured}" ]]; then
+              printf '::error::Duplicate collector repository allowlist entry: %s.\n' "$repository"
+              exit 1
+            fi
+            seen_repositories[$repository]=1
+            repositories+=("$repository")
+          done <<<"$ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES"
+
+          if [[ "${#repositories[@]}" -eq 0 ]]; then
+            echo "::error::Org security failure collection requires at least one reviewed repository."
+            exit 1
+          fi
+          {
+            echo "configured=true"
+            echo "repositories<<__COLLECTOR_REPOSITORIES__"
+            printf '%s\n' "${repositories[@]}"
+            echo "__COLLECTOR_REPOSITORIES__"
+          } >>"$GITHUB_OUTPUT"
+          printf 'Validated %s reviewed collector repositories.\n' "${#repositories[@]}"
 
       - name: Create allowlisted organization read token
         id: read-app-token
@@ -78,7 +141,7 @@ jobs:
           # Scope the long-lived credential to this pinned token action only.
           private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}
+          repositories: ${{ steps.app-config.outputs.repositories }}
           permission-actions: read
           permission-checks: read
 

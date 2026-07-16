@@ -78,7 +78,9 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
         / "org-security-failure-collector.yml"
     ).read_text(encoding="utf-8")
 
-    assert "vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID" in workflow
+    assert 'ORG_SECURITY_FAILURE_APP_ID: "4291520"' in workflow
+    assert 'ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR: "seonghobae"' in workflow
+    assert "${{ vars." not in workflow
     private_key_expression = (
         "${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || "
         "secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}"
@@ -88,7 +90,7 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "ORG_SECURITY_FAILURE_APP_PRIVATE_KEY:" not in workflow
     assert "env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" not in workflow
     assert "Scope the long-lived credential to this pinned token action only" in workflow
-    assert "::error::Org security failure collection cannot run" in workflow
+    assert "::error::Org security failure collection requires" in workflow
     assert "Skipping org security failure collection" not in workflow
     assert "exit 1" in workflow
     assert "if: steps.app-config.outputs.configured == 'true'" not in workflow
@@ -97,7 +99,7 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "workflow_dispatch:" not in workflow
     assert "repository_dispatch:" in workflow
     assert "types: [collect-org-security-failures]" in workflow
-    assert "ORG_SECURITY_FAILURE_DISPATCH_ACTOR" in workflow
+    assert "ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR" in workflow
     assert "ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" in workflow
     assert "dispatch rejected actor=" in workflow
     assert "DISPATCH_ACTOR: ${{ github.triggering_actor }}" in workflow
@@ -106,10 +108,10 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "ref: ${{ github.sha }}" in workflow
     assert "persist-credentials: false" in workflow
     assert "Create allowlisted organization read token" in workflow
-    assert (
-        "repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}"
-        in workflow
-    )
+    assert "^[A-Za-z0-9_.-]+$" in workflow
+    assert "Invalid or blank collector repository allowlist entry" in workflow
+    assert "Duplicate collector repository allowlist entry" in workflow
+    assert "repositories: ${{ steps.app-config.outputs.repositories }}" in workflow
     assert "Create target-only issue write token" in workflow
     assert "repositories: appguardrail" in workflow
     assert "repositories: ${{ github.event.repository.name }}" not in workflow
@@ -303,11 +305,11 @@ def test_publish_skips_duplicate_and_reopens_closed_issue():
     assert patch and patch[0][3]["state"] == "open"
     assert collector.seen_key(unseen) in patch[0][3]["body"]
     assert comment
-    assert client.calls.index(comment[0]) < client.calls.index(patch[0])
+    assert client.calls.index(patch[0]) < client.calls.index(comment[0])
 
 
-def test_publish_retries_after_comment_delivery_failure():
-    """Do not persist a dedupe marker until the alert comment is delivered."""
+def test_publish_records_before_comment_delivery_failure(capsys):
+    """Persist the bounded alert before a comment failure can cause a retry flood."""
     unseen = finding(job_id=999, snippet="::error:: security failure")
     issue = {
         "number": 17,
@@ -321,25 +323,27 @@ def test_publish_retries_after_comment_delivery_failure():
             self.calls.append(("request", method, path, data))
             if method == "POST" and path.endswith("/comments"):
                 raise RuntimeError("GitHub API comment failed: 503")
-            raise AssertionError("marker PATCH must not run after comment failure")
+            if method == "PATCH":
+                return data
+            raise AssertionError(f"unexpected request: {method} {path}")
 
     failing_client = FailingCommentClient([issue])
-    with pytest.raises(RuntimeError, match="503"):
-        collector.publish_one(
-            failing_client,
-            "ContextualWisdomLab/appguardrail",
-            unseen,
-            False,
-            {issue["title"]: issue},
-            set(),
-        )
+    assert collector.publish_one(
+        failing_client,
+        "ContextualWisdomLab/appguardrail",
+        unseen,
+        False,
+        {issue["title"]: issue},
+        set(),
+    )
 
     key = collector.seen_key(unseen)
-    assert key not in issueops.parse_marker(issue["body"])["seen"]
-    assert all(call[1] != "PATCH" for call in failing_client.calls)
+    assert key in issueops.parse_marker(issue["body"])["seen"]
+    assert [call[1] for call in failing_client.calls] == ["PATCH", "POST"]
+    assert "notification comment failed" in capsys.readouterr().err
 
     retry_client = FakeClient([issue])
-    collector.publish_one(
+    assert not collector.publish_one(
         retry_client,
         "ContextualWisdomLab/appguardrail",
         unseen,
@@ -347,8 +351,46 @@ def test_publish_retries_after_comment_delivery_failure():
         {issue["title"]: issue},
         set(),
     )
-    assert [call[1] for call in retry_client.calls] == ["POST", "PATCH"]
+    assert retry_client.calls == []
     assert key in issueops.parse_marker(issue["body"])["seen"]
+
+
+def test_bounded_issue_state_caps_seen_keys_and_body_size():
+    item = finding(snippet="x" * 30_000)
+    body, seen = collector.bounded_issue_state(
+        item, {f"{run_id}:{run_id + 1}" for run_id in range(3_000)}
+    )
+
+    assert len(seen) == collector.MAX_SEEN_KEYS_PER_ISSUE
+    assert len(body) <= collector.MAX_ISSUE_BODY_CHARS
+    assert "2999:3000" in seen
+    assert "0:1" not in seen
+
+
+def test_publish_findings_defers_after_bounded_new_update_limit(capsys):
+    client = FakeClient([])
+    findings = [
+        finding(run_id=run_id, job_id=run_id + 10_000)
+        for run_id in range(collector.MAX_ISSUE_UPDATES_PER_RUN + 1)
+    ]
+
+    collector.publish_findings(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        findings,
+        dry_run=True,
+    )
+
+    output = capsys.readouterr().out
+    assert output.count("DRY_RUN create issue") == 1
+    assert output.count("DRY_RUN update issue") == (
+        collector.MAX_ISSUE_UPDATES_PER_RUN - 1
+    )
+    assert "deferred 1 finding(s)" in output
+    assert (
+        f"published {collector.MAX_ISSUE_UPDATES_PER_RUN} new security failure"
+        in output
+    )
 
 
 def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
