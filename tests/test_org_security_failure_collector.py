@@ -141,7 +141,7 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
         [
             sys.executable,
             "-I",
-            str(root / "scanner" / "cli" / "appguardrail.py"),
+            str(root / "docker_entrypoint.py"),
             "--version",
         ],
         cwd=tmp_path,
@@ -155,10 +155,14 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
     assert not marker.exists()
 
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
-    assert (
-        'ENTRYPOINT ["python", "-I", "/app/scanner/cli/appguardrail.py"]' in dockerfile
-    )
-    assert "python -I /app/scanner/cli/appguardrail.py --help" in dockerfile
+    assert (root / "scanner").is_dir()
+    assert (root / "appguardrail_core").is_dir()
+    assert (root / "docker_entrypoint.py").is_file()
+    assert "COPY scanner/ scanner/" in dockerfile
+    assert "COPY appguardrail_core/ appguardrail_core/" in dockerfile
+    assert "COPY docker_entrypoint.py docker_entrypoint.py" in dockerfile
+    assert 'ENTRYPOINT ["python", "-I", "/app/docker_entrypoint.py"]' in dockerfile
+    assert "python -I /app/docker_entrypoint.py --help" in dockerfile
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
 
 
@@ -305,9 +309,47 @@ def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
     assert "DRY_RUN update issue #dry-run" in output
 
 
-def test_github_init_rejects_dangerous_scheme():
-    with pytest.raises(ValueError, match="API URL must start with http:// or https://"):
-        collector.GitHub("token", "file:///etc/passwd")
+def test_github_client_pins_api_origin_and_rejects_redirects(monkeypatch):
+    """Never send the collector bearer token to a caller-selected host."""
+    observed = {}
+
+    class FakeResponse:
+        headers = {"content-type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    class FakeOpener:
+        def open(self, request, timeout):
+            observed["url"] = request.full_url
+            observed["authorization"] = request.get_header("Authorization")
+            observed["timeout"] = timeout
+            return FakeResponse()
+
+    def fake_build_opener(*handlers):
+        observed["handlers"] = handlers
+        return FakeOpener()
+
+    monkeypatch.setattr(collector.urllib.request, "build_opener", fake_build_opener)
+    client = collector.GitHub("sensitive-token")
+
+    assert client.request("GET", "/rate_limit") == {"ok": True}
+    assert observed == {
+        "handlers": (collector.NoRedirect,),
+        "url": "https://api.github.com/rate_limit",
+        "authorization": "Bearer sensitive-token",
+        "timeout": 30,
+    }
+    with pytest.raises(TypeError):
+        collector.GitHub("token", "https://attacker.invalid")
+    with pytest.raises(ValueError, match="path must start"):
+        client.request("GET", "https://attacker.invalid/")
 
 
 def test_build_finding_uses_only_non_sensitive_failure_metadata():
