@@ -50,6 +50,12 @@ def test_invalid_config_raises(tmp_path, text, frag):
     assert frag in str(exc.value)
 
 
+def test_deeply_nested_config_is_rejected_without_recursion(tmp_path):
+    _write(tmp_path, '{"x":' * 10_000 + "0" + "}" * 10_000)
+    with pytest.raises(RuntimeError, match="maximum JSON nesting depth"):
+        load_config([tmp_path])
+
+
 def test_severities_at_or_above():
     assert severities_at_or_above("CRITICAL") == {"CRITICAL"}
     assert severities_at_or_above("HIGH") == {"CRITICAL", "HIGH"}

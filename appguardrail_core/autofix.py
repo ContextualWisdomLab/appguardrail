@@ -47,7 +47,7 @@ def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
             if rel_match:
                 existing = rel_match.group(2).strip()
                 replacement = f'rel="{existing} noopener noreferrer"'
-                return _REL_ATTR.sub(replacement, tag, count=1)
+                return tag[: rel_match.start()] + replacement + tag[rel_match.end() :]
             return re.sub(
                 r"<a\b",
                 '<a rel="noopener noreferrer"',

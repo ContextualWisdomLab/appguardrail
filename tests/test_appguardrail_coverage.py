@@ -90,6 +90,21 @@ def test_cmd_init_atomic_replace_does_not_follow_raced_final_symlink(
     assert target.is_file() and not target.is_symlink()
 
 
+def test_report_writer_rejects_symlinked_parent_directory(tmp_path):
+    from scanner.cli import appguardrail as cli
+
+    project = tmp_path / "project"
+    outside = tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    _create_symlink(outside, project / "reports", target_is_directory=True)
+
+    with pytest.raises(OSError):
+        cli._atomic_write_private_text(project / "reports" / "findings.json", "{}\n")
+
+    assert not (outside / "findings.json").exists()
+
+
 def test_cmd_init_append_marker_no_marker(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     claude_file = tmp_path / "CLAUDE.md"

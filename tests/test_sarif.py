@@ -1,5 +1,7 @@
 """Tests for SARIF 2.1.0 output (appguardrail_core.sarif)."""
 
+import time
+
 from appguardrail_core.sarif import findings_to_sarif
 
 FINDINGS = [
@@ -90,3 +92,48 @@ def test_malformed_message_and_line_use_safe_defaults():
     location = run["results"][0]["locations"][0]["physicalLocation"]
     assert location["artifactLocation"]["uri"] == "n/a"
     assert location["region"]["startLine"] == 1
+
+
+def test_malformed_metadata_is_discarded_and_string_metadata_is_normalized():
+    malformed = {
+        "rule_id": "malformed",
+        "severity": "INFO",
+        "message": "safe",
+        "file": "x.py",
+        "references": [5],
+        "cwe": 5,
+        "owasp": {"bad": "shape"},
+    }
+    string_metadata = {
+        "rule_id": "string-metadata",
+        "severity": "INFO",
+        "message": "safe",
+        "file": "y.py",
+        "references": "https://example.test/help",
+        "cwe": "CWE-400",
+    }
+    rules = findings_to_sarif([malformed, string_metadata])["runs"][0]["tool"][
+        "driver"
+    ]["rules"]
+    assert rules[0]["helpUri"].startswith("https://github.com/")
+    assert rules[0]["properties"]["tags"] == ["security", "misconfig"]
+    assert rules[1]["helpUri"] == "https://example.test/help"
+    assert "CWE-400" in rules[1]["properties"]["tags"]
+
+
+def test_unique_rule_indexing_remains_linear_at_large_input():
+    findings = [
+        {
+            "rule_id": f"external-{index}",
+            "severity": "INFO",
+            "message": "message",
+            "file": "x.py",
+            "line": 1,
+        }
+        for index in range(50_000)
+    ]
+    started = time.monotonic()
+    results = findings_to_sarif(findings)["runs"][0]["results"]
+    elapsed = time.monotonic() - started
+    assert results[-1]["ruleIndex"] == 49_999
+    assert elapsed < 8.0

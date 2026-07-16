@@ -19,10 +19,60 @@ from typing import Any
 
 MAX_JSON_MANIFEST_BYTES = 8 * 1024 * 1024
 MAX_JSON_MANIFEST_DEPTH = 128
+MAX_TEXT_MANIFEST_BYTES = 8 * 1024 * 1024
+MAX_TEXT_MANIFEST_LINES = 200_000
+MAX_TEXT_MANIFEST_LINE_BYTES = 64 * 1024
 
 
 class ManifestParseError(ValueError):
     """Raised when a dependency manifest cannot be parsed safely."""
+
+
+def _iter_text_manifest_lines(path: Path):
+    """Yield bounded UTF-8 manifest lines without materializing the whole file."""
+    total_bytes = 0
+    try:
+        with path.open("r", encoding="utf-8") as stream:
+            for line_number, raw in enumerate(stream, start=1):
+                encoded_size = len(raw.encode("utf-8"))
+                total_bytes += encoded_size
+                if total_bytes > MAX_TEXT_MANIFEST_BYTES:
+                    raise ManifestParseError(
+                        f"Dependency manifest {path} exceeds {MAX_TEXT_MANIFEST_BYTES} bytes"
+                    )
+                if line_number > MAX_TEXT_MANIFEST_LINES:
+                    raise ManifestParseError(
+                        f"Dependency manifest {path} exceeds {MAX_TEXT_MANIFEST_LINES} lines"
+                    )
+                if encoded_size > MAX_TEXT_MANIFEST_LINE_BYTES:
+                    raise ManifestParseError(
+                        f"Dependency manifest {path} line {line_number} exceeds "
+                        f"{MAX_TEXT_MANIFEST_LINE_BYTES} bytes"
+                    )
+                yield raw.rstrip("\r\n")
+    except UnicodeDecodeError as exc:
+        raise ManifestParseError(f"Dependency manifest {path} is not UTF-8") from exc
+    except OSError as exc:
+        raise ManifestParseError(
+            f"Cannot read dependency manifest {path}: {exc}"
+        ) from exc
+
+
+def _read_text_manifest(path: Path) -> str:
+    """Return a bounded text manifest for parsers that require whole-file regexes."""
+    return "\n".join(_iter_text_manifest_lines(path))
+
+
+def _mapping_field(data: dict[str, Any], path: Path, field: str) -> dict[str, Any]:
+    """Return a manifest mapping field or reject its malformed shape."""
+    value = data.get(field)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ManifestParseError(
+            f"Dependency manifest {path} field {field!r} must contain a JSON object"
+        )
+    return value
 
 
 _RANGE_PREFIX = re.compile(r"^[\^~>=<\s]+")
@@ -122,7 +172,7 @@ def parse_package_lock(path: Path) -> list[dict[str, Any]]:
     data = _load_json_manifest(path)
     out: dict[tuple[str, str], dict[str, Any]] = {}
     # lockfile v2/v3: "packages" keyed by "node_modules/name"
-    for key, meta in (data.get("packages") or {}).items():
+    for key, meta in _mapping_field(data, path, "packages").items():
         if not key or not isinstance(meta, dict):
             continue  # "" is the root project
         name = key.split("node_modules/")[-1]
@@ -132,7 +182,7 @@ def parse_package_lock(path: Path) -> list[dict[str, Any]]:
                 (name, version), _component(name, version, "npm", resolved=True)
             )
     # lockfile v1: "dependencies"
-    for name, meta in (data.get("dependencies") or {}).items():
+    for name, meta in _mapping_field(data, path, "dependencies").items():
         if isinstance(meta, dict) and meta.get("version"):
             version = str(meta["version"])
             out.setdefault(
@@ -146,7 +196,7 @@ def parse_package_json(path: Path) -> list[dict[str, Any]]:
     data = _load_json_manifest(path)
     out = []
     for field in ("dependencies", "devDependencies", "optionalDependencies"):
-        for name, rng in (data.get(field) or {}).items():
+        for name, rng in _mapping_field(data, path, field).items():
             out.append(_component(name, _clean_version(rng), "npm", resolved=False))
     return out
 
@@ -154,7 +204,7 @@ def parse_package_json(path: Path) -> list[dict[str, Any]]:
 def parse_requirements(path: Path) -> list[dict[str, Any]]:
     """requirements.txt -> components (pinned versions only get a version)."""
     out = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in _iter_text_manifest_lines(path):
         line = raw.split("#", 1)[0].strip()
         if not line or line.startswith(("-", "git+", "http://", "https://")):
             continue
@@ -175,7 +225,7 @@ def parse_poetry_lock(path: Path) -> list[dict[str, Any]]:
     ``version`` keys (sub-tables like ``[package.dependencies]`` use the dep
     name as the key, never ``name =``/``version =`` at column 0).
     """
-    text = path.read_text(encoding="utf-8")
+    text = _read_text_manifest(path)
     out: dict[str, dict[str, Any]] = {}
     # First chunk is the file preamble (before any [[package]]); skip it.
     for block in text.split("[[package]]")[1:]:
@@ -195,7 +245,7 @@ def parse_pnpm_lock(path: Path) -> list[dict[str, Any]]:
     suffixes such as ``(react@18.0.0)`` are excluded by the regexes.
     """
     out: dict[str, dict[str, Any]] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in _iter_text_manifest_lines(path):
         m = _PNPM_AT.match(raw) or _PNPM_SLASH.match(raw)
         if not m:
             continue
@@ -215,7 +265,7 @@ def parse_yarn_lock(path: Path) -> list[dict[str, Any]]:
     """
     out: dict[str, dict[str, Any]] = {}
     current: str | None = None
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in _iter_text_manifest_lines(path):
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         if not raw[0].isspace():

@@ -667,10 +667,26 @@ def console_html() -> bytes:
         return b"<!doctype html><title>AppGuardrail Console</title><p>Console asset missing.</p>"
 
 
+def _is_loopback_bind_host(host: str) -> bool:
+    """Return whether every address used by an HTTP bind is loopback-only."""
+    if not isinstance(host, str) or not host.strip():
+        return False
+    try:
+        addresses = {
+            entry[4][0].split("%", 1)[0]
+            for entry in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        }
+        return bool(addresses) and all(
+            ipaddress.ip_address(address).is_loopback for address in addresses
+        )
+    except (OSError, TypeError, ValueError):
+        return False
+
+
 def make_control_plane_server(
     host: str, port: int, db_path: str, client_timeout: float = 10.0
 ):
-    """Build an HTTP API for scan ingest + history, scoped by API key.
+    """Build a loopback-only HTTP API for scan ingest + history.
 
     Endpoints (JSON):
       GET  /api/v1/health         -> {"status":"ok"} (no auth)
@@ -690,6 +706,11 @@ def make_control_plane_server(
         ) from exc
     if client_timeout <= 0:
         raise ValueError("Control-plane client timeout must be a positive number")
+    if not _is_loopback_bind_host(host):
+        raise ValueError(
+            "Plaintext control-plane HTTP may bind only to a loopback host; "
+            "use 127.0.0.1/::1 behind a trusted TLS-terminating proxy"
+        )
 
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row

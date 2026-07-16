@@ -232,6 +232,17 @@ def test_collector_terminal_output_escapes_ansi_osc_and_bell(capsys):
     assert "\\x07" in output
 
 
+def test_collector_terminal_output_keeps_untrusted_metadata_on_one_line(capsys):
+    collector._safe_print(
+        "created ",
+        "security\nFORGED\r::error file=trusted.py,line=1::owned\tend",
+    )
+    output = capsys.readouterr().out
+    assert output.count("\n") == 1
+    assert "\\x0aFORGED\\x0d::error" in output
+    assert "\\x09end" in output
+
+
 @pytest.mark.parametrize(
     "api",
     [

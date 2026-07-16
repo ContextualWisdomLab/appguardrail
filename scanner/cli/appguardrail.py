@@ -1745,33 +1745,90 @@ def _write_findings_json(findings, output_path: Path):
 
 
 def _atomic_write_private_text(output_path: Path, text: str) -> None:
-    """Atomically replace a report without following a final-path symlink."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary_name = tempfile.mkstemp(
-        dir=output_path.parent,
-        prefix=f".{output_path.name}.",
-        suffix=".tmp",
-    )
-    temporary_path = Path(temporary_name)
+    """Atomically replace a report without following parent or final symlinks."""
+    output_path = Path(output_path).absolute()
+    required_flags = all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW"))
+    if os.name == "nt" or not required_flags:  # pragma: no cover - Windows fallback
+        parent = output_path.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        if parent.resolve(strict=True) != parent:
+            raise OSError(f"Refusing symlinked output directory: {parent}")
+        fd, temporary_name = tempfile.mkstemp(
+            dir=parent,
+            prefix=f".{output_path.name}.",
+            suffix=".tmp",
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                fd = -1
+                stream.write(text)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary_path, output_path)
+        finally:
+            if fd >= 0:
+                os.close(fd)
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+        return
+
+    directory_fds: list[int] = []
+    temporary_name: "str | None" = None
     try:
-        os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            fd = -1
+        current_fd = os.open(
+            output_path.anchor,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+        directory_fds.append(current_fd)
+        for part in output_path.parts[1:-1]:
+            try:
+                next_fd = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=current_fd,
+                )
+            except FileNotFoundError:
+                os.mkdir(part, mode=0o755, dir_fd=current_fd)
+                next_fd = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=current_fd,
+                )
+            directory_fds.append(next_fd)
+            current_fd = next_fd
+
+        name = output_path.name
+        temporary_name = f".{name}.appguardrail-{os.getpid()}-{os.urandom(8).hex()}.tmp"
+        write_fd = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=current_fd,
+        )
+        with os.fdopen(write_fd, "w", encoding="utf-8") as stream:
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
-        # os.replace replaces the directory entry itself. If output_path is a
-        # symlink, its target remains untouched and the report replaces the link.
-        os.replace(temporary_path, output_path)
+        os.replace(
+            temporary_name,
+            name,
+            src_dir_fd=current_fd,
+            dst_dir_fd=current_fd,
+        )
+        temporary_name = None
+        os.fsync(current_fd)
     finally:
-        if fd >= 0:
-            os.close(fd)
-        try:
-            temporary_path.unlink()
-        except FileNotFoundError:
-            # A concurrent cleanup or successful os.replace can consume it.
-            pass
+        if temporary_name is not None and directory_fds:
+            try:
+                os.unlink(temporary_name, dir_fd=directory_fds[-1])
+            except FileNotFoundError:
+                pass
+        for directory_fd in reversed(directory_fds):
+            os.close(directory_fd)
 
 
 def _is_safe_url(url: str) -> bool:
@@ -3484,11 +3541,14 @@ def cmd_serve(args):
     port = getattr(args, "port", 8788)
     try:
         server = cp.make_control_plane_server(host, port, db)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         _console_print(
             f"❌ Cannot start control plane on {host}:{port} ({exc}).", file=sys.stderr
         )
-        _console_print("💡 Pass a free port with --port.", file=sys.stderr)
+        _console_print(
+            "💡 Use a free port and a loopback host; terminate remote TLS in a trusted proxy.",
+            file=sys.stderr,
+        )
         return 1
     actual = server.server_address[1]
     _console_print(f"🛰️  AppGuardrail control plane on http://{host}:{actual}")

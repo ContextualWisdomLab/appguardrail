@@ -98,6 +98,12 @@ def server(tmp_path):
     srv.server_close()
 
 
+@pytest.mark.parametrize("host", ("0.0.0.0", "::"))
+def test_plaintext_server_rejects_non_loopback_bind(host, tmp_path):
+    with pytest.raises(ValueError, match="loopback"):
+        make_control_plane_server(host, 0, str(tmp_path / "cp.db"))
+
+
 def test_health_no_auth(server):
     base, _ = server
     status, body = _req("GET", f"{base}/api/v1/health")

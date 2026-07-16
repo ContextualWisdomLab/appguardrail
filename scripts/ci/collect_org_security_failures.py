@@ -52,13 +52,11 @@ ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
 
 
 def _terminal_safe(value: Any) -> Any:
-    """Escape terminal control bytes while preserving readable lines and tabs."""
+    """Escape every control byte so untrusted metadata stays on one CI log line."""
     if not isinstance(value, str):
         return value
     return "".join(
-        char
-        if char in {"\n", "\t"} or (char.isprintable() and char != "\x7f")
-        else f"\\x{ord(char):02x}"
+        char if char.isprintable() and char != "\x7f" else f"\\x{ord(char):02x}"
         for char in value
     )
 

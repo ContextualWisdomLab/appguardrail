@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from .findings import is_deploy_blocking, normalize_findings
+from .findings import is_deploy_blocking
 
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
@@ -25,10 +25,24 @@ _LEVEL = {"CRITICAL": "error", "HIGH": "error", "WARNING": "warning", "INFO": "n
 _SECURITY_SEVERITY = {"CRITICAL": "9.0", "HIGH": "7.0", "WARNING": "4.0", "INFO": "2.0"}
 
 
+def _string_values(value: Any) -> list[str]:
+    """Return non-empty strings from untrusted scalar or sequence metadata."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return []
+    return [
+        stripped
+        for item in value
+        if isinstance(item, str) and (stripped := item.strip())
+    ]
+
+
 def _tags(finding: dict[str, Any]) -> list[str]:
     tags = ["security", str(finding.get("category") or "misconfig")]
-    tags.extend(str(t) for t in finding.get("cwe") or ())
-    tags.extend(str(t) for t in finding.get("owasp") or ())
+    tags.extend(_string_values(finding.get("cwe")))
+    tags.extend(_string_values(finding.get("owasp")))
     return tags
 
 
@@ -50,17 +64,18 @@ def findings_to_sarif(
     findings: Iterable[dict[str, Any]], *, tool_version: str = "0.0.0"
 ) -> dict[str, Any]:
     """Build a SARIF 2.1.0 log from AppGuardrail findings."""
-    normalized = normalize_findings(findings)
-
     rules: dict[str, dict[str, Any]] = {}
+    rule_indices: dict[str, int] = {}
     results: list[dict[str, Any]] = []
-    for f in normalized:
-        rule_id = _nonempty_text(f["rule_id"], "unknown-rule")
-        severity = f["severity"]
-        message = _nonempty_text(f["message"], "No message provided.")
-        file_name = _nonempty_text(f["file"], "n/a")
+    for raw in findings:
+        f = raw if isinstance(raw, dict) else {}
+        rule_id = _nonempty_text(f.get("rule_id"), "unknown-rule")
+        severity = _nonempty_text(f.get("severity"), "INFO").upper()
+        message = _nonempty_text(f.get("message"), "No message provided.")
+        file_name = _nonempty_text(f.get("file"), "n/a")
         line = _start_line(f.get("line"))
-        refs = f.get("references") or ()
+        refs = _string_values(f.get("references"))
+        context = _nonempty_text(f.get("context"), "app-code")
         if rule_id not in rules:
             rule: dict[str, Any] = {
                 "id": rule_id,
@@ -78,12 +93,13 @@ def findings_to_sarif(
                     "security-severity": _SECURITY_SEVERITY.get(severity, "2.0"),
                 },
             }
+            rule_indices[rule_id] = len(rules)
             rules[rule_id] = rule
 
         results.append(
             {
                 "ruleId": rule_id,
-                "ruleIndex": list(rules).index(rule_id),
+                "ruleIndex": rule_indices[rule_id],
                 "level": _LEVEL.get(severity, "note"),
                 "message": {"text": message},
                 "locations": [
@@ -100,9 +116,11 @@ def findings_to_sarif(
                 },
                 "properties": {
                     "severity": severity,
-                    "context": f.get("context") or "app-code",
-                    "deployBlocking": is_deploy_blocking(f),
-                    "remediation": f.get("remediation") or "",
+                    "context": context,
+                    "deployBlocking": is_deploy_blocking(
+                        {"severity": severity, "context": context}
+                    ),
+                    "remediation": _nonempty_text(f.get("remediation"), ""),
                 },
             }
         )

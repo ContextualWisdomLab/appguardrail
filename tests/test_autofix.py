@@ -1,5 +1,7 @@
 """Tests for safe auto-fixes (appguardrail_core.autofix) and `appguardrail fix`."""
 
+import pytest
+
 from appguardrail_core.autofix import apply_safe_fixes, fixable_extensions
 from scanner.cli.appguardrail import cmd_fix
 
@@ -50,6 +52,14 @@ def test_exact_safe_rel_token_remains_unchanged():
     fixed, count = apply_safe_fixes(source, ".html")
     assert count == 0
     assert fixed == source
+
+
+@pytest.mark.parametrize("value", (r"\999", r"\1"))
+def test_rel_backslashes_are_literal_not_regex_replacements(value):
+    source = f'<a href="https://example.com" target="_blank" rel="{value}">x</a>'
+    fixed, count = apply_safe_fixes(source, ".html")
+    assert count == 1
+    assert f'rel="{value} noopener noreferrer"' in fixed
 
 
 def test_cmd_fix_dry_run_does_not_write(tmp_path, capsys):
