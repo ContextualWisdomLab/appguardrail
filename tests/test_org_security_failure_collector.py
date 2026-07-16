@@ -171,8 +171,18 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
     assert "COPY scanner/ scanner/" in dockerfile
     assert "COPY appguardrail_core/ appguardrail_core/" in dockerfile
     assert "COPY docker_entrypoint.py docker_entrypoint.py" in dockerfile
-    assert 'ENTRYPOINT ["python", "-I", "/app/docker_entrypoint.py"]' in dockerfile
-    assert "python -I /app/docker_entrypoint.py --help" in dockerfile
+    assert (
+        'ENTRYPOINT ["/usr/local/bin/python", "-I", '
+        '"/app/docker_entrypoint.py"]' in dockerfile
+    )
+    assert (
+        'HEALTHCHECK --interval=5m --timeout=10s --start-period=30s '
+        '--retries=3 CMD ["/usr/local/bin/python", "-I", '
+        '"/app/docker_entrypoint.py", "--help"]' in dockerfile
+    )
+    assert 'ENTRYPOINT ["python",' not in dockerfile
+    assert "HEALTHCHECK --interval=5m --timeout=10s --start-period=30s " in dockerfile
+    assert " CMD python " not in dockerfile
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
 
 

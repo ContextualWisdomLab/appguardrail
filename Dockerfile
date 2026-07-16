@@ -17,11 +17,11 @@ COPY docker_entrypoint.py docker_entrypoint.py
 RUN useradd --create-home scanner
 USER scanner
 
-HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 CMD python -I /app/docker_entrypoint.py --help >/dev/null || exit 1
+HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 CMD ["/usr/local/bin/python", "-I", "/app/docker_entrypoint.py", "--help"]
 
 WORKDIR /src
 # Resolve the trusted entrypoint by absolute path in isolated mode. The scanned
 # repository is attacker-controlled and may contain a shadow `scanner` package;
 # neither the current directory nor PYTHONPATH may select executable code.
-ENTRYPOINT ["python", "-I", "/app/docker_entrypoint.py"]
+ENTRYPOINT ["/usr/local/bin/python", "-I", "/app/docker_entrypoint.py"]
 CMD ["--help"]
