@@ -223,7 +223,6 @@ def build_sbom(
 if __name__ == "__main__":  # pragma: no cover - self-check
     import tempfile
 
-    # Executable module self-checks; these assertions do not validate user input.
     with tempfile.TemporaryDirectory() as d:
         base = Path(d)
         (base / "package.json").write_text(
@@ -234,12 +233,12 @@ if __name__ == "__main__":  # pragma: no cover - self-check
         )
         comps = collect_components(base)
         names = {c["name"]: c for c in comps}
-        assert names["next"]["version"] == "14.1.0"  # noqa: S101  # nosec B101
-        assert names["next"]["purl"] == "pkg:npm/next@14.1.0"  # noqa: S101  # nosec B101
-        assert names["flask"]["version"] == "3.0.0"  # noqa: S101  # nosec B101
-        assert "version" not in names["requests"]  # noqa: S101  # nosec B101
-        assert names["requests"]["purl"] == "pkg:pypi/requests"  # noqa: S101  # nosec B101
+        assert names["next"]["version"] == "14.1.0"  # ^ stripped
+        assert names["next"]["purl"] == "pkg:npm/next@14.1.0"
+        assert names["flask"]["version"] == "3.0.0"
+        assert "version" not in names["requests"]  # unpinned -> no version
+        assert names["requests"]["purl"] == "pkg:pypi/requests"
         sbom = build_sbom(comps, "demo")
-        assert sbom["bomFormat"] == "CycloneDX" and sbom["specVersion"] == "1.5"  # noqa: S101  # nosec B101
-        assert len(sbom["components"]) == 4  # noqa: S101  # nosec B101
+        assert sbom["bomFormat"] == "CycloneDX" and sbom["specVersion"] == "1.5"
+        assert len(sbom["components"]) == 4
         print("sbom self-check OK")

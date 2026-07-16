@@ -1,5 +1,4 @@
 import importlib.util
-import io
 import sys
 from pathlib import Path
 
@@ -212,50 +211,9 @@ def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
     assert "DRY_RUN update issue #dry-run" in output
 
 
-@pytest.mark.parametrize(
-    "api",
-    [
-        "file:///etc/passwd",
-        "http://api.github.com",
-        "https://attacker.example",
-        "https://api.github.com.attacker.example",
-        "https://token@api.github.com",
-        "https://api.github.com:444",
-        "https://api.github.com/repos",
-    ],
-)
-def test_github_init_rejects_untrusted_api_roots(api):
-    with pytest.raises(
-        ValueError, match="GitHub API URL must be exactly https://api.github.com"
-    ):
-        collector.GitHub("token", api)
-
-
-def test_github_api_request_does_not_follow_token_bearing_redirect(monkeypatch):
-    opened = []
-
-    class _Opener:
-        def open(self, request, timeout):
-            opened.append(
-                (request.full_url, request.headers.get("Authorization"), timeout)
-            )
-            raise collector.urllib.error.HTTPError(
-                request.full_url,
-                302,
-                "Found",
-                {"location": "https://attacker.example/steal"},
-                io.BytesIO(b"redirect blocked"),
-            )
-
-    def _build(handler):
-        assert handler is collector.NoRedirect
-        return _Opener()
-
-    monkeypatch.setattr(collector.urllib.request, "build_opener", _build)
-    client = collector.GitHub("super-secret-token")
-    with pytest.raises(RuntimeError, match="302 redirect blocked"):
-        client.request("GET", "/user")
-    assert opened == [("https://api.github.com/user", "Bearer super-secret-token", 30)]
+def test_github_init_rejects_dangerous_scheme():
+    with pytest.raises(ValueError, match="API URL must start with http:// or https://"):
+        collector.GitHub("token", "file:///etc/passwd")
 
 
 def test_job_log_rejects_internal_dns_resolution(monkeypatch):

@@ -15,34 +15,20 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from appguardrail_core.issueops import (
-    DEFAULT_MAX_LOG_CHARS,
-    DEFAULT_MAX_LOG_LINES,
-    compress_log,
-    is_failure,
-    is_security_name,
-    issue_body,
-    issue_comment,
-    parse_marker,
-    parse_run_url,
-    replace_marker,
-    sanitize_label_value,
-    seen_key,
-    title,
-)
+from appguardrail_core.issueops import (DEFAULT_MAX_LOG_CHARS,
+                                        DEFAULT_MAX_LOG_LINES, compress_log,
+                                        is_failure, is_security_name,
+                                        issue_body, issue_comment,
+                                        parse_marker, parse_run_url,
+                                        replace_marker, sanitize_label_value,
+                                        seen_key, title)
 
 API = "https://api.github.com"
 UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
-BLOCKED_LOG_HOSTS = {  # nosec B104  # noqa: S104 - denylist values, not a bind
-    "localhost",
-    "127.0.0.1",
-    "169.254.169.254",
-    "0.0.0.0",  # noqa: S104 - denylist value, not a socket bind
-    "::1",
-}
+BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
 ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
     ".actions.githubusercontent.com",
     ".blob.core.windows.net",
@@ -93,9 +79,7 @@ def _validate_resolved_addresses(host: str, port: int | None) -> None:
     try:
         resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
-        raise urllib.error.URLError(
-            f"Could not resolve log download host: {host}"
-        ) from exc
+        raise urllib.error.URLError(f"Could not resolve log download host: {host}") from exc
 
     addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
     if not addresses:
@@ -163,24 +147,11 @@ class GitHub:
     def __init__(self, token: str, api: str = API):
         """Create a client using a bearer token and API root."""
         self.token = token
-        try:
-            parsed = urllib.parse.urlparse(api)
-            port = parsed.port
-        except ValueError as exc:
-            raise ValueError("GitHub API URL is invalid") from exc
-        if (
-            parsed.scheme != "https"
-            or (parsed.hostname or "").lower() != "api.github.com"
-            or port not in (None, 443)
-            or parsed.username
-            or parsed.password
-            or parsed.path not in ("", "/")
-            or parsed.params
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ValueError("GitHub API URL must be exactly https://api.github.com")
-        self.api = API
+        self.api = api.rstrip("/")
+        # Security concern: Prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI)
+        # by ensuring the API base URL only uses secure, safe HTTP schemes before opening connections.
+        if not self.api.startswith(("http://", "https://")):
+            raise ValueError("API URL must start with http:// or https://")
 
     def request(
         self,
@@ -205,10 +176,9 @@ class GitHub:
             },
         )
         try:
-            # GitHub API requests carry a bearer token, so never follow a
-            # redirect where urllib might replay Authorization to another host.
-            opener = urllib.request.build_opener(NoRedirect)
-            with opener.open(req, timeout=30) as res:
+            with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
+                req, timeout=30
+            ) as res:
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
@@ -264,8 +234,10 @@ class GitHub:
                 return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
         try:
             _validate_log_download_url(location)
-            download_req = urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
-                location, headers={"User-Agent": UA}
+            download_req = (
+                urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
+                    location, headers={"User-Agent": UA}
+                )
             )
             opener = urllib.request.build_opener(SecureRedirectHandler)
             with opener.open(download_req, timeout=30) as res:

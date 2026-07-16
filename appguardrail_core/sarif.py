@@ -112,7 +112,6 @@ def findings_to_sarif(
 
 
 if __name__ == "__main__":  # pragma: no cover - self-check
-    # Executable module self-checks; these assertions do not validate user input.
     log = findings_to_sarif(
         [
             {
@@ -136,14 +135,14 @@ if __name__ == "__main__":  # pragma: no cover - self-check
         tool_version="1.2.3",
     )
     run = log["runs"][0]
-    assert log["version"] == "2.1.0"  # noqa: S101  # nosec B101
-    assert run["tool"]["driver"]["version"] == "1.2.3"  # noqa: S101  # nosec B101
-    assert len(run["results"]) == 2  # noqa: S101  # nosec B101
-    assert run["results"][0]["level"] == "error"  # noqa: S101  # nosec B101
-    assert run["results"][0]["properties"]["deployBlocking"] is True  # noqa: S101  # nosec B101
-    assert run["results"][1]["level"] == "note"  # noqa: S101  # nosec B101
-    assert run["results"][1]["properties"]["deployBlocking"] is False  # noqa: S101  # nosec B101
+    assert log["version"] == "2.1.0"
+    assert run["tool"]["driver"]["version"] == "1.2.3"
+    assert len(run["results"]) == 2
+    assert run["results"][0]["level"] == "error"
+    assert run["results"][0]["properties"]["deployBlocking"] is True
+    assert run["results"][1]["level"] == "note"
+    assert run["results"][1]["properties"]["deployBlocking"] is False
     # rules deduped, security-severity present for GitHub ranking
-    assert len(run["tool"]["driver"]["rules"]) == 2  # noqa: S101  # nosec B101
-    assert run["tool"]["driver"]["rules"][0]["properties"]["security-severity"] == "9.0"  # noqa: S101  # nosec B101
+    assert len(run["tool"]["driver"]["rules"]) == 2
+    assert run["tool"]["driver"]["rules"][0]["properties"]["security-severity"] == "9.0"
     print("sarif self-check OK")

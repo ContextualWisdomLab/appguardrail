@@ -76,16 +76,15 @@ def apply_safe_fixes(text: str, ext: str) -> "tuple[str, int]":
 
 
 if __name__ == "__main__":  # pragma: no cover - self-check
-    # Executable module self-checks; these assertions do not validate user input.
     src = '<a href="https://x.com" target="_blank">x</a>\n<a href="/local" target="_blank">l</a>\n<a href="https://y.com" target="_blank" rel="noopener">y</a>'
     out, n = apply_safe_fixes(src, ".html")
-    assert n == 1, n  # noqa: S101  # nosec B101
-    assert 'rel="noopener noreferrer"' in out  # noqa: S101  # nosec B101
-    assert out.count("rel=") == 2  # noqa: S101  # nosec B101
+    assert n == 1, n  # only the external, rel-less one is fixed
+    assert 'rel="noopener noreferrer"' in out
+    assert out.count("rel=") == 2  # original rel preserved, one added
     # idempotent: running again fixes nothing
     _, n2 = apply_safe_fixes(out, ".html")
-    assert n2 == 0  # noqa: S101  # nosec B101
+    assert n2 == 0
     # non-matching extension is a no-op
     _, n3 = apply_safe_fixes(src, ".py")
-    assert n3 == 0  # noqa: S101  # nosec B101
+    assert n3 == 0
     print("autofix self-check OK")
