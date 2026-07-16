@@ -150,6 +150,25 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "if: steps.app-config.outputs.configured == 'true'" not in workflow
     assert "python3 -m scripts.ci.collect_org_security_failures" in workflow
     assert "python3 scripts/ci/collect_org_security_failures.py" not in workflow
+    assert "workflow_dispatch:" not in workflow
+    assert "repository_dispatch:" in workflow
+    assert "types: [collect-org-security-failures]" in workflow
+    assert "ORG_SECURITY_FAILURE_DISPATCH_ACTOR" in workflow
+    assert "dispatch rejected actor=" in workflow
+    assert "ref: ${{ github.sha }}" in workflow
+    assert "persist-credentials: false" in workflow
+
+
+def test_documented_docker_scan_mount_is_read_only():
+    """Keep the scanner from receiving write access to the host source tree."""
+    dockerfile = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert '-v "$PWD:/src:ro"' in dockerfile
+    assert "--read-only" in dockerfile
+    assert "--tmpfs /tmp:rw,nosuid,nodev,noexec" in dockerfile
+    assert '-v "$PWD:/src" appguardrail' not in dockerfile
 
 
 def test_publish_skips_duplicate_and_reopens_closed_issue():
