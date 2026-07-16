@@ -202,6 +202,13 @@ def test_server_serves_tokens_css(tmp_path):
         server.server_close()
 
 
+def test_dashboard_escapes_severity_in_chip():
+    """The dashboard must escape severity values before rendering them as chips."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert "${esc(s)}</span>" in html
+    assert ">${s}</span>" not in html
+
+
 def test_server_404s_missing_findings(tmp_path):
     missing = tmp_path / "nope.json"
     server = make_dashboard_server("127.0.0.1", 0, b"<html>DASH</html>", missing)
