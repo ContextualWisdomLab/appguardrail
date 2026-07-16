@@ -103,7 +103,9 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
         in workflow
     )
     assert "Create target-only issue write token" in workflow
-    assert "repositories: ${{ github.event.repository.name }}" in workflow
+    assert "repositories: appguardrail" in workflow
+    assert "repositories: ${{ github.event.repository.name }}" not in workflow
+    assert "An empty value" in workflow
     assert "GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}" in workflow
     assert "GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}" in workflow
     assert "GH_TOKEN: ${{ steps.app-token.outputs.token }}" not in workflow
@@ -283,6 +285,52 @@ def test_publish_skips_duplicate_and_reopens_closed_issue():
     assert patch and patch[0][3]["state"] == "open"
     assert collector.seen_key(unseen) in patch[0][3]["body"]
     assert comment
+    assert client.calls.index(comment[0]) < client.calls.index(patch[0])
+
+
+def test_publish_retries_after_comment_delivery_failure():
+    """Do not persist a dedupe marker until the alert comment is delivered."""
+    unseen = finding(job_id=999, snippet="::error:: security failure")
+    issue = {
+        "number": 17,
+        "state": "closed",
+        "title": collector.title(unseen),
+        "body": issueops.marker(unseen["repo"], unseen["workflow"], {"1:2"}),
+    }
+
+    class FailingCommentClient(FakeClient):
+        def request(self, method, path, data=None):
+            self.calls.append(("request", method, path, data))
+            if method == "POST" and path.endswith("/comments"):
+                raise RuntimeError("GitHub API comment failed: 503")
+            raise AssertionError("marker PATCH must not run after comment failure")
+
+    failing_client = FailingCommentClient([issue])
+    with pytest.raises(RuntimeError, match="503"):
+        collector.publish_one(
+            failing_client,
+            "ContextualWisdomLab/appguardrail",
+            unseen,
+            False,
+            {issue["title"]: issue},
+            set(),
+        )
+
+    key = collector.seen_key(unseen)
+    assert key not in issueops.parse_marker(issue["body"])["seen"]
+    assert all(call[1] != "PATCH" for call in failing_client.calls)
+
+    retry_client = FakeClient([issue])
+    collector.publish_one(
+        retry_client,
+        "ContextualWisdomLab/appguardrail",
+        unseen,
+        False,
+        {issue["title"]: issue},
+        set(),
+    )
+    assert [call[1] for call in retry_client.calls] == ["POST", "PATCH"]
+    assert key in issueops.parse_marker(issue["body"])["seen"]
 
 
 def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):

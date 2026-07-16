@@ -310,13 +310,16 @@ def publish_one(
         )
         print(issue_comment(finding))
     else:
-        data = {"state": "open", "body": body} if reopen else {"body": body}
-        client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", data)
+        # Deliver the alert before committing its deduplication marker. If the
+        # comment request fails, the next collector loop must retry the finding
+        # instead of silently treating an undelivered alert as seen.
         client.request(
             "POST",
             f"/repos/{target_repo}/issues/{issue['number']}/comments",
             {"body": issue_comment(finding)},
         )
+        data = {"state": "open", "body": body} if reopen else {"body": body}
+        client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", data)
         print(
             f"updated issue #{issue['number']} for {finding['repo']} {finding['workflow']} {key}"
         )

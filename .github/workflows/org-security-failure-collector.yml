@@ -88,7 +88,9 @@ jobs:
           app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
           private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
+          # Keep schedule and repository_dispatch fail-closed. An empty value
+          # would grant issue-write across every repository in the App install.
+          repositories: appguardrail
           permission-issues: write
 
       - name: Collect security workflow failures
