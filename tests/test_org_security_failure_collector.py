@@ -155,9 +155,17 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "repository_dispatch:" in workflow
     assert "types: [collect-org-security-failures]" in workflow
     assert "ORG_SECURITY_FAILURE_DISPATCH_ACTOR" in workflow
+    assert "ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" in workflow
     assert "dispatch rejected actor=" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "persist-credentials: false" in workflow
+    assert "Create allowlisted organization read token" in workflow
+    assert "repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}" in workflow
+    assert "Create target-only issue write token" in workflow
+    assert "repositories: ${{ github.event.repository.name }}" in workflow
+    assert "GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}" in workflow
+    assert "GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}" in workflow
+    assert "GH_TOKEN: ${{ steps.app-token.outputs.token }}" not in workflow
 
 
 def test_documented_docker_scan_mount_is_read_only():
@@ -212,6 +220,68 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
     )
     assert "python -I /app/scanner/cli/appguardrail.py --help" in dockerfile
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
+
+
+def test_collector_main_separates_org_reads_from_target_issue_writes(monkeypatch):
+    """Use distinct clients so the write credential cannot mutate every read target."""
+    clients = []
+
+    class RecordingGitHub:
+        def __init__(self, token):
+            self.token = token
+            clients.append(self)
+
+    observed = {}
+
+    def fake_collect(client, _args):
+        observed["read"] = client.token
+        return [finding()]
+
+    def fake_publish(client, target_repo, findings, dry_run):
+        observed["write"] = client.token
+        observed["target"] = target_repo
+        observed["findings"] = findings
+        observed["dry_run"] = dry_run
+
+    monkeypatch.setenv("GH_READ_TOKEN", "allowlisted-read-token")
+    monkeypatch.setenv("GH_WRITE_TOKEN", "target-only-write-token")
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(collector, "GitHub", RecordingGitHub)
+    monkeypatch.setattr(collector, "collect_findings", fake_collect)
+    monkeypatch.setattr(collector, "publish_findings", fake_publish)
+
+    assert collector.main(["--target-repo", "ContextualWisdomLab/appguardrail"]) == 0
+    assert [client.token for client in clients] == [
+        "allowlisted-read-token",
+        "target-only-write-token",
+    ]
+    assert observed == {
+        "read": "allowlisted-read-token",
+        "write": "target-only-write-token",
+        "target": "ContextualWisdomLab/appguardrail",
+        "findings": [finding()],
+        "dry_run": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("read_token", "write_token", "reason"),
+    [
+        ("", "write", "both required"),
+        ("read", "", "both required"),
+        ("same", "same", "must be distinct"),
+    ],
+)
+def test_collector_main_rejects_missing_or_shared_credentials(
+    monkeypatch, read_token, write_token, reason
+):
+    """Fail closed instead of falling back to one organization-wide write token."""
+    monkeypatch.setenv("GH_READ_TOKEN", read_token)
+    monkeypatch.setenv("GH_WRITE_TOKEN", write_token)
+
+    with pytest.raises(SystemExit, match=reason):
+        collector.main([])
 
 
 def test_publish_skips_duplicate_and_reopens_closed_issue():

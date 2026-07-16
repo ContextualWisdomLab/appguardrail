@@ -29,6 +29,7 @@ jobs:
       # this scheduled governance control into a no-op.
       ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID || vars.NOEMA_GITHUB_APP_ID }}
       ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
+      ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES: ${{ vars.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}
     steps:
       - name: Authorize manual default-branch collection dispatch
         if: github.event_name == 'repository_dispatch'
@@ -60,27 +61,40 @@ jobs:
         id: app-config
         run: |
           set -euo pipefail
-          if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" ]]; then
+          if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && \
+            -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" && \
+            -n "$ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Org security failure collection cannot run: neither the dedicated collector App nor the centrally managed Noema App has a complete App ID/private-key configuration."
+            echo "::error::Org security failure collection cannot run: configure a complete dedicated/Noema App credential and the explicit ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES allowlist."
             exit 1
           fi
 
-      - name: Create org installation token
-        id: app-token
+      - name: Create allowlisted organization read token
+        id: read-app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
           private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}
           permission-actions: read
           permission-checks: read
+
+      - name: Create target-only issue write token
+        id: write-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
+          private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
           permission-issues: write
 
       - name: Collect security workflow failures
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}
+          GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
           set -euo pipefail
           python3 -m scripts.ci.collect_org_security_failures \
