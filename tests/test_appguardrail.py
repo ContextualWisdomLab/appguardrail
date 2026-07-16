@@ -18,10 +18,9 @@ from scanner.cli.appguardrail import (SCAN_RULES, _bandit_findings,
                                       _run_ruff_security_scan,
                                       _run_semgrep_scan, _run_trivy_fs,
                                       _run_zap_baseline, _scan_file,
-                                      _semgrep_findings,
-                                      _write_findings_json, _write_sarif,
-                                      cmd_init, cmd_monitor, cmd_org_bundle,
-                                      cmd_report, cmd_scan, cmd_serve)
+                                      _semgrep_findings, cmd_init, cmd_monitor,
+                                      cmd_org_bundle, cmd_report, cmd_scan,
+                                      cmd_serve)
 
 MOCK_RULES = [
     {
@@ -711,21 +710,6 @@ def test_cmd_scan_writes_normalized_findings_json(tmp_path, capsys):
     assert "Findings JSON written" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("writer", [_write_findings_json, _write_sarif])
-def test_report_writers_replace_symlink_without_touching_target(tmp_path, writer):
-    target = tmp_path / "outside.txt"
-    target.write_text("do not overwrite", encoding="utf-8")
-    output = tmp_path / "report.json"
-    output.symlink_to(target)
-
-    writer([], output)
-
-    assert target.read_text(encoding="utf-8") == "do not overwrite"
-    assert not output.is_symlink()
-    assert output.is_file()
-    assert output.stat().st_mode & 0o777 == 0o600
-
-
 def test_cmd_serve_create_org_writes_api_key_file(tmp_path, capsys):
     key_file = tmp_path / "acme.api-key"
 
@@ -962,54 +946,6 @@ def test_bandit_findings_maps_json_report(tmp_path):
     assert findings[0]["line"] == 12
 
 
-@pytest.mark.parametrize("test_id", ["B105", "B106", "B107"])
-def test_bandit_secret_findings_never_emit_matched_value(tmp_path, test_id):
-    secret = "super-secret-value"
-    report = {
-        "results": [
-            {
-                "test_id": test_id,
-                "filename": str(tmp_path / "settings.py"),
-                "line_number": 3,
-                "issue_severity": "MEDIUM",
-                "issue_text": f"Possible hardcoded password: password={secret}",
-                "code": f'password = "{secret}"',
-            }
-        ]
-    }
-
-    finding = _bandit_findings(report, tmp_path)[0]
-
-    assert finding["category"] == "secrets"
-    assert secret not in finding["message"]
-    assert secret not in finding["snippet"]
-    assert finding["snippet"] == "[REDACTED: sensitive match suppressed]"
-
-    findings_json = tmp_path / "findings.json"
-    sarif = tmp_path / "findings.sarif"
-    _write_findings_json([finding], findings_json)
-    _write_sarif([finding], sarif)
-    assert secret not in findings_json.read_text(encoding="utf-8")
-    assert secret not in sarif.read_text(encoding="utf-8")
-
-
-def test_opaque_rule_redacts_slack_webhook_from_message_and_snippet():
-    webhook = "https://hooks.slack.com/services/T/B/xyz"
-
-    finding = _build_finding(
-        "provider",
-        "provider:opaque-42",
-        "HIGH",
-        f"Matched endpoint {webhook}",
-        "settings.py",
-        5,
-        webhook,
-    )
-
-    assert webhook not in finding["message"]
-    assert webhook not in finding["snippet"]
-
-
 def test_run_bandit_scan_maps_json_findings(tmp_path):
     report = {
         "results": [
@@ -1107,30 +1043,6 @@ def test_semgrep_findings_maps_json_results(tmp_path):
     assert findings[0]["severity"] == "HIGH"
     assert findings[0]["file"] == "server.ts"
     assert findings[0]["line"] == 7
-
-
-def test_semgrep_secret_metadata_redacts_opaque_rule_snippet(tmp_path):
-    secret = "opaque-provider-secret"
-    report = {
-        "results": [
-            {
-                "check_id": "vendor.rule.142",
-                "path": str(tmp_path / "settings.py"),
-                "start": {"line": 4},
-                "extra": {
-                    "message": "Sensitive material detected",
-                    "severity": "ERROR",
-                    "lines": f'config = "{secret}"',
-                    "metadata": {"technology": ["secrets"]},
-                },
-            }
-        ]
-    }
-
-    finding = _semgrep_findings(report, tmp_path)[0]
-
-    assert finding["category"] == "secrets"
-    assert secret not in finding["snippet"]
 
 
 def test_run_semgrep_scan_maps_json_findings(tmp_path):

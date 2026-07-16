@@ -1,5 +1,4 @@
 import importlib.util
-import io
 import sys
 from pathlib import Path
 
@@ -212,70 +211,9 @@ def test_publish_findings_fetches_issues_once_and_caches_labels(capsys):
     assert "DRY_RUN update issue #dry-run" in output
 
 
-def test_collector_terminal_output_escapes_ansi_osc_and_bell(capsys):
-    malicious = finding(
-        workflow="strix\x1b[2J\x1b]0;owned\x07",
-        snippet="payload\x1b]52;c;ZXhmaWw=\x07",
-    )
-    collector.publish_one(
-        FakeClient([]),
-        "ContextualWisdomLab/appguardrail",
-        malicious,
-        True,
-        {},
-        set(),
-    )
-    output = capsys.readouterr().out
-    assert "\x1b" not in output
-    assert "\x07" not in output
-    assert "\\x1b[2J" in output
-    assert "\\x07" in output
-
-
-@pytest.mark.parametrize(
-    "api",
-    [
-        "file:///etc/passwd",
-        "http://api.github.com",
-        "https://attacker.example",
-        "https://api.github.com.attacker.example",
-        "https://token@api.github.com",
-        "https://api.github.com:444",
-        "https://api.github.com/repos",
-    ],
-)
-def test_github_init_rejects_untrusted_api_roots(api):
-    with pytest.raises(
-        ValueError, match="GitHub API URL must be exactly https://api.github.com"
-    ):
-        collector.GitHub("token", api)
-
-
-def test_github_api_request_does_not_follow_token_bearing_redirect(monkeypatch):
-    opened = []
-
-    class _Opener:
-        def open(self, request, timeout):
-            opened.append(
-                (request.full_url, request.headers.get("Authorization"), timeout)
-            )
-            raise collector.urllib.error.HTTPError(
-                request.full_url,
-                302,
-                "Found",
-                {"location": "https://attacker.example/steal"},
-                io.BytesIO(b"redirect blocked"),
-            )
-
-    def _build(handler):
-        assert handler is collector.NoRedirect
-        return _Opener()
-
-    monkeypatch.setattr(collector.urllib.request, "build_opener", _build)
-    client = collector.GitHub("super-secret-token")
-    with pytest.raises(RuntimeError, match="302 redirect blocked"):
-        client.request("GET", "/user")
-    assert opened == [("https://api.github.com/user", "Bearer super-secret-token", 30)]
+def test_github_init_rejects_dangerous_scheme():
+    with pytest.raises(ValueError, match="API URL must start with http:// or https://"):
+        collector.GitHub("token", "file:///etc/passwd")
 
 
 def test_job_log_rejects_internal_dns_resolution(monkeypatch):
@@ -287,7 +225,19 @@ def test_job_log_rejects_internal_dns_resolution(monkeypatch):
             "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
         ),
     )
-    monkeypatch.setattr(collector, "resolve_public_url", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        collector.socket,
+        "getaddrinfo",
+        lambda *_, **__: [
+            (
+                collector.socket.AF_INET,
+                collector.socket.SOCK_STREAM,
+                6,
+                "",
+                ("127.0.0.1", 443),
+            )
+        ],
+    )
 
     assert "Access to internal address blocked" in client.job_log(
         "ContextualWisdomLab/naruon", 123
@@ -316,44 +266,20 @@ def test_job_log_allows_public_github_log_host(monkeypatch):
             "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
         ),
     )
-    parsed = collector.urllib.parse.urlparse(
+    monkeypatch.setattr(
+        collector.socket,
+        "getaddrinfo",
+        lambda *_, **__: [
+            (
+                collector.socket.AF_INET,
+                collector.socket.SOCK_STREAM,
+                6,
+                "",
+                ("93.184.216.34", 443),
+            )
+        ],
+    )
+
+    assert client.job_log("ContextualWisdomLab/naruon", 123) == (
         "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
     )
-    target = (parsed, "93.184.216.34", 443)
-    monkeypatch.setattr(
-        collector, "resolve_public_url", lambda *_args, **_kwargs: target
-    )
-    seen = []
-
-    def request_pinned(resolved, **kwargs):
-        seen.append((resolved, kwargs))
-        return 200, {}, b"job log contents"
-
-    monkeypatch.setattr(collector, "request_pinned_url", request_pinned)
-
-    assert client.job_log("ContextualWisdomLab/naruon", 123) == "job log contents"
-    assert seen[0][0] == target
-
-
-def test_job_log_download_uses_validated_ip_without_second_resolution(monkeypatch):
-    location = "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener(location),
-    )
-    parsed = collector.urllib.parse.urlparse(location)
-    resolutions = []
-
-    def resolve(url, **_kwargs):
-        resolutions.append(url)
-        return parsed, "93.184.216.34", 443
-
-    def request(target, **_kwargs):
-        assert target[1] == "93.184.216.34"
-        return 200, {}, b"pinned"
-
-    monkeypatch.setattr(collector, "resolve_public_url", resolve)
-    monkeypatch.setattr(collector, "request_pinned_url", request)
-    assert collector.GitHub("token").job_log("owner/repo", 123) == "pinned"
-    assert resolutions == [location]

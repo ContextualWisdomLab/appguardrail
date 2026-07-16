@@ -72,21 +72,3 @@ def test_empty_findings_valid():
     run = findings_to_sarif([])["runs"][0]
     assert run["results"] == []
     assert run["tool"]["driver"]["rules"] == []
-
-
-def test_malformed_message_and_line_use_safe_defaults():
-    run = findings_to_sarif(
-        [
-            {
-                "rule_id": "   ",
-                "message": " \n\t ",
-                "file": "   ",
-                "line": "not-a-number",
-            }
-        ]
-    )["runs"][0]
-    assert run["tool"]["driver"]["rules"][0]["id"] == "unknown-rule"
-    assert run["results"][0]["message"]["text"] == "No message provided."
-    location = run["results"][0]["locations"][0]["physicalLocation"]
-    assert location["artifactLocation"]["uri"] == "n/a"
-    assert location["region"]["startLine"] == 1

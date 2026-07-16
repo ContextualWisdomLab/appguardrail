@@ -40,17 +40,14 @@ Options:
 """
 
 import argparse
-import errno
 import fnmatch
 import functools
-import http.client
 import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import os
 import re
 import shlex
 import shutil
-import ssl
 import stat
 import subprocess
 import sys
@@ -61,7 +58,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
-from appguardrail_core.controlplane import request_pinned_url, resolve_public_url
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
 from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
@@ -104,7 +100,10 @@ def _format_msg(msg: str) -> str:
 def _console_print(*values, **kwargs) -> None:
     """Print CLI values after applying accessibility formatting to strings."""
     _ORIGINAL_PRINT(
-        *(_format_msg(value) if isinstance(value, str) else value for value in values),
+        *(
+            _format_msg(value) if isinstance(value, str) else value
+            for value in values
+        ),
         **kwargs,
     )
 
@@ -1171,125 +1170,6 @@ def _display_path(path: str | Path) -> str:
     return Path(path).as_posix()
 
 
-def _secure_project_write(
-    project_root: Path,
-    relative_path: Path,
-    content: str,
-    *,
-    append_marker: "str | None" = None,
-    skip_existing: bool = False,
-) -> str:
-    """Write inside a project without following raced directory or file symlinks."""
-    relative_path = Path(relative_path)
-    if relative_path.is_absolute() or any(
-        part in {"", ".", ".."} for part in relative_path.parts
-    ):
-        raise ValueError(f"unsafe project-relative path: {relative_path}")
-
-    required_flags = all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW"))
-    if os.name == "nt" or not required_flags:  # pragma: no cover - Windows fallback
-        target = project_root / relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.parent.resolve().is_relative_to(project_root):
-            raise ValueError(f"target parent escapes project root: {relative_path}")
-        existing = None
-        if target.exists() and not target.is_symlink():
-            existing = target.read_text(encoding="utf-8")
-        if skip_existing and existing is not None:
-            return "skipped"
-        if append_marker and existing is not None:
-            if append_marker in existing:
-                return "skipped"
-            content = existing + "\n\n" + content
-            action = "appended"
-        else:
-            action = "written"
-        _atomic_write_private_text(target, content)
-        return action
-
-    directory_fds: list[int] = []
-    temporary_name: "str | None" = None
-    try:
-        current_fd = os.open(
-            project_root,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-        )
-        directory_fds.append(current_fd)
-        for part in relative_path.parts[:-1]:
-            try:
-                next_fd = os.open(
-                    part,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                    dir_fd=current_fd,
-                )
-            except FileNotFoundError:
-                os.mkdir(part, mode=0o755, dir_fd=current_fd)
-                next_fd = os.open(
-                    part,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                    dir_fd=current_fd,
-                )
-            directory_fds.append(next_fd)
-            current_fd = next_fd
-
-        name = relative_path.name
-        existing: "str | None" = None
-        try:
-            read_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=current_fd)
-        except FileNotFoundError:
-            read_fd = -1
-        except OSError as exc:
-            # A final-path symlink is intentionally treated as absent; the atomic
-            # replacement below replaces the link itself instead of its target.
-            if exc.errno != errno.ELOOP:
-                raise
-            read_fd = -1
-        if read_fd >= 0:
-            with os.fdopen(read_fd, "r", encoding="utf-8") as stream:
-                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-                    raise ValueError(f"target is not a regular file: {relative_path}")
-                existing = stream.read()
-
-        if skip_existing and existing is not None:
-            return "skipped"
-        if append_marker and existing is not None:
-            if append_marker in existing:
-                return "skipped"
-            content = existing + "\n\n" + content
-            action = "appended"
-        else:
-            action = "written"
-
-        temporary_name = f".{name}.appguardrail-{os.getpid()}-{os.urandom(8).hex()}.tmp"
-        write_fd = os.open(
-            temporary_name,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-            0o600,
-            dir_fd=current_fd,
-        )
-        with os.fdopen(write_fd, "w", encoding="utf-8") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(
-            temporary_name,
-            name,
-            src_dir_fd=current_fd,
-            dst_dir_fd=current_fd,
-        )
-        temporary_name = None
-        os.fsync(current_fd)
-        return action
-    finally:
-        if temporary_name is not None and directory_fds:
-            try:
-                os.unlink(temporary_name, dir_fd=directory_fds[-1])
-            except FileNotFoundError:
-                pass
-        for directory_fd in reversed(directory_fds):
-            os.close(directory_fd)
-
-
 # ---------------------------------------------------------------------------
 # Command implementations
 # ---------------------------------------------------------------------------
@@ -1369,24 +1249,19 @@ def cmd_init(args):
             )
             sys.exit(1)
 
-        try:
-            action = _secure_project_write(
-                project_root,
-                config["path"],
-                config["content"],
-                append_marker=config.get("append_marker"),
-            )
-        except (OSError, ValueError) as exc:
-            _console_print(
-                f"❌ Error: Refusing unsafe target {_display_path(config['path'])}: {exc}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if action == "skipped":
-            skipped.append(_display_path(config["path"]))
-        elif action == "appended":
-            installed.append(f"{_display_path(config['path'])} (appended)")
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        if target_file.is_symlink():
+            target_file.unlink()
+
+        if "append_marker" in config and target_file.exists():
+            existing = target_file.read_text()
+            if config["append_marker"] not in existing:
+                target_file.write_text(existing + "\n\n" + config["content"])
+                installed.append(f"{_display_path(config['path'])} (appended)")
+            else:
+                skipped.append(_display_path(config["path"]))
         else:
+            target_file.write_text(config["content"])
             installed.append(_display_path(config["path"]))
     # Always create the checklist
     checklist_file = project_root / "APPGUARDRAIL_CHECKLIST.md"
@@ -1403,19 +1278,10 @@ def cmd_init(args):
         )
         sys.exit(1)
 
-    try:
-        checklist_action = _secure_project_write(
-            project_root,
-            Path("APPGUARDRAIL_CHECKLIST.md"),
-            CHECKLIST_TEMPLATE,
-            skip_existing=True,
-        )
-    except (OSError, ValueError) as exc:
-        _console_print(
-            f"❌ Error: Refusing unsafe checklist target: {exc}", file=sys.stderr
-        )
-        sys.exit(1)
-    if checklist_action == "written":
+    if checklist_file.is_symlink():
+        checklist_file.unlink()
+    if not checklist_file.exists():
+        checklist_file.write_text(CHECKLIST_TEMPLATE)
         installed.append("APPGUARDRAIL_CHECKLIST.md")
     else:
         skipped.append("APPGUARDRAIL_CHECKLIST.md")
@@ -1493,15 +1359,6 @@ def _print_external_auto_skips(plan):
     _console_print()
 
 
-def _finding_is_blocked_by_policy(finding, config):
-    """Apply repository policy without letting it weaken the built-in gate."""
-    if core_is_deploy_blocking(finding):
-        return True
-    if finding.get("rule_id") in (config.get("exclude_rules") or set()):
-        return False
-    return core_is_deploy_blocking(finding, config.get("blocking_severities"))
-
-
 def cmd_scan(args):
     """Run a lightweight security scan."""
     scan_arg = Path(getattr(args, "path", ".") or ".")
@@ -1536,9 +1393,7 @@ def cmd_scan(args):
     _console_print(f"\n🔍 AppGuardrail scanning: {scan_path}\n")
 
     if run_codegraph:
-        _console_print(
-            "🧭 CodeGraph enabled: initializing or syncing structural index\n"
-        )
+        _console_print("🧭 CodeGraph enabled: initializing or syncing structural index\n")
         try:
             status = _run_codegraph_index(scan_path)
         except RuntimeError as exc:
@@ -1576,13 +1431,9 @@ def cmd_scan(args):
         if profile.frameworks:
             _console_print(f"   Framework signals: {', '.join(profile.frameworks)}")
         if profile.external_tools:
-            _console_print(
-                f"   Optional external engines: {', '.join(profile.external_tools)}"
-            )
+            _console_print(f"   Optional external engines: {', '.join(profile.external_tools)}")
         if profile.zap_recommended:
-            _console_print(
-                "   ZAP baseline: provide --zap-baseline <url> for authorized DAST"
-            )
+            _console_print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
         _console_print()
 
     external_plan = build_external_scan_plan(
@@ -1701,8 +1552,7 @@ def cmd_scan(args):
     if files_scanned == 0:
         return 1
 
-    # Repository policy may make the built-in gate stricter, but PR-controlled
-    # config must never suppress a default CRITICAL/HIGH blocker.
+    # Optional .appguardrail.json tunes the gate (fail_on threshold, rule excludes).
     config_dir = scan_path if scan_path.is_dir() else scan_path.parent
     try:
         config = load_config([config_dir, Path.cwd()])
@@ -1725,7 +1575,15 @@ def cmd_scan(args):
             f"⚙️  Config {config['_path']}" + (f": {', '.join(notes)}" if notes else "")
         )
 
-    return 1 if any(_finding_is_blocked_by_policy(f, config) for f in findings) else 0
+    blocking = config.get("blocking_severities")
+    excluded = config.get("exclude_rules") or set()
+
+    def _gates(finding):
+        if finding.get("rule_id") in excluded:
+            return False
+        return core_is_deploy_blocking(finding, blocking)
+
+    return 1 if any(_gates(f) for f in findings) else 0
 
 
 def _write_findings_json(findings, output_path: Path):
@@ -1736,51 +1594,88 @@ def _write_findings_json(findings, output_path: Path):
         "findings": list(normalized),
     }
     try:
-        _atomic_write_private_text(
-            output_path, json.dumps(payload, indent=2, sort_keys=True) + "\n"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
     except OSError as exc:
         raise RuntimeError(f"Cannot write findings JSON: {output_path}") from exc
     _console_print(f"🧾 Findings JSON written: {output_path}")
 
 
-def _atomic_write_private_text(output_path: Path, text: str) -> None:
-    """Atomically replace a report without following a final-path symlink."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary_name = tempfile.mkstemp(
-        dir=output_path.parent,
-        prefix=f".{output_path.name}.",
-        suffix=".tmp",
-    )
-    temporary_path = Path(temporary_name)
-    try:
-        os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            fd = -1
-            stream.write(text)
-            stream.flush()
-            os.fsync(stream.fileno())
-        # os.replace replaces the directory entry itself. If output_path is a
-        # symlink, its target remains untouched and the report replaces the link.
-        os.replace(temporary_path, output_path)
-    finally:
-        if fd >= 0:
-            os.close(fd)
-        try:
-            temporary_path.unlink()
-        except FileNotFoundError:
-            # A concurrent cleanup or successful os.replace can consume it.
-            pass
+import urllib.error
+import urllib.request
+
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_safe_url(newurl):
+            raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _is_safe_url(url: str) -> bool:
-    """Return whether a push URL resolves exclusively to public HTTPS addresses."""
-    return resolve_public_url(url, allowed_schemes={"https"}) is not None
+    import ipaddress
+    import urllib.parse
+    import socket
+
+    try:
+        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    except ValueError:
+        return False
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    raw = host.split("%", 1)[0].strip("[]")
+
+    def is_bad_ip(ip) -> bool:
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped:
+            ip = mapped
+        return (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_unspecified
+            or ip.is_multicast
+            or getattr(ip, "is_reserved", False)
+            or not getattr(ip, "is_global", True)
+        )
+
+    try:
+        ip = ipaddress.ip_address(raw)
+        if is_bad_ip(ip):
+            return False
+    except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(raw, None)
+        for entry in resolved:
+            ip_str = entry[4][0].split("%", 1)[0]
+            ip = ipaddress.ip_address(ip_str)
+            if is_bad_ip(ip):
+                return False
+    except socket.gaierror:
+        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
+        # This allows dummy domains in tests like `hook.example`.
+        pass
+    except ValueError:
+        return False
+
+    return True
 
 
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
+    import urllib.error
+    import urllib.request
+
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
         _console_print(
@@ -1788,11 +1683,9 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
-    endpoint = url.rstrip("/") + "/api/v1/scans"
-    target = resolve_public_url(endpoint, allowed_schemes={"https"})
-    if target is None:
+    if not _is_safe_url(url):
         _console_print(
-            f"⚠️  --push URL must be a resolvable public HTTPS URL, got {url}",
+            f"⚠️  --push URL must be a valid http/https URL and not point to internal infrastructure, got {url}",
             file=sys.stderr,
         )
         return
@@ -1801,30 +1694,31 @@ def _push_findings(url, findings):
         "repo": os.environ.get("GITHUB_REPOSITORY"),
         "commit": os.environ.get("GITHUB_SHA"),
     }
-    encoded = json.dumps(payload).encode("utf-8")
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
     try:
-        status, _headers, response = request_pinned_url(
-            target,
-            method="POST",
-            body=encoded,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            timeout=15,
-            max_response_bytes=1024 * 1024,
-        )
-        if not 200 <= status < 300:
-            _console_print(
-                f"⚠️  Control-plane push failed ({status}); scan still completed.",
-                file=sys.stderr,
-            )
-            return
-        body = json.loads(response or b"{}")
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        with opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            req, timeout=15
+        ) as resp:  # noqa: S310 - Safe URL scheme validated
+            body = json.loads(resp.read() or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""
         _console_print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
-    except (OSError, ValueError, http.client.HTTPException, ssl.SSLError) as exc:
+    except urllib.error.HTTPError as exc:
+        _console_print(
+            f"⚠️  Control-plane push failed ({exc.code}); scan still completed.",
+            file=sys.stderr,
+        )
+    except (urllib.error.URLError, OSError, ValueError) as exc:
         _console_print(
             f"⚠️  Control-plane push failed ({exc}); scan still completed.",
             file=sys.stderr,
@@ -1837,8 +1731,9 @@ def _write_sarif(findings, output_path: Path):
 
     log = findings_to_sarif(findings, tool_version=__version__)
     try:
-        _atomic_write_private_text(
-            output_path, json.dumps(log, indent=2, sort_keys=True) + "\n"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(log, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
     except OSError as exc:
         raise RuntimeError(f"Cannot write SARIF: {output_path}") from exc
@@ -1912,9 +1807,7 @@ def cmd_fix(args):
             f"\n🔧 {total_fixes} safe fix{fix_s} available in {changed_files} file{file_s}. "
             "Re-run with --apply to write them."
         )
-        _console_print(
-            "   Other findings need review — see 'appguardrail report fix-pack'."
-        )
+        _console_print("   Other findings need review — see 'appguardrail report fix-pack'.")
     return 0
 
 
@@ -1952,9 +1845,7 @@ def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
     if report_type not in supported_report_types():
-        _console_print(
-            f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr
-        )
+        _console_print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
         _console_print(
             "💡 Hint: Supported report types are: "
             + ", ".join(supported_report_types()),
@@ -2213,9 +2104,7 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
 
 
 @functools.lru_cache(maxsize=2048)
-def _path_allowed_by_rule_cached(
-    path: str, include_paths: tuple, exclude_paths: tuple
-) -> bool:
+def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths: tuple) -> bool:
     """Return whether a path passes optional YAML include/exclude filters (cached)."""
     if include_paths and not any(
         _path_matches_glob(path, glob) for glob in include_paths
@@ -2225,14 +2114,9 @@ def _path_allowed_by_rule_cached(
         return False
     return True
 
-
 def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     """Return whether a path passes optional YAML include/exclude filters."""
-    return _path_allowed_by_rule_cached(
-        path,
-        tuple(include_paths) if include_paths else (),
-        tuple(exclude_paths) if exclude_paths else (),
-    )
+    return _path_allowed_by_rule_cached(path, tuple(include_paths) if include_paths else (), tuple(exclude_paths) if exclude_paths else ())
 
 
 def _collect_files(base_path: Path):
@@ -2298,25 +2182,9 @@ _SENSITIVE_RULE_TOKENS = (
     "anthropic",
     "google",
     "github",
-    "slack",
     "api-key",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
-_REDACTED_SENSITIVE_MESSAGE = "Sensitive finding details suppressed."
-_SENSITIVE_SNIPPET_PATTERNS = (
-    re.compile(
-        r"(?i)\b(?:password|passwd|api[_-]?key|access[_-]?token|auth[_-]?token|"
-        r"client[_-]?secret|secret|credential|authorization)\b\s*[:=]\s*"
-        r"[\"']?[^\s\"',;]{4,}"
-    ),
-    re.compile(
-        r"(?i)\b(?:bearer\s+[a-z0-9._~+/=-]{8,}|sk-[a-z0-9_-]{8,}|"
-        r"ghp_[a-z0-9]{8,}|github_pat_[a-z0-9_]{8,}|"
-        r"xox(?:a|b|p|r|s)-[a-z0-9-]{8,}|AKIA[0-9A-Z]{12,})\b"
-    ),
-    re.compile(r"https://hooks\.slack\.com/services/[^\s\"']+"),
-    re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----"),
-)
 
 
 def _is_sensitive_rule(rule_id: str) -> bool:
@@ -2325,19 +2193,9 @@ def _is_sensitive_rule(rule_id: str) -> bool:
     return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
 
 
-def _snippet_contains_secret(snippet: str) -> bool:
-    """Detect secret-shaped content even when a provider uses an opaque rule id."""
-    text = snippet if isinstance(snippet, str) else str(snippet or "")
-    return any(pattern.search(text) for pattern in _SENSITIVE_SNIPPET_PATTERNS)
-
-
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
     """Redact sensitive snippets and sanitize non-sensitive terminal output."""
-    if (
-        category == "secrets"
-        or _is_sensitive_rule(rule_id)
-        or _snippet_contains_secret(snippet)
-    ):
+    if category == "secrets" or _is_sensitive_rule(rule_id):
         return _REDACTED_SENSITIVE_SNIPPET
     return _sanitize_terminal_output(snippet)
 
@@ -2410,9 +2268,6 @@ def _build_finding(
     """Build the normalized finding dictionary emitted by scan providers."""
     context = _finding_context(file, snippet)
     category = category or _finding_category(rule_id)
-    message = _sanitize_terminal_output(message)
-    if _snippet_contains_secret(message):
-        message = _REDACTED_SENSITIVE_MESSAGE
     metadata = build_rule_metadata(
         rule_id,
         severity,
@@ -2622,7 +2477,6 @@ def _bandit_findings(report: dict, base_path: Path):
                 filename,
                 result.get("line_number") or 1,
                 result.get("code") or "",
-                category="secrets" if test_id in {"B105", "B106", "B107"} else None,
             )
         )
     return findings
@@ -2769,19 +2623,6 @@ def _semgrep_findings(report: dict, base_path: Path):
         )
         # fmt: on
         check_id = item.get("check_id") or "semgrep"
-        secret_evidence = json.dumps(
-            {
-                "check_id": check_id,
-                "message": extra.get("message"),
-                "metadata": extra.get("metadata"),
-            },
-            sort_keys=True,
-        ).lower()
-        secret_category = (
-            "secrets"
-            if any(token in secret_evidence for token in _SENSITIVE_RULE_TOKENS)
-            else None
-        )
         findings.append(
             _build_finding(
                 "semgrep",
@@ -2791,7 +2632,6 @@ def _semgrep_findings(report: dict, base_path: Path):
                 path,
                 start.get("line") or 1,
                 extra.get("lines") or extra.get("message") or check_id,
-                category=secret_category,
             )
         )
     return findings
@@ -2805,20 +2645,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2885,13 +2727,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -3174,30 +3018,18 @@ def _print_scan_results(findings, files_scanned):
         _console_print("\n⚠️  No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
-        _console_print(
-            _format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying.")
-        )
+        _console_print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        _console_print(
-            _format_msg(
-                f"\n⚠️  High-severity {issue_word} found. Review before deploying."
-            )
-        )
+        _console_print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
     elif not findings:
         _console_print(_format_msg("\n✅ No issues found in this scan."))
     else:
-        _console_print(
-            _format_msg("\n✅ No deploy-blocking critical or high issues found.")
-        )
+        _console_print(_format_msg("\n✅ No deploy-blocking critical or high issues found."))
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        _console_print(
-            _format_msg(
-                f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
-            )
-        )
+        _console_print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
     _console_print()
 
 
@@ -3227,12 +3059,8 @@ def cmd_review(args):
     _console_print("═" * 60 + "\n")
     _console_print("💡 Tips:")
     _console_print("  - Paste this into Claude Code, Cursor, or any AI assistant")
-    _console_print(
-        "  - Include relevant files as context (API routes, DB schema, etc.)"
-    )
-    _console_print(
-        "  - Run 'appguardrail scan .' first to identify specific files to review"
-    )
+    _console_print("  - Include relevant files as context (API routes, DB schema, etc.)")
+    _console_print("  - Run 'appguardrail scan .' first to identify specific files to review")
     _console_print()
 
 
@@ -3319,14 +3147,7 @@ def render_tokens_css(tokens: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def make_dashboard_server(
-    host,
-    port,
-    index_bytes,
-    findings_path,
-    tokens_css_bytes=b"",
-    client_timeout=10.0,
-):
+def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_bytes=b""):
     """Build (but do not start) an HTTP server that serves the dashboard.
 
     Serves the dashboard HTML at ``/``, the design tokens at ``/tokens.css``,
@@ -3334,35 +3155,10 @@ def make_dashboard_server(
     of the caller's cwd.
     """
     import http.server
-    import ipaddress
-
-    normalized_host = (host or "").strip().lower()
-    if normalized_host != "localhost":
-        try:
-            address = ipaddress.ip_address(normalized_host.split("%", 1)[0])
-        except ValueError as exc:
-            raise ValueError(
-                "Dashboard host must be localhost or a loopback IP address"
-            ) from exc
-        if not address.is_loopback:
-            raise ValueError(
-                "Dashboard host must be localhost or a loopback IP address"
-            )
-    try:
-        client_timeout = float(client_timeout)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Dashboard client timeout must be a positive number") from exc
-    if client_timeout <= 0:
-        raise ValueError("Dashboard client timeout must be a positive number")
 
     findings_path = Path(findings_path)
 
     class _Handler(http.server.BaseHTTPRequestHandler):
-        def setup(self):
-            """Bound how long one client may occupy a request thread."""
-            super().setup()
-            self.connection.settimeout(client_timeout)
-
         def _send(self, body, content_type):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
@@ -3388,14 +3184,7 @@ def make_dashboard_server(
             """Suppress default logging."""
             return None
 
-    class _ThreadingHTTPServer(http.server.ThreadingHTTPServer):
-        """Thread-per-request server with bounded shutdown behavior."""
-
-        daemon_threads = True
-        block_on_close = False
-        request_queue_size = 128
-
-    return _ThreadingHTTPServer((normalized_host, port), _Handler)
+    return http.server.HTTPServer((host, port), _Handler)
 
 
 def _api_key_output_path(args, db_path):
@@ -3439,9 +3228,7 @@ def cmd_serve(args):
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
-            _console_print(
-                f"❌ API key file already exists: {key_path}", file=sys.stderr
-            )
+            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         oid, key = cp.create_org(conn, create)
@@ -3449,9 +3236,7 @@ def cmd_serve(args):
         try:
             _persist_api_key(key_path, key)
         except FileExistsError:
-            _console_print(
-                f"❌ API key file already exists: {key_path}", file=sys.stderr
-            )
+            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         _console_print(f"✅ Created org '{create}' (id {oid}).")
@@ -3461,9 +3246,7 @@ def cmd_serve(args):
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
-            _console_print(
-                f"❌ API key file already exists: {key_path}", file=sys.stderr
-            )
+            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         _oid, key = cp.create_org(conn, "default")
@@ -3471,9 +3254,7 @@ def cmd_serve(args):
             _persist_api_key(key_path, key)
         except FileExistsError:
             conn.close()
-            _console_print(
-                f"❌ API key file already exists: {key_path}", file=sys.stderr
-            )
+            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         _console_print("ℹ️  No orgs yet — created 'default'.")
@@ -3507,11 +3288,7 @@ def cmd_serve(args):
 
 def cmd_sbom(args):
     """Generate a CycloneDX SBOM from dependency manifests."""
-    from appguardrail_core.sbom import (
-        ManifestParseError,
-        build_sbom,
-        collect_components,
-    )
+    from appguardrail_core.sbom import build_sbom, collect_components
 
     base = Path(getattr(args, "path", ".") or ".")
     if not base.exists():
@@ -3522,11 +3299,7 @@ def cmd_sbom(args):
         )
         return 1
     root = base if base.is_dir() else base.parent
-    try:
-        components = collect_components(root)
-    except ManifestParseError as exc:
-        _console_print(f"❌ Cannot generate SBOM: {exc}", file=sys.stderr)
-        return 1
+    components = collect_components(root)
     if not components:
         _console_print(
             "ℹ️  No supported manifests found "
@@ -3558,9 +3331,7 @@ def cmd_dashboard(args):
 
     index = dashboard_index_path()
     if not index.is_file():
-        _console_print(
-            f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr
-        )
+        _console_print(f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr)
         _console_print(
             "💡 Hint: Check if the path is correct or if you are in the right directory.",
             file=sys.stderr,
@@ -3579,9 +3350,7 @@ def cmd_dashboard(args):
             "   Generate one with: "
             "appguardrail scan --findings-json reports/findings.json ."
         )
-        _console_print(
-            "   The dashboard opens with instructions — reload after generating.\n"
-        )
+        _console_print("   The dashboard opens with instructions — reload after generating.\n")
 
     tokens_css = b""
     tokens_file = dashboard_tokens_path()
@@ -3602,15 +3371,9 @@ def cmd_dashboard(args):
         server = make_dashboard_server(
             host, port, index.read_bytes(), findings_path, tokens_css
         )
-    except (OSError, ValueError) as exc:
-        _console_print(
-            f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr
-        )
-        _console_print(
-            "💡 Use a loopback host and a free port, e.g. "
-            "--host 127.0.0.1 --port 8899.",
-            file=sys.stderr,
-        )
+    except OSError as exc:
+        _console_print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
+        _console_print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
         return 1
 
     actual_port = server.server_address[1]

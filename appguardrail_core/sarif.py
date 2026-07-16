@@ -32,20 +32,6 @@ def _tags(finding: dict[str, Any]) -> list[str]:
     return tags
 
 
-def _nonempty_text(value: Any, fallback: str) -> str:
-    """Return stripped text, replacing malformed empty values with a fallback."""
-    text = str(value or "").strip()
-    return text or fallback
-
-
-def _start_line(value: Any) -> int:
-    """Return a valid positive SARIF line number for untrusted finding input."""
-    try:
-        return max(1, int(value))
-    except (TypeError, ValueError, OverflowError):
-        return 1
-
-
 def findings_to_sarif(
     findings: Iterable[dict[str, Any]], *, tool_version: str = "0.0.0"
 ) -> dict[str, Any]:
@@ -55,18 +41,17 @@ def findings_to_sarif(
     rules: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
     for f in normalized:
-        rule_id = _nonempty_text(f["rule_id"], "unknown-rule")
+        rule_id = f["rule_id"]
         severity = f["severity"]
-        message = _nonempty_text(f["message"], "No message provided.")
-        file_name = _nonempty_text(f["file"], "n/a")
-        line = _start_line(f.get("line"))
         refs = f.get("references") or ()
         if rule_id not in rules:
             rule: dict[str, Any] = {
                 "id": rule_id,
                 "name": rule_id,
-                "shortDescription": {"text": message.splitlines()[0][:200]},
-                "fullDescription": {"text": message},
+                "shortDescription": {
+                    "text": f["message"].strip().splitlines()[0][:200]
+                },
+                "fullDescription": {"text": f["message"].strip()},
                 "helpUri": (
                     refs[0]
                     if refs
@@ -85,18 +70,18 @@ def findings_to_sarif(
                 "ruleId": rule_id,
                 "ruleIndex": list(rules).index(rule_id),
                 "level": _LEVEL.get(severity, "note"),
-                "message": {"text": message},
+                "message": {"text": f["message"].strip()},
                 "locations": [
                     {
                         "physicalLocation": {
-                            "artifactLocation": {"uri": file_name},
-                            "region": {"startLine": line},
+                            "artifactLocation": {"uri": f["file"]},
+                            "region": {"startLine": max(1, int(f["line"] or 1))},
                         }
                     }
                 ],
                 # Stable across runs so code scanning can track/dedupe alerts.
                 "partialFingerprints": {
-                    "appguardrail/v1": f"{rule_id}:{file_name}:{line}"
+                    "appguardrail/v1": f"{rule_id}:{f['file']}:{f['line']}"
                 },
                 "properties": {
                     "severity": severity,
@@ -127,7 +112,6 @@ def findings_to_sarif(
 
 
 if __name__ == "__main__":  # pragma: no cover - self-check
-    # Executable module self-checks; these assertions do not validate user input.
     log = findings_to_sarif(
         [
             {
@@ -151,14 +135,14 @@ if __name__ == "__main__":  # pragma: no cover - self-check
         tool_version="1.2.3",
     )
     run = log["runs"][0]
-    assert log["version"] == "2.1.0"  # noqa: S101  # nosec B101
-    assert run["tool"]["driver"]["version"] == "1.2.3"  # noqa: S101  # nosec B101
-    assert len(run["results"]) == 2  # noqa: S101  # nosec B101
-    assert run["results"][0]["level"] == "error"  # noqa: S101  # nosec B101
-    assert run["results"][0]["properties"]["deployBlocking"] is True  # noqa: S101  # nosec B101
-    assert run["results"][1]["level"] == "note"  # noqa: S101  # nosec B101
-    assert run["results"][1]["properties"]["deployBlocking"] is False  # noqa: S101  # nosec B101
+    assert log["version"] == "2.1.0"
+    assert run["tool"]["driver"]["version"] == "1.2.3"
+    assert len(run["results"]) == 2
+    assert run["results"][0]["level"] == "error"
+    assert run["results"][0]["properties"]["deployBlocking"] is True
+    assert run["results"][1]["level"] == "note"
+    assert run["results"][1]["properties"]["deployBlocking"] is False
     # rules deduped, security-severity present for GitHub ranking
-    assert len(run["tool"]["driver"]["rules"]) == 2  # noqa: S101  # nosec B101
-    assert run["tool"]["driver"]["rules"][0]["properties"]["security-severity"] == "9.0"  # noqa: S101  # nosec B101
+    assert len(run["tool"]["driver"]["rules"]) == 2
+    assert run["tool"]["driver"]["rules"][0]["properties"]["security-severity"] == "9.0"
     print("sarif self-check OK")

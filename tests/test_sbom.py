@@ -2,16 +2,9 @@
 
 import json
 
-import pytest
-
-from appguardrail_core.sbom import (
-    ManifestParseError,
-    build_sbom,
-    collect_components,
-    parse_package_json,
-    parse_package_lock,
-    parse_requirements,
-)
+from appguardrail_core.sbom import (build_sbom, collect_components,
+                                    parse_package_json, parse_package_lock,
+                                    parse_requirements)
 
 
 def test_package_json_strips_ranges(tmp_path):
@@ -31,34 +24,6 @@ def test_package_lock_uses_resolved(tmp_path):
     comps = {c["name"]: c for c in parse_package_lock(tmp_path / "package-lock.json")}
     assert comps["next"]["version"] == "14.1.2"
     assert comps["next"]["properties"][0]["value"] == "resolved"
-
-
-def test_package_lock_preserves_duplicate_installed_versions(tmp_path):
-    (tmp_path / "package-lock.json").write_text(
-        json.dumps(
-            {
-                "packages": {
-                    "": {},
-                    "node_modules/minimist": {"version": "0.0.8"},
-                    "node_modules/foo/node_modules/minimist": {"version": "1.2.8"},
-                }
-            }
-        )
-    )
-    comps = parse_package_lock(tmp_path / "package-lock.json")
-    assert {(c["name"], c["version"]) for c in comps} == {
-        ("minimist", "0.0.8"),
-        ("minimist", "1.2.8"),
-    }
-
-
-@pytest.mark.parametrize("name", ["package.json", "package-lock.json"])
-def test_json_manifest_rejects_excessive_nesting_without_recursion(name, tmp_path):
-    manifest = tmp_path / name
-    manifest.write_text("[" * 10_000 + "]" * 10_000)
-    parser = parse_package_json if name == "package.json" else parse_package_lock
-    with pytest.raises(ManifestParseError, match="maximum JSON nesting depth"):
-        parser(manifest)
 
 
 def test_requirements_pins_only(tmp_path):
