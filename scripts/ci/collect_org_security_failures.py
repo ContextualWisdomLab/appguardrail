@@ -20,7 +20,6 @@ from appguardrail_core.issueops import (
     issue_comment,
     parse_marker,
     parse_run_url,
-    replace_marker,
     sanitize_label_value,
     seen_key,
     title,
@@ -31,6 +30,9 @@ UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
+MAX_ISSUE_UPDATES_PER_RUN = 100
+MAX_SEEN_KEYS_PER_ISSUE = 1_000
+MAX_ISSUE_BODY_CHARS = 60_000
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -251,6 +253,35 @@ def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
     }
 
 
+def bounded_issue_state(
+    finding: dict[str, Any], seen: set[str]
+) -> tuple[str, set[str]]:
+    """Render a bounded latest-failure body and retain only recent seen keys."""
+    ordered = sorted(
+        {str(key) for key in seen},
+        key=lambda key: tuple(
+            int(part) if part.isdigit() else -1 for part in key.split(":", 1)
+        ),
+        reverse=True,
+    )
+    bounded_seen = set(ordered[:MAX_SEEN_KEYS_PER_ISSUE])
+    body = issue_body(finding, bounded_seen)
+    while len(body) > MAX_ISSUE_BODY_CHARS and bounded_seen:
+        oldest = min(
+            bounded_seen,
+            key=lambda key: tuple(
+                int(part) if part.isdigit() else -1 for part in key.split(":", 1)
+            ),
+        )
+        bounded_seen.remove(oldest)
+        body = issue_body(finding, bounded_seen)
+    if len(body) > MAX_ISSUE_BODY_CHARS:
+        raise ValueError(
+            "security failure issue body exceeds the bounded GitHub payload limit"
+        )
+    return body, bounded_seen
+
+
 def publish_one(
     client: GitHub,
     target_repo: str,
@@ -258,8 +289,8 @@ def publish_one(
     dry_run: bool,
     issues: dict[str, dict[str, Any]],
     labels_seen: set[str],
-) -> None:
-    """Create, reopen, or update one issue for a collected failure."""
+) -> bool:
+    """Create, reopen, or update one issue and report whether it was new."""
     labels = [
         ISSUE_LABEL,
         SECURITY_LABEL,
@@ -271,7 +302,7 @@ def publish_one(
         for label in labels:
             ensure_label(client, target_repo, label, dry_run, labels_seen)
         seen = {seen_key(finding)}
-        body = issue_body(finding, seen)
+        body, seen = bounded_issue_state(finding, seen)
         if dry_run:
             print(f"DRY_RUN create issue: {issue_title}\n{body}\n")
             issues[issue_title] = {
@@ -280,7 +311,7 @@ def publish_one(
                 "title": issue_title,
                 "body": body,
             }
-            return
+            return True
         created = client.request(
             "POST",
             f"/repos/{target_repo}/issues",
@@ -294,48 +325,75 @@ def publish_one(
         print(
             f"created issue for {finding['repo']} {finding['workflow']} {seen_key(finding)}"
         )
-        return
+        return True
 
     seen = set(parse_marker(issue.get("body")).get("seen", []))
     key = seen_key(finding)
     if key in seen:
         print(f"skip duplicate {finding['repo']} {finding['workflow']} {key}")
-        return
+        return False
     reopen = issue.get("state") == "closed"
     seen.add(key)
-    body = replace_marker(issue.get("body"), finding["repo"], finding["workflow"], seen)
+    body, seen = bounded_issue_state(finding, seen)
     if dry_run:
         print(
             f"DRY_RUN {'reopen/update' if reopen else 'update'} issue #{issue['number']}: {issue_title}"
         )
         print(issue_comment(finding))
     else:
-        # Deliver the alert before committing its deduplication marker. If the
-        # comment request fails, the next collector loop must retry the finding
-        # instead of silently treating an undelivered alert as seen.
-        client.request(
-            "POST",
-            f"/repos/{target_repo}/issues/{issue['number']}/comments",
-            {"body": issue_comment(finding)},
-        )
+        # First make the complete latest finding and its deduplication marker
+        # durable in the bounded issue body. A later comment failure cannot
+        # create an endless comment-before-marker retry flood.
         data = {"state": "open", "body": body} if reopen else {"body": body}
         client.request("PATCH", f"/repos/{target_repo}/issues/{issue['number']}", data)
+        try:
+            client.request(
+                "POST",
+                f"/repos/{target_repo}/issues/{issue['number']}/comments",
+                {"body": issue_comment(finding)},
+            )
+        except RuntimeError as exc:
+            print(
+                "::warning::Security failure was recorded in the bounded issue "
+                f"body, but its notification comment failed: {exc}",
+                file=sys.stderr,
+            )
         print(
             f"updated issue #{issue['number']} for {finding['repo']} {finding['workflow']} {key}"
         )
     issue["body"] = body
     if reopen:
         issue["state"] = "open"
+    return True
 
 
 def publish_findings(
     client: GitHub, target_repo: str, findings: list[dict[str, Any]], dry_run: bool
 ) -> None:
-    """Publish every collected failure to the target repository."""
+    """Publish a bounded number of new failures while scanning all duplicates."""
     issues = issue_index(client, target_repo) if findings else {}
     labels_seen: set[str] = set()
-    for finding in findings:
-        publish_one(client, target_repo, finding, dry_run, issues, labels_seen)
+    published = 0
+    ordered = sorted(
+        findings,
+        key=lambda item: (int(item["run_id"]), int(item["job_id"])),
+        reverse=True,
+    )
+    for index, finding in enumerate(ordered):
+        if published >= MAX_ISSUE_UPDATES_PER_RUN:
+            deferred = len(ordered) - index
+            print(
+                "::warning::Org security collector reached its bounded issue "
+                f"update limit ({MAX_ISSUE_UPDATES_PER_RUN}); deferred {deferred} "
+                "finding(s) to later scheduled loops."
+            )
+            break
+        if publish_one(client, target_repo, finding, dry_run, issues, labels_seen):
+            published += 1
+    print(
+        f"published {published} new security failure issue update(s); "
+        f"limit={MAX_ISSUE_UPDATES_PER_RUN}"
+    )
 
 
 def parse_bool(value: str | None) -> bool:
