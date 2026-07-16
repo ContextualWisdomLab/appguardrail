@@ -7,142 +7,34 @@ import argparse
 import datetime as dt
 import json
 import os
-import ipaddress
-import socket
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
 
-from appguardrail_core.issueops import (DEFAULT_MAX_LOG_CHARS,
-                                        DEFAULT_MAX_LOG_LINES, compress_log,
-                                        is_failure, is_security_name,
-                                        issue_body, issue_comment,
-                                        parse_marker, parse_run_url,
-                                        replace_marker, sanitize_label_value,
-                                        seen_key, title)
+from appguardrail_core.issueops import (
+    is_failure,
+    is_security_name,
+    issue_body,
+    issue_comment,
+    parse_marker,
+    parse_run_url,
+    replace_marker,
+    sanitize_label_value,
+    seen_key,
+    title,
+)
 
 API = "https://api.github.com"
 UA = "appguardrail-org-security-failure-collector"
 ISSUE_LABEL = "org-security-failure"
 SECURITY_LABEL = "security-ci"
 DEFAULT_LOOKBACK_HOURS = 48
-BLOCKED_LOG_HOSTS = {"localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0", "::1"}
-ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES = (
-    ".actions.githubusercontent.com",
-    ".blob.core.windows.net",
-    ".githubusercontent.com",
-)
-
-
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Redirect handler that exposes GitHub log download redirects safely."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Prevent automatic redirect following so the caller can validate URLs."""
-        return None
-
-
-class SecureRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Redirect handler that validates every GitHub log download hop."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Validate redirected log URLs before urllib opens them."""
-        _validate_log_download_url(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
-def _redacted_url(parsed: urllib.parse.ParseResult) -> str:
-    """Return a credential-free URL string safe for error messages."""
-    return f"{parsed.scheme}://{parsed.hostname or ''}{parsed.path}"
-
-
-def _is_allowed_log_host(host: str) -> bool:
-    """Return whether a redirect host is expected for GitHub job logs."""
-    return any(
-        host == suffix.removeprefix(".") or host.endswith(suffix)
-        for suffix in ALLOWED_LOG_DOWNLOAD_HOST_SUFFIXES
-    )
-
-
-def _is_blocked_ip(raw: str) -> bool:
-    """Return whether an IP literal or resolved address is unsafe to contact."""
-    ip = ipaddress.ip_address(raw)
-    if getattr(ip, "ipv4_mapped", None):
-        ip = ip.ipv4_mapped
-    return not ip.is_global
-
-
-def _validate_resolved_addresses(host: str, port: int | None) -> None:
-    """Resolve a host and reject any internal or non-global address result."""
-    try:
-        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise urllib.error.URLError(f"Could not resolve log download host: {host}") from exc
-
-    addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
-    if not addresses:
-        raise urllib.error.URLError(f"Could not resolve log download host: {host}")
-    for address in addresses:
-        if _is_blocked_ip(address):
-            parsed = urllib.parse.urlparse(f"https://{host}/")
-            raise urllib.error.URLError(
-                f"Access to internal address blocked: {_redacted_url(parsed)}"
-            )
-
-
-def _validate_log_download_url(url: str) -> urllib.parse.ParseResult:
-    """Reject non-HTTP(S), credentialed, untrusted, or internal log URLs."""
-    parsed = urllib.parse.urlparse(url)
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in {"http", "https"}:
-        raise urllib.error.URLError(
-            f"Invalid or dangerous URL scheme in location: {_redacted_url(parsed)}"
-        )
-    if parsed.username or parsed.password:
-        raise urllib.error.URLError(
-            f"Credentials not allowed in URL: {_redacted_url(parsed)}"
-        )
-    host = (parsed.hostname or "").lower()
-    if host in BLOCKED_LOG_HOSTS:
-        raise urllib.error.URLError(
-            f"Access to internal address blocked: {_redacted_url(parsed)}"
-        )
-    raw = host.split("%", 1)[0].strip("[]")
-    if raw.isdigit():  # dotless decimal numeric host
-        raise urllib.error.URLError(
-            f"Access to internal address blocked: {_redacted_url(parsed)}"
-        )
-
-    # Check for octal/hex IP formats that urllib might accept but ipaddress rejects
-    parts = raw.split(".")
-    if any(p.startswith("0") and len(p) > 1 and p != "0" for p in parts) or any(
-        p.startswith("0x") for p in parts
-    ):
-        raise urllib.error.URLError(
-            f"Access to internal address blocked: {_redacted_url(parsed)}"
-        )
-
-    try:
-        if _is_blocked_ip(raw):
-            raise urllib.error.URLError(
-                f"Access to internal address blocked: {_redacted_url(parsed)}"
-            )
-        raise urllib.error.URLError(
-            f"Unexpected log download host blocked: {_redacted_url(parsed)}"
-        )
-    except ValueError:
-        if not _is_allowed_log_host(host):
-            raise urllib.error.URLError(
-                f"Unexpected log download host blocked: {_redacted_url(parsed)}"
-            )
-        _validate_resolved_addresses(host, parsed.port)
-        return parsed
 
 
 class GitHub:
-    """Small GitHub REST client for workflow, job, issue, and log APIs."""
+    """Small GitHub REST client for workflow, job, and issue APIs."""
 
     def __init__(self, token: str, api: str = API):
         """Create a client using a bearer token and API root."""
@@ -176,9 +68,11 @@ class GitHub:
             },
         )
         try:
-            with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
-                req, timeout=30
-            ) as res:
+            with (
+                urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected  # noqa: S310 - GitHub API URL
+                    req, timeout=30
+                ) as res
+            ):
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
@@ -210,46 +104,6 @@ class GitHub:
                 return items
             page += 1
 
-    def job_log(self, repo: str, job_id: int) -> str:
-        """Fetch a job log through GitHub's validated redirected download URL."""
-        path = f"/repos/{repo}/actions/jobs/{job_id}/logs"
-        req = urllib.request.Request(  # noqa: S310 - GitHub API URL
-            f"{self.api}{path}",
-            method="GET",
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {self.token}",
-                "User-Agent": UA,
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
-        try:
-            opener = urllib.request.build_opener(NoRedirect)
-            with opener.open(req, timeout=30) as res:
-                location = res.geturl()
-        except urllib.error.HTTPError as exc:
-            location = exc.headers.get("location")
-            if not (300 <= exc.code < 400 and location):
-                detail = exc.read().decode("utf-8", errors="replace")
-                return f"Could not fetch job log: GitHub API GET {path} failed: {exc.code} {detail}"
-        try:
-            _validate_log_download_url(location)
-            download_req = (
-                urllib.request.Request(  # noqa: S310 - GitHub log redirect URL
-                    location, headers={"User-Agent": UA}
-                )
-            )
-            opener = urllib.request.build_opener(SecureRedirectHandler)
-            with opener.open(download_req, timeout=30) as res:
-                return res.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            return (
-                f"Could not fetch job log: GitHub download failed: {exc.code} {detail}"
-            )
-        except urllib.error.URLError as exc:
-            return f"Could not fetch job log: {exc.reason}"
-
 
 def utc_now() -> dt.datetime:
     """Return the current UTC timestamp with timezone information."""
@@ -262,12 +116,38 @@ def parse_time(value: str) -> dt.datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
 
+def failure_metadata_summary(job: dict[str, Any]) -> str:
+    """Render non-sensitive GitHub metadata without copying source-repository logs."""
+    raw_conclusion = str(job.get("conclusion") or "").strip().lower()
+    conclusion = raw_conclusion if is_failure(raw_conclusion) else "unknown"
+    failed_step_numbers = sorted(
+        {
+            number
+            for step in (job.get("steps") or [])
+            if isinstance(step, dict)
+            and is_failure(str(step.get("conclusion") or "").strip().lower())
+            and isinstance((number := step.get("number")), int)
+            and number > 0
+        }
+    )
+    step_evidence = (
+        ", ".join(str(number) for number in failed_step_numbers)
+        if failed_step_numbers
+        else "not reported by GitHub"
+    )
+    return (
+        "Trusted GitHub Actions metadata only; raw job logs are intentionally not "
+        "copied across repositories.\n"
+        f"Job conclusion: {conclusion}.\n"
+        f"Failed step numbers: {step_evidence}.\n"
+        "Open the source job URL with source-repository authorization for full logs."
+    )
+
+
 def build_finding(
-    client: GitHub,
     repo: str,
     run: dict[str, Any],
     job: dict[str, Any],
-    args: argparse.Namespace,
 ) -> dict[str, Any]:
     """Build one normalized security workflow failure record from run/job data."""
     job_id = int(job["id"])
@@ -286,9 +166,7 @@ def build_finding(
         "pr_numbers": [
             pr["number"] for pr in run.get("pull_requests", []) if pr.get("number")
         ],
-        "snippet": compress_log(
-            client.job_log(repo, job_id), args.max_log_lines, args.max_log_chars
-        ),
+        "snippet": failure_metadata_summary(job),
     }
 
 
@@ -330,7 +208,7 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
                 ) and is_security_name(
                     run.get("name"), job.get("workflow_name"), job.get("name")
                 ):
-                    findings.append(build_finding(client, repo, run, job, args))
+                    findings.append(build_finding(repo, run, job))
     return findings
 
 
@@ -475,8 +353,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=int(os.getenv("LOOKBACK_HOURS", DEFAULT_LOOKBACK_HOURS)),
     )
-    parser.add_argument("--max-log-lines", type=int, default=DEFAULT_MAX_LOG_LINES)
-    parser.add_argument("--max-log-chars", type=int, default=DEFAULT_MAX_LOG_CHARS)
     parser.add_argument(
         "--run-url", help="Collect one GitHub Actions run URL for dry-run validation."
     )

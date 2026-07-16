@@ -69,68 +69,6 @@ class FakeClient:
         }
 
 
-class FakeRedirectResponse:
-    def __init__(self, location):
-        self.location = location
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, traceback):
-        return False
-
-    def geturl(self):
-        return self.location
-
-    def read(self):
-        return self.location.encode()
-
-
-class FakeRedirectOpener:
-    def __init__(self, location):
-        self.location = location
-
-    def open(self, request, timeout):
-        return FakeRedirectResponse(self.location)
-
-
-def test_job_log_rejects_dangerous_redirect_scheme(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener("file:///etc/passwd"),
-    )
-
-    assert "Invalid or dangerous URL scheme" in client.job_log(
-        "ContextualWisdomLab/naruon", 123
-    )
-
-
-def test_job_log_rejects_internal_redirect_host(monkeypatch):
-    client = collector.GitHub("token")
-
-    blocked_urls = [
-        "http://169.254.169.254/latest/meta-data",
-        "http://[::1]/",
-        "http://[::ffff:127.0.0.1]/",
-        "http://10.0.0.5/",
-        "http://2130706433/",
-        "http://0177.0.0.1/",
-        "http://0x7f.0.0.1/",
-    ]
-
-    for url in blocked_urls:
-        monkeypatch.setattr(
-            collector.urllib.request,
-            "build_opener",
-            lambda *_, u=url: FakeRedirectOpener(u),
-        )
-        assert "Access to internal address blocked" in client.job_log(
-            "ContextualWisdomLab/naruon", 123
-        )
-
-
 def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     """Keep scheduled collection from reporting green after doing no work."""
     workflow = (
@@ -160,7 +98,10 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "ref: ${{ github.sha }}" in workflow
     assert "persist-credentials: false" in workflow
     assert "Create allowlisted organization read token" in workflow
-    assert "repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}" in workflow
+    assert (
+        "repositories: ${{ env.ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES }}"
+        in workflow
+    )
     assert "Create target-only issue write token" in workflow
     assert "repositories: ${{ github.event.repository.name }}" in workflow
     assert "GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}" in workflow
@@ -215,8 +156,7 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
 
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
     assert (
-        'ENTRYPOINT ["python", "-I", "/app/scanner/cli/appguardrail.py"]'
-        in dockerfile
+        'ENTRYPOINT ["python", "-I", "/app/scanner/cli/appguardrail.py"]' in dockerfile
     )
     assert "python -I /app/scanner/cli/appguardrail.py --help" in dockerfile
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
@@ -370,70 +310,37 @@ def test_github_init_rejects_dangerous_scheme():
         collector.GitHub("token", "file:///etc/passwd")
 
 
-def test_job_log_rejects_internal_dns_resolution(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener(
-            "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-        ),
-    )
-    monkeypatch.setattr(
-        collector.socket,
-        "getaddrinfo",
-        lambda *_, **__: [
-            (
-                collector.socket.AF_INET,
-                collector.socket.SOCK_STREAM,
-                6,
-                "",
-                ("127.0.0.1", 443),
-            )
+def test_build_finding_uses_only_non_sensitive_failure_metadata():
+    """Never copy source job logs, step names, or other attacker strings into issues."""
+    run = {
+        "id": 28492006630,
+        "name": "Strix Security Scan",
+        "html_url": "https://github.com/ContextualWisdomLab/naruon/actions/runs/28492006630",
+        "head_branch": "develop",
+        "head_sha": "abc123",
+        "event": "pull_request",
+        "pull_requests": [{"number": 265}],
+    }
+    job = {
+        "id": 84450511793,
+        "name": "strix",
+        "html_url": "https://github.com/ContextualWisdomLab/naruon/actions/runs/28492006630/job/84450511793",
+        "conclusion": "failure",
+        "steps": [
+            {
+                "number": 2,
+                "name": "PRIVATE_SOURCE_MARKER=secret",
+                "conclusion": "failure",
+            },
+            {"number": 3, "name": "ordinary step", "conclusion": "success"},
         ],
-    )
+    }
 
-    assert "Access to internal address blocked" in client.job_log(
-        "ContextualWisdomLab/naruon", 123
-    )
+    item = collector.build_finding("ContextualWisdomLab/naruon", run, job)
 
-
-def test_job_log_rejects_unexpected_redirect_host(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener("https://attacker.example/job-logs.txt"),
-    )
-
-    assert "Unexpected log download host blocked" in client.job_log(
-        "ContextualWisdomLab/naruon", 123
-    )
-
-
-def test_job_log_allows_public_github_log_host(monkeypatch):
-    client = collector.GitHub("token")
-    monkeypatch.setattr(
-        collector.urllib.request,
-        "build_opener",
-        lambda *_: FakeRedirectOpener(
-            "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-        ),
-    )
-    monkeypatch.setattr(
-        collector.socket,
-        "getaddrinfo",
-        lambda *_, **__: [
-            (
-                collector.socket.AF_INET,
-                collector.socket.SOCK_STREAM,
-                6,
-                "",
-                ("93.184.216.34", 443),
-            )
-        ],
-    )
-
-    assert client.job_log("ContextualWisdomLab/naruon", 123) == (
-        "https://productionresultssa14.blob.core.windows.net/job-logs.txt"
-    )
+    assert "raw job logs are intentionally not copied" in item["snippet"]
+    assert "Job conclusion: failure" in item["snippet"]
+    assert "Failed step numbers: 2" in item["snippet"]
+    assert "PRIVATE_SOURCE_MARKER" not in item["snippet"]
+    assert "secret" not in item["snippet"]
+    assert "job_log" not in collector.GitHub.__dict__
