@@ -58,3 +58,6 @@ namespaces = false
 
 [tool.interrogate]
 exclude = ["tests", "build", "dist"]
+
+[tool.coverage.report]
+fail_under = 85
