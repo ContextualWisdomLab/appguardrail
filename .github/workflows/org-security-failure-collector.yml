@@ -34,7 +34,9 @@ jobs:
       - name: Authorize manual default-branch collection dispatch
         if: github.event_name == 'repository_dispatch'
         env:
-          DISPATCH_ACTOR: ${{ github.actor }}
+          # triggering_actor changes to the user who requests a rerun, whereas
+          # actor and the event payload retain the original dispatch identity.
+          DISPATCH_ACTOR: ${{ github.triggering_actor }}
           DISPATCH_SENDER: ${{ github.event.sender.login || '' }}
           ALLOWED_DISPATCH_ACTOR: ${{ vars.ORG_SECURITY_FAILURE_DISPATCH_ACTOR }}
         run: |

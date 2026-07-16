@@ -95,6 +95,9 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "ORG_SECURITY_FAILURE_DISPATCH_ACTOR" in workflow
     assert "ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" in workflow
     assert "dispatch rejected actor=" in workflow
+    assert "DISPATCH_ACTOR: ${{ github.triggering_actor }}" in workflow
+    assert "DISPATCH_ACTOR: ${{ github.actor }}" not in workflow
+    assert "retain the original dispatch identity" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "persist-credentials: false" in workflow
     assert "Create allowlisted organization read token" in workflow
