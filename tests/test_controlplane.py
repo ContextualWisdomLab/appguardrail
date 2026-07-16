@@ -8,13 +8,23 @@ from contextlib import closing
 
 import pytest
 
-from appguardrail_core.controlplane import (_is_slack_webhook, _send_alert,
-                                            _slack_blocks, add_scan, connect,
-                                            create_key, create_org, get_scan,
-                                            has_role, list_scans,
-                                            make_control_plane_server,
-                                            org_for_key, role_for_key,
-                                            scan_trend, set_webhook)
+from appguardrail_core.controlplane import (
+    _is_slack_webhook,
+    _send_alert,
+    _slack_blocks,
+    add_scan,
+    connect,
+    create_key,
+    create_org,
+    get_scan,
+    has_role,
+    list_scans,
+    make_control_plane_server,
+    org_for_key,
+    role_for_key,
+    scan_trend,
+    set_webhook,
+)
 
 FINDINGS = [
     {"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
@@ -352,16 +362,20 @@ def test_slack_blocks_caps_and_escapes():
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
 
-    def _fake_urlopen(req, timeout=None):
-        posted["url"] = req.full_url
-        posted["body"] = json.loads(req.data.decode())
+    def _fake_build_opener(*handlers):
+        class _Opener:
+            def open(self, req, timeout=None):
+                posted["url"] = req.full_url
+                posted["body"] = json.loads(req.data.decode())
 
-        class _R:  # minimal stand-in, urlopen result is ignored
-            pass
+                class _R:  # minimal stand-in
+                    pass
 
-        return _R()
+                return _R()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+        return _Opener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
