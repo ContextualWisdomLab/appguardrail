@@ -61,3 +61,6 @@ exclude = ["tests", "build", "dist"]
 
 [tool.coverage.report]
 fail_under = 85
+
+[tool.setuptools]
+include-package-data = true
