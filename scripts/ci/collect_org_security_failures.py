@@ -488,14 +488,23 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     """Run collection and issue publication, returning a process exit code."""
-    args = parse_args(argv or sys.argv[1:])
-    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
-    if not token:
-        raise SystemExit("GH_TOKEN or GITHUB_TOKEN is required")
-    client = GitHub(token)
-    findings = collect_findings(client, args)
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    read_token = (os.getenv("GH_READ_TOKEN") or "").strip()
+    write_token = (os.getenv("GH_WRITE_TOKEN") or "").strip()
+    if not read_token or not write_token:
+        raise SystemExit(
+            "GH_READ_TOKEN and GH_WRITE_TOKEN are both required; use separate "
+            "allowlisted read and target-only issue-write installation tokens"
+        )
+    if read_token == write_token:
+        raise SystemExit(
+            "GH_READ_TOKEN and GH_WRITE_TOKEN must be distinct least-privilege credentials"
+        )
+    read_client = GitHub(read_token)
+    write_client = GitHub(write_token)
+    findings = collect_findings(read_client, args)
     print(f"collected {len(findings)} security workflow failure job(s)")
-    publish_findings(client, args.target_repo, findings, args.dry_run)
+    publish_findings(write_client, args.target_repo, findings, args.dry_run)
     return 0
 
 
