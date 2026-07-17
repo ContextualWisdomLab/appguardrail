@@ -430,6 +430,13 @@ def test_scan_file_redacts_sensitive_snippet(tmp_path):
     assert findings[0]["snippet"] == "[REDACTED: sensitive match suppressed]"
 
 
+def test_is_sensitive_rule_slack_webhook():
+    from scanner.cli.appguardrail import _is_sensitive_rule
+
+    assert _is_sensitive_rule("hardcoded-slack-webhook-url") is True
+    assert _is_sensitive_rule("hardcoded-slack-token") is True
+
+
 def test_scan_file_unreadable(tmp_path):
     test_file = tmp_path / "unreadable.ts"
     test_file.write_text("MOCK_SECRET_KEY\n")
