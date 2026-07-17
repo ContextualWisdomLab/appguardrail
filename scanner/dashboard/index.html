@@ -91,7 +91,7 @@
   <span class="meta" id="src">no findings loaded</span>
   <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
-<main id="app"></main>
+<main id="app" aria-live="polite"></main>
 
 <dialog id="detail"></dialog>
 
@@ -154,7 +154,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding: ${esc(f.message)}">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>

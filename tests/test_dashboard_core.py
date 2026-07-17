@@ -47,8 +47,9 @@ def test_dashboard_rows_are_keyboard_accessible():
     """Interactive finding rows must expose keyboard and screen-reader affordances."""
     html = dashboard_index_path().read_text(encoding="utf-8")
 
+    assert 'aria-live="polite"' in html
     assert 'tabindex="0" role="button"' in html
-    assert 'aria-label="View details for finding"' in html
+    assert 'aria-label="View details for finding:' in html
     assert "tbody tr:focus-visible" in html
     assert "aria-label=\"Upload findings file\"" in html
     assert "aria-label=\"Search findings\"" in html
