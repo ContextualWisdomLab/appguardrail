@@ -2175,6 +2175,12 @@ _SENSITIVE_RULE_TOKENS = (
     "google",
     "github",
     "api-key",
+    "webhook",
+    "service-account",
+    "npm",
+    "pypi",
+    "sendgrid",
+    "twilio",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
