@@ -107,3 +107,8 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `_is_safe_url` only checking `is_loopback` and `is_private`. This fails to correctly evaluate mapped IPv4 addresses disguised as IPv6 (e.g. `[::ffff:127.0.0.1]`) and misses restricted IP designations like `is_reserved` or non `is_global` IPs, allowing SSRF to `0.0.0.0` or `255.255.255.255`.
 **Learning:** Python's `ipaddress` objects for mapped IPv6 don't inherit properties of their IPv4 wrapped content directly. Using `is_loopback` without checking `.ipv4_mapped` leaves blind spots.
 **Prevention:** Always extract `getattr(ip, 'ipv4_mapped', None)` before evaluation, and combine checks spanning `is_reserved`, `not is_global`, `is_multicast`, `is_unspecified`, `is_private`, and `is_loopback` to fully protect endpoints.
+
+## 2026-07-18 - [XSS vulnerability via malicious references in dashboard]
+**Vulnerability:** Cross-Site Scripting (XSS) via `javascript:` URIs in `href` attributes in `scanner/dashboard/index.html`.
+**Learning:** `f.references` values (URLs) were injected into `href` attributes with only HTML entity escaping via `esc()`. HTML escaping `javascript:alert(1)` does not neutralize the `javascript:` URI protocol, meaning that clicking the link executes the injected script in the context of the dashboard UI. This allowed an attacker controlling finding references to achieve XSS.
+**Prevention:** Always validate the URL scheme (allow-listing `http:` and `https:`) using `new URL()` parser to ensure user-provided URLs cannot leverage dangerous schemes like `javascript:`, `file:`, or `data:` when injected into `href` attributes, before applying standard HTML escaping.
