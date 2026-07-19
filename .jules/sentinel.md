@@ -112,3 +112,8 @@
 **Vulnerability:** URL validation checks were applied before fetching URLs with `urllib.request.urlopen`, but `urlopen` natively follows redirects. An attacker could provide a URL that passes initial validation but redirects to an internal IP or dangerous file path.
 **Learning:** Even if an initial URL passes safety validation checks, Python's `urllib.request.urlopen` automatically follows HTTP redirects (e.g., 301, 302, 307, 308) by default, which can allow an SSRF bypass to internal networks.
 **Prevention:** To prevent this, explicitly block redirects by passing a custom `urllib.request.HTTPRedirectHandler` (that returns `None` from `redirect_request`) into `urllib.request.build_opener()` instead of using the default `urlopen`.
+
+## 2026-07-21 - Bypass Python 3.7 importlib.resources check
+**Vulnerability:** Semgrep failed the CI pipeline due to `python.lang.compatibility.python37.python37-compatibility-importlib2`, indicating `importlib.resources` was not compatible with Python < 3.7. However, the project's minimum version is Python 3.9.
+**Learning:** `from importlib import resources # nosemgrep` can be broken across multiple lines by `isort`, placing the suppression comment on the `resources` line, which Semgrep does not recognize.
+**Prevention:** Use a flat `import importlib.resources # nosemgrep` and reference it directly to avoid `isort` line breaks.
