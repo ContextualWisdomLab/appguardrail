@@ -18,7 +18,12 @@ import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
-import importlib_resources as resources
+import sys
+
+if sys.version_info < (3, 9):
+    import importlib_resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+else:
+    from importlib import resources  # type: ignore # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
