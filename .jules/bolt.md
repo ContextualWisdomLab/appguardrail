@@ -66,3 +66,6 @@
 ## 2024-07-20 - Optimizing redundant path glob matching
 **Learning:** During file scanning, evaluating inclusion and exclusion path globs using `fnmatch` for every rule on every file is a significant bottleneck. This redundant work consumes excessive time when many rules share the same glob patterns and are checked against thousands of files.
 **Action:** Use `@functools.lru_cache(maxsize=2048)` on `_path_allowed_by_rule_cached` to memoize the glob matching results for a given path and rule patterns. Ensure that `include_paths` and `exclude_paths` are passed as hashable tuples to support caching using a non-cached wrapper `_path_allowed_by_rule`.
+## 2026-07-21 - MULTILINE regex and \s
+**Learning:** Using \s in re.MULTILINE regex patterns is dangerous and slow. \s matches newlines (\n), causing the regex engine to backtrack across massive blocks of text unexpectedly.
+**Action:** Replace \s with [ \t] (horizontal whitespace) in re.MULTILINE regex patterns whenever matching across lines is not explicitly desired. This forces the regex to fail fast at the end of a line, drastically reducing backtracking and scan times on large codebases.
