@@ -107,3 +107,8 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `_is_safe_url` only checking `is_loopback` and `is_private`. This fails to correctly evaluate mapped IPv4 addresses disguised as IPv6 (e.g. `[::ffff:127.0.0.1]`) and misses restricted IP designations like `is_reserved` or non `is_global` IPs, allowing SSRF to `0.0.0.0` or `255.255.255.255`.
 **Learning:** Python's `ipaddress` objects for mapped IPv6 don't inherit properties of their IPv4 wrapped content directly. Using `is_loopback` without checking `.ipv4_mapped` leaves blind spots.
 **Prevention:** Always extract `getattr(ip, 'ipv4_mapped', None)` before evaluation, and combine checks spanning `is_reserved`, `not is_global`, `is_multicast`, `is_unspecified`, `is_private`, and `is_loopback` to fully protect endpoints.
+
+## 2026-07-20 - Block HTTP Redirects to Prevent SSRF Bypass
+**Vulnerability:** URL validation checks were applied before fetching URLs with `urllib.request.urlopen`, but `urlopen` natively follows redirects. An attacker could provide a URL that passes initial validation but redirects to an internal IP or dangerous file path.
+**Learning:** Even if an initial URL passes safety validation checks, Python's `urllib.request.urlopen` automatically follows HTTP redirects (e.g., 301, 302, 307, 308) by default, which can allow an SSRF bypass to internal networks.
+**Prevention:** To prevent this, explicitly block redirects by passing a custom `urllib.request.HTTPRedirectHandler` (that returns `None` from `redirect_request`) into `urllib.request.build_opener()` instead of using the default `urlopen`.

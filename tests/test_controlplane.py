@@ -352,7 +352,7 @@ def test_slack_blocks_caps_and_escapes():
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
 
-    def _fake_urlopen(req, timeout=None):
+    def _fake_urlopen(self, req, *args, **kwargs):
         posted["url"] = req.full_url
         posted["body"] = json.loads(req.data.decode())
 
@@ -361,7 +361,7 @@ def test_send_alert_slack_vs_generic(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", _fake_urlopen)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
