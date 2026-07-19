@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2024-10-27 - Root ARIA Live & Table Row ARIA Label Anti-patterns
+**Learning:** Placing `aria-live="polite"` on root containers like `<main>` causes screen readers to read the whole app continuously upon any DOM update, rendering it unusable. Furthermore, adding `aria-label` to `<tr>` overrides natural table cell reading, hiding critical table data from screen reader users.
+**Action:** Never place `aria-live` on root containers, restrict them to isolated notification nodes. Remove `aria-label` from table rows so natural cell-by-cell reading is preserved.
