@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2024-10-24 - Interactive Table Rows Keyboard Accessibility
+**Learning:** Interactive table rows (e.g. `tr.scan` with `onclick` handlers) are not inherently accessible to keyboard users. Screen readers may ignore them, and they cannot be focused or activated via keyboard.
+**Action:** When making table rows interactive, always add `tabindex="0"`, `role="button"`, an appropriate `aria-label`, and a `keydown` event listener to handle `Enter` and `Space` key presses.
