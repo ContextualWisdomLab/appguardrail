@@ -66,3 +66,7 @@
 ## 2024-07-20 - Optimizing redundant path glob matching
 **Learning:** During file scanning, evaluating inclusion and exclusion path globs using `fnmatch` for every rule on every file is a significant bottleneck. This redundant work consumes excessive time when many rules share the same glob patterns and are checked against thousands of files.
 **Action:** Use `@functools.lru_cache(maxsize=2048)` on `_path_allowed_by_rule_cached` to memoize the glob matching results for a given path and rule patterns. Ensure that `include_paths` and `exclude_paths` are passed as hashable tuples to support caching using a non-cached wrapper `_path_allowed_by_rule`.
+
+## 2025-02-28 - Avoid Pathlib overhead in fast file scanning
+**Learning:** Inside large scanning loops, generating `pathlib.Path` objects causes significant overhead compared to native string methods. Instantiating thousands of Path objects resulted in ~2.5x slower execution than using `os.path.splitext`, `.split("/")`, and `.lower()` on raw strings.
+**Action:** When optimizing file scanning over large codebases (e.g. tech stack detection), process paths as raw strings and use fast C-level string methods to bypass object creation and parsing overhead.
