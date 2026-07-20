@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2025-02-18 - Making interactive non-button elements accessible
+**Learning:** When adding interactive behavior (e.g., `onclick`) to non-interactive HTML elements like `<tr>` in frameworkless HTML files, screen readers and keyboard navigation users are entirely blocked unless explicitly handled.
+**Action:** Always ensure keyboard accessibility by adding `tabindex="0"`, `role="button"`, an appropriate `aria-label`, focus styles (`:focus-visible`), and a `keydown` listener to handle `Enter` and `Space` key presses.
