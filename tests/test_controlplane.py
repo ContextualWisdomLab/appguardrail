@@ -60,6 +60,11 @@ def _serve(server):
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
+class HTTPNoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # pragma: no cover
+
+
 def _req(method, url, key=None, body=None):
     data = json.dumps(body).encode() if body is not None else None
     r = urllib.request.Request(url, data=data, method=method)
@@ -67,7 +72,8 @@ def _req(method, url, key=None, body=None):
         r.add_header("Authorization", f"Bearer {key}")
     if data:
         r.add_header("Content-Type", "application/json")
-    with closing(urllib.request.urlopen(r, timeout=5)) as resp:
+    opener = urllib.request.build_opener(HTTPNoRedirectHandler)
+    with closing(opener.open(r, timeout=5)) as resp:
         return resp.status, json.loads(resp.read())
 
 
@@ -124,7 +130,8 @@ def test_bad_body_400(server):
 
 def test_console_served_at_root(server):
     base, _ = server
-    with closing(urllib.request.urlopen(base + "/", timeout=5)) as resp:
+    opener = urllib.request.build_opener(HTTPNoRedirectHandler)
+    with closing(opener.open(base + "/", timeout=5)) as resp:
         body = resp.read()
     assert resp.status == 200
     assert b"AppGuardrail Console" in body  # served the org console HTML
@@ -352,7 +359,7 @@ def test_slack_blocks_caps_and_escapes():
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
 
-    def _fake_urlopen(req, timeout=None):
+    def _fake_open(self, req, timeout=None):
         posted["url"] = req.full_url
         posted["body"] = json.loads(req.data.decode())
 
@@ -361,7 +368,7 @@ def test_send_alert_slack_vs_generic(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", _fake_open)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
