@@ -9,3 +9,7 @@
 ## 2024-08-05 - Dynamic Rendering Cursor Position
 **Learning:** When recreating input elements dynamically during client-side rendering (e.g. updating `innerHTML` after a search keystroke), re-focusing the element isn't enough. Simply placing the cursor at the end of the value disrupts users who are editing text in the middle of a string.
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
+
+## 2024-11-20 - Table Row ARIA Labels Accessibility
+**Learning:** Setting `aria-label` on `<tr>` elements (even those with `role="button"`) overrides natural table cell reading and hides critical table data from screen reader users.
+**Action:** Remove `aria-label` from table rows to ensure screen readers announce the individual cell contents correctly instead of just reading the row label.
