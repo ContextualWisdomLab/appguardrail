@@ -131,7 +131,7 @@ function render(){
   const byCat = {};
   let blocking = 0;
   for(const f of ALL){
-    const s = SEV_ORDER.includes(String(f.severity||'INFO').toUpperCase()) ? String(f.severity||'INFO').toUpperCase() : 'INFO';
+    const s = String(f.severity||'INFO').toUpperCase();
     counts[s in counts ? s : 'INFO']++;
     const c = String(f.category||'misconfig');
     byCat[c] = (byCat[c]||0)+1;
@@ -139,7 +139,7 @@ function render(){
   }
   const cards = SEV_ORDER.map(s=>`
     <div class="card">
-      <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${esc(s)}</div>
+      <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
       <div class="n">${counts[s]}</div>
     </div>`).join('');
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
@@ -152,10 +152,10 @@ function render(){
     .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
 
   const rows = filtered.map(({f,i})=>{
-    const s = SEV_ORDER.includes(String(f.severity||'INFO').toUpperCase()) ? String(f.severity||'INFO').toUpperCase() : 'INFO';
+    const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
     return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding" aria-haspopup="dialog">
-      <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span></td>
+      <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
       <td>${esc(f.category)}</td>
@@ -176,7 +176,7 @@ function render(){
           <input type="search" id="q" placeholder="Search message, file, rule, category" aria-label="Search findings" value="${esc(query)}">
           <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
-            ${SEV_ORDER.map(s=>`<option value="${esc(s)}" ${s===filterSev?'selected':''}>${esc(s)}</option>`).join('')}
+            ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
           </select>
         </div>
         <div class="panel"><table>
@@ -212,15 +212,15 @@ function render(){
 
 function openDetail(f){
   lastFocus = document.activeElement;
-  const s = SEV_ORDER.includes(String(f.severity||'INFO').toUpperCase()) ? String(f.severity||'INFO').toUpperCase() : 'INFO';
-  const refs = (Array.isArray(f.references)?f.references:[]).filter(r=>typeof r==="string" && /^(https?:\/\/|[.\/])/.test(r)).map(r=>`<a href="${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
-  const owasp = (Array.isArray(f.owasp)?f.owasp:[]).join(', ');
-  const cwe = (Array.isArray(f.cwe)?f.cwe:[]).join(', ');
+  const s = String(f.severity||'INFO').toUpperCase();
+  const refs = (f.references||[]).map(r=>`<a href="${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
+  const owasp = (f.owasp||[]).join(', ');
+  const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
 
   d.innerHTML = `
     <div class="dlg-head">
-      <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span>
+      <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
       <button aria-label="Close" onclick="document.getElementById('detail').close()">✕</button>
     </div>
