@@ -36,6 +36,7 @@
   th{font-size:11px;color:var(--muted);text-transform:uppercase}
   tr.scan{cursor:pointer}
   tr.scan:hover{background:var(--bg)}
+  tr.scan:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;background:var(--bg)}
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
   .trend{display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px}
   .bar{flex:1;min-width:6px;border-radius:3px 3px 0 0}
@@ -105,10 +106,13 @@ async function load(){
       const col=(s.deploy_blocking||0)>0?"var(--crit)":"var(--ok)";
       return `<div class="bar" title="${esc(s.created_at)}: ${s.deploy_blocking||0} blocking" style="height:${h}px;background:${col}"></div>`;}).join("")||'<span class="muted">No scans yet.</span>';
     // table
-    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}">
+    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}" tabindex="0" role="button" aria-label="View scan details">
       <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
       <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
-    document.querySelectorAll("tr.scan").forEach(tr=>tr.onclick=()=>detail(tr.dataset.id));
+    document.querySelectorAll("tr.scan").forEach(tr=>{
+      tr.onclick=()=>detail(tr.dataset.id);
+      tr.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();detail(tr.dataset.id);}});
+    });
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
     $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
 }
