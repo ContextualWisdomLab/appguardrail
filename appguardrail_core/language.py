@@ -94,25 +94,42 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        path = Path(file_path)
-        language = LANGUAGE_BY_EXTENSION.get(path.suffix.lower())
+        # ⚡ Bolt: Optimize tech stack detection by processing paths as raw strings
+        # instead of instantiating thousands of pathlib.Path objects.
+        # This saves significant overhead in object creation and parsing.
+        path_str = str(file_path)
+
+        last_dot_idx = path_str.rfind(".")
+        suffix = path_str[last_dot_idx:].lower() if last_dot_idx != -1 else ""
+
+        language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
             languages.add(language)
-        if path.name in PYTHON_MANIFESTS:
+
+        last_sep_idx = path_str.rfind("/")
+        if last_sep_idx == -1:
+            last_sep_idx = path_str.rfind("\\")
+        name = path_str[last_sep_idx + 1 :] if last_sep_idx != -1 else path_str
+
+        if name in PYTHON_MANIFESTS:
             languages.add("python")
-        if path.name in JAVA_MANIFESTS:
+        if name in JAVA_MANIFESTS:
             languages.add("java")
-        if path.name in NODE_MANIFESTS:
+        if name in NODE_MANIFESTS:
             languages.add("javascript")
-            if path.name == "tsconfig.json":
+            if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
 
 
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    paths = [Path(file_path) for file_path in files]
-    languages = detect_language_axes(paths)
+    # ⚡ Bolt: Pass raw file strings directly to detect_language_axes and markers
+    # to avoid creating Path objects unnecessarily, improving large codebase scans.
+    # Convert to list first to avoid exhausting generators
+    file_list = list(files) if not isinstance(files, (list, set, tuple)) else files
+    paths = [Path(f) for f in file_list]  # We keep paths for markers, but files for axes
+    languages = detect_language_axes(file_list)
     frameworks = _detect_framework_markers(paths)
     signals = _detect_signals(paths, frameworks)
 

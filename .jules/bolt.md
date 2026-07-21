@@ -66,3 +66,10 @@
 ## 2024-07-20 - Optimizing redundant path glob matching
 **Learning:** During file scanning, evaluating inclusion and exclusion path globs using `fnmatch` for every rule on every file is a significant bottleneck. This redundant work consumes excessive time when many rules share the same glob patterns and are checked against thousands of files.
 **Action:** Use `@functools.lru_cache(maxsize=2048)` on `_path_allowed_by_rule_cached` to memoize the glob matching results for a given path and rule patterns. Ensure that `include_paths` and `exclude_paths` are passed as hashable tuples to support caching using a non-cached wrapper `_path_allowed_by_rule`.
+## 2024-07-21 - Avoiding pathlib instantiation in language detection loops
+**Learning:** Instantiating `pathlib.Path` thousands of times in a nested loop (such as reading suffixes from all collected files in `detect_language_axes`) causes enormous CPU time and function call overhead compared to basic Python string manipulation. Pathlib evaluates system paths, whereas our logic only needs basic suffix checking against a dictionary.
+**Action:** When rapidly processing a list of paths without needing filesystem interaction, explicitly cast the path to a string (`str(file)`) and use C-level string methods (`rfind`, `lower`) to extract the suffix and filename.
+
+## 2024-07-21 - Preventing generator exhaustion when caching types
+**Learning:** I converted an `Iterable` into a list internally to keep it from being re-instantiated or skipped during multi-pass operations.
+**Action:** Use `list(iterable) if not isinstance(iterable, (list, tuple, set)) else iterable` to safely ensure a collection is reusable without inadvertently exhausting an iterator before passing it to subsequent functions.
