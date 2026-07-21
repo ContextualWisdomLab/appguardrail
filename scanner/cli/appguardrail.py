@@ -100,10 +100,7 @@ def _format_msg(msg: str) -> str:
 def _console_print(*values, **kwargs) -> None:
     """Print CLI values after applying accessibility formatting to strings."""
     _ORIGINAL_PRINT(
-        *(
-            _format_msg(value) if isinstance(value, str) else value
-            for value in values
-        ),
+        *(_format_msg(value) if isinstance(value, str) else value for value in values),
         **kwargs,
     )
 
@@ -1397,7 +1394,9 @@ def cmd_scan(args):
     _console_print(f"\n🔍 AppGuardrail scanning: {scan_path}\n")
 
     if run_codegraph:
-        _console_print("🧭 CodeGraph enabled: initializing or syncing structural index\n")
+        _console_print(
+            "🧭 CodeGraph enabled: initializing or syncing structural index\n"
+        )
         try:
             status = _run_codegraph_index(scan_path)
         except RuntimeError as exc:
@@ -1435,9 +1434,13 @@ def cmd_scan(args):
         if profile.frameworks:
             _console_print(f"   Framework signals: {', '.join(profile.frameworks)}")
         if profile.external_tools:
-            _console_print(f"   Optional external engines: {', '.join(profile.external_tools)}")
+            _console_print(
+                f"   Optional external engines: {', '.join(profile.external_tools)}"
+            )
         if profile.zap_recommended:
-            _console_print("   ZAP baseline: provide --zap-baseline <url> for authorized DAST")
+            _console_print(
+                "   ZAP baseline: provide --zap-baseline <url> for authorized DAST"
+            )
         _console_print()
 
     external_plan = build_external_scan_plan(
@@ -1614,7 +1617,9 @@ def _is_safe_url(url: str) -> bool:
     import socket
 
     try:
-        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        parsed = urllib.parse.urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except ValueError:
         return False
 
@@ -1669,6 +1674,10 @@ def _push_findings(url, findings):
     import urllib.error
     import urllib.request
 
+    class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
         _console_print(
@@ -1698,9 +1707,12 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-            req, timeout=15
-        ) as resp:  # noqa: S310 - Safe URL scheme validated
+        opener = urllib.request.build_opener(NoRedirectHandler)
+        with (
+            opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+                req, timeout=15
+            ) as resp
+        ):  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""
@@ -1799,7 +1811,9 @@ def cmd_fix(args):
             f"\n🔧 {total_fixes} safe fix{fix_s} available in {changed_files} file{file_s}. "
             "Re-run with --apply to write them."
         )
-        _console_print("   Other findings need review — see 'appguardrail report fix-pack'.")
+        _console_print(
+            "   Other findings need review — see 'appguardrail report fix-pack'."
+        )
     return 0
 
 
@@ -1837,7 +1851,9 @@ def cmd_report(args):
     """Generate markdown reports from normalized AppGuardrail findings JSON."""
     report_type = getattr(args, "report_type", None)
     if report_type not in supported_report_types():
-        _console_print(f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr)
+        _console_print(
+            f"❌ Error: Unsupported report type: {report_type}", file=sys.stderr
+        )
         _console_print(
             "💡 Hint: Supported report types are: "
             + ", ".join(supported_report_types()),
@@ -2096,7 +2112,9 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
 
 
 @functools.lru_cache(maxsize=2048)
-def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths: tuple) -> bool:
+def _path_allowed_by_rule_cached(
+    path: str, include_paths: tuple, exclude_paths: tuple
+) -> bool:
     """Return whether a path passes optional YAML include/exclude filters (cached)."""
     if include_paths and not any(
         _path_matches_glob(path, glob) for glob in include_paths
@@ -2106,9 +2124,14 @@ def _path_allowed_by_rule_cached(path: str, include_paths: tuple, exclude_paths:
         return False
     return True
 
+
 def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
     """Return whether a path passes optional YAML include/exclude filters."""
-    return _path_allowed_by_rule_cached(path, tuple(include_paths) if include_paths else (), tuple(exclude_paths) if exclude_paths else ())
+    return _path_allowed_by_rule_cached(
+        path,
+        tuple(include_paths) if include_paths else (),
+        tuple(exclude_paths) if exclude_paths else (),
+    )
 
 
 def _collect_files(base_path: Path):
@@ -2637,22 +2660,20 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = (
-            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-                [
-                    semgrep,
-                    "scan",
-                    "--config",
-                    config,
-                    "--json",
-                    str(scan_path),
-                ],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=600,
-            )
+        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+            [
+                semgrep,
+                "scan",
+                "--config",
+                config,
+                "--json",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2719,15 +2740,13 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = (
-                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=900,
-                )
+            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=900,
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -3010,18 +3029,30 @@ def _print_scan_results(findings, files_scanned):
         _console_print("\n⚠️  No files were scanned. Are you in the right directory?")
     elif counts["CRITICAL"] > 0:
         issue_word = "issue" if counts["CRITICAL"] == 1 else "issues"
-        _console_print(_format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying."))
+        _console_print(
+            _format_msg(f"\n❌ Critical {issue_word} found. Fix before deploying.")
+        )
     elif counts["HIGH"] > 0:
         issue_word = "issue" if counts["HIGH"] == 1 else "issues"
-        _console_print(_format_msg(f"\n⚠️  High-severity {issue_word} found. Review before deploying."))
+        _console_print(
+            _format_msg(
+                f"\n⚠️  High-severity {issue_word} found. Review before deploying."
+            )
+        )
     elif not findings:
         _console_print(_format_msg("\n✅ No issues found in this scan."))
     else:
-        _console_print(_format_msg("\n✅ No deploy-blocking critical or high issues found."))
+        _console_print(
+            _format_msg("\n✅ No deploy-blocking critical or high issues found.")
+        )
 
     if findings:
         these_word = "this issue" if len(findings) == 1 else "these issues"
-        _console_print(_format_msg(f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."))
+        _console_print(
+            _format_msg(
+                f"\n💡 Run 'appguardrail review' to get an AI prompt for fixing {these_word}."
+            )
+        )
     _console_print()
 
 
@@ -3051,8 +3082,12 @@ def cmd_review(args):
     _console_print("═" * 60 + "\n")
     _console_print("💡 Tips:")
     _console_print("  - Paste this into Claude Code, Cursor, or any AI assistant")
-    _console_print("  - Include relevant files as context (API routes, DB schema, etc.)")
-    _console_print("  - Run 'appguardrail scan .' first to identify specific files to review")
+    _console_print(
+        "  - Include relevant files as context (API routes, DB schema, etc.)"
+    )
+    _console_print(
+        "  - Run 'appguardrail scan .' first to identify specific files to review"
+    )
     _console_print()
 
 
@@ -3220,7 +3255,9 @@ def cmd_serve(args):
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            _console_print(
+                f"❌ API key file already exists: {key_path}", file=sys.stderr
+            )
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         oid, key = cp.create_org(conn, create)
@@ -3228,7 +3265,9 @@ def cmd_serve(args):
         try:
             _persist_api_key(key_path, key)
         except FileExistsError:
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            _console_print(
+                f"❌ API key file already exists: {key_path}", file=sys.stderr
+            )
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         _console_print(f"✅ Created org '{create}' (id {oid}).")
@@ -3238,7 +3277,9 @@ def cmd_serve(args):
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            _console_print(
+                f"❌ API key file already exists: {key_path}", file=sys.stderr
+            )
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         _oid, key = cp.create_org(conn, "default")
@@ -3246,7 +3287,9 @@ def cmd_serve(args):
             _persist_api_key(key_path, key)
         except FileExistsError:
             conn.close()
-            _console_print(f"❌ API key file already exists: {key_path}", file=sys.stderr)
+            _console_print(
+                f"❌ API key file already exists: {key_path}", file=sys.stderr
+            )
             _console_print("💡 Pass --api-key-file with a new path.", file=sys.stderr)
             return 1
         _console_print("ℹ️  No orgs yet — created 'default'.")
@@ -3323,7 +3366,9 @@ def cmd_dashboard(args):
 
     index = dashboard_index_path()
     if not index.is_file():
-        _console_print(f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr)
+        _console_print(
+            f"❌ Error: Dashboard assets not found at {index}", file=sys.stderr
+        )
         _console_print(
             "💡 Hint: Check if the path is correct or if you are in the right directory.",
             file=sys.stderr,
@@ -3342,7 +3387,9 @@ def cmd_dashboard(args):
             "   Generate one with: "
             "appguardrail scan --findings-json reports/findings.json ."
         )
-        _console_print("   The dashboard opens with instructions — reload after generating.\n")
+        _console_print(
+            "   The dashboard opens with instructions — reload after generating.\n"
+        )
 
     tokens_css = b""
     tokens_file = dashboard_tokens_path()
@@ -3364,8 +3411,12 @@ def cmd_dashboard(args):
             host, port, index.read_bytes(), findings_path, tokens_css
         )
     except OSError as exc:
-        _console_print(f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr)
-        _console_print("💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr)
+        _console_print(
+            f"❌ Cannot start dashboard on {host}:{port} ({exc}).", file=sys.stderr
+        )
+        _console_print(
+            "💡 Pass a free port with --port, e.g. --port 8899.", file=sys.stderr
+        )
         return 1
 
     actual_port = server.server_address[1]
