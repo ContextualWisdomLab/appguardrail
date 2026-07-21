@@ -1831,3 +1831,17 @@ def test_cli_routes_console_calls_through_accessibility_wrapper():
     ]
 
     assert direct_print_lines == []
+
+def test_is_sensitive_rule_includes_new_secrets():
+    from scanner.cli.appguardrail import _is_sensitive_rule
+
+    new_rules = [
+        "hardcoded-slack-token",
+        "hardcoded-slack-webhook-url",
+        "hardcoded-twilio-credential",
+        "hardcoded-sendgrid-api-key",
+        "hardcoded-npm-token",
+        "hardcoded-pypi-token",
+    ]
+    for rule in new_rules:
+        assert _is_sensitive_rule(rule) is True

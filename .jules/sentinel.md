@@ -107,3 +107,7 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `_is_safe_url` only checking `is_loopback` and `is_private`. This fails to correctly evaluate mapped IPv4 addresses disguised as IPv6 (e.g. `[::ffff:127.0.0.1]`) and misses restricted IP designations like `is_reserved` or non `is_global` IPs, allowing SSRF to `0.0.0.0` or `255.255.255.255`.
 **Learning:** Python's `ipaddress` objects for mapped IPv6 don't inherit properties of their IPv4 wrapped content directly. Using `is_loopback` without checking `.ipv4_mapped` leaves blind spots.
 **Prevention:** Always extract `getattr(ip, 'ipv4_mapped', None)` before evaluation, and combine checks spanning `is_reserved`, `not is_global`, `is_multicast`, `is_unspecified`, `is_private`, and `is_loopback` to fully protect endpoints.
+## 2024-05-18 - Fix missing redaction tokens for additional secret rules
+**Vulnerability:** Additional secret detection rules (slack, twilio, sendgrid, npm, pypi) were missing from the `_SENSITIVE_RULE_TOKENS` list in `scanner/cli/appguardrail.py`.
+**Learning:** Adding new scanner rules to detect secrets isn't enough; the token strings identifying these rules must also be added to `_SENSITIVE_RULE_TOKENS` to ensure their values are redacted in CI/CD logs or terminal output. Otherwise, the scanner would find the secret and then leak it.
+**Prevention:** Whenever adding new secret detection rules to `SCAN_RULES` or `scanner/rules/secrets.yml`, always cross-reference and update the `_SENSITIVE_RULE_TOKENS` list to ensure corresponding redaction.

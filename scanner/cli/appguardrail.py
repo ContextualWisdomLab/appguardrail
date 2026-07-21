@@ -2175,6 +2175,11 @@ _SENSITIVE_RULE_TOKENS = (
     "google",
     "github",
     "api-key",
+    "slack",
+    "twilio",
+    "sendgrid",
+    "npm",
+    "pypi",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
