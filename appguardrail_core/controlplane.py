@@ -18,9 +18,7 @@ import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
-from importlib import (
-    resources,
-)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+import importlib.resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
@@ -505,7 +503,9 @@ def get_scan(
 def console_html() -> bytes:
     """Return the packaged org-console HTML, or a minimal fallback."""
     try:
-        path = resources.files("scanner").joinpath("dashboard", "console.html")
+        path = importlib.resources.files("scanner").joinpath(
+            "dashboard", "console.html"
+        )
         return path.read_bytes()
     except (FileNotFoundError, ModuleNotFoundError, OSError):
         return b"<!doctype html><title>AppGuardrail Console</title><p>Console asset missing.</p>"
