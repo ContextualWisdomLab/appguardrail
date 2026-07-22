@@ -13,6 +13,7 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import re
 import secrets
@@ -20,8 +21,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
+
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
-import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS orgs (
