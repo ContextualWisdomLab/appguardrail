@@ -112,3 +112,7 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to Python's `urllib.request.urlopen` automatically following HTTP redirects, allowing redirection to internal network endpoints even if the initial URL is validated as safe.
 **Learning:** Initial URL string validation is insufficient because the HTTP client follows redirects natively. The redirect behavior must be explicitly blocked at the client level.
 **Prevention:** Use `urllib.request.build_opener()` with a custom `urllib.request.HTTPRedirectHandler` that returns `None` from `redirect_request` instead of the default `urlopen`.
+
+## 2026-07-28 - [Properly consume and close urllib response inside exception handlers]
+**Learning:** When suppressing exceptions like `urllib.error.HTTPError`, it is critical to properly consume (`exc.read()`) and close (`exc.close()`) the exception object, as it acts as a file-like response object. Failing to do so can lead to connection leaks or unclosed sockets, even when the response is discarded.
+**Prevention:** In exception handlers for `urllib.error.HTTPError`, use `try...except (OSError, ValueError): pass` blocks around `exc.read()` and `exc.close()` to safely drain and release the HTTP connection before proceeding, especially in best-effort notifier contracts.
