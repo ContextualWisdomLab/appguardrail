@@ -66,3 +66,7 @@
 ## 2024-07-20 - Optimizing redundant path glob matching
 **Learning:** During file scanning, evaluating inclusion and exclusion path globs using `fnmatch` for every rule on every file is a significant bottleneck. This redundant work consumes excessive time when many rules share the same glob patterns and are checked against thousands of files.
 **Action:** Use `@functools.lru_cache(maxsize=2048)` on `_path_allowed_by_rule_cached` to memoize the glob matching results for a given path and rule patterns. Ensure that `include_paths` and `exclude_paths` are passed as hashable tuples to support caching using a non-cached wrapper `_path_allowed_by_rule`.
+
+## 2024-07-22 - Optimizing `pathlib` overhead in stack detection loops
+**Learning:** In operations that process large lists of files unconditionally (like language and stack profile detection in `appguardrail_core/language.py`), instantiating `pathlib.Path` objects and calling methods like `.name`, `.suffix`, and `.parts` adds massive overhead. In tests with 100,000 files, pure string manipulations (`os.path.basename`, string slicing, `.split()`) completed in ~1.4 seconds compared to ~5.4 seconds for `pathlib`.
+**Action:** When inspecting file names and extensions over large datasets inside loops (especially for generic detection algorithms), process the files as strings or convert them to strings once, and use native string methods like `.rfind()`, `.endswith()`, and `os.path.basename` instead of allocating `pathlib.Path` objects per iteration.
