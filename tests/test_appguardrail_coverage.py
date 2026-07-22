@@ -1,14 +1,25 @@
 import os
 import runpy
 import sys
+import urllib.error
+import urllib.request
 from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (_collect_files, _parse_inline_list,
-                                      _path_matches_glob, _scan_file, cmd_hook,
-                                      cmd_init, cmd_monitor, cmd_review,
-                                      cmd_scan, main)
+from scanner.cli.appguardrail import (
+    _collect_files,
+    _parse_inline_list,
+    _path_matches_glob,
+    _push_findings,
+    _scan_file,
+    cmd_hook,
+    cmd_init,
+    cmd_monitor,
+    cmd_review,
+    cmd_scan,
+    main,
+)
 from tests.test_appguardrail import MOCK_RULES
 
 
@@ -443,7 +454,6 @@ def test_scan_file_open_permission_error():
         patch("scanner.cli.appguardrail._get_applicable_rules") as mock_get_rules,
         patch("builtins.open", mock_open()) as m_open,
     ):
-
         mock_st = mock_lstat.return_value
         mock_st.st_mode = stat.S_IFREG
         mock_st.st_size = 100
@@ -480,3 +490,99 @@ def test_is_safe_url_cli_coverage():
     assert not _is_safe_url("http://224.0.0.1/")
     assert not _is_safe_url("http://[::]/")
     assert not _is_safe_url("http://[ff00::1]/")
+
+
+@pytest.mark.parametrize(("status", "succeeds"), [(201, True), (302, False)])
+def test_push_findings_requires_2xx_and_closes_response(
+    status, succeeds, monkeypatch, capsys
+):
+    opened = {}
+
+    class Response:
+        def __init__(self):
+            self.status = status
+            self.closed = False
+            self.read_called = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.close()
+
+        def close(self):
+            self.closed = True
+
+        def read(self):
+            self.read_called = True
+            return b'{"id": 7}'
+
+    response = Response()
+
+    class Opener:
+        def open(self, request, timeout):
+            opened["request"] = request
+            opened["timeout"] = timeout
+            return response
+
+    def build_opener(handler):
+        opened["handler"] = handler
+        return Opener()
+
+    monkeypatch.setenv("APPGUARDRAIL_API_KEY", "test-key")
+    monkeypatch.setattr("scanner.cli.appguardrail._is_safe_url", lambda url: True)
+    monkeypatch.setattr("urllib.request.build_opener", build_opener)
+
+    _push_findings("https://push.example", [])
+
+    captured = capsys.readouterr()
+    assert issubclass(opened["handler"], urllib.request.HTTPRedirectHandler)
+    assert (
+        opened["handler"]().redirect_request(None, None, 302, "", {}, "https://other")
+        is None
+    )
+    assert opened["request"].full_url.endswith("/api/v1/scans")
+    assert opened["timeout"] == 15
+    assert response.read_called is True
+    assert response.closed is True
+    if succeeds:
+        assert "Pushed scan #7" in captured.out
+        assert captured.err == ""
+    else:
+        assert captured.out == ""
+        assert "failed (HTTP status 302)" in captured.err
+
+
+def test_push_findings_drains_and_closes_http_error(monkeypatch, capsys):
+    class ErrorResponse:
+        def __init__(self):
+            self.closed = False
+            self.read_called = False
+
+        def read(self, *args):
+            self.read_called = True
+            return b"redirect"
+
+        def close(self):
+            self.closed = True
+
+    response = ErrorResponse()
+    error = urllib.error.HTTPError(
+        "https://push.example/api/v1/scans", 302, "Found", {}, response
+    )
+
+    class Opener:
+        def open(self, request, timeout):
+            raise error
+
+    monkeypatch.setenv("APPGUARDRAIL_API_KEY", "test-key")
+    monkeypatch.setattr("scanner.cli.appguardrail._is_safe_url", lambda url: True)
+    monkeypatch.setattr(urllib.request, "build_opener", lambda handler: Opener())
+
+    _push_findings("https://push.example", [])
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "failed (HTTP status 302)" in captured.err
+    assert response.read_called is True
+    assert response.closed is True

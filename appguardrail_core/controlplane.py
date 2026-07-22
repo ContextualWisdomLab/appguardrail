@@ -13,6 +13,7 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import re
 import secrets
@@ -20,8 +21,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
+
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
-import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS orgs (
@@ -308,10 +309,20 @@ def _send_alert(
             headers={"Content-Type": "application/json"},
         )
         opener = urllib.request.build_opener(NoRedirect)
-        with opener.open(req, timeout=10) as resp:  # noqa: S310 - Safe URL scheme validated
-            if not (200 <= resp.status < 300):
-                return False
-        return True
+        with opener.open(req, timeout=10) as response:  # noqa: S310
+            response.read()
+            status = getattr(response, "status", None)
+        return isinstance(status, int) and 200 <= status < 300
+    except urllib.error.HTTPError as exc:
+        try:
+            exc.read()
+        except (OSError, ValueError):
+            pass
+        try:
+            exc.close()
+        except (OSError, ValueError):
+            pass
+        return False
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
