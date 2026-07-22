@@ -94,24 +94,32 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        path = Path(file_path)
-        language = LANGUAGE_BY_EXTENSION.get(path.suffix.lower())
+        # ⚡ Bolt: Process paths as raw strings to avoid heavy Path object creation
+        path_str = str(file_path)
+        # Fast path parsing for suffix and name
+        slash_idx = max(path_str.rfind("/"), path_str.rfind("\\"))
+        name = path_str[slash_idx + 1 :] if slash_idx >= 0 else path_str
+        dot_idx = name.rfind(".")
+        suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
+
+        language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
             languages.add(language)
-        if path.name in PYTHON_MANIFESTS:
+        if name in PYTHON_MANIFESTS:
             languages.add("python")
-        if path.name in JAVA_MANIFESTS:
+        if name in JAVA_MANIFESTS:
             languages.add("java")
-        if path.name in NODE_MANIFESTS:
+        if name in NODE_MANIFESTS:
             languages.add("javascript")
-            if path.name == "tsconfig.json":
+            if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
 
 
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    paths = [Path(file_path) for file_path in files]
+    # ⚡ Bolt: Avoid parsing Path objects when detecting profile
+    paths = [str(file_path) for file_path in files]
     languages = detect_language_axes(paths)
     frameworks = _detect_framework_markers(paths)
     signals = _detect_signals(paths, frameworks)
@@ -188,11 +196,12 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     )
 
 
-def _detect_framework_markers(paths: list[Path]) -> set[str]:
+def _detect_framework_markers(paths: list[str]) -> set[str]:
     markers: set[str] = set()
     for path in paths:
-        name = path.name
-        lowered_path = path.as_posix().lower()
+        slash_idx = max(path.rfind("/"), path.rfind("\\"))
+        name = path[slash_idx + 1 :] if slash_idx >= 0 else path
+        lowered_path = path.replace("\\", "/").lower()
         if "templates/" in lowered_path or "/views/" in lowered_path:
             markers.add("templates")
         if name not in MANIFEST_NAMES:
@@ -204,21 +213,22 @@ def _detect_framework_markers(paths: list[Path]) -> set[str]:
     return markers
 
 
-def _detect_signals(paths: list[Path], frameworks: set[str]) -> set[str]:
+def _detect_signals(paths: list[str], frameworks: set[str]) -> set[str]:
     signals = set(frameworks)
     for path in paths:
-        name = path.name
+        slash_idx = max(path.rfind("/"), path.rfind("\\"))
+        name = path[slash_idx + 1 :] if slash_idx >= 0 else path
         if name in MANIFEST_NAMES:
             signals.add(name)
-        for part in path.parts:
+        for part in path.replace("\\", "/").split("/"):
             if part.lower() in WEB_SIGNAL_DIRS:
                 signals.add(part.lower())
     return signals
 
 
-def _read_manifest_text(path: Path, max_bytes: int = 128_000) -> str:
+def _read_manifest_text(path: str, max_bytes: int = 128_000) -> str:
     try:
-        with path.open("rb") as handle:
+        with open(path, "rb") as handle:
             return handle.read(max_bytes).decode("utf-8", errors="ignore")
     except OSError:
         return ""
@@ -241,7 +251,7 @@ def _external_tools_for(languages: set[str], profile_id: str) -> tuple[str, ...]
 
 
 def _is_web_reachable(
-    languages: set[str], frameworks: set[str], paths: list[Path]
+    languages: set[str], frameworks: set[str], paths: list[str]
 ) -> bool:
     if "web" in languages:
         return True
@@ -249,4 +259,8 @@ def _is_web_reachable(
         PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS | {"templates"}
     ):
         return True
-    return any(part.lower() in WEB_SIGNAL_DIRS for path in paths for part in path.parts)
+    return any(
+        part.lower() in WEB_SIGNAL_DIRS
+        for path in paths
+        for part in path.replace("\\", "/").split("/")
+    )
