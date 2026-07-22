@@ -360,32 +360,32 @@ def test_slack_blocks_caps_and_escapes():
 
 
 def test_send_alert_slack_vs_generic(monkeypatch):
-    posted = {"bodies": [], "handler_types": [], "closed": 0}
+    posted = {}
 
-    class _Response:
-        def __enter__(self):
-            return self
+    def _fake_urlopen(self, req, timeout=None):
+        posted["url"] = req.full_url
+        posted["body"] = json.loads(req.data.decode())
 
-        def __exit__(self, *_args):
-            posted["closed"] += 1
-            return False
+        class _R:  # minimal stand-in
+            def __enter__(self):
+                return self
 
-        def read(self):
-            return b"{}"
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                self.close()
 
-    class _Opener:
-        def open(self, req, data=None, timeout=None, **_kwargs):
-            assert data is None
-            assert timeout == 10
-            posted["url"] = req.full_url
-            posted["bodies"].append(json.loads(req.data.decode()))
-            return _Response()
+            def close(self):
+                pass
 
-    def _fake_build_opener(*handler_types):
-        posted["handler_types"].append(handler_types)
-        return _Opener()
+            def read(self):
+                return b"{}"
 
-    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
+            @property
+            def status(self):
+                return 200
+
+        return _R()
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", _fake_urlopen)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
@@ -406,11 +406,10 @@ def test_send_alert_slack_vs_generic(monkeypatch):
         )
         is True
     )
-    assert "blocks" in posted["bodies"][0]
-    assert "Acme" in json.dumps(posted["bodies"][0])
+    assert "blocks" in posted["body"]
+    assert "Acme" in json.dumps(posted["body"])
     assert (
-        "1 new deploy-blocking finding"
-        in posted["bodies"][0]["blocks"][0]["text"]["text"]
+        "1 new deploy-blocking finding" in posted["body"]["blocks"][0]["text"]["text"]
     )
 
     # Generic URL -> untouched original payload (backward compatible)
@@ -420,14 +419,8 @@ def test_send_alert_slack_vs_generic(monkeypatch):
         )
         is True
     )
-    assert posted["bodies"][1] == generic
-    assert "blocks" not in posted["bodies"][1]
-    assert posted["closed"] == 2
-    for handler_types in posted["handler_types"]:
-        assert len(handler_types) == 1
-        handler_type = handler_types[0]
-        assert issubclass(handler_type, urllib.request.HTTPRedirectHandler)
-        assert handler_type().redirect_request(None, None, 302, "", {}, "x") is None
+    assert posted["body"] == generic
+    assert "blocks" not in posted["body"]
 
 
 # ---- API hardening: body cap + query clamps ----

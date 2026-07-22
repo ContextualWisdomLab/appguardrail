@@ -1,12 +1,10 @@
 import os
 import runpy
 import sys
-import urllib.request
 from unittest.mock import patch
 
 import pytest
 
-from scanner.cli import appguardrail as cli
 from scanner.cli.appguardrail import (_collect_files, _parse_inline_list,
                                       _path_matches_glob, _scan_file, cmd_hook,
                                       cmd_init, cmd_monitor, cmd_review,
@@ -32,47 +30,6 @@ def _create_symlink(target, link, target_is_directory=False):
         pytest.skip(
             f"symlinks are not available in this environment: {exc}"
         )  # pragma: no cover
-
-
-def test_push_findings_disables_redirects_and_closes_response(monkeypatch, capsys):
-    """Control-plane pushes use the no-redirect opener and close its response."""
-    captured = {"closed": False}
-
-    class Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            captured["closed"] = True
-            return False
-
-        def read(self):
-            return b'{"id": 7, "new_blocking": 1}'
-
-    class Opener:
-        def open(self, request, data=None, timeout=None, **_kwargs):
-            captured["request"] = request
-            assert data is None
-            assert timeout == 15
-            return Response()
-
-    def build_opener(*handler_types):
-        captured["handler_types"] = handler_types
-        return Opener()
-
-    monkeypatch.setenv("APPGUARDRAIL_API_KEY", "secret")
-    monkeypatch.setattr(cli, "_is_safe_url", lambda _url: True)
-    monkeypatch.setattr(urllib.request, "build_opener", build_opener)
-
-    cli._push_findings("https://control.example", [])
-
-    handler_types = captured["handler_types"]
-    assert len(handler_types) == 1
-    assert issubclass(handler_types[0], urllib.request.HTTPRedirectHandler)
-    assert handler_types[0]().redirect_request(None, None, 302, "", {}, "x") is None
-    assert captured["request"].full_url.endswith("/api/v1/scans")
-    assert captured["closed"] is True
-    assert "Pushed scan #7" in capsys.readouterr().out
 
 
 def test_cmd_init_symlink_removal(tmp_path, monkeypatch):

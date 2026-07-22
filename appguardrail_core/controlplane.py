@@ -308,10 +308,8 @@ def _send_alert(
             headers={"Content-Type": "application/json"},
         )
         opener = urllib.request.build_opener(NoRedirect)
-        with opener.open(  # noqa: S310 - Safe URL scheme validated
-            req, timeout=10
-        ) as response:
-            response.read()
+        with opener.open(req, timeout=10):  # noqa: S310 - Safe URL scheme validated
+            pass
         return True
     except (urllib.error.URLError, OSError, ValueError):
         return False
