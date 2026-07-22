@@ -1710,16 +1710,9 @@ def _push_findings(url, findings):
 
         opener = urllib.request.build_opener(NoRedirect)
         with opener.open(req, timeout=15) as resp:  # noqa: S310 - Safe URL scheme validated
-            response_body = resp.read()
-            status = getattr(resp, "status", None)
-        if not isinstance(status, int) or not 200 <= status < 300:
-            _console_print(
-                f"⚠️  Control-plane push failed (HTTP status {status}); "
-                "scan still completed.",
-                file=sys.stderr,
-            )
-            return
-        body = json.loads(response_body or b"{}")
+            if not (200 <= resp.status < 300):
+                raise urllib.error.URLError(f"HTTP {resp.status}")
+            body = json.loads(resp.read() or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""
         _console_print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
