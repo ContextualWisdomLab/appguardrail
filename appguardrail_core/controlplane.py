@@ -317,10 +317,12 @@ def _send_alert(
         try:
             exc.read()
         except (OSError, ValueError):
+            # Delivery already failed; cleanup errors must not escape this notifier.
             pass
         try:
             exc.close()
         except (OSError, ValueError):
+            # Preserve the best-effort contract even if the error response cannot close.
             pass
         return False
     except (urllib.error.URLError, OSError, ValueError):

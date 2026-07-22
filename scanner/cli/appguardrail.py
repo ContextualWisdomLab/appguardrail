@@ -1727,10 +1727,12 @@ def _push_findings(url, findings):
         try:
             exc.read()
         except (OSError, ValueError):
+            # The push already failed; cleanup errors must not abort the local scan.
             pass
         try:
             exc.close()
         except (OSError, ValueError):
+            # Keep scan completion independent from error-response cleanup failures.
             pass
         _console_print(
             f"⚠️  Control-plane push failed (HTTP status {exc.code}); "
