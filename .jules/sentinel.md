@@ -107,3 +107,8 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `_is_safe_url` only checking `is_loopback` and `is_private`. This fails to correctly evaluate mapped IPv4 addresses disguised as IPv6 (e.g. `[::ffff:127.0.0.1]`) and misses restricted IP designations like `is_reserved` or non `is_global` IPs, allowing SSRF to `0.0.0.0` or `255.255.255.255`.
 **Learning:** Python's `ipaddress` objects for mapped IPv6 don't inherit properties of their IPv4 wrapped content directly. Using `is_loopback` without checking `.ipv4_mapped` leaves blind spots.
 **Prevention:** Always extract `getattr(ip, 'ipv4_mapped', None)` before evaluation, and combine checks spanning `is_reserved`, `not is_global`, `is_multicast`, `is_unspecified`, `is_private`, and `is_loopback` to fully protect endpoints.
+
+## 2024-07-22 - Prevent DOM XSS in Dashboard Severity Rendering
+**Vulnerability:** DOM XSS vulnerability in `scanner/dashboard/index.html` where dynamically inserted finding properties like `severity` were not properly sanitized using `esc()` before being injected into the DOM via `innerHTML`.
+**Learning:** While most properties were escaped, `severity` was assumed to be safe because it usually comes from a fixed set of severities (CRITICAL, HIGH, etc.). However, dynamically inserted JSON can be manipulated, leading to potential XSS execution.
+**Prevention:** Always ensure all dynamically inserted finding properties, including `severity`, are safely sanitized using the `esc()` function before rendering them with `innerHTML` to prevent DOM XSS vulnerabilities.
