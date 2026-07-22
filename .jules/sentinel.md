@@ -112,3 +112,8 @@
 **Vulnerability:** HTTP redirects were bypassing the `_is_safe_url` validation checks in `_push_findings` and `_send_alert`. While the initial URL was validated, `urllib.request.urlopen` automatically followed redirects (e.g. 301, 302) to potentially insecure internal IPs without re-validating the target URL.
 **Learning:** Initial URL validation is insufficient if the HTTP client automatically follows redirects to new locations. The URL validation logic must be enforced on every redirect hop to prevent Server-Side Request Forgery (SSRF) and Local File Inclusion (LFI).
 **Prevention:** Always implement a custom `urllib.request.HTTPRedirectHandler` via `urllib.request.build_opener` when making outbound HTTP requests, and enforce the security validation logic (e.g. `_is_safe_url`) inside the `redirect_request` method before allowing the redirect to proceed.
+
+## 2026-07-22 - Fix Python 3.7+ Compatibility Import Rule
+**Vulnerability:** The Semgrep CI check failed on the `python.lang.compatibility.python37.python37-compatibility-importlib2` rule due to black formatting spreading the `importlib.resources` import across multiple lines, which breaks the `# nosemgrep` suppression directive.
+**Learning:** `# nosemgrep` suppressions must strictly appear on the same line as the offending code. If code formatters like `black` reformat an import to be multiline, the suppression comment becomes detached or only suppresses one line, causing the SAST check to fail.
+**Prevention:** When using `# nosemgrep:` comments to suppress SAST rules on Python imports, write the import as a single line (e.g., `import importlib.resources as resources`) to prevent the `black` formatter from wrapping the line and breaking the inline suppression.
