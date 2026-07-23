@@ -111,6 +111,13 @@ function isDeployBlocking(f){
   return BLOCKING_SEV.has(sev) && !NON_BLOCKING.has(ctx);
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function safeUrl(u){
+  try {
+    const parsed = new URL(u, window.location.href);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return u;
+  } catch(e){}
+  return '#';
+}
 
 let ALL = [];
 let filterSev = '', query = '';
@@ -213,7 +220,7 @@ function render(){
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
-  const refs = (f.references||[]).map(r=>`<a href="${esc(r)}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
+  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
