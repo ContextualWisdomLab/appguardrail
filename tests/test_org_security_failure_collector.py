@@ -87,7 +87,8 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     )
     assert workflow.count(f"private-key: {private_key_expression}") == 2
     assert workflow.count(private_key_expression) == 2
-    assert "ORG_SECURITY_FAILURE_APP_PRIVATE_KEY:" not in workflow
+    assert "ORG_SECURITY_FAILURE_APP_PRIVATE_KEY:" in workflow
+    assert "NOEMA_GITHUB_APP_PRIVATE_KEY:" in workflow
     assert "env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" not in workflow
     assert "Scope the long-lived credential to this pinned token action only" in workflow
     assert "::error::Org security failure collection requires" in workflow
@@ -110,6 +111,8 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "Create allowlisted organization read token" in workflow
     assert "^[A-Za-z0-9_.-]+$" in workflow
     assert 'repository_key="${repository,,}"' in workflow
+    assert "Check GitHub App private key secret availability" in workflow
+    assert "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY" in workflow
     assert "Invalid or blank collector repository allowlist entry" in workflow
     assert "Duplicate collector repository allowlist entry" in workflow
     assert "repositories: ${{ steps.app-config.outputs.repositories }}" in workflow
