@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -94,21 +95,26 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        path = Path(file_path)
-        language = LANGUAGE_BY_EXTENSION.get(path.suffix.lower())
+        if isinstance(file_path, Path):
+            name = file_path.name
+            suffix = file_path.suffix.lower()
+        else:
+            name = os.path.basename(file_path)
+            _, suffix = os.path.splitext(name)
+            suffix = suffix.lower()
+
+        language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
             languages.add(language)
-        if path.name in PYTHON_MANIFESTS:
+        if name in PYTHON_MANIFESTS:
             languages.add("python")
-        if path.name in JAVA_MANIFESTS:
+        if name in JAVA_MANIFESTS:
             languages.add("java")
-        if path.name in NODE_MANIFESTS:
+        if name in NODE_MANIFESTS:
             languages.add("javascript")
-            if path.name == "tsconfig.json":
+            if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
-
-
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
     paths = [Path(file_path) for file_path in files]
