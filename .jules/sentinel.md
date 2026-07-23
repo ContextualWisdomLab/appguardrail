@@ -112,3 +112,8 @@
 **Vulnerability:** Cross-Site Scripting (XSS) via `javascript:` URIs in `href` attributes in `scanner/dashboard/index.html`.
 **Learning:** `f.references` values (URLs) were injected into `href` attributes with only HTML entity escaping via `esc()`. HTML escaping `javascript:alert(1)` does not neutralize the `javascript:` URI protocol, meaning that clicking the link executes the injected script in the context of the dashboard UI. This allowed an attacker controlling finding references to achieve XSS.
 **Prevention:** Always validate the URL scheme (allow-listing `http:` and `https:`) using `new URL()` parser to ensure user-provided URLs cannot leverage dangerous schemes like `javascript:`, `file:`, or `data:` when injected into `href` attributes, before applying standard HTML escaping.
+
+## $(date +%Y-%m-%d) - SSRF via HTTP Redirects
+**Vulnerability:** External network requests using `urllib.request.urlopen` followed HTTP redirects without validating the destination URL, allowing bypass of initial SSRF protections (like IP checks in `_is_safe_url`) via malicious redirect servers (e.g. redirecting to `http://169.254.169.254`).
+**Learning:** Python's default `urllib.request.urlopen` handles HTTP redirects automatically, which means any custom URL validation done *before* calling `urlopen` only protects the initial URL. Redirects can point to restricted internal IPs.
+**Prevention:** When using `urllib.request` to access external URLs that may redirect, create a custom opener using `urllib.request.build_opener()` with a subclass of `urllib.request.HTTPRedirectHandler`. Override `redirect_request` to validate the `newurl` against safety rules (like `_is_safe_url`) before allowing the redirect to proceed.

@@ -1661,6 +1661,15 @@ def _is_safe_url(url: str) -> bool:
     return True
 
 
+import urllib.request
+import urllib.error
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_safe_url(newurl):
+            raise urllib.error.URLError(f"Unsafe redirect to {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
     import urllib.error
@@ -1685,6 +1694,7 @@ def _push_findings(url, findings):
         "commit": os.environ.get("GITHUB_SHA"),
     }
     endpoint = url.rstrip("/") + "/api/v1/scans"
+
     req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
@@ -1695,7 +1705,8 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        with opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=15
         ) as resp:  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
