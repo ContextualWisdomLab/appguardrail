@@ -60,20 +60,28 @@ if __package__ in (None, ""):
 from appguardrail_core.config import load_config
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
-from appguardrail_core.findings import \
-    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
 from appguardrail_core.findings import normalize_findings
-from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
-                                        detect_language_axes,
-                                        detect_stack_profile)
-from appguardrail_core.org_bundle import (OrgBundleError,
-                                          annotate_missing_pr_repositories,
-                                          gh_error_message, gh_pr_list,
-                                          gh_repo_list)
+from appguardrail_core.language import (
+    LANGUAGE_EXTENSIONS,
+    detect_language_axes,
+    detect_stack_profile,
+)
+from appguardrail_core.org_bundle import (
+    OrgBundleError,
+    annotate_missing_pr_repositories,
+    gh_error_message,
+    gh_pr_list,
+    gh_repo_list,
+)
 from appguardrail_core.org_bundle import load_json as load_org_json
 from appguardrail_core.org_bundle import render_org_evidence, write_bundle
-from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
-                                       render_report, supported_report_types)
+from appguardrail_core.reports import (
+    REPORT_TYPE_LABELS,
+    ReportContext,
+    render_report,
+    supported_report_types,
+)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1695,9 +1703,11 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-            req, timeout=15
-        ) as resp:  # noqa: S310 - Safe URL scheme validated
+        with (
+            urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+                req, timeout=15
+            ) as resp
+        ):  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""
@@ -2142,8 +2152,12 @@ def _collect_files(base_path: Path):
                             ):
                                 dirs.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
-                            _, ext = os.path.splitext(entry.name)
-                            if ext.lower() not in SKIP_EXTENSIONS:
+                            # ⚡ Bolt: Fast-path file extension extraction using string manipulation.
+                            # Bypasses os.path.splitext overhead inside this hot file discovery loop.
+                            name = entry.name
+                            idx = name.rfind(".")
+                            ext = name[idx:].lower() if idx != -1 else ""
+                            if ext not in SKIP_EXTENSIONS:
                                 yield Path(entry.path)
                     except (OSError, PermissionError):
                         continue
@@ -2645,22 +2659,20 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = (
-            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-                [
-                    semgrep,
-                    "scan",
-                    "--config",
-                    config,
-                    "--json",
-                    str(scan_path),
-                ],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=600,
-            )
+        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+            [
+                semgrep,
+                "scan",
+                "--config",
+                config,
+                "--json",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2727,15 +2739,13 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = (
-                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=900,
-                )
+            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=900,
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
