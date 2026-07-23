@@ -29,3 +29,7 @@
 ## 2026-07-28 - Native HTML dialog accessibility and UX
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger and does not close on backdrop clicks by default.
 **Action:** Save and restore `document.activeElement` around `showModal()`, and close when backdrop click target is the dialog element.
+
+## 2026-07-29 - Select Focus and aria-live Announcements
+**Learning:** Re-rendering an entire list or dashboard on `<select>` change drops keyboard focus to `<body>`, disrupting accessibility and keyboard navigation flow. Additionally, dynamic count changes (e.g. "Showing 5 of 20 findings") are visually apparent but missed by screen readers without `aria-live`.
+**Action:** When re-rendering destroys the active element, explicitly re-focus it (`document.getElementById('id')?.focus()`) post-render. Use `aria-live="polite"` on summary text so filter result counts are announced properly.
