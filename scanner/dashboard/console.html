@@ -36,7 +36,7 @@
   th{font-size:11px;color:var(--muted);text-transform:uppercase}
   tr.scan{cursor:pointer}
   tr.scan:hover{background:var(--bg)}
-  tr.scan:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+  input:focus-visible, button:focus-visible, tr.scan:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
   .trend{display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px}
   .bar{flex:1;min-width:6px;border-radius:3px 3px 0 0}
@@ -52,7 +52,7 @@
   <h1>AppGuardrail Console</h1>
   <span class="muted" id="conn"></span>
   <span style="flex:1"></span>
-  <input id="key" type="password" placeholder="Org API key (agk_…)" autocomplete="off">
+  <input id="key" type="password" placeholder="Org API key (agk_…)" autocomplete="off" aria-label="Organization API key">
   <button id="connect">Connect</button>
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
@@ -111,9 +111,7 @@ async function load(){
       <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
     document.querySelectorAll("tr.scan").forEach(tr=>{
       tr.onclick=()=>detail(tr.dataset.id);
-      tr.addEventListener("keydown",e=>{
-        if(e.key==="Enter"||e.key===" "){e.preventDefault();detail(tr.dataset.id);}
-      });
+      tr.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(tr.dataset.id); } });
     });
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
     $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
