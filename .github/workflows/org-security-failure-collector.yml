@@ -113,11 +113,12 @@ jobs:
               printf '::error::Invalid or blank collector repository allowlist entry: %q.\n' "$repository"
               exit 1
             fi
-            if [[ -n "${seen_repositories[$repository]+configured}" ]]; then
+            repository_key="${repository,,}"
+            if [[ -n "${seen_repositories[$repository_key]+configured}" ]]; then
               printf '::error::Duplicate collector repository allowlist entry: %s.\n' "$repository"
               exit 1
             fi
-            seen_repositories[$repository]=1
+            seen_repositories[$repository_key]=1
             repositories+=("$repository")
           done <<<"$ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES"
 
