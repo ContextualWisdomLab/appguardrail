@@ -109,6 +109,7 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "persist-credentials: false" in workflow
     assert "Create allowlisted organization read token" in workflow
     assert "^[A-Za-z0-9_.-]+$" in workflow
+    assert 'repository_key="${repository,,}"' in workflow
     assert "Invalid or blank collector repository allowlist entry" in workflow
     assert "Duplicate collector repository allowlist entry" in workflow
     assert "repositories: ${{ steps.app-config.outputs.repositories }}" in workflow
