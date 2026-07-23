@@ -21,3 +21,7 @@
 ## 2026-07-18 - 표준화된 에러 메시지와 동적 복수형 처리
 **Learning:** CLI 도구에서 에러 메시지의 일관성(`❌ Error:`)과 실천 가능한 조언(`💡 Hint:`)의 명확한 구분은 사용자의 문제 해결 경험을 크게 향상시킨다. 또한 하드코딩된 복수형 접미사(예: `components`)는 터미널 출력의 품질을 떨어뜨린다.
 **Action:** 향후 CLI 출력 메시지를 작성할 때, 반드시 일관된 접두어를 사용하고, 수량에 따른 단수/복수 처리를 삼항 연산자 등을 통해 동적으로 처리해야 한다.
+
+## 2025-02-23 - Interactive Table Rows aria-label Overrides
+**Learning:** Adding `aria-label` to a `<tr>` element (even one with `role="button"`) causes screen readers to announce only the `aria-label` text, completely hiding the critical table cell data (`<td>`) contained within the row from screen reader users.
+**Action:** When adding interactive hover tooltips or accessible names to table rows, use the `title` attribute instead of `aria-label` to preserve natural, cell-by-cell table reading while still providing visual tooltip feedback for mouse users.
