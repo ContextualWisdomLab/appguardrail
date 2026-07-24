@@ -112,3 +112,7 @@
 **Vulnerability:** Cross-Site Scripting (XSS) via `javascript:` URIs in `href` attributes in `scanner/dashboard/index.html`.
 **Learning:** `f.references` values (URLs) were injected into `href` attributes with only HTML entity escaping via `esc()`. HTML escaping `javascript:alert(1)` does not neutralize the `javascript:` URI protocol, meaning that clicking the link executes the injected script in the context of the dashboard UI. This allowed an attacker controlling finding references to achieve XSS.
 **Prevention:** Always validate the URL scheme (allow-listing `http:` and `https:`) using `new URL()` parser to ensure user-provided URLs cannot leverage dangerous schemes like `javascript:`, `file:`, or `data:` when injected into `href` attributes, before applying standard HTML escaping.
+## 2024-05-18 - SSRF via HTTP Redirect Bypass
+**Vulnerability:** Found an SSRF vulnerability where an attacker could provide a "safe" URL that passed the `_is_safe_url` check but then redirected to a blocked internal IP address. The system followed the redirect automatically without re-validating the new URL.
+**Learning:** `urllib.request.urlopen` automatically follows redirects by default without exposing the redirect target to any pre-flight security checks. Core URL validation logic must also apply to redirects.
+**Prevention:** Always use a custom `HTTPRedirectHandler` via `build_opener()` to enforce security checks on `newurl` during redirect traversal. Ensure tests validate the opener configuration rather than directly mocking `urlopen`.

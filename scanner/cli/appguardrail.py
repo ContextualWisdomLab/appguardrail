@@ -1666,6 +1666,12 @@ def _push_findings(url, findings):
     import urllib.error
     import urllib.request
 
+    class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            if not _is_safe_url(newurl):
+                raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
         _console_print(
@@ -1695,7 +1701,8 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        with opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=15
         ) as resp:  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
