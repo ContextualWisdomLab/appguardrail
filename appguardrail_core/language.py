@@ -115,12 +115,70 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
+
+
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    paths = [Path(file_path) for file_path in files]
-    languages = detect_language_axes(paths)
-    frameworks = _detect_framework_markers(paths)
-    signals = _detect_signals(paths, frameworks)
+    languages: set[str] = set()
+    frameworks: set[str] = set()
+    signals: set[str] = set()
+    web_reachable_from_path = False
+
+    for file_path in files:
+        if isinstance(file_path, Path):
+            name = file_path.name
+            suffix = file_path.suffix.lower()
+            lowered_path = file_path.as_posix().lower()
+            parts = file_path.parts
+            manifest_path = file_path
+        else:
+            name = os.path.basename(file_path)
+            _, suffix = os.path.splitext(name)
+            suffix = suffix.lower()
+            lowered_path = file_path.replace("\\", "/").lower()
+            parts = lowered_path.split("/")
+            manifest_path = None
+
+        language = LANGUAGE_BY_EXTENSION.get(suffix)
+        if language:
+            languages.add(language)
+        if name in PYTHON_MANIFESTS:
+            languages.add("python")
+        if name in JAVA_MANIFESTS:
+            languages.add("java")
+        if name in NODE_MANIFESTS:
+            languages.add("javascript")
+            if name == "tsconfig.json":
+                languages.add("typescript")
+
+        if "templates/" in lowered_path or "/views/" in lowered_path:
+            frameworks.add("templates")
+        if name in MANIFEST_NAMES:
+            if manifest_path is None:
+                manifest_path = Path(file_path)
+            text = _read_manifest_text(manifest_path).lower()
+            for marker in PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS:
+                if marker in text:
+                    frameworks.add(marker)
+
+        if name in MANIFEST_NAMES:
+            signals.add(name)
+        for part in parts:
+            part_lower = part.lower() if isinstance(file_path, Path) else part.lower()
+            if part_lower in WEB_SIGNAL_DIRS:
+                signals.add(part_lower)
+                web_reachable_from_path = True
+
+    signals.update(frameworks)
+    zap_recommended = False
+    if "web" in languages:
+        zap_recommended = True
+    elif frameworks & (
+        PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS | {"templates"}
+    ):
+        zap_recommended = True
+    elif web_reachable_from_path:
+        zap_recommended = True
 
     if "java" in languages and languages & {"javascript", "typescript"}:
         profile_id = "java-node-typescript"
@@ -188,38 +246,10 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
         frameworks=tuple(sorted(frameworks)),
         signals=tuple(sorted(signals)),
         external_tools=_external_tools_for(languages, profile_id),
-        zap_recommended=_is_web_reachable(languages, frameworks, paths),
+        zap_recommended=zap_recommended,
         beginner_summary=summary,
         next_steps=next_steps,
     )
-
-
-def _detect_framework_markers(paths: list[Path]) -> set[str]:
-    markers: set[str] = set()
-    for path in paths:
-        name = path.name
-        lowered_path = path.as_posix().lower()
-        if "templates/" in lowered_path or "/views/" in lowered_path:
-            markers.add("templates")
-        if name not in MANIFEST_NAMES:
-            continue
-        text = _read_manifest_text(path).lower()
-        for marker in PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS:
-            if marker in text:
-                markers.add(marker)
-    return markers
-
-
-def _detect_signals(paths: list[Path], frameworks: set[str]) -> set[str]:
-    signals = set(frameworks)
-    for path in paths:
-        name = path.name
-        if name in MANIFEST_NAMES:
-            signals.add(name)
-        for part in path.parts:
-            if part.lower() in WEB_SIGNAL_DIRS:
-                signals.add(part.lower())
-    return signals
 
 
 def _read_manifest_text(path: Path, max_bytes: int = 128_000) -> str:
@@ -244,15 +274,3 @@ def _external_tools_for(languages: set[str], profile_id: str) -> tuple[str, ...]
     }:
         tools.add("trivy")
     return tuple(sorted(tools))
-
-
-def _is_web_reachable(
-    languages: set[str], frameworks: set[str], paths: list[Path]
-) -> bool:
-    if "web" in languages:
-        return True
-    if frameworks & (
-        PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS | {"templates"}
-    ):
-        return True
-    return any(part.lower() in WEB_SIGNAL_DIRS for path in paths for part in path.parts)
