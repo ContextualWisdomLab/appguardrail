@@ -126,11 +126,10 @@ jobs:
             echo "::error::Org security failure collection requires at least one reviewed repository."
             exit 1
           fi
+          repositories_csv="$(IFS=,; echo "${repositories[*]}")"
           {
             echo "configured=true"
-            echo "repositories<<__COLLECTOR_REPOSITORIES__"
-            printf '%s\n' "${repositories[@]}"
-            echo "__COLLECTOR_REPOSITORIES__"
+            echo "repositories=$repositories_csv"
           } >>"$GITHUB_OUTPUT"
           printf 'Validated %s reviewed collector repositories.\n' "${#repositories[@]}"
 

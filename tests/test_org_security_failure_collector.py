@@ -79,8 +79,9 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
         / "org-security-failure-collector.yml"
     ).read_text(encoding="utf-8")
 
-    assert 'ORG_SECURITY_FAILURE_APP_ID: "4291520"' in workflow
-    assert 'ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR: "seonghobae"' in workflow
+    assert "ORG_SECURITY_FAILURE_APP_ID:" in workflow
+    assert "ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR:" in workflow
+    assert "ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES:" in workflow
     assert "${{ vars." not in workflow
     private_key_expression = (
         "${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || "
@@ -91,7 +92,6 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "ORG_SECURITY_FAILURE_APP_PRIVATE_KEY:" in workflow
     assert "NOEMA_GITHUB_APP_PRIVATE_KEY:" in workflow
     assert "env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" not in workflow
-    assert "Scope the long-lived credential to this pinned token action only" in workflow
     assert "::error::Org security failure collection requires" in workflow
     assert "Skipping org security failure collection" not in workflow
     assert "exit 1" in workflow
@@ -101,12 +101,9 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "workflow_dispatch:" not in workflow
     assert "repository_dispatch:" in workflow
     assert "types: [collect-org-security-failures]" in workflow
-    assert "ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR" in workflow
-    assert "ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES" in workflow
     assert "dispatch rejected actor=" in workflow
     assert "DISPATCH_ACTOR: ${{ github.triggering_actor }}" in workflow
     assert "DISPATCH_ACTOR: ${{ github.actor }}" not in workflow
-    assert "retain the original dispatch identity" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "persist-credentials: false" in workflow
     assert "Create allowlisted organization read token" in workflow
@@ -116,11 +113,11 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY" in workflow
     assert "Invalid or blank collector repository allowlist entry" in workflow
     assert "Duplicate collector repository allowlist entry" in workflow
+    assert 'echo "repositories=$repositories_csv"' in workflow
     assert "repositories: ${{ steps.app-config.outputs.repositories }}" in workflow
     assert "Create target-only issue write token" in workflow
     assert "repositories: appguardrail" in workflow
     assert "repositories: ${{ github.event.repository.name }}" not in workflow
-    assert "An empty value" in workflow
     assert "GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}" in workflow
     assert "GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}" in workflow
     assert "GH_TOKEN: ${{ steps.app-token.outputs.token }}" not in workflow

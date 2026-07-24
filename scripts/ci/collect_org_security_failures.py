@@ -308,7 +308,7 @@ def publish_one(
     issues: dict[str, dict[str, Any]],
     labels_seen: set[str],
 ) -> bool:
-    """Create, reopen, or update one issue and report whether it was new."""
+    """Create, reopen, or update one issue and report non-duplicate publishes."""
     labels = [
         ISSUE_LABEL,
         SECURITY_LABEL,
