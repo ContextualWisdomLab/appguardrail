@@ -1,6 +1,7 @@
 import importlib.util
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -192,6 +193,24 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
 
 
+def test_docker_entrypoint_propagates_cli_return_code(monkeypatch):
+    import docker_entrypoint
+
+    scanner_pkg = types.ModuleType("scanner")
+    scanner_cli_pkg = types.ModuleType("scanner.cli")
+    scanner_module = types.ModuleType("scanner.cli.appguardrail")
+    scanner_module.main = lambda: 23
+
+    monkeypatch.setitem(sys.modules, "scanner", scanner_pkg)
+    monkeypatch.setitem(sys.modules, "scanner.cli", scanner_cli_pkg)
+    monkeypatch.setitem(sys.modules, "scanner.cli.appguardrail", scanner_module)
+
+    with pytest.raises(SystemExit) as exc_info:
+        docker_entrypoint.main()
+
+    assert exc_info.value.code == 23
+
+
 def test_collector_main_separates_org_reads_from_target_issue_writes(monkeypatch):
     """Use distinct clients so the write credential cannot mutate every read target."""
     clients = []
@@ -357,6 +376,43 @@ def test_publish_records_before_comment_delivery_failure(capsys):
     )
     assert retry_client.calls == []
     assert key in issueops.parse_marker(issue["body"])["seen"]
+
+
+def test_publish_update_preserves_existing_issue_body_content():
+    unseen = finding(job_id=999, snippet="::error:: security failure")
+    existing_body = issueops.replace_marker(
+        "Operator notes must stay intact.",
+        unseen["repo"],
+        unseen["workflow"],
+        {"1:2"},
+    )
+    issue = {
+        "number": 17,
+        "state": "open",
+        "title": collector.title(unseen),
+        "body": existing_body,
+    }
+    client = FakeClient([issue])
+
+    assert collector.publish_one(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        unseen,
+        False,
+        {issue["title"]: issue},
+        set(),
+    )
+
+    patch = [
+        call
+        for call in client.calls
+        if call[:3]
+        == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")
+    ]
+    assert patch
+    patched_body = patch[0][3]["body"]
+    assert "Operator notes must stay intact." in patched_body
+    assert collector.seen_key(unseen) in issueops.parse_marker(patched_body)["seen"]
 
 
 def test_bounded_issue_state_caps_seen_keys_and_body_size():

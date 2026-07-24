@@ -11,7 +11,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 from appguardrail_core.issueops import (
     is_failure,
@@ -20,6 +20,7 @@ from appguardrail_core.issueops import (
     issue_comment,
     parse_marker,
     parse_run_url,
+    replace_marker,
     sanitize_label_value,
     seen_key,
     title,
@@ -253,33 +254,50 @@ def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
     }
 
 
+def _seen_sort_key(key: str) -> tuple[int, int]:
+    """Sort seen keys newest-first by numeric run and job id components."""
+    run, _, job = key.partition(":")
+    run_id = int(run) if run.isdigit() else -1
+    job_id = int(job) if job.isdigit() else -1
+    return (run_id, job_id)
+
+
+def _bounded_state(
+    seen: set[str], render_body: Callable[[set[str]], str]
+) -> tuple[str, set[str]]:
+    """Render a bounded body while capping and shrinking seen keys in chunks."""
+    ordered = sorted({str(key) for key in seen}, key=_seen_sort_key, reverse=True)
+    keep = min(len(ordered), MAX_SEEN_KEYS_PER_ISSUE)
+    while True:
+        bounded_seen = set(ordered[:keep])
+        body = render_body(bounded_seen)
+        if len(body) <= MAX_ISSUE_BODY_CHARS:
+            return body, bounded_seen
+        if keep == 0:
+            raise ValueError(
+                "security failure issue body exceeds the bounded GitHub payload limit"
+            )
+        keep = max(0, keep - max(1, keep // 4))
+
+
 def bounded_issue_state(
     finding: dict[str, Any], seen: set[str]
 ) -> tuple[str, set[str]]:
-    """Render a bounded latest-failure body and retain only recent seen keys."""
-    ordered = sorted(
-        {str(key) for key in seen},
-        key=lambda key: tuple(
-            int(part) if part.isdigit() else -1 for part in key.split(":", 1)
+    """Render a bounded latest-failure issue body and retain recent seen keys."""
+    return _bounded_state(seen, lambda bounded_seen: issue_body(finding, bounded_seen))
+
+
+def bounded_marker_state(
+    body: str | None, finding: dict[str, Any], seen: set[str]
+) -> tuple[str, set[str]]:
+    """Update only the hidden marker while preserving the existing issue body."""
+    existing_body = body or ""
+    return _bounded_state(
+        seen,
+        lambda bounded_seen: replace_marker(
+            existing_body, finding["repo"], finding["workflow"], bounded_seen
         ),
-        reverse=True,
     )
-    bounded_seen = set(ordered[:MAX_SEEN_KEYS_PER_ISSUE])
-    body = issue_body(finding, bounded_seen)
-    while len(body) > MAX_ISSUE_BODY_CHARS and bounded_seen:
-        oldest = min(
-            bounded_seen,
-            key=lambda key: tuple(
-                int(part) if part.isdigit() else -1 for part in key.split(":", 1)
-            ),
-        )
-        bounded_seen.remove(oldest)
-        body = issue_body(finding, bounded_seen)
-    if len(body) > MAX_ISSUE_BODY_CHARS:
-        raise ValueError(
-            "security failure issue body exceeds the bounded GitHub payload limit"
-        )
-    return body, bounded_seen
 
 
 def publish_one(
@@ -334,7 +352,7 @@ def publish_one(
         return False
     reopen = issue.get("state") == "closed"
     seen.add(key)
-    body, seen = bounded_issue_state(finding, seen)
+    body, seen = bounded_marker_state(issue.get("body"), finding, seen)
     if dry_run:
         print(
             f"DRY_RUN {'reopen/update' if reopen else 'update'} issue #{issue['number']}: {issue_title}"
