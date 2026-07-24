@@ -29,3 +29,7 @@
 ## 2026-07-28 - Native HTML dialog accessibility and UX
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger and does not close on backdrop clicks by default.
 **Action:** Save and restore `document.activeElement` around `showModal()`, and close when backdrop click target is the dialog element.
+
+## 2024-07-24 - Screen Reader Announcements and Focus Restoration for Dynamic Filtering
+**Learning:** When a UI like `scanner/dashboard/index.html` relies on full DOM replacement (`innerHTML`) during re-renders for filtering data, the dynamically injected elements (like the summary counts) aren't naturally announced to screen readers. Also, any interaction that triggers a re-render will cause the interactive element (like a select dropdown) to lose focus because it is destroyed and recreated.
+**Action:** Always add `aria-live="polite"` to dynamically updated summary text to ensure changes are announced. Moreover, always explicitly restore focus to the triggering interactive element (e.g., `document.getElementById('id')?.focus()`) post-render to preserve keyboard accessibility.
