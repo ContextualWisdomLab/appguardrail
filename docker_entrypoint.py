@@ -12,7 +12,8 @@ def main() -> None:
 
     from scanner.cli.appguardrail import main as cli_main
 
-    raise SystemExit(cli_main())
+    cli_main()
+    raise SystemExit(0)
 
 
 if __name__ == "__main__":

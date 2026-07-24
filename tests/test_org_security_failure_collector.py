@@ -193,7 +193,7 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
 
 
-def test_docker_entrypoint_propagates_cli_return_code(monkeypatch):
+def test_docker_entrypoint_exits_zero_after_cli_main_returns(monkeypatch):
     import docker_entrypoint
 
     scanner_pkg = types.ModuleType("scanner")
@@ -208,7 +208,7 @@ def test_docker_entrypoint_propagates_cli_return_code(monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         docker_entrypoint.main()
 
-    assert exc_info.value.code == 23
+    assert exc_info.value.code == 0
 
 
 def test_collector_main_separates_org_reads_from_target_issue_writes(monkeypatch):
