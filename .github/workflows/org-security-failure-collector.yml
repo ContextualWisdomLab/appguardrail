@@ -3,20 +3,11 @@ name: Org Security Failure Collector
 on:
   schedule:
     - cron: "*/30 * * * *"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Print planned issue writes without creating/updating issues
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-      lookback_hours:
-        description: Completed workflow run lookback window
-        required: false
-        default: "48"
+  # repository_dispatch workflows are always loaded from the default branch.
+  # Unlike workflow_dispatch, a caller cannot select a feature-branch workflow
+  # definition or collector module to run with the organization App token.
+  repository_dispatch:
+    types: [collect-org-security-failures]
 
 permissions:
   contents: read
@@ -31,44 +22,160 @@ jobs:
     timeout-minutes: 30
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
-      LOOKBACK_HOURS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_hours || '48' }}
-      ORG_SECURITY_FAILURE_APP_ID: ${{ vars.ORG_SECURITY_FAILURE_APP_ID }}
-      ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+      DRY_RUN: "false"
+      LOOKBACK_HOURS: "48"
+      # These are public authorization controls, not secrets. Keep them in the
+      # reviewed default-branch workflow so repository variables cannot shadow
+      # organization governance. The private key remains an Actions secret.
+      ORG_SECURITY_FAILURE_APP_ID: "4291520"
+      ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR: "seonghobae"
+      ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES: |
+        .github
+        aFIPC
+        appguardrail
+        argos
+        bandscope
+        clearfolio
+        codec-carver
+        contextual-orchestrator
+        ContextualWisdomLab.github.io
+        disksage
+        EgressWeave
+        fast-mlsirm
+        feelanet-adfs
+        free-router
+        gyeot
+        html4tree
+        hyosung-itx-slogan-brief
+        inkspan
+        IRT-bibliography-set
+        kaefa
+        keyverse
+        linux-cluster-ops
+        naruon
+        newsdom-api
+        noema
+        nonnest2
+        pg-erd-cloud
+        pg-llm-batch
+        RankWeave
+        scopeweave
+        seedream_evasepic
+        semantic-data-portal
+        ThreadWeave
+        vooster
+        wardnet
+        xtrmLLMBatchPython
     steps:
+      - name: Authorize manual default-branch collection dispatch
+        if: github.event_name == 'repository_dispatch'
+        env:
+          # triggering_actor changes to the user who requests a rerun, whereas
+          # actor and the event payload retain the original dispatch identity.
+          DISPATCH_ACTOR: ${{ github.triggering_actor }}
+          DISPATCH_SENDER: ${{ github.event.sender.login || '' }}
+          ALLOWED_DISPATCH_ACTOR: ${{ env.ORG_SECURITY_FAILURE_ALLOWED_DISPATCH_ACTOR }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ALLOWED_DISPATCH_ACTOR" ]] || \
+            [[ "$DISPATCH_ACTOR" != "$ALLOWED_DISPATCH_ACTOR" ]] || \
+            [[ "$DISPATCH_SENDER" != "$ALLOWED_DISPATCH_ACTOR" ]]; then
+            printf '::error::Org security failure collection dispatch rejected actor=%s sender=%s; both must match the configured exact identity.\n' \
+              "${DISPATCH_ACTOR:-<empty>}" "${DISPATCH_SENDER:-<empty>}"
+            exit 1
+          fi
+          printf 'Authorized default-branch org security failure collection dispatch by %s.\n' "$DISPATCH_ACTOR"
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # schedule and repository_dispatch both bind github.sha to the default
+          # branch commit selected when the event was created. Keep that exact
+          # reviewed source and do not persist the runner token into Git config.
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
-      - name: Check GitHub App collector configuration
+      - name: Check non-secret GitHub App collector configuration
         id: app-config
         run: |
           set -euo pipefail
-          if [[ -n "$ORG_SECURITY_FAILURE_APP_ID" && -n "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping org security failure collection because ORG_SECURITY_FAILURE_APP_ID or ORG_SECURITY_FAILURE_APP_PRIVATE_KEY is not configured."
+          if [[ ! "$ORG_SECURITY_FAILURE_APP_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Org security failure collection requires a positive reviewed GitHub App ID."
+            exit 1
           fi
 
-      - name: Create org installation token
-        if: steps.app-config.outputs.configured == 'true'
-        id: app-token
+          declare -A seen_repositories=()
+          repositories=()
+          while IFS= read -r repository || [[ -n "$repository" ]]; do
+            repository="${repository#"${repository%%[![:space:]]*}"}"
+            repository="${repository%"${repository##*[![:space:]]}"}"
+            if [[ -z "$repository" || ! "$repository" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+              printf '::error::Invalid or blank collector repository allowlist entry: %q.\n' "$repository"
+              exit 1
+            fi
+            repository_key="${repository,,}"
+            if [[ -n "${seen_repositories[$repository_key]+configured}" ]]; then
+              printf '::error::Duplicate collector repository allowlist entry: %s.\n' "$repository"
+              exit 1
+            fi
+            seen_repositories[$repository_key]=1
+            repositories+=("$repository")
+          done <<<"$ORG_SECURITY_FAILURE_COLLECTOR_REPOSITORIES"
+
+          if [[ "${#repositories[@]}" -eq 0 ]]; then
+            echo "::error::Org security failure collection requires at least one reviewed repository."
+            exit 1
+          fi
+          repositories_csv="$(IFS=,; echo "${repositories[*]}")"
+          {
+            echo "configured=true"
+            echo "repositories=$repositories_csv"
+          } >>"$GITHUB_OUTPUT"
+          printf 'Validated %s reviewed collector repositories.\n' "${#repositories[@]}"
+
+      - name: Check GitHub App private key secret availability
+        env:
+          ORG_SECURITY_FAILURE_APP_PRIVATE_KEY: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          NOEMA_GITHUB_APP_PRIVATE_KEY: ${{ secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ORG_SECURITY_FAILURE_APP_PRIVATE_KEY" && -z "$NOEMA_GITHUB_APP_PRIVATE_KEY" ]]; then
+            echo "::error::Org security failure collection requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY."
+            exit 1
+          fi
+
+      - name: Create allowlisted organization read token
+        id: read-app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
-          private-key: ${{ env.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY }}
+          # Scope the long-lived credential to this pinned token action only.
+          private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.app-config.outputs.repositories }}
           permission-actions: read
           permission-checks: read
+
+      - name: Create target-only issue write token
+        id: write-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ env.ORG_SECURITY_FAILURE_APP_ID }}
+          # Scope the long-lived credential to this pinned token action only.
+          private-key: ${{ secrets.ORG_SECURITY_FAILURE_APP_PRIVATE_KEY || secrets.NOEMA_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          # Keep schedule and repository_dispatch fail-closed. An empty value
+          # would grant issue-write across every repository in the App install.
+          repositories: appguardrail
           permission-issues: write
 
       - name: Collect security workflow failures
-        if: steps.app-config.outputs.configured == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}
+          GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
           set -euo pipefail
-          python3 scripts/ci/collect_org_security_failures.py \
+          python3 -m scripts.ci.collect_org_security_failures \
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --target-repo "$GITHUB_REPOSITORY" \
             --lookback-hours "$LOOKBACK_HOURS"
