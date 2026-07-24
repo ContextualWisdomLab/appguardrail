@@ -21,3 +21,15 @@
 ## 2026-07-18 - 표준화된 에러 메시지와 동적 복수형 처리
 **Learning:** CLI 도구에서 에러 메시지의 일관성(`❌ Error:`)과 실천 가능한 조언(`💡 Hint:`)의 명확한 구분은 사용자의 문제 해결 경험을 크게 향상시킨다. 또한 하드코딩된 복수형 접미사(예: `components`)는 터미널 출력의 품질을 떨어뜨린다.
 **Action:** 향후 CLI 출력 메시지를 작성할 때, 반드시 일관된 접두어를 사용하고, 수량에 따른 단수/복수 처리를 삼항 연산자 등을 통해 동적으로 처리해야 한다.
+
+## 2024-07-08 - Conditionally disable CLI emojis
+**Learning:** Heavy emoji usage in CLI tools can degrade accessibility for screen readers and cause issues in non-UTF8 terminals or log parsers.
+**Action:** Implement a targeted regex filter toggled by `APPGUARDRAIL_NO_EMOJI` to gracefully degrade CLI output without stripping valid international text.
+
+## 2024-07-28 - Accessibility improvements for tables and native dialogs
+**Learning:** For screen readers, tables need explicit associations, and controls opening modals should indicate dialog behavior.
+**Action:** Use `aria-haspopup="dialog"` on interactive rows, `scope="col"` on headers, and `aria-labelledby` with a concrete title id for `<dialog>`.
+
+## 2026-07-28 - Native HTML dialog focus restoration
+**Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
+**Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
