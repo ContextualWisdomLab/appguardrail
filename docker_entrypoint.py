@@ -12,8 +12,12 @@ def main() -> None:
 
     from scanner.cli.appguardrail import main as cli_main
 
-    cli_main()
-    raise SystemExit(0)
+    exit_code = cli_main()
+    if isinstance(exit_code, int):
+        raise SystemExit(exit_code)
+    if exit_code is None:
+        raise SystemExit(0)
+    raise SystemExit(exit_code)
 
 
 if __name__ == "__main__":

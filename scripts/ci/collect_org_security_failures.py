@@ -47,9 +47,13 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class GitHub:
     """Small GitHub REST client for workflow, job, and issue APIs."""
 
-    def __init__(self, token: str):
-        """Create a client whose bearer token is pinned to GitHub's API origin."""
+    def __init__(self, token: str, api: str = API):
+        """Create a client pinned to GitHub's public API origin."""
+        normalized_api = api.rstrip("/")
+        if normalized_api != API:
+            raise ValueError("GitHub API root must be https://api.github.com")
         self.token = token
+        self.api = normalized_api
         self.opener = urllib.request.build_opener(NoRedirect)
 
     def request(
@@ -65,7 +69,7 @@ class GitHub:
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(  # noqa: S310 - GitHub API URL
-            f"{API}{path}{query}",
+            f"{self.api}{path}{query}",
             data=body,
             method=method,
             headers={
@@ -352,7 +356,12 @@ def publish_one(
         return False
     reopen = issue.get("state") == "closed"
     seen.add(key)
-    body, seen = bounded_marker_state(issue.get("body"), finding, seen)
+    try:
+        body, seen = bounded_marker_state(issue.get("body"), finding, seen)
+    except ValueError:
+        # Preserve operator-authored body content when possible, but fail closed
+        # to a bounded canonical body if the preserved body cannot fit.
+        body, seen = bounded_issue_state(finding, seen)
     if dry_run:
         print(
             f"DRY_RUN {'reopen/update' if reopen else 'update'} issue #{issue['number']}: {issue_title}"
@@ -388,7 +397,7 @@ def publish_one(
 def publish_findings(
     client: GitHub, target_repo: str, findings: list[dict[str, Any]], dry_run: bool
 ) -> None:
-    """Publish a bounded number of new failures while scanning all duplicates."""
+    """Publish up to a bounded number of newest non-duplicate failures per run."""
     issues = issue_index(client, target_repo) if findings else {}
     labels_seen: set[str] = set()
     published = 0

@@ -190,7 +190,7 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
     assert 'ENTRYPOINT ["python", "-m", "scanner.cli.appguardrail"]' not in dockerfile
 
 
-def test_docker_entrypoint_exits_zero_after_cli_main_returns(monkeypatch):
+def test_docker_entrypoint_propagates_cli_return_code(monkeypatch):
     import docker_entrypoint
 
     scanner_pkg = types.ModuleType("scanner")
@@ -201,11 +201,12 @@ def test_docker_entrypoint_exits_zero_after_cli_main_returns(monkeypatch):
     monkeypatch.setitem(sys.modules, "scanner", scanner_pkg)
     monkeypatch.setitem(sys.modules, "scanner.cli", scanner_cli_pkg)
     monkeypatch.setitem(sys.modules, "scanner.cli.appguardrail", scanner_module)
+    monkeypatch.setattr(sys, "path", list(sys.path))
 
     with pytest.raises(SystemExit) as exc_info:
         docker_entrypoint.main()
 
-    assert exc_info.value.code == 0
+    assert exc_info.value.code == 23
 
 
 def test_collector_main_separates_org_reads_from_target_issue_writes(monkeypatch):
@@ -412,6 +413,41 @@ def test_publish_update_preserves_existing_issue_body_content():
     assert collector.seen_key(unseen) in issueops.parse_marker(patched_body)["seen"]
 
 
+def test_publish_update_falls_back_to_bounded_canonical_body_when_preserve_overflows():
+    unseen = finding(job_id=999, snippet="::error:: security failure")
+    oversized_body = "notes " * (collector.MAX_ISSUE_BODY_CHARS // 4 + 100)
+    issue = {
+        "number": 17,
+        "state": "open",
+        "title": collector.title(unseen),
+        "body": issueops.replace_marker(
+            oversized_body, unseen["repo"], unseen["workflow"], {"1:2"}
+        ),
+    }
+    client = FakeClient([issue])
+
+    assert collector.publish_one(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        unseen,
+        False,
+        {issue["title"]: issue},
+        set(),
+    )
+
+    patch = [
+        call
+        for call in client.calls
+        if call[:3]
+        == ("request", "PATCH", "/repos/ContextualWisdomLab/appguardrail/issues/17")
+    ]
+    assert patch
+    patched_body = patch[0][3]["body"]
+    assert len(patched_body) <= collector.MAX_ISSUE_BODY_CHARS
+    assert collector.seen_key(unseen) in issueops.parse_marker(patched_body)["seen"]
+    assert "Automated collection of security workflow failures" in patched_body
+
+
 def test_bounded_issue_state_caps_seen_keys_and_body_size():
     item = finding(snippet="x" * 30_000)
     body, seen = collector.bounded_issue_state(
@@ -511,7 +547,7 @@ def test_github_client_pins_api_origin_and_rejects_redirects(monkeypatch):
         "authorization": "Bearer sensitive-token",
         "timeout": 30,
     }
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError, match="https://api.github.com"):
         collector.GitHub("token", "https://attacker.invalid")
     with pytest.raises(ValueError, match="path must start"):
         client.request("GET", "https://attacker.invalid/")
