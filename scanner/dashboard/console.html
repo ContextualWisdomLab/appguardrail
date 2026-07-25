@@ -66,7 +66,7 @@
     </div>
     <div class="card">
       <strong>Scan history</strong>
-      <table id="history"><thead><tr><th>When</th><th>Repo</th><th>Commit</th><th>Total</th><th>Blocking</th><th>New</th></tr></thead><tbody></tbody></table>
+      <table id="history"><thead><tr><th scope="col">When</th><th scope="col">Repo</th><th scope="col">Commit</th><th scope="col">Total</th><th scope="col">Blocking</th><th scope="col">New</th></tr></thead><tbody></tbody></table>
     </div>
     <div class="card hidden" id="detail"></div>
   </div>
@@ -123,7 +123,7 @@ async function detail(id){
     <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
     <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
   d.innerHTML=`<strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
-    <table style="margin-top:8px"><thead><tr><th>Severity</th><th>Rule</th><th>Finding</th><th>Location</th></tr></thead>
+    <table style="margin-top:8px"><thead><tr><th scope="col">Severity</th><th scope="col">Rule</th><th scope="col">Finding</th><th scope="col">Location</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
   d.scrollIntoView({behavior:"smooth"});
 }

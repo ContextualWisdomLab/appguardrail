@@ -33,3 +33,7 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+
+## 2023-10-27 - Table Header Scope Accessibility
+**Learning:** Tables in HTML lack inherent clear associations between header cells (`<th>`) and their respective columns for screen readers, which can degrade the experience for visually impaired users.
+**Action:** When creating or modifying tables, always explicitly add the `scope="col"` attribute to column header `<th>` elements to ensure proper structural semantics and screen reader accessibility.
