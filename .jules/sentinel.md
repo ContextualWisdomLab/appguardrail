@@ -112,3 +112,8 @@
 **Vulnerability:** Cross-Site Scripting (XSS) via `javascript:` URIs in `href` attributes in `scanner/dashboard/index.html`.
 **Learning:** `f.references` values (URLs) were injected into `href` attributes with only HTML entity escaping via `esc()`. HTML escaping `javascript:alert(1)` does not neutralize the `javascript:` URI protocol, meaning that clicking the link executes the injected script in the context of the dashboard UI. This allowed an attacker controlling finding references to achieve XSS.
 **Prevention:** Always validate the URL scheme (allow-listing `http:` and `https:`) using `new URL()` parser to ensure user-provided URLs cannot leverage dangerous schemes like `javascript:`, `file:`, or `data:` when injected into `href` attributes, before applying standard HTML escaping.
+
+## 2024-07-25 - DOM XSS in HTML Dashboard Severity Rendering
+**Vulnerability:** A DOM XSS vulnerability existed in `scanner/dashboard/index.html` where the `severity` field of a finding object was interpolated directly into the `innerHTML` string without sanitization.
+**Learning:** While most fields (`message`, `file`, etc.) were properly escaped using `esc()`, developer assumption that `severity` is always a safe enum (e.g. `CRITICAL`, `HIGH`) led to omitting the `esc()` call, allowing arbitrary HTML execution if malicious findings data is supplied.
+**Prevention:** Ensure all user-controlled data or untrusted inputs originating from external files (like findings JSON) are properly escaped using functions like `esc()` before being injected into `innerHTML` strings, even if the data is expected to be an enum.
