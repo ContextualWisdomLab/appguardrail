@@ -1,0 +1,3 @@
+## 2024-05-18 - Fix focus loss and dynamic feedback on full DOM re-renders
+**Learning:** When UI relies on full DOM replacement (`innerHTML`) during re-renders (e.g., when filtering using `#sev`), keyboard focus is lost, harming accessibility. Additionally, dynamic count summaries aren't announced to screen readers.
+**Action:** Always explicitly restore keyboard focus post-render for interactive elements that trigger re-renders (e.g., `document.getElementById('id')?.focus()`). Use `aria-live="polite"` on dynamic summary text (like filtered result counts) so state changes are announced properly to screen readers.
