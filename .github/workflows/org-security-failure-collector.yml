@@ -109,8 +109,13 @@ jobs:
           while IFS= read -r repository || [[ -n "$repository" ]]; do
             repository="${repository#"${repository%%[![:space:]]*}"}"
             repository="${repository%"${repository##*[![:space:]]}"}"
-            if [[ -z "$repository" || ! "$repository" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-              printf '::error::Invalid or blank collector repository allowlist entry: %q.\n' "$repository"
+            if [[ -z "$repository" ]]; then
+              # Block scalars and here-strings introduce trailing blank lines;
+              # skip them instead of failing the scheduled collection.
+              continue
+            fi
+            if [[ ! "$repository" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+              printf '::error::Invalid collector repository allowlist entry: %q.\n' "$repository"
               exit 1
             fi
             repository_key="${repository,,}"

@@ -111,7 +111,8 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert 'repository_key="${repository,,}"' in workflow
     assert "Check GitHub App private key secret availability" in workflow
     assert "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY" in workflow
-    assert "Invalid or blank collector repository allowlist entry" in workflow
+    assert "Invalid collector repository allowlist entry" in workflow
+    assert '''if [[ -z "$repository" ]]; then''' in workflow
     assert "Duplicate collector repository allowlist entry" in workflow
     assert 'echo "repositories=$repositories_csv"' in workflow
     assert "repositories: ${{ steps.app-config.outputs.repositories }}" in workflow
