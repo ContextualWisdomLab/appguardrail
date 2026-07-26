@@ -69,3 +69,7 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls.
 **Action:** When iterating over large lists of file strings or formatting output, fall back to standard string methods (`replace("\\", "/")`) or `os.path` operations (`os.path.basename`, `os.path.splitext`) which are orders of magnitude faster.
+
+## 2024-07-26 - Avoid os.path.splitext in Hot Loops
+**Learning:** In hot loops checking thousands of files (e.g., file discovery in `_collect_files`), using `os.path.splitext` for extension extraction is slow due to its internal checks for drive letters and slashes. These checks introduce unnecessary overhead when simply extracting the file extension based on the last dot.
+**Action:** Use fast-path string manipulation like `str.rfind('.')` instead of `os.path.splitext` to improve performance. For example: `ext_idx = name.rfind('.'); ext = name[ext_idx:].lower() if ext_idx > 0 else ""`.
