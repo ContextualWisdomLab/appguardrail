@@ -117,10 +117,12 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     return languages
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    paths = [Path(file_path) for file_path in files]
-    languages = detect_language_axes(paths)
-    frameworks = _detect_framework_markers(paths)
-    signals = _detect_signals(paths, frameworks)
+    # ⚡ Bolt: Prevent generator exhaustion by consuming once, and avoid Path
+    # instantiation to prevent massive per-file overhead on large repositories.
+    files_list = list(files)
+    languages = detect_language_axes(files_list)
+    frameworks = _detect_framework_markers(files_list)
+    signals = _detect_signals(files_list, frameworks)
 
     if "java" in languages and languages & {"javascript", "typescript"}:
         profile_id = "java-node-typescript"
@@ -188,21 +190,28 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
         frameworks=tuple(sorted(frameworks)),
         signals=tuple(sorted(signals)),
         external_tools=_external_tools_for(languages, profile_id),
-        zap_recommended=_is_web_reachable(languages, frameworks, paths),
+        zap_recommended=_is_web_reachable(languages, frameworks, files_list),
         beginner_summary=summary,
         next_steps=next_steps,
     )
 
 
-def _detect_framework_markers(paths: list[Path]) -> set[str]:
+def _detect_framework_markers(files: Iterable[str | Path]) -> set[str]:
     markers: set[str] = set()
-    for path in paths:
-        name = path.name
-        lowered_path = path.as_posix().lower()
+    for file_path in files:
+        if isinstance(file_path, Path):
+            name = file_path.name
+            lowered_path = file_path.as_posix().lower()
+        else:
+            name = __import__('os').path.basename(file_path)
+            lowered_path = file_path.replace("\\", "/").lower()
+
         if "templates/" in lowered_path or "/views/" in lowered_path:
             markers.add("templates")
         if name not in MANIFEST_NAMES:
             continue
+
+        path = file_path if isinstance(file_path, Path) else Path(file_path)
         text = _read_manifest_text(path).lower()
         for marker in PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS:
             if marker in text:
@@ -210,13 +219,19 @@ def _detect_framework_markers(paths: list[Path]) -> set[str]:
     return markers
 
 
-def _detect_signals(paths: list[Path], frameworks: set[str]) -> set[str]:
+def _detect_signals(files: Iterable[str | Path], frameworks: set[str]) -> set[str]:
     signals = set(frameworks)
-    for path in paths:
-        name = path.name
+    for file_path in files:
+        if isinstance(file_path, Path):
+            name = file_path.name
+            parts = file_path.parts
+        else:
+            name = __import__('os').path.basename(file_path)
+            parts = file_path.replace("\\", "/").split("/")
+
         if name in MANIFEST_NAMES:
             signals.add(name)
-        for part in path.parts:
+        for part in parts:
             if part.lower() in WEB_SIGNAL_DIRS:
                 signals.add(part.lower())
     return signals
@@ -247,7 +262,7 @@ def _external_tools_for(languages: set[str], profile_id: str) -> tuple[str, ...]
 
 
 def _is_web_reachable(
-    languages: set[str], frameworks: set[str], paths: list[Path]
+    languages: set[str], frameworks: set[str], files: Iterable[str | Path]
 ) -> bool:
     if "web" in languages:
         return True
@@ -255,4 +270,8 @@ def _is_web_reachable(
         PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS | {"templates"}
     ):
         return True
-    return any(part.lower() in WEB_SIGNAL_DIRS for path in paths for part in path.parts)
+    for file_path in files:
+        parts = file_path.parts if isinstance(file_path, Path) else file_path.replace("\\", "/").split("/")
+        if any(part.lower() in WEB_SIGNAL_DIRS for part in parts):
+            return True
+    return False
