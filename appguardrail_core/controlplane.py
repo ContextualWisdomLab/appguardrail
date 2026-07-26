@@ -18,7 +18,7 @@ import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
-from importlib import resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+import importlib.resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
@@ -220,7 +220,9 @@ def _is_safe_url(url: str) -> bool:
     import socket
 
     try:
-        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        parsed = urllib.parse.urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except ValueError:
         return False
 
@@ -286,6 +288,10 @@ def _send_alert(
     import urllib.error
     import urllib.request
 
+    class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
     if not _is_safe_url(url):
         return False
 
@@ -301,7 +307,8 @@ def _send_alert(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        opener = urllib.request.build_opener(NoRedirectHandler)
+        opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=10
         )  # noqa: S310 - Safe URL scheme validated
         return True
@@ -498,7 +505,9 @@ def get_scan(
 def console_html() -> bytes:
     """Return the packaged org-console HTML, or a minimal fallback."""
     try:
-        path = resources.files("scanner").joinpath("dashboard", "console.html")
+        path = importlib.resources.files("scanner").joinpath(
+            "dashboard", "console.html"
+        )
         return path.read_bytes()
     except (FileNotFoundError, ModuleNotFoundError, OSError):
         return b"<!doctype html><title>AppGuardrail Console</title><p>Console asset missing.</p>"
