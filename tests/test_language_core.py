@@ -81,3 +81,10 @@ def test_detect_stack_profile_unknown_without_source_signals(tmp_path):
     assert profile.id == "unknown"
     assert profile.languages == ()
     assert profile.external_tools == ()
+
+
+def test_detect_stack_profile_str_paths():
+    # Test handling of raw string paths instead of Path objects
+    profile = detect_stack_profile(["src/app/views/index.html", "src/models/user.py", "package.json"])
+    assert profile.zap_recommended is True
+    assert "web" in profile.languages or profile.frameworks
