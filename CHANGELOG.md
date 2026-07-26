@@ -100,3 +100,8 @@
 
 ### 검증
 - `scanner/cli/appguardrail.py` 전체 코드에 대한 테스트 커버리지 100% 달성 및 기존 기능의 안정성 확보 검증.
+
+## [Unreleased]
+### Added
+- 대시보드 UI(`scanner/dashboard/index.html`)에서 결과 요약 텍스트가 스크린 리더에서 읽히도록 `aria-live="polite"` 속성 추가
+- 검색 및 심각도 필터링 후 키보드 초점이 끊기는 문제를 해결하기 위해 렌더링 후 드롭다운 메뉴로 초점을 복원하는 로직 추가
