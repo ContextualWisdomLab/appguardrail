@@ -57,7 +57,7 @@
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
 <main>
-  <div id="msg" class="card muted">Paste your org API key and connect to view scan history.</div>
+  <div id="msg" class="card muted" aria-live="polite">Paste your org API key and connect to view scan history.</div>
   <div id="app" class="hidden">
     <div class="stats" id="stats"></div>
     <div class="card">
@@ -86,6 +86,8 @@ async function api(path){
 function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
 
 async function load(){
+  const btn=$("#connect");
+  if(btn){ btn.disabled=true; btn.textContent="Connecting..."; btn.setAttribute("aria-busy","true"); }
   try{
     const {scans}=await api("/api/v1/scans");
     $("#msg").classList.add("hidden");$("#app").classList.remove("hidden");
@@ -114,7 +116,8 @@ async function load(){
       tr.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(tr.dataset.id); } });
     });
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
-    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
+    $("#msg").innerHTML=`<span class="err" role="alert">❌ Error: ${esc(e.message)}</span>`; }
+  finally{ if(btn){ btn.disabled=false; btn.textContent="Connect"; btn.removeAttribute("aria-busy"); } }
 }
 async function detail(id){
   const s=await api("/api/v1/scans/"+id);
