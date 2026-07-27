@@ -33,3 +33,7 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+
+## 2023-10-27 - Table Row Accessibility
+**Learning:** Adding `aria-label` to `<tr>` elements (even those with `role="button"`) overrides natural table cell reading and hides critical table data from screen reader users.
+**Action:** Use the `title` attribute instead to preserve natural cell reading while providing visual tooltip feedback for mouse users.
