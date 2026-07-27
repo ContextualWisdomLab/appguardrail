@@ -58,3 +58,38 @@ def test_is_safe_url_mapped_ips():
 def test_is_safe_url_reserved_and_not_global_ips():
     assert not _is_safe_url("http://255.255.255.255/")
     assert not _is_safe_url("http://0.0.0.0/")
+
+def test_safe_redirect_handler_blocks_unsafe():
+    from appguardrail_core.controlplane import SafeRedirectHandler
+    import urllib.error
+    import urllib.request
+    import pytest
+
+    handler = SafeRedirectHandler()
+
+    class FakeReq:
+        pass
+
+    with pytest.raises(urllib.error.URLError, match="Unsafe redirect URL blocked: http://127.0.0.1/"):
+        handler.redirect_request(FakeReq(), None, 302, "Found", {}, "http://127.0.0.1/")
+
+    with pytest.raises(urllib.error.URLError, match="Unsafe redirect URL blocked: http://169.254.169.254/"):
+        handler.redirect_request(FakeReq(), None, 301, "Moved Permanently", {}, "http://169.254.169.254/")
+
+
+def test_safe_redirect_handler_allows_safe(monkeypatch):
+    from appguardrail_core.controlplane import SafeRedirectHandler
+    import urllib.request
+
+    handler = SafeRedirectHandler()
+
+    class FakeReq:
+        pass
+
+    def _fake_super_redirect(*args, **kwargs):
+        return "allowed"
+
+    # Monkeypatch to avoid actual urllib recursion
+    monkeypatch.setattr(urllib.request.HTTPRedirectHandler, "redirect_request", _fake_super_redirect)
+
+    assert handler.redirect_request(FakeReq(), None, 302, "Found", {}, "http://google.com/") == "allowed"

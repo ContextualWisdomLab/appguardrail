@@ -361,7 +361,16 @@ def test_send_alert_slack_vs_generic(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    class FakeOpener:
+        def open(self, req, timeout=None):
+            return _fake_urlopen(req, timeout)
+
+    def _fake_build_opener(*args, **kwargs):
+        return FakeOpener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
+
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,
