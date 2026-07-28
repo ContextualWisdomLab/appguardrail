@@ -69,3 +69,7 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls.
 **Action:** When iterating over large lists of file strings or formatting output, fall back to standard string methods (`replace("\\", "/")`) or `os.path` operations (`os.path.basename`, `os.path.splitext`) which are orders of magnitude faster.
+
+## 2024-07-28 - Optimize generator consumption in language detection
+**Learning:** `detect_stack_profile` was originally converting the `Iterable[str | Path]` input entirely into a list of `Path` objects upfront. This exhausted generators passed into it (breaking callers assuming single-pass inputs) and caused significant memory and processing overhead. Creating `Path` objects in a tight loop is expensive.
+**Action:** Replace upfront list conversions with a single-pass processing loop that uses fast string manipulations and delays `Path` object creation to when it is absolutely necessary.
