@@ -33,3 +33,7 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+
+## 2026-07-28 - Focus management after innerHTML replacement
+**Learning:** Re-rendering UI by completely replacing `innerHTML` causes the browser to lose the active keyboard focus. This breaks keyboard navigation for interactive elements like dropdown filters.
+**Action:** When an interactive element triggers a full DOM replacement, capture its id and explicitly restore focus using `document.getElementById(id)?.focus()` immediately after the render completes.
