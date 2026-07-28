@@ -26,6 +26,7 @@
   input{font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-width:280px}
   button{font:inherit;font-weight:600;padding:8px 14px;border:0;border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer}
   button.ghost{background:var(--surface);color:var(--primary);border:1px solid var(--border)}
+  button:disabled{opacity:0.7;cursor:not-allowed}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
   .stats{display:flex;gap:12px;flex-wrap:wrap}
   .stat{flex:1;min-width:130px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
@@ -57,7 +58,7 @@
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
 <main>
-  <div id="msg" class="card muted">Paste your org API key and connect to view scan history.</div>
+  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste your org API key and connect to view scan history.</div>
   <div id="app" class="hidden">
     <div class="stats" id="stats"></div>
     <div class="card">
@@ -127,7 +128,21 @@ async function detail(id){
     <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
   d.scrollIntoView({behavior:"smooth"});
 }
-$("#connect").onclick=()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";load();};
+$("#connect").onclick=async()=>{
+  KEY=$("#key").value.trim();if(!KEY)return;
+  sessionStorage.setItem("ag_key",KEY);$("#key").value="";
+  const btn=$("#connect");
+  btn.textContent="Connecting...";
+  btn.disabled=true;
+  btn.setAttribute("aria-busy","true");
+  try {
+    await load();
+  } finally {
+    btn.textContent="Connect";
+    btn.disabled=false;
+    btn.removeAttribute("aria-busy");
+  }
+};
 $("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
 $("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
 if(KEY)load();

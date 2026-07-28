@@ -33,3 +33,7 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+
+## 2026-07-28 - Async Operation Loading UX and Accessibility
+**Learning:** Adding visual async loading states (like a 'Connecting...' disabled button) is insufficient for screen readers unless properly announced. Furthermore, dynamically updating elements to indicate status must be exposed via live regions to ensure assistive technologies read the updates.
+**Action:** Always explicitly declare the busy state to screen readers by setting `aria-busy="true"` on the trigger element (button). Additionally, wrap dynamic status or error update containers in `aria-live="polite"` and `role="alert"` attributes to guarantee they are properly announced.
