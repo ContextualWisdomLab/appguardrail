@@ -109,8 +109,15 @@ jobs:
           while IFS= read -r repository || [[ -n "$repository" ]]; do
             repository="${repository#"${repository%%[![:space:]]*}"}"
             repository="${repository%"${repository##*[![:space:]]}"}"
-            if [[ -z "$repository" || ! "$repository" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-              printf '::error::Invalid or blank collector repository allowlist entry: %q.\n' "$repository"
+            if [[ -z "$repository" ]]; then
+              # Skip blank lines. A YAML `|` block scalar keeps a trailing
+              # newline and the `<<<` here-string appends another, so the loop
+              # legitimately reads an empty final line; that is formatting, not
+              # a misconfigured entry.
+              continue
+            fi
+            if [[ ! "$repository" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+              printf '::error::Invalid collector repository allowlist entry: %q.\n' "$repository"
               exit 1
             fi
             repository_key="${repository,,}"
