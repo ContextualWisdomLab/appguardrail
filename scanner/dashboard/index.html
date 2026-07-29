@@ -161,7 +161,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="View details for finding">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
