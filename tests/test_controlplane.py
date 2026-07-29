@@ -8,13 +8,23 @@ from contextlib import closing
 
 import pytest
 
-from appguardrail_core.controlplane import (_is_slack_webhook, _send_alert,
-                                            _slack_blocks, add_scan, connect,
-                                            create_key, create_org, get_scan,
-                                            has_role, list_scans,
-                                            make_control_plane_server,
-                                            org_for_key, role_for_key,
-                                            scan_trend, set_webhook)
+from appguardrail_core.controlplane import (
+    _is_slack_webhook,
+    _send_alert,
+    _slack_blocks,
+    add_scan,
+    connect,
+    create_key,
+    create_org,
+    get_scan,
+    has_role,
+    list_scans,
+    make_control_plane_server,
+    org_for_key,
+    role_for_key,
+    scan_trend,
+    set_webhook,
+)
 
 FINDINGS = [
     {"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
@@ -361,7 +371,14 @@ def test_send_alert_slack_vs_generic(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    def _fake_build_opener(*handlers):
+        class _Opener:
+            def open(self, req, timeout=None):
+                return _fake_urlopen(req, timeout=timeout)
+
+        return _Opener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,

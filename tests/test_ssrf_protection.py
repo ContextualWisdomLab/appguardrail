@@ -58,3 +58,40 @@ def test_is_safe_url_mapped_ips():
 def test_is_safe_url_reserved_and_not_global_ips():
     assert not _is_safe_url("http://255.255.255.255/")
     assert not _is_safe_url("http://0.0.0.0/")
+
+
+def test_safe_redirect_blocks_unsafe_url():
+    from appguardrail_core.controlplane import SafeRedirectHandler
+    import urllib.error
+    import pytest
+
+    handler = SafeRedirectHandler()
+
+    with pytest.raises(urllib.error.URLError) as exc:
+        handler.redirect_request(None, None, 302, "Found", None, "http://127.0.0.1/")
+
+    assert "Unsafe redirect URL" in str(exc.value)
+
+    with pytest.raises(urllib.error.URLError) as exc:
+        handler.redirect_request(
+            None, None, 302, "Found", None, "http://169.254.169.254/"
+        )
+
+    assert "Unsafe redirect URL" in str(exc.value)
+
+    # Safe url should fall through and not raise URLError on our end, might raise AttributeError on None but we can mock it
+    class DummyReq:
+        pass
+
+    class DummyFP:
+        pass
+
+    class DummyHeaders:
+        pass
+
+    try:
+        handler.redirect_request(
+            DummyReq(), DummyFP(), 302, "Found", DummyHeaders(), "https://github.com/"
+        )
+    except AttributeError:
+        pass  # this means super().redirect_request was called

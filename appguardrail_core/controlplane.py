@@ -18,9 +18,13 @@ import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
-from importlib import resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+from importlib import (
+    resources,
+)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
+import urllib.request
+import urllib.error
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
 
@@ -220,7 +224,9 @@ def _is_safe_url(url: str) -> bool:
     import socket
 
     try:
-        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        parsed = urllib.parse.urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except ValueError:
         return False
 
@@ -270,6 +276,16 @@ def _is_safe_url(url: str) -> bool:
     return True
 
 
+import urllib.request
+import urllib.error
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_safe_url(newurl):
+            raise urllib.error.URLError(f"Unsafe redirect URL: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _send_alert(
     url: str,
     payload: dict[str, Any],
@@ -301,7 +317,8 @@ def _send_alert(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=10
         )  # noqa: S310 - Safe URL scheme validated
         return True
