@@ -383,9 +383,6 @@ def test_send_alert_slack_vs_generic(monkeypatch):
             def __exit__(self, exc_type, exc_val, exc_tb):
                 pass
 
-            def geturl(self):
-                return posted.get("url", "")
-
         return _R()
 
     monkeypatch.setattr(urllib.request.OpenerDirector, "open", _fake_open)
