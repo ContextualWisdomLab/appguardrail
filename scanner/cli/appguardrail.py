@@ -1672,6 +1672,7 @@ def _is_safe_url(url: str) -> bool:
 import urllib.request
 import urllib.error
 
+
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if not _is_safe_url(newurl):

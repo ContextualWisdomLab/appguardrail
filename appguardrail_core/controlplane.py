@@ -18,9 +18,7 @@ import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
-from importlib import (
-    resources,
-)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 import urllib.request
@@ -278,6 +276,7 @@ def _is_safe_url(url: str) -> bool:
 
 import urllib.request
 import urllib.error
+
 
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
