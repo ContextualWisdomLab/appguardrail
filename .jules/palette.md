@@ -33,3 +33,6 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+## $(date +%Y-%m-%d) - DOM Replacement Focus Loss Pattern
+**Learning:** When a UI application dynamically replaces entire DOM sections (e.g., using `innerHTML = ...` upon filtering data), active focus is permanently lost and drops to the document body. This creates a highly confusing experience for keyboard and screen reader users who unexpectedly lose their place in the page structure.
+**Action:** Always explicitly restore focus (`document.getElementById('id')?.focus()`) on the trigger element or next logical interactive target immediately following any function call that rebuilds the DOM. Furthermore, for dynamic content changes like filtered counts, `aria-live="polite"` should be used on container text elements to notify screen readers of the update.
