@@ -100,7 +100,8 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             suffix = file_path.suffix.lower()
         else:
             name = os.path.basename(file_path)
-            _, suffix = os.path.splitext(name)
+            dot_idx = name.rfind(".")
+            suffix = name[dot_idx:] if dot_idx > 0 else ""
             suffix = suffix.lower()
 
         language = LANGUAGE_BY_EXTENSION.get(suffix)
@@ -115,6 +116,8 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
+
+
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
     paths = [Path(file_path) for file_path in files]
