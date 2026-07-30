@@ -33,3 +33,7 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+
+## 2026-07-30 - DOM Replacement Focus Loss and aria-live Usage
+**Learning:** When dynamically filtering data and fully replacing the DOM via `innerHTML`, interactive elements (like `<select>` filters) lose keyboard focus after rendering. Also, visually changing dynamically updated counts (like filtered vs total counts) isn't communicated to screen reader users unless properly tagged.
+**Action:** When filtering causes a re-render, explicitly capture the value and then call `.focus()` on the interactive element after DOM replacement. Always use `aria-live="polite"` on summary text elements so that dynamic updates to text/counts are properly announced to assistive technologies without being disruptive.
