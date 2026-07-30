@@ -57,7 +57,7 @@
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
 <main>
-  <div id="msg" class="card muted">Paste your org API key and connect to view scan history.</div>
+  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste your org API key and connect to view scan history.</div>
   <div id="app" class="hidden">
     <div class="stats" id="stats"></div>
     <div class="card">
@@ -127,7 +127,7 @@ async function detail(id){
     <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
   d.scrollIntoView({behavior:"smooth"});
 }
-$("#connect").onclick=()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";load();};
+$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=false;$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
 $("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
 $("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
 if(KEY)load();
