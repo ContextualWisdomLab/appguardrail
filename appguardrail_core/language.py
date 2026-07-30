@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Iterable
 
@@ -99,9 +98,14 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             name = file_path.name
             suffix = file_path.suffix.lower()
         else:
-            name = os.path.basename(file_path)
-            _, suffix = os.path.splitext(name)
-            suffix = suffix.lower()
+            # ⚡ Bolt: Fast path extraction using string operations instead of os.path.basename
+            # and os.path.splitext to avoid object allocation and stat overhead in hot loops.
+            slash_idx = file_path.rfind("/")
+            if slash_idx == -1:
+                slash_idx = file_path.rfind(r"\\")
+            name = file_path[slash_idx + 1 :] if slash_idx >= 0 else file_path
+            ext_idx = name.rfind(".")
+            suffix = name[ext_idx:].lower() if ext_idx > 0 else ""
 
         language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
@@ -115,12 +119,15 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
+
+
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    paths = [Path(file_path) for file_path in files]
-    languages = detect_language_axes(paths)
-    frameworks = _detect_framework_markers(paths)
-    signals = _detect_signals(paths, frameworks)
+    raw_paths = [str(file_path) for file_path in files]
+
+    languages = detect_language_axes(raw_paths)
+    frameworks = _detect_framework_markers(raw_paths)
+    signals = _detect_signals(raw_paths, frameworks)
 
     if "java" in languages and languages & {"javascript", "typescript"}:
         profile_id = "java-node-typescript"
@@ -188,35 +195,50 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
         frameworks=tuple(sorted(frameworks)),
         signals=tuple(sorted(signals)),
         external_tools=_external_tools_for(languages, profile_id),
-        zap_recommended=_is_web_reachable(languages, frameworks, paths),
+        zap_recommended=_is_web_reachable(languages, frameworks, raw_paths),
         beginner_summary=summary,
         next_steps=next_steps,
     )
 
 
-def _detect_framework_markers(paths: list[Path]) -> set[str]:
+def _detect_framework_markers(paths: list[str]) -> set[str]:
     markers: set[str] = set()
     for path in paths:
-        name = path.name
-        lowered_path = path.as_posix().lower()
-        if "templates/" in lowered_path or "/views/" in lowered_path:
+        slash_idx = path.rfind("/")
+        if slash_idx == -1:
+            slash_idx = path.rfind(r"\\")
+        name = path[slash_idx + 1 :] if slash_idx >= 0 else path
+
+        lowered_path = path.lower()
+        if (
+            "templates/" in lowered_path
+            or "/views/" in lowered_path
+            or "templates" + r"\\" in lowered_path
+            or r"\\" + "views" + r"\\" in lowered_path
+        ):
             markers.add("templates")
         if name not in MANIFEST_NAMES:
             continue
-        text = _read_manifest_text(path).lower()
+        text = _read_manifest_text(Path(path)).lower()
         for marker in PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS:
             if marker in text:
                 markers.add(marker)
     return markers
 
 
-def _detect_signals(paths: list[Path], frameworks: set[str]) -> set[str]:
+def _detect_signals(paths: list[str], frameworks: set[str]) -> set[str]:
     signals = set(frameworks)
     for path in paths:
-        name = path.name
+        slash_idx = path.rfind("/")
+        if slash_idx == -1:
+            slash_idx = path.rfind(r"\\")
+        name = path[slash_idx + 1 :] if slash_idx >= 0 else path
+
         if name in MANIFEST_NAMES:
             signals.add(name)
-        for part in path.parts:
+
+        parts = path.replace(r"\\", "/").split("/")
+        for part in parts:
             if part.lower() in WEB_SIGNAL_DIRS:
                 signals.add(part.lower())
     return signals
@@ -247,7 +269,7 @@ def _external_tools_for(languages: set[str], profile_id: str) -> tuple[str, ...]
 
 
 def _is_web_reachable(
-    languages: set[str], frameworks: set[str], paths: list[Path]
+    languages: set[str], frameworks: set[str], paths: list[str]
 ) -> bool:
     if "web" in languages:
         return True
@@ -255,4 +277,9 @@ def _is_web_reachable(
         PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS | {"templates"}
     ):
         return True
-    return any(part.lower() in WEB_SIGNAL_DIRS for path in paths for part in path.parts)
+    for path in paths:
+        parts = path.replace(r"\\", "/").split("/")
+        for part in parts:
+            if part.lower() in WEB_SIGNAL_DIRS:
+                return True
+    return False
