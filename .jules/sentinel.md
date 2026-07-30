@@ -112,3 +112,17 @@
 **Vulnerability:** Cross-Site Scripting (XSS) via `javascript:` URIs in `href` attributes in `scanner/dashboard/index.html`.
 **Learning:** `f.references` values (URLs) were injected into `href` attributes with only HTML entity escaping via `esc()`. HTML escaping `javascript:alert(1)` does not neutralize the `javascript:` URI protocol, meaning that clicking the link executes the injected script in the context of the dashboard UI. This allowed an attacker controlling finding references to achieve XSS.
 **Prevention:** Always validate the URL scheme (allow-listing `http:` and `https:`) using `new URL()` parser to ensure user-provided URLs cannot leverage dangerous schemes like `javascript:`, `file:`, or `data:` when injected into `href` attributes, before applying standard HTML escaping.
+
+**Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `urllib.request.urlopen` following HTTP redirects (e.g., 301, 302, 307, 308) automatically, allowing an initial safe URL to redirect to internal services (e.g., 169.254.169.254).
+**Learning:** Even with URL validation, following redirects natively defeats SSRF mitigation because the target server controls the redirect location. In sensitive API and webhook pushes, redirects should not be followed natively without re-validating the redirect URL.
+**Prevention:** Avoid the default `urlopen` and subclass `urllib.request.HTTPRedirectHandler` returning `None` in `redirect_request`, using `urllib.request.build_opener(NoRedirect).open` to safely reject any redirect responses natively.
+
+## 2026-07-25 - Block HTTP redirects in urllib.request.urlopen
+**Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `urllib.request.urlopen` following HTTP redirects (e.g., 301, 302, 307, 308) automatically, allowing an initial safe URL to redirect to internal services (e.g., 169.254.169.254).
+**Learning:** Even with URL validation, following redirects natively defeats SSRF mitigation because the target server controls the redirect location. In sensitive API and webhook pushes, redirects should not be followed natively without re-validating the redirect URL.
+**Prevention:** Avoid the default `urlopen` and subclass `urllib.request.HTTPRedirectHandler` returning `None` in `redirect_request`, using `urllib.request.build_opener(NoRedirect).open` to safely reject any redirect responses natively.
+
+## 2026-07-25 - Block HTTP redirects in urllib.request.urlopen
+**Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `urllib.request.urlopen` following HTTP redirects (e.g., 301, 302, 307, 308) automatically, allowing an initial safe URL to redirect to internal services (e.g., 169.254.169.254).
+**Learning:** Even with URL validation, following redirects natively defeats SSRF mitigation because the target server controls the redirect location. In sensitive API and webhook pushes, redirects should not be followed natively without re-validating the redirect URL.
+**Prevention:** Avoid the default `urlopen` and subclass `urllib.request.HTTPRedirectHandler` returning `None` in `redirect_request`, using `urllib.request.build_opener(NoRedirect).open` to safely reject any redirect responses natively.
