@@ -69,3 +69,7 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls.
 **Action:** When iterating over large lists of file strings or formatting output, fall back to standard string methods (`replace("\\", "/")`) or `os.path` operations (`os.path.basename`, `os.path.splitext`) which are orders of magnitude faster.
+
+## 2026-07-30 - Optimizing Path Instantiations in List Comprehensions
+**Learning:** Initializing large collections of `Path` objects upfront using list comprehensions (e.g., `[Path(file) for file in files]`) inside performance-critical paths adds severe object allocation and string parsing overhead.
+**Action:** Iterate exactly once over file generators. Perform computations (like name and extension parsing) inline and conditionally instantiate `Path` objects only when absolutely necessary, using fast string methods (`os.path.basename`, `os.path.splitext`) as fallbacks.
