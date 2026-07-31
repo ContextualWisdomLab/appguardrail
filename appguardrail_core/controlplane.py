@@ -20,9 +20,7 @@ import sqlite3
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
-from importlib import (
-    resources,
-)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 

@@ -116,3 +116,7 @@
 **Vulnerability:** HTTP requests initiated via `urllib.request.urlopen` automatically follow HTTP redirects (e.g., 301, 302, 307) without re-validating the redirect destination URL. This allowed an attacker to provide an initially safe external URL that, when fetched, redirects the application to an unsafe internal endpoint (like `http://127.0.0.1/admin`).
 **Learning:** Checking a URL's safety before calling `urllib.request.urlopen` is insufficient if the library natively follows redirects. The target of the redirect must also be evaluated against the SSRF rules.
 **Prevention:** Always use `urllib.request.build_opener()` with a custom `urllib.request.HTTPRedirectHandler` that overrides `redirect_request` to run the same `_is_safe_url` checks on the `newurl` before proceeding with the redirect.
+## 2026-07-31 - [Nosemgrep inline comments and Black formatting conflict]
+**Vulnerability:** CI failed on Semgrep check `python.lang.compatibility.python37.python37-compatibility-importlib2`.
+**Learning:** `# nosemgrep:` comments placed on multiline imports break when formatted, because `black` or `semgrep` mismatch parsing the line. The agent memory correctly warned: "write the import as a single line to prevent the `black` formatter from wrapping the line and breaking the inline suppression".
+**Prevention:** Always write suppressed imports as a single line: `import importlib.resources as resources  # nosemgrep:...`.
