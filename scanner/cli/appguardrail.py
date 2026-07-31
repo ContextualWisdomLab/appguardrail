@@ -52,28 +52,39 @@ import stat
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
+from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
-from appguardrail_core.findings import \
-    is_deploy_blocking as core_is_deploy_blocking
+from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
 from appguardrail_core.findings import normalize_findings
-from appguardrail_core.language import (LANGUAGE_EXTENSIONS,
-                                        detect_language_axes,
-                                        detect_stack_profile)
-from appguardrail_core.org_bundle import (OrgBundleError,
-                                          annotate_missing_pr_repositories,
-                                          gh_error_message, gh_pr_list,
-                                          gh_repo_list)
+from appguardrail_core.language import (
+    LANGUAGE_EXTENSIONS,
+    detect_language_axes,
+    detect_stack_profile,
+)
+from appguardrail_core.org_bundle import (
+    OrgBundleError,
+    annotate_missing_pr_repositories,
+    gh_error_message,
+    gh_pr_list,
+    gh_repo_list,
+)
 from appguardrail_core.org_bundle import load_json as load_org_json
 from appguardrail_core.org_bundle import render_org_evidence, write_bundle
-from appguardrail_core.reports import (REPORT_TYPE_LABELS, ReportContext,
-                                       render_report, supported_report_types)
+from appguardrail_core.reports import (
+    REPORT_TYPE_LABELS,
+    ReportContext,
+    render_report,
+    supported_report_types,
+)
 from appguardrail_core.rules import build_rule_metadata
 
 __version__ = "0.1.1"
@@ -1695,7 +1706,8 @@ def _push_findings(url, findings):
         },
     )
     try:
-        with urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        with opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=15
         ) as resp:  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")

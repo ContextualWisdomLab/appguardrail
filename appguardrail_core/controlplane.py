@@ -13,12 +13,14 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import re
 import secrets
 import sqlite3
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
-from importlib import resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
@@ -220,7 +222,9 @@ def _is_safe_url(url: str) -> bool:
     import socket
 
     try:
-        parsed = urllib.parse.urlparse(url)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        parsed = urllib.parse.urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except ValueError:
         return False
 
@@ -270,6 +274,13 @@ def _is_safe_url(url: str) -> bool:
     return True
 
 
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_safe_url(newurl):
+            raise urllib.error.URLError("Unsafe redirect target")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _send_alert(
     url: str,
     payload: dict[str, Any],
@@ -301,7 +312,8 @@ def _send_alert(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=10
         )  # noqa: S310 - Safe URL scheme validated
         return True
