@@ -81,3 +81,13 @@ def test_detect_stack_profile_unknown_without_source_signals(tmp_path):
     assert profile.id == "unknown"
     assert profile.languages == ()
     assert profile.external_tools == ()
+
+def test_is_web_reachable_generator():
+    def get_files():
+        yield "package.json"
+        yield "src/app/page.tsx"
+
+    # Should work and consume generator safely
+    profile = detect_stack_profile(get_files())
+    assert profile.zap_recommended is True
+    assert "javascript" in profile.languages
