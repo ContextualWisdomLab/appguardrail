@@ -86,13 +86,6 @@ async function api(path){
 function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
 
 async function load(){
-  const btn=$("#connect");
-  let origTxt = "Connect";
-  if(btn){
-    origTxt=btn.textContent;
-    btn.textContent="Connecting…";
-    btn.disabled=true;
-  }
   try{
     const {scans}=await api("/api/v1/scans");
     $("#msg").classList.add("hidden");$("#app").classList.remove("hidden");
@@ -121,13 +114,7 @@ async function load(){
       tr.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(tr.dataset.id); } });
     });
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
-    $("#msg").innerHTML=`<span class="err">❌ Error: ${esc(e.message)}</span><br><br><span class="muted">💡 Hint: Please check your API key and try again.</span>`;
-  }finally{
-    if(btn){
-      btn.textContent=origTxt;
-      btn.disabled=false;
-    }
-  }
+    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
 }
 async function detail(id){
   const s=await api("/api/v1/scans/"+id);
