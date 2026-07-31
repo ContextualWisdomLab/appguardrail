@@ -57,6 +57,14 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert "e.key === 'Enter' || e.key === ' '" in html
 
 
+def test_dashboard_escapes_severity_in_innerhtml():
+    """Severity chips must go through esc() — findings JSON is untrusted input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    # Row template and detail dialog both interpolate severity into innerHTML.
+    assert html.count("${esc(s)}") >= 2
+    assert "${s}</span>" not in html
+
+
 def test_server_serves_index_and_findings(tmp_path):
     findings = tmp_path / "findings.json"
     findings.write_text(
