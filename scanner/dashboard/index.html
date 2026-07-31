@@ -93,7 +93,7 @@
 </header>
 <main id="app"></main>
 
-<dialog id="detail" aria-labelledby="dlg-title"></dialog>
+<dialog id="detail"></dialog>
 
 <script>
 const SEV = {
@@ -154,7 +154,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding" aria-haspopup="dialog">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-label="View details for finding">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -180,7 +180,7 @@ function render(){
           </select>
         </div>
         <div class="panel"><table>
-          <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
+          <thead><tr><th>Severity</th><th>Finding</th><th>File</th><th>Category</th><th>Status</th></tr></thead>
           <tbody>${rows||'<tr><td colspan="5" style="color:var(--muted);padding:24px">No findings match the filter.</td></tr>'}</tbody>
         </table></div>
       </div>
@@ -221,7 +221,7 @@ function openDetail(f){
   d.innerHTML = `
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${s}</span>
-      <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
+      <span class="t">${esc(f.rule_id)}</span>
       <button aria-label="Close" onclick="document.getElementById('detail').close()">✕</button>
     </div>
     <div class="dlg-body">
