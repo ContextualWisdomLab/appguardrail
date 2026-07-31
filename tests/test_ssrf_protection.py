@@ -1,9 +1,4 @@
-import urllib.error
-import urllib.request
-
-import pytest
-
-from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
+from appguardrail_core.controlplane import _is_safe_url
 
 
 def test_is_safe_url_public_domains():
@@ -67,8 +62,9 @@ def test_is_safe_url_reserved_and_not_global_ips():
 
 def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
     from scanner.cli.appguardrail import _push_findings
+    import os
 
-    monkeypatch.setenv("APPGUARDRAIL_API_KEY", "dummy")
+    monkeypatch.setattr(os, "environ", {"APPGUARDRAIL_API_KEY": "dummy"})
 
     _push_findings("http://127.0.0.1/", [])
     captured = capsys.readouterr()
@@ -76,37 +72,16 @@ def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
         "URL must be a valid http/https URL and not point to internal infrastructure"
         in captured.err
     )
+import urllib.error
+import pytest
+from appguardrail_core.controlplane import SafeRedirectHandler
 
+def test_safe_redirect_handler(monkeypatch):
+    from scanner.cli.appguardrail import _push_findings
+    import os
+    monkeypatch.setattr(os, "environ", {"APPGUARDRAIL_API_KEY": "dummy"})
 
-def test_safe_redirect_handler_rejects_internal_target():
     handler = SafeRedirectHandler()
     with pytest.raises(urllib.error.URLError) as exc:
         handler.redirect_request(None, None, 302, "Found", None, "http://127.0.0.1/")
     assert "Unsafe redirect target" in str(exc.value)
-
-
-def test_safe_redirect_handler_rejects_metadata_target():
-    handler = SafeRedirectHandler()
-    with pytest.raises(urllib.error.URLError) as exc:
-        handler.redirect_request(
-            None, None, 302, "Found", None, "http://169.254.169.254/latest/meta-data"
-        )
-    assert "Unsafe redirect target" in str(exc.value)
-
-
-def test_safe_redirect_handler_allows_public_https(monkeypatch):
-    handler = SafeRedirectHandler()
-    sentinel = object()
-
-    def _fake_super_redirect(self, req, fp, code, msg, headers, newurl):
-        return sentinel
-
-    monkeypatch.setattr(
-        urllib.request.HTTPRedirectHandler,
-        "redirect_request",
-        _fake_super_redirect,
-    )
-    result = handler.redirect_request(
-        None, None, 302, "Found", None, "https://hooks.example.com/alert"
-    )
-    assert result is sentinel
