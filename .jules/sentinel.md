@@ -117,3 +117,8 @@
 **Vulnerability:** Server-Side Request Forgery (SSRF) bypass due to `urllib.request.urlopen` automatically following HTTP redirects to internal infrastructure even when the initial URL was validated as safe.
 **Learning:** Checking the initial user-provided URL against a blocklist or guardrail is insufficient if the HTTP client automatically follows redirects. An attacker can set up an external server (e.g. `http://attacker.com/redirect`) that passes initial validation but responds with a `302 Found` pointing to an internal IP (e.g. `http://169.254.169.254/`). `urlopen` transparently follows this, bypassing the initial check.
 **Prevention:** When using `urllib.request` to access external URLs that must be restricted (like webhook URLs), you must intercept redirects. This can be done by creating a subclass of `urllib.request.HTTPRedirectHandler` that overrides `redirect_request` to apply the same safety guardrail (`_is_safe_url`) to the `newurl` target, and injecting this handler using `urllib.request.build_opener`.
+
+## 2026-07-29 - [DOM XSS via unescaped severity in dashboard]
+**Vulnerability:** DOM XSS via unescaped `severity` string interpolated into `innerHTML` in `scanner/dashboard/index.html`.
+**Learning:** Even enum-like or seemingly safe meta-fields like `severity` can contain malicious payloads if sourced from user input (findings file) and directly injected into innerHTML.
+**Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from `findings.json`, regardless of expected schema types.
