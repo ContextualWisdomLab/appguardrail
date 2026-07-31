@@ -33,3 +33,7 @@
 ## 2026-07-28 - Native HTML dialog focus restoration
 **Learning:** Native `<dialog>` does not automatically restore focus to the trigger element on close, breaking keyboard navigation flow.
 **Action:** Save `document.activeElement` before `showModal()` and restore focus to it in a `close` event listener.
+
+## 2026-07-30 - Async Loading States Accessibility
+**Learning:** Adding visual loading states without explicit ARIA declarations leaves screen reader users unaware of background network requests.
+**Action:** Always declare the loading state explicitly by setting `aria-busy="true"` on the trigger element, and wrap dynamic status or error updates in containers with `aria-live="polite"` or `role="alert"`.
