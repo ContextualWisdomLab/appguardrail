@@ -21,7 +21,7 @@ DEFAULT_MAX_LOG_CHARS = 30_000
 DEFAULT_MAX_LOG_LINES = 200
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-TS_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*")
+TS_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z[ \t]*", re.MULTILINE)
 SECRET_RE = [
     re.compile(r"(?i)(authorization:\s*(?:bearer|token)\s+)[^\s]+"),
     re.compile(
@@ -76,7 +76,10 @@ def sanitize_label_value(value: str) -> str:
 def redact(log: str) -> str:
     """Remove ANSI noise, timestamps, and obvious secrets from a job log."""
     text = ANSI_RE.sub("", log.replace("\r\n", "\n").replace("\r", "\n"))
-    text = "\n".join(TS_RE.sub("", line) for line in text.splitlines())
+    # Bolt: Optimized timestamp redaction by replacing line-by-line generators with
+    # a single re.MULTILINE substitution. This pushes the loop into the C engine
+    # and reduces memory allocations.
+    text = TS_RE.sub("", text[:-1] if text.endswith("\n") else text)
     for regex in SECRET_RE:
         text = regex.sub(
             lambda match: (

@@ -69,3 +69,6 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls.
 **Action:** When iterating over large lists of file strings or formatting output, fall back to standard string methods (`replace("\\", "/")`) or `os.path` operations (`os.path.basename`, `os.path.splitext`) which are orders of magnitude faster.
+## 2026-07-03 - Optimizing multi-line text redaction
+**Learning:** Using `.splitlines()` and a generator expression to process and re-join a large text block line-by-line in Python creates significant memory allocation and iteration overhead.
+**Action:** Use `re.MULTILINE` with the regex pattern and apply `.sub()` directly to the whole string, pushing the iteration down to the C-compiled regex engine for a noticeable speedup. Account for `splitlines()` behavior (dropping the trailing newline) by conditionally slicing `text[:-1]`.
