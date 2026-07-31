@@ -13,6 +13,7 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import re
 import secrets
@@ -20,7 +21,6 @@ import sqlite3
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
-import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 

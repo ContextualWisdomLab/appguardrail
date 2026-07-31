@@ -60,6 +60,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
+from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
 from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
@@ -1669,13 +1670,6 @@ def _is_safe_url(url: str) -> bool:
         return False
 
     return True
-
-
-class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not _is_safe_url(newurl):
-            raise urllib.error.URLError("Unsafe redirect target")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _push_findings(url, findings):
