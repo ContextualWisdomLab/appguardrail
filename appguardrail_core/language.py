@@ -92,86 +92,29 @@ class StackProfile:
 
 def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
-    # ⚡ Bolt: Fast path string operations avoid thousands of Path instantiations
-    # and redundant stat calls during codebase discovery.
     languages: set[str] = set()
     for file_path in files:
-        s = str(file_path)
-        s_lower = s.lower()
-        last_dot = s_lower.rfind(".")
-        if last_dot != -1:
-            ext = s_lower[last_dot:]
-            if ext in LANGUAGE_BY_EXTENSION:
-                languages.add(LANGUAGE_BY_EXTENSION[ext])
-
-        last_slash = s.rfind("/")
-        name = s[last_slash + 1 :] if last_slash != -1 else s
-
-        if name in PYTHON_MANIFESTS:
+        path = Path(file_path)
+        language = LANGUAGE_BY_EXTENSION.get(path.suffix.lower())
+        if language:
+            languages.add(language)
+        if path.name in PYTHON_MANIFESTS:
             languages.add("python")
-        if name in JAVA_MANIFESTS:
+        if path.name in JAVA_MANIFESTS:
             languages.add("java")
-        if name in NODE_MANIFESTS:
+        if path.name in NODE_MANIFESTS:
             languages.add("javascript")
-            if name == "tsconfig.json":
+            if path.name == "tsconfig.json":
                 languages.add("typescript")
     return languages
 
 
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
-    # ⚡ Bolt: Hoist path processing into a single string-based pass.
-    # Generating thousands of Path objects inside multiple nested loops caused
-    # significant overhead in large codebases. This condenses detection into O(N).
-    languages: set[str] = set()
-    frameworks: set[str] = set()
-    signals: set[str] = set()
-    has_web_signal_dir = False
-
-    paths = []
-    for file_path in files:
-        paths.append(Path(file_path))
-        s = str(file_path)
-        s_lower = s.lower()
-        last_slash = s.rfind("/")
-        name = s[last_slash + 1 :] if last_slash != -1 else s
-
-        last_dot = s_lower.rfind(".")
-        if last_dot != -1:
-            ext = s_lower[last_dot:]
-            if ext in LANGUAGE_BY_EXTENSION:
-                languages.add(LANGUAGE_BY_EXTENSION[ext])
-
-        if name in PYTHON_MANIFESTS:
-            languages.add("python")
-        if name in JAVA_MANIFESTS:
-            languages.add("java")
-        if name in NODE_MANIFESTS:
-            languages.add("javascript")
-            if name == "tsconfig.json":
-                languages.add("typescript")
-
-        if "templates/" in s_lower or "/views/" in s_lower:
-            frameworks.add("templates")
-
-        if name in MANIFEST_NAMES:
-            signals.add(name)
-            try:
-                with open(file_path, "rb") as handle:
-                    text = handle.read(128000).decode("utf-8", errors="ignore").lower()
-                for marker in PYTHON_WEB_MARKERS | JAVA_WEB_MARKERS | NODE_WEB_MARKERS:
-                    if marker in text:
-                        frameworks.add(marker)
-            except OSError:
-                pass
-
-        parts = s_lower.split("/")
-        for part in parts:
-            if part in WEB_SIGNAL_DIRS:
-                signals.add(part)
-                has_web_signal_dir = True
-
-    signals.update(frameworks)
+    paths = [Path(file_path) for file_path in files]
+    languages = detect_language_axes(paths)
+    frameworks = _detect_framework_markers(paths)
+    signals = _detect_signals(paths, frameworks)
 
     if "java" in languages and languages & {"javascript", "typescript"}:
         profile_id = "java-node-typescript"
@@ -239,21 +182,7 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
         frameworks=tuple(sorted(frameworks)),
         signals=tuple(sorted(signals)),
         external_tools=_external_tools_for(languages, profile_id),
-        zap_recommended=(
-            True
-            if "web" in languages
-            else (
-                True
-                if frameworks
-                & (
-                    PYTHON_WEB_MARKERS
-                    | JAVA_WEB_MARKERS
-                    | NODE_WEB_MARKERS
-                    | {"templates"}
-                )
-                else has_web_signal_dir
-            )
-        ),
+        zap_recommended=_is_web_reachable(languages, frameworks, paths),
         beginner_summary=summary,
         next_steps=next_steps,
     )
