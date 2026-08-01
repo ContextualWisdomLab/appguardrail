@@ -37,3 +37,7 @@
 ## 2026-07-30 - Async Loading States Accessibility
 **Learning:** Adding visual loading states without explicit ARIA declarations leaves screen reader users unaware of background network requests.
 **Action:** Always declare the loading state explicitly by setting `aria-busy="true"` on the trigger element, and wrap dynamic status or error updates in containers with `aria-live="polite"` or `role="alert"`.
+
+## 2024-08-01 - Table Header Accessibility & Pluralization
+**Learning:** Hardcoded text values (like `scan(s)` or `findings`) decrease perceived quality and user experience, while tables without explicit scope definitions degrade screen reader navigation.
+**Action:** Use ternary operators for dynamic singular/plural string rendering based on count. Always apply `scope="col"` to `<th>` elements to ensure clear semantic layout mapping for screen readers.
