@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "rule_id": "TEST_RULE_1",
+      "severity": "CRITICAL",
+      "category": "security",
+      "file": "test1.py",
+      "line": 10,
+      "message": "Critical issue here",
+      "context": "app-code"
+    },
+    {
+      "rule_id": "TEST_RULE_2",
+      "severity": "INFO",
+      "category": "style",
+      "file": "test2.py",
+      "line": 20,
+      "message": "Info issue here",
+      "context": "test"
+    }
+  ]
+}

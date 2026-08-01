@@ -37,3 +37,11 @@
 ## 2026-07-30 - Async Loading States Accessibility
 **Learning:** Adding visual loading states without explicit ARIA declarations leaves screen reader users unaware of background network requests.
 **Action:** Always declare the loading state explicitly by setting `aria-busy="true"` on the trigger element, and wrap dynamic status or error updates in containers with `aria-live="polite"` or `role="alert"`.
+
+## 2026-08-01 - DOM Replacement and Keyboard Focus
+**Learning:** Re-rendering a UI by completely replacing `innerHTML` causes all DOM elements within it to be destroyed and recreated. If the element that triggered the re-render (like a filter dropdown) was inside that DOM or simply lost focus during the transition, keyboard navigation flow is broken.
+**Action:** When a UI update causes the focused element to be destroyed or lose focus, capture or explicitly restore focus post-render (e.g., `document.getElementById('target-id')?.focus()`).
+
+## 2026-08-01 - Dynamic Text and Screen Readers
+**Learning:** When text changes dynamically in a web application (like a count of filtered items changing from "100 findings" to "Showing 5 of 100 findings"), screen readers won't announce the change by default, leaving non-sighted users unaware of the UI update.
+**Action:** Add `aria-live="polite"` to the container of the dynamic text (like a summary `<p>` tag) so assistive technologies announce updates automatically without interrupting the user's flow.

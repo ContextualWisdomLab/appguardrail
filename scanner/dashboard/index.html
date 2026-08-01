@@ -172,7 +172,7 @@ function render(){
 
   app.innerHTML = `
     <h1>Dashboard</h1>
-    <p class="sub">${ALL.length} findings · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
+    <p class="sub" aria-live="polite">${filtered.length === ALL.length ? `${ALL.length} findings` : `Showing ${filtered.length} of ${ALL.length} findings`} · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
     <div class="cards">${cards}
       <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
     </div>
@@ -204,7 +204,7 @@ function render(){
       el.setSelectionRange(start, end);
     }
   });
-  document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();});
+  document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();document.getElementById('sev')?.focus();});
   app.querySelectorAll('tbody tr[data-i]').forEach(tr=>{
     const open = () => openDetail(ALL[+tr.dataset.i]);
     tr.addEventListener('click', open);
