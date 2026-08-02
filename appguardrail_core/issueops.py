@@ -172,7 +172,7 @@ def replace_marker(body: str | None, repo: str, workflow: str, seen: set[str]) -
     end = body.find(MARKER_SUFFIX, start + len(MARKER_PREFIX))
     if start == -1 or end == -1:
         return f"{new_marker}\n\n{body}".strip()
-    return f"{body[:start]}{new_marker}{body[end + len(MARKER_SUFFIX):]}".strip()
+    return f"{body[:start]}{new_marker}{body[end + len(MARKER_SUFFIX) :]}".strip()
 
 
 def title(finding: dict[str, Any]) -> str:
@@ -198,6 +198,70 @@ def summary(finding: dict[str, Any]) -> str:
     return "\n".join(f"- {key}: {value}" for key, value in rows)
 
 
+def diagnosis(finding: dict[str, Any]) -> str:
+    """Render safe, actionable diagnosis and remediation from trusted metadata."""
+    names = f"{finding.get('workflow', '')} {finding.get('job_name', '')}".lower()
+    conclusion = str(finding.get("conclusion") or "unknown").lower()
+
+    if "strix" in names:
+        likely_cause = (
+            "The Strix security gate did not complete successfully. This metadata alone "
+            "does not prove that a vulnerability was found; scanner setup, execution, "
+            "result mapping, and policy enforcement failures must be distinguished in "
+            "the source job."
+        )
+        actions = [
+            "Open the authorized source job and inspect the first failed step shown above.",
+            "If setup or execution failed, correct credentials, runner capacity, or scanner configuration, then rerun the same commit.",
+            "If findings caused the failure, review the Strix artifact in the source repository, fix each confirmed finding, and rerun the scan.",
+            "Do not merge while confirmed critical/high findings remain unresolved.",
+        ]
+    elif "opencode" in names:
+        likely_cause = (
+            "The automated OpenCode review gate failed. Common classes are dispatch or "
+            "permission configuration, reviewer execution, and review-result publishing; "
+            "the failed step in the authorized source job identifies which class applies."
+        )
+        actions = [
+            "Open the authorized source job and inspect the first failed step shown above.",
+            "For dispatch or permission failures, verify the GitHub App installation, repository allowlist, and least-privilege token permissions.",
+            "For reviewer execution failures, correct model/service configuration or transient rate limits and rerun the same commit.",
+            "For a reported code problem, apply the review recommendation, add regression coverage, and rerun the required review.",
+        ]
+    else:
+        likely_cause = (
+            "A security-related workflow gate did not complete successfully. The trusted "
+            "metadata identifies the affected run but is insufficient to distinguish an "
+            "infrastructure failure from a confirmed security finding."
+        )
+        actions = [
+            "Open the authorized source job and inspect the first failed step shown above.",
+            "Separate runner, permission, dependency, and timeout failures from scanner-reported findings.",
+            "Fix the identified root cause and rerun the exact head commit before merging.",
+        ]
+
+    if conclusion == "cancelled":
+        actions.insert(
+            1,
+            "Determine who or what cancelled the run, then rerun the exact head commit to obtain a conclusive result.",
+        )
+    elif conclusion == "timed_out":
+        actions.insert(
+            1,
+            "Check runner capacity and configured timeouts; optimize or safely extend the limit before rerunning.",
+        )
+    elif conclusion == "action_required":
+        actions.insert(
+            1,
+            "Have an authorized maintainer approve the protected action only after reviewing the triggering changes.",
+        )
+
+    checklist = "\n".join(
+        f"{index}. {action}" for index, action in enumerate(actions, 1)
+    )
+    return f"### AppGuardrail diagnosis\n\n{likely_cause}\n\n### Recommended resolution\n\n{checklist}"
+
+
 def issue_body(finding: dict[str, Any], seen: set[str]) -> str:
     """Render the first issue body for a collected security workflow failure."""
     owner = finding["repo"].split("/", 1)[0]
@@ -207,6 +271,7 @@ def issue_body(finding: dict[str, Any], seen: set[str]) -> str:
             f"Automated collection of security workflow failures across {owner}.",
             summary(finding),
             f"```text\n{finding['snippet']}\n```",
+            diagnosis(finding),
         ]
     )
 
@@ -218,5 +283,6 @@ def issue_comment(finding: dict[str, Any]) -> str:
             "New security workflow failure detected.",
             summary(finding),
             f"```text\n{finding['snippet']}\n```",
+            diagnosis(finding),
         ]
     )

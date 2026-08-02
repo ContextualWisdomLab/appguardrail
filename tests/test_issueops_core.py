@@ -1,6 +1,55 @@
 from appguardrail_core import issueops
 
 
+def _finding(**overrides):
+    item = {
+        "repo": "ContextualWisdomLab/example",
+        "workflow": "Strix Security Scan",
+        "job_name": "strix",
+        "conclusion": "failure",
+        "branch": "fix/security",
+        "head_sha": "abc123",
+        "event": "pull_request",
+        "pr_numbers": [7],
+        "run_url": "https://github.com/ContextualWisdomLab/example/actions/runs/1",
+        "job_url": "https://github.com/ContextualWisdomLab/example/actions/runs/1/job/2",
+        "run_id": 1,
+        "job_id": 2,
+        "snippet": "Trusted metadata",
+    }
+    item.update(overrides)
+    return item
+
+
+def test_strix_issue_explains_diagnostic_limits_and_resolution():
+    body = issueops.issue_body(_finding(), {"1:2"})
+
+    assert "### AppGuardrail diagnosis" in body
+    assert "does not prove that a vulnerability was found" in body
+    assert "### Recommended resolution" in body
+    assert "fix each confirmed finding" in body
+    assert "Do not merge while confirmed critical/high findings" in body
+
+
+def test_opencode_comment_recommends_gate_specific_remediation():
+    body = issueops.issue_comment(
+        _finding(workflow="OpenCode Review Dispatch", job_name="opencode-review")
+    )
+
+    assert "dispatch or permission configuration" in body
+    assert "GitHub App installation" in body
+    assert "add regression coverage" in body
+
+
+def test_timeout_diagnosis_adds_timeout_specific_next_step():
+    body = issueops.diagnosis(
+        _finding(workflow="CodeQL", job_name="analyze", conclusion="timed_out")
+    )
+
+    assert "insufficient to distinguish" in body
+    assert "runner capacity and configured timeouts" in body
+
+
 def finding(**overrides):
     base = {
         "repo": "ContextualWisdomLab/naruon",
