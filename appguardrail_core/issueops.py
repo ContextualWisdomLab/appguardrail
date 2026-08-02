@@ -25,7 +25,10 @@ TS_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*")
 SECRET_RE = [
     re.compile(r"(?i)(authorization:\s*(?:bearer|token)\s+)[^\s]+"),
     re.compile(
-        r"(?i)\b((?:api[_-]?key|token|secret|password|private[_-]?key)\s*[:=]\s*)['\"]?[^'\"\s]+"
+        r"(?im)\b((?:api[_-]?key|token|secret|password|private[_-]?key)\s*[:=]\s*)"
+        r"(?:'(?:\\.|[^'\\\r\n])*(?:'|(?=\r?$))|"
+        r'"(?:\\.|[^"\\\r\n])*(?:"|(?=\r?$))|'
+        r"[^'\"\s]+['\"]?)"
     ),
     re.compile(
         r"\b(?:gh[opsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9]{20,})\b"

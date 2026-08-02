@@ -1,3 +1,5 @@
+import pytest
+
 from appguardrail_core import issueops
 
 
@@ -125,6 +127,37 @@ def test_redaction_and_log_compression_prioritize_security_context():
     assert "::error::actual security failure" in snippet
     assert 'echo "::error::source branch should not dominate"' not in snippet
     assert "...[compressed]" in snippet
+
+
+@pytest.mark.parametrize(
+    ("log", "expected"),
+    [
+        ("api_key: 'secret123'", "api_key: [REDACTED]"),
+        ('api_key: "secret123"', "api_key: [REDACTED]"),
+        ("password='secret with spaces'", "password=[REDACTED]"),
+        ('token: "secret with spaces"', "token: [REDACTED]"),
+        ("private-key: secret123'", "private-key: [REDACTED]"),
+        (r"secret='value with \' quote'", "secret=[REDACTED]"),
+        ('secret="value with \\" quote"', "secret=[REDACTED]"),
+    ],
+)
+def test_redact_consumes_complete_quoted_secret(log, expected):
+    assert issueops.redact(log) == expected
+    assert "secret123" not in issueops.redact(log)
+
+
+def test_redact_handles_multiple_assignments_without_consuming_field_names():
+    log = "api_key: 'first value' password=second token: \"third value\""
+
+    assert issueops.redact(log) == (
+        "api_key: [REDACTED] password=[REDACTED] token: [REDACTED]"
+    )
+
+
+def test_redact_fails_closed_for_unterminated_quoted_secret():
+    assert issueops.redact("password='secret value without closing quote") == (
+        "password=[REDACTED]"
+    )
 
 
 def test_marker_body_and_replacement_round_trip():
