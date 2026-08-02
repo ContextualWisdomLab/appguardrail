@@ -1672,6 +1672,7 @@ def _is_safe_url(url: str) -> bool:
 
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
+    import urllib.error
     import urllib.request
 
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
