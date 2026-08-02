@@ -95,6 +95,29 @@ def test_security_scope_conclusions_and_run_url_pattern():
     assert (repo, run_id) == ("ContextualWisdomLab/naruon", 28492006630)
 
 
+def test_parse_run_url_accepts_maximum_bounded_run_id():
+    run_id = "9" * issueops.MAX_GITHUB_RUN_ID_DIGITS
+
+    assert issueops.parse_run_url(
+        f"https://github.com/owner/repo/actions/runs/{run_id}"
+    ) == ("owner/repo", int(run_id))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evilgithub.com/owner/repo/actions/runs/1",
+        "http://github.com/owner/repo/actions/runs/1",
+        "https://github.com/owner/repo/actions/runs/1/extra",
+        "https://github.com/owner/repo/actions/runs/" + "1" * 21,
+        "https://github.com/owner/repo/actions/runs/" + "1" * 5_000,
+    ],
+)
+def test_parse_run_url_rejects_noncanonical_or_oversized_input(url):
+    with pytest.raises(ValueError, match="Unsupported or oversized"):
+        issueops.parse_run_url(url)
+
+
 def test_redaction_and_log_compression_prioritize_security_context():
     secret_log = (
         "\x1b[31m2026-07-01T10:20:30.123Z Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz\n"

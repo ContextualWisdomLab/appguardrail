@@ -19,6 +19,7 @@ MARKER_PREFIX = "<!-- appguardrail-org-security-failure:"
 MARKER_SUFFIX = "-->"
 DEFAULT_MAX_LOG_CHARS = 30_000
 DEFAULT_MAX_LOG_LINES = 200
+MAX_GITHUB_RUN_ID_DIGITS = 20
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 TS_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*")
@@ -63,10 +64,17 @@ def is_security_name(*names: str | None) -> bool:
 
 
 def parse_run_url(url: str) -> tuple[str, int]:
-    """Extract the repository slug and run id from a GitHub Actions run URL."""
-    match = re.search(r"github\.com/([^/]+/[^/]+)/actions/runs/(\d+)", url)
+    """Extract a bounded run id from an exact public GitHub Actions URL."""
+    match = re.fullmatch(
+        rf"https://github\.com/"
+        rf"([A-Za-z0-9_.-]{{1,100}}/[A-Za-z0-9_.-]{{1,100}})"
+        rf"/actions/runs/([0-9]{{1,{MAX_GITHUB_RUN_ID_DIGITS}}})"
+        rf"(?:/job/[0-9]{{1,{MAX_GITHUB_RUN_ID_DIGITS}}})?"
+        r"(?:#step:[0-9]{1,10}:[0-9]{1,10})?/?",
+        url,
+    )
     if not match:
-        raise ValueError(f"Unsupported GitHub Actions run URL: {url}")
+        raise ValueError("Unsupported or oversized GitHub Actions run URL")
     return match.group(1), int(match.group(2))
 
 
