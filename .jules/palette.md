@@ -41,3 +41,7 @@
 ## 2024-05-24 - Do not use aria-label on table rows
 **Learning:** Setting `aria-label` on table rows (`<tr>`), even those with `role="button"`, overrides natural table cell reading and hides critical table data from screen reader users.
 **Action:** Use the `title` attribute instead to preserve natural cell reading while providing visual tooltip feedback for mouse users.
+
+## 2024-11-20 - Empty State Clear Filters CTA
+**Learning:** Users can get stuck when filtering a dashboard to zero results, and forcing them to manually clear multiple inputs creates friction.
+**Action:** Add an interactive 'Clear filters' Call-To-Action within empty state messages to instantly reset state and refocus the primary input.
