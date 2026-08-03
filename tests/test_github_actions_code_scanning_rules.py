@@ -100,6 +100,23 @@ jobs:
     assert _matches(workflow)
 
 
+def test_run_script_text_that_mentions_upload_action_is_not_reported() -> None:
+    """Text inside a shell block must not masquerade as an action step."""
+    workflow = """
+name: Documentation check
+on:
+  push:
+jobs:
+  docs:
+    steps:
+      - run: |
+          uses: github/codeql-action/upload-sarif@v3
+          echo "example only"
+"""
+
+    assert not _matches(workflow)
+
+
 def test_commented_pull_request_does_not_satisfy_coverage() -> None:
     """A disabled event mentioned only in a comment must still be reported."""
     workflow = """
