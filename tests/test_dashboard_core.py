@@ -222,3 +222,12 @@ def test_server_404s_missing_findings(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+def test_dashboard_empty_state_clear_filters():
+    """Empty state CTA must expose Clear filters control that resets state."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert "No findings match the filter" in html
+    assert "aria-label=\"Clear filters\"" in html
+    assert "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\"" in html
+    assert "Clear filters</button>" in html
