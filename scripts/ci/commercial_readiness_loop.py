@@ -202,6 +202,8 @@ def render_gap_issue(gap: CommercialGap) -> str:
 - Target `develop` and preserve standalone behavior plus modular MSA compatibility with ContextualWisdomLab organization infrastructure and naruon.
 - Use descriptive nonnumeric identifiers. New database object names must contain at least two words in snake_case, CamelCase, or PascalCase, with snake_case preferred.
 - Keep the PR scoped to this gap. Document material uncertainty rather than claiming evidence that was not observed.
+- Include `Closes #<this issue number>` in the PR description so the next hourly pass can advance only after this slice is merged.
+- Before completion, remove the completed gap from `COMMERCIAL_GAPS` and append the next evidence-backed buyer-visible gap when one is supported; keep the reviewed backlog bounded and prioritized.
 
 {gap_marker(gap.id)}
 """
