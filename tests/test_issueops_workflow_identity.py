@@ -132,6 +132,43 @@ def test_issue_index_uses_latest_seen_run_before_issue_number() -> None:
     assert indexed[_CANONICAL_TITLE] is newer_run_lower_issue
 
 
+def test_empty_workflow_uses_unknown_identity() -> None:
+    """Blank workflow names must produce one explicit fallback identity."""
+    assert issueops.canonical_workflow_name("  ") == "unknown workflow"
+
+
+def test_zero_pr_number_suffix_is_not_rewritten() -> None:
+    """Generated dispatch suffixes require a positive pull-request number."""
+    workflow = (
+        "Review ContextualWisdomLab/EgressWeave#0@"
+        "3333333333333333333333333333333333333333"
+    )
+
+    assert issueops.canonical_workflow_name(workflow) == workflow
+
+
+def test_exact_canonical_title_precedes_open_legacy_issue() -> None:
+    """A durable canonical issue remains the survivor even when currently closed."""
+    canonical_issue = {
+        "number": 10,
+        "state": "closed",
+        "title": _CANONICAL_TITLE,
+        "body": issueops.marker(
+            "ContextualWisdomLab/EgressWeave",
+            "Required OpenCode Review",
+            {"10:1"},
+        ),
+    }
+    open_legacy_issue = _legacy_issue(20, _DYNAMIC_WORKFLOW, {"999:1"})
+
+    indexed = collector.issue_index(
+        _IssueClient([open_legacy_issue, canonical_issue]),
+        "ContextualWisdomLab/appguardrail",
+    )
+
+    assert indexed[_CANONICAL_TITLE] is canonical_issue
+
+
 def test_short_sha_like_suffix_is_not_rewritten() -> None:
     """Only the exact generated full-SHA suffix may be normalized."""
     workflow = "Review ContextualWisdomLab/EgressWeave#1@deadbeef"
