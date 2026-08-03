@@ -1,4 +1,55 @@
+import pytest
+
 from appguardrail_core import issueops
+
+
+def _finding(**overrides):
+    item = {
+        "repo": "ContextualWisdomLab/example",
+        "workflow": "Strix Security Scan",
+        "job_name": "strix",
+        "conclusion": "failure",
+        "branch": "fix/security",
+        "head_sha": "abc123",
+        "event": "pull_request",
+        "pr_numbers": [7],
+        "run_url": "https://github.com/ContextualWisdomLab/example/actions/runs/1",
+        "job_url": "https://github.com/ContextualWisdomLab/example/actions/runs/1/job/2",
+        "run_id": 1,
+        "job_id": 2,
+        "snippet": "Trusted metadata",
+    }
+    item.update(overrides)
+    return item
+
+
+def test_strix_issue_explains_diagnostic_limits_and_resolution():
+    body = issueops.issue_body(_finding(), {"1:2"})
+
+    assert "### AppGuardrail diagnosis" in body
+    assert "does not prove that a vulnerability was found" in body
+    assert "### Recommended resolution" in body
+    assert "fix each confirmed finding" in body
+    assert "Do not merge while confirmed critical/high findings" in body
+
+
+def test_opencode_comment_recommends_gate_specific_remediation():
+    body = issueops.issue_comment(
+        _finding(workflow="OpenCode Review Dispatch", job_name="opencode-review")
+    )
+
+    assert "dispatch or permission configuration" in body
+    assert "GitHub App installation" in body
+    assert "add regression coverage" in body
+
+
+def test_timeout_diagnosis_adds_timeout_specific_next_step():
+    body = issueops.diagnosis(
+        _finding(workflow="CodeQL", job_name="analyze", conclusion="timed_out")
+    )
+
+    assert "insufficient to distinguish" in body
+    assert "runner capacity and configured timeouts" in body
 
 
 def finding(**overrides):
@@ -44,6 +95,29 @@ def test_security_scope_conclusions_and_run_url_pattern():
     assert (repo, run_id) == ("ContextualWisdomLab/naruon", 28492006630)
 
 
+def test_parse_run_url_accepts_maximum_bounded_run_id():
+    run_id = "9" * issueops.MAX_GITHUB_RUN_ID_DIGITS
+
+    assert issueops.parse_run_url(
+        f"https://github.com/owner/repo/actions/runs/{run_id}"
+    ) == ("owner/repo", int(run_id))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evilgithub.com/owner/repo/actions/runs/1",
+        "http://github.com/owner/repo/actions/runs/1",
+        "https://github.com/owner/repo/actions/runs/1/extra",
+        "https://github.com/owner/repo/actions/runs/" + "1" * 21,
+        "https://github.com/owner/repo/actions/runs/" + "1" * 5_000,
+    ],
+)
+def test_parse_run_url_rejects_noncanonical_or_oversized_input(url):
+    with pytest.raises(ValueError, match="Unsupported or oversized"):
+        issueops.parse_run_url(url)
+
+
 def test_redaction_and_log_compression_prioritize_security_context():
     secret_log = (
         "\x1b[31m2026-07-01T10:20:30.123Z Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz\n"
@@ -76,6 +150,37 @@ def test_redaction_and_log_compression_prioritize_security_context():
     assert "::error::actual security failure" in snippet
     assert 'echo "::error::source branch should not dominate"' not in snippet
     assert "...[compressed]" in snippet
+
+
+@pytest.mark.parametrize(
+    ("log", "expected"),
+    [
+        ("api_key: 'secret123'", "api_key: [REDACTED]"),
+        ('api_key: "secret123"', "api_key: [REDACTED]"),
+        ("password='secret with spaces'", "password=[REDACTED]"),
+        ('token: "secret with spaces"', "token: [REDACTED]"),
+        ("private-key: secret123'", "private-key: [REDACTED]"),
+        (r"secret='value with \' quote'", "secret=[REDACTED]"),
+        ('secret="value with \\" quote"', "secret=[REDACTED]"),
+    ],
+)
+def test_redact_consumes_complete_quoted_secret(log, expected):
+    assert issueops.redact(log) == expected
+    assert "secret123" not in issueops.redact(log)
+
+
+def test_redact_handles_multiple_assignments_without_consuming_field_names():
+    log = "api_key: 'first value' password=second token: \"third value\""
+
+    assert issueops.redact(log) == (
+        "api_key: [REDACTED] password=[REDACTED] token: [REDACTED]"
+    )
+
+
+def test_redact_fails_closed_for_unterminated_quoted_secret():
+    assert issueops.redact("password='secret value without closing quote") == (
+        "password=[REDACTED]"
+    )
 
 
 def test_marker_body_and_replacement_round_trip():

@@ -66,7 +66,7 @@
     </div>
     <div class="card">
       <strong>Scan history</strong>
-      <table id="history"><thead><tr><th>When</th><th>Repo</th><th>Commit</th><th>Total</th><th>Blocking</th><th>New</th></tr></thead><tbody></tbody></table>
+      <table id="history"><thead><tr><th scope="col">When</th><th scope="col">Repo</th><th scope="col">Commit</th><th scope="col">Total</th><th scope="col">Blocking</th><th scope="col">New</th></tr></thead><tbody></tbody></table>
     </div>
     <div class="card hidden" id="detail"></div>
   </div>
@@ -106,7 +106,7 @@ async function load(){
       const col=(s.deploy_blocking||0)>0?"var(--crit)":"var(--ok)";
       return `<div class="bar" title="${esc(s.created_at)}: ${s.deploy_blocking||0} blocking" style="height:${h}px;background:${col}"></div>`;}).join("")||'<span class="muted">No scans yet.</span>';
     // table
-    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}" tabindex="0" role="button" aria-label="View scan details">
+    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}" tabindex="0" role="button" title="View scan details">
       <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
       <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
     document.querySelectorAll("tr.scan").forEach(tr=>{
@@ -123,7 +123,7 @@ async function detail(id){
     <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
     <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
   d.innerHTML=`<strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
-    <table style="margin-top:8px"><thead><tr><th>Severity</th><th>Rule</th><th>Finding</th><th>Location</th></tr></thead>
+    <table style="margin-top:8px"><thead><tr><th scope="col">Severity</th><th scope="col">Rule</th><th scope="col">Finding</th><th scope="col">Location</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
   d.scrollIntoView({behavior:"smooth"});
 }
