@@ -76,6 +76,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
 let KEY=sessionStorage.getItem("ag_key")||"";
+let currentDetailRequest=0;
 
 async function api(path){
   const r=await fetch(path,{headers:{Authorization:"Bearer "+KEY}});
@@ -84,6 +85,13 @@ async function api(path){
   return r.json();
 }
 function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
+function scrollDetailIntoView(element){
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    element.scrollIntoView();
+  }else{
+    element.scrollIntoView({behavior:"smooth"});
+  }
+}
 
 async function load(){
   try{
@@ -110,22 +118,41 @@ async function load(){
       <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
       <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
     document.querySelectorAll("tr.scan").forEach(tr=>{
-      tr.onclick=()=>detail(tr.dataset.id);
-      tr.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(tr.dataset.id); } });
+      tr.onclick=()=>detail(tr.dataset.id,tr);
+      tr.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(tr.dataset.id,tr); } });
     });
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
     $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
 }
-async function detail(id){
-  const s=await api("/api/v1/scans/"+id);
-  const d=$("#detail");d.classList.remove("hidden");
-  const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
-    <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
-    <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
-  d.innerHTML=`<strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
-    <table style="margin-top:8px"><thead><tr><th scope="col">Severity</th><th scope="col">Rule</th><th scope="col">Finding</th><th scope="col">Location</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
-  d.scrollIntoView({behavior:"smooth"});
+async function detail(id,tr){
+  const requestId=++currentDetailRequest;
+  const d=$("#detail");
+  if(tr){
+    tr.dataset.detailRequest=String(requestId);
+    tr.setAttribute("aria-busy","true");
+  }
+  d.classList.remove("hidden");
+  d.innerHTML='<div aria-live="polite" class="muted">Loading scan details...</div>';
+  try{
+    const s=await api("/api/v1/scans/"+id);
+    if(requestId!==currentDetailRequest)return;
+    const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
+      <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
+      <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
+    d.innerHTML=`<strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
+      <table style="margin-top:8px"><thead><tr><th scope="col">Severity</th><th scope="col">Rule</th><th scope="col">Finding</th><th scope="col">Location</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
+    scrollDetailIntoView(d);
+  }catch(e){
+    if(requestId!==currentDetailRequest)return;
+    d.innerHTML='<div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
+    scrollDetailIntoView(d);
+  }finally{
+    if(tr&&tr.dataset.detailRequest===String(requestId)){
+      tr.removeAttribute("aria-busy");
+      delete tr.dataset.detailRequest;
+    }
+  }
 }
 $("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=false;$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
 $("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
