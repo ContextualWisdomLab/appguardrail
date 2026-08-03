@@ -103,10 +103,7 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             name = file_path_posix[idx + 1 :] if idx != -1 else file_path_posix
 
             dot_idx = name.rfind(".")
-            if dot_idx > 0 and name[:dot_idx].replace(".", ""):
-                suffix = name[dot_idx:].lower()
-            else:
-                suffix = ""
+            suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
 
         language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
@@ -263,7 +260,7 @@ def _external_tools_for(languages: set[str], profile_id: str) -> tuple[str, ...]
 
 
 def _is_web_reachable(
-    languages: set[str], frameworks: set[str], paths: list[Path]
+    languages: set[str], frameworks: set[str], paths: list[str]
 ) -> bool:
     if "web" in languages:
         return True
