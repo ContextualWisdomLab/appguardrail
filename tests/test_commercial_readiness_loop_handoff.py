@@ -38,3 +38,17 @@ def test_generated_gap_requires_issue_closure_and_next_backlog_decision() -> Non
     assert "COMMERCIAL_GAPS" in body
     assert "remove the completed gap" in body
     assert "next evidence-backed" in body
+
+
+def test_generated_gap_routes_research_design_and_analytics_tools() -> None:
+    """Future slices must use authoritative evidence and specialist tools when relevant."""
+    module = _load_module()
+
+    body = module.render_gap_issue(module.COMMERCIAL_GAPS[0])
+
+    assert "authoritative primary" in body
+    assert "peer-reviewed" in body
+    assert "Context7" in body
+    assert "Consensus" in body
+    assert "Figma or Product Design" in body
+    assert "Visualize" in body
