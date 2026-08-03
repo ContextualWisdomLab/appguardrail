@@ -124,7 +124,11 @@ def test_redact_splitlines_separators_and_trailing():
     assert issueops.redact("a\n") == "a"
     assert issueops.redact("a\n\n") == "a\n"
     assert issueops.redact("a\r\n") == "a"
+    assert issueops.redact("a\r") == "a"
     assert issueops.redact("a\v") == "a"
+    assert issueops.redact("a\x1c") == "a"
+    assert issueops.redact("a\x1d") == "a"
+    assert issueops.redact("a\x1e") == "a"
 
     # Test timestamps around separators
     assert issueops.redact("2023-10-10T10:10:10.123Z a\v2023-10-10T10:10:10.123Z b") == "a\nb"
