@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -98,10 +99,9 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             name = file_path.name
             suffix = file_path.suffix.lower()
         else:
-            slash_idx = max(file_path.rfind("/"), file_path.rfind("\\"))
-            name = file_path[slash_idx + 1 :]
-            dot_idx = name.rfind(".")
-            suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
+            name = os.path.basename(file_path)
+            _, suffix = os.path.splitext(name)
+            suffix = suffix.lower()
 
         language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
@@ -115,8 +115,6 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             if name == "tsconfig.json":
                 languages.add("typescript")
     return languages
-
-
 def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
     paths = [Path(file_path) for file_path in files]
