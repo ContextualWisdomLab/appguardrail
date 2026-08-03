@@ -73,9 +73,13 @@ def sanitize_label_value(value: str) -> str:
     return value[:45] or "unknown"
 
 
+_LINE_SEP_TABLE = str.maketrans("\r\v\f\x1c\x1d\x1e\x85\u2028\u2029", "\n" * 9)
+
 def redact(log: str) -> str:
     """Remove ANSI noise, timestamps, and obvious secrets from a job log."""
     text = ANSI_RE.sub("", log.replace("\r\n", "\n").replace("\r", "\n"))
+    # Normalize every line separator recognized by str.splitlines() to \n
+    text = text.translate(_LINE_SEP_TABLE)
     # Bolt: Optimized timestamp redaction by replacing line-by-line generators with
     # a single re.MULTILINE substitution. This pushes the loop into the C engine
     # and reduces memory allocations.
