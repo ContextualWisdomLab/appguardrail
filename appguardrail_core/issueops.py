@@ -26,6 +26,10 @@ TS_RE = re.compile(
     r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z[^\S\r\n]*",
     re.MULTILINE,
 )
+WORKFLOW_DISPATCH_SUFFIX_RE = re.compile(
+    r"\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*@[0-9a-f]{40}$",
+    re.IGNORECASE,
+)
 _LINE_SEPARATOR_TRANSLATION = str.maketrans(
     {
         separator: "\n"
@@ -91,6 +95,13 @@ def sanitize_label_value(value: str) -> str:
     """Convert arbitrary repository text into a compact GitHub label suffix."""
     value = re.sub(r"[^A-Za-z0-9._:-]+", "-", value.strip()).strip("-")
     return value[:45] or "unknown"
+
+
+def canonical_workflow_name(name: str) -> str:
+    """Return a stable workflow identity without a generated PR/head suffix."""
+    normalized = str(name or "").strip()
+    normalized = WORKFLOW_DISPATCH_SUFFIX_RE.sub("", normalized).strip()
+    return normalized or "unknown workflow"
 
 
 def redact(log: str) -> str:
@@ -171,7 +182,11 @@ def seen_key(finding: dict[str, Any]) -> str:
 
 def marker(repo: str, workflow: str, seen: set[str]) -> str:
     """Build the hidden issue marker that stores repository and seen-job state."""
-    payload = {"repo": repo, "workflow": workflow, "seen": sorted(seen)}
+    payload = {
+        "repo": repo,
+        "workflow": canonical_workflow_name(workflow),
+        "seen": sorted(seen),
+    }
     return f"{MARKER_PREFIX} {json.dumps(payload, sort_keys=True)} {MARKER_SUFFIX}"
 
 
@@ -201,7 +216,8 @@ def replace_marker(body: str | None, repo: str, workflow: str, seen: set[str]) -
 
 def title(finding: dict[str, Any]) -> str:
     """Build the canonical issue title for one repository workflow failure."""
-    return f"[security-failure] {finding['repo']}: {finding['workflow']}"
+    workflow = canonical_workflow_name(finding.get("workflow", ""))
+    return f"[security-failure] {finding['repo']}: {workflow}"
 
 
 def summary(finding: dict[str, Any]) -> str:
