@@ -131,6 +131,31 @@ jobs:
     assert not _matches(workflow)
 
 
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "# appguardrail: central-code-scanning-extra",
+        "# appguardrail: central-code-scanning approved",
+        " # appguardrail: central-code-scanning",
+    ],
+)
+def test_near_match_central_marker_does_not_suppress_warning(marker: str) -> None:
+    """Only the exact column-zero marker may attest central PR coverage."""
+    workflow = f"""
+name: Branch-history Trivy
+{marker}
+on:
+  push:
+    branches: [develop]
+jobs:
+  scan:
+    steps:
+      - uses: github/codeql-action/upload-sarif@v3
+"""
+
+    assert _matches(workflow)
+
+
 def test_delegation_marker_inside_run_block_does_not_suppress_warning() -> None:
     """Shell comments must not masquerade as a file-level delegation marker."""
     workflow = """
