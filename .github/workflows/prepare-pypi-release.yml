@@ -79,8 +79,12 @@ jobs:
               sys.exit(1)
 
           url = "https://pypi.org/pypi/appguardrail/json"
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          opener = urllib.request.build_opener(NoRedirect)
           try:
-              with urllib.request.urlopen(url, timeout=20) as response:
+              with opener.open(url, timeout=20) as response:
                   releases = json.load(response).get("releases", {})
           except urllib.error.HTTPError as exc:
               if exc.code == 404:

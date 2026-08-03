@@ -9,9 +9,12 @@ from contextlib import closing
 
 import pytest
 
-from scanner.cli.appguardrail import (dashboard_index_path,
-                                      dashboard_tokens_path,
-                                      make_dashboard_server, render_tokens_css)
+from scanner.cli.appguardrail import (
+    dashboard_index_path,
+    dashboard_tokens_path,
+    make_dashboard_server,
+    render_tokens_css,
+)
 
 
 def _serve(server):
@@ -21,7 +24,10 @@ def _serve(server):
 
 
 def _get(url):
-    with closing(urllib.request.urlopen(url, timeout=5)) as resp:
+    from appguardrail_core.controlplane import SafeRedirectHandler
+
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    with closing(opener.open(url, timeout=5)) as resp:
         return resp.status, resp.read()
 
 
@@ -38,9 +44,9 @@ def test_dashboard_drag_drop_has_visible_state_and_clears_it():
     assert "body.drag-active::after" in html
     assert 'document.body.classList.add("drag-active")' in html
     assert 'document.body.classList.remove("drag-active")' in html
-    assert "addEventListener(\"dragenter\"" in html
-    assert "addEventListener(\"dragleave\"" in html
-    assert "addEventListener(\"drop\"" in html
+    assert 'addEventListener("dragenter"' in html
+    assert 'addEventListener("dragleave"' in html
+    assert 'addEventListener("drop"' in html
 
 
 def test_dashboard_rows_are_keyboard_accessible():
@@ -50,9 +56,9 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
-    assert "aria-label=\"Upload findings file\"" in html
-    assert "aria-label=\"Search findings\"" in html
-    assert "aria-label=\"Filter by severity\"" in html
+    assert 'aria-label="Upload findings file"' in html
+    assert 'aria-label="Search findings"' in html
+    assert 'aria-label="Filter by severity"' in html
     assert "tr.addEventListener('keydown'" in html
     assert "e.key === 'Enter' || e.key === ' '" in html
 
@@ -146,9 +152,9 @@ def test_inline_fallback_matches_token_source():
     )
     for var, val in fallback.items():
         assert var in source, f"fallback var {var} not in tokens.json source"
-        assert (
-            source[var] == val
-        ), f"{var} drift: fallback {val} != tokens.json {source[var]}"
+        assert source[var] == val, (
+            f"{var} drift: fallback {val} != tokens.json {source[var]}"
+        )
 
 
 def test_tokens_include_full_scales():
@@ -223,11 +229,15 @@ def test_server_404s_missing_findings(tmp_path):
         server.shutdown()
         server.server_close()
 
+
 def test_dashboard_empty_state_clear_filters():
     """Empty state CTA must expose Clear filters control that resets state."""
     html = dashboard_index_path().read_text(encoding="utf-8")
 
     assert "No findings match the filter" in html
-    assert "aria-label=\"Clear filters\"" in html
-    assert "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\"" in html
+    assert 'aria-label="Clear filters"' in html
+    assert (
+        "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\""
+        in html
+    )
     assert "Clear filters</button>" in html

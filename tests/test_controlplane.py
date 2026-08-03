@@ -77,7 +77,10 @@ def _req(method, url, key=None, body=None):
         r.add_header("Authorization", f"Bearer {key}")
     if data:
         r.add_header("Content-Type", "application/json")
-    with closing(urllib.request.urlopen(r, timeout=5)) as resp:
+    from appguardrail_core.controlplane import SafeRedirectHandler
+
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    with closing(opener.open(r, timeout=5)) as resp:
         return resp.status, json.loads(resp.read())
 
 
@@ -134,7 +137,10 @@ def test_bad_body_400(server):
 
 def test_console_served_at_root(server):
     base, _ = server
-    with closing(urllib.request.urlopen(base + "/", timeout=5)) as resp:
+    from appguardrail_core.controlplane import SafeRedirectHandler
+
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    with closing(opener.open(base + "/", timeout=5)) as resp:
         body = resp.read()
     assert resp.status == 200
     assert b"AppGuardrail Console" in body  # served the org console HTML
