@@ -1,0 +1,26 @@
+--- scanner/dashboard/index.html
++++ scanner/dashboard/index.html
+@@ -194,7 +194,7 @@
+       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
+       <div>
+         <div class="toolbar">
+-          <input type="search" id="q" placeholder="Search message, file, rule, category (Press '/')" aria-label="Search findings" value="${esc(query)}">
++          <input type="search" id="q" placeholder="Search message, file, rule, category" title="Press / to search" aria-keyshortcuts="/" aria-label="Search findings" value="${esc(query)}">
+           <select id="sev" aria-label="Filter by severity">
+             <option value="">All severities</option>
+             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
+@@ -316,9 +316,11 @@
+ // Global keyboard shortcuts
+ addEventListener("keydown", e => {
+   if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+-    const tag = document.activeElement?.tagName?.toLowerCase();
+-    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+-      e.preventDefault();
++    if (e.defaultPrevented) return;
++    const el = document.activeElement;
++    const tag = el?.tagName?.toLowerCase();
++    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !el?.isContentEditable) {
++      e.preventDefault(); // prevent e.g. quick find
+       document.getElementById('q')?.focus();
+     }
+   }
