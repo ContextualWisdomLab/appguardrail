@@ -122,8 +122,3 @@
 **Vulnerability:** DOM XSS via unescaped `severity` string interpolated into `innerHTML` in `scanner/dashboard/index.html`.
 **Learning:** Even enum-like or seemingly safe meta-fields like `severity` can contain malicious payloads if sourced from user input (findings file) and directly injected into innerHTML.
 **Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from `findings.json`, regardless of expected schema types.
-
-## 2026-07-29 - [SSRF Bypass in tests and setup routines via unchecked redirects]
-**Vulnerability:** Similar to the previous `urlopen` vulnerability, the `urlopen` usages in `.github/workflows/prepare-pypi-release.yml`, `tests/test_dashboard_core.py`, and `tests/test_controlplane.py` used `urllib.request.urlopen` which automatically follows HTTP redirects without validation, posing an SSRF vulnerability to internal network routes during test or CI/CD runs.
-**Learning:** Even CI setup code or test verification code that fetches from external services (like PyPI or localhost) can be tricked into redirecting into internal network bounds (e.g. `169.254.169.254` AWS metadata).
-**Prevention:** Always block or validate redirects when using `urllib.request.urlopen`. Use an opener configured with an `HTTPRedirectHandler` that either intercepts and validates the URL (`SafeRedirectHandler`) or drops the redirect entirely (returning `None`).
