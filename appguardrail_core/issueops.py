@@ -22,7 +22,16 @@ DEFAULT_MAX_LOG_LINES = 200
 MAX_GITHUB_RUN_ID_DIGITS = 20
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-TS_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*")
+TS_RE = re.compile(
+    r"^\ufeff?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z[^\S\r\n]*",
+    re.MULTILINE,
+)
+_LINE_SEPARATOR_TRANSLATION = str.maketrans(
+    {
+        separator: "\n"
+        for separator in ("\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+    }
+)
 SECRET_RE = [
     re.compile(r"(?i)(authorization:\s*(?:bearer|token)\s+)[^\s]+"),
     re.compile(
@@ -86,8 +95,12 @@ def sanitize_label_value(value: str) -> str:
 
 def redact(log: str) -> str:
     """Remove ANSI noise, timestamps, and obvious secrets from a job log."""
-    text = ANSI_RE.sub("", log.replace("\r\n", "\n").replace("\r", "\n"))
-    text = "\n".join(TS_RE.sub("", line) for line in text.splitlines())
+    text = ANSI_RE.sub(
+        "", log.replace("\r\n", "\n").translate(_LINE_SEPARATOR_TRANSLATION)
+    )
+    if text.endswith("\n"):
+        text = text[:-1]
+    text = TS_RE.sub("", text)
     for regex in SECRET_RE:
         text = regex.sub(
             lambda match: (
