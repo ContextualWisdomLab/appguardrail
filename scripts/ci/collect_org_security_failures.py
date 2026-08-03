@@ -246,24 +246,65 @@ def ensure_label(
             raise
 
 
-def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
-    """Return existing non-PR issues keyed by title for deduplication."""
-    issues = client.pages(
-        f"/repos/{target_repo}/issues", {"state": "all", "labels": ISSUE_LABEL}
-    )
-    return {
-        issue["title"]: issue
-        for issue in issues
-        if issue.get("title") and "pull_request" not in issue
-    }
-
-
 def _seen_sort_key(key: str) -> tuple[int, int]:
     """Sort seen keys newest-first by numeric run and job id components."""
     run, _, job = key.partition(":")
     run_id = int(run) if run.isdigit() else -1
     job_id = int(job) if job.isdigit() else -1
     return (run_id, job_id)
+
+
+def _issue_identity_title(issue: dict[str, Any]) -> str:
+    """Return a canonical marker-derived title or the stored legacy title."""
+    stored_title = str(issue.get("title") or "")
+    marker_data = parse_marker(issue.get("body"))
+    repo = marker_data.get("repo")
+    workflow = marker_data.get("workflow")
+    if (
+        isinstance(repo, str)
+        and repo.strip()
+        and isinstance(workflow, str)
+        and workflow.strip()
+    ):
+        return title({"repo": repo.strip(), "workflow": workflow})
+    return stored_title
+
+
+def _issue_rank(issue: dict[str, Any], canonical_title: str) -> tuple[Any, ...]:
+    """Rank duplicate legacy issues by identity, state, source run, and number."""
+    marker_data = parse_marker(issue.get("body"))
+    seen = marker_data.get("seen")
+    latest_seen = (
+        max((_seen_sort_key(str(key)) for key in seen), default=(-1, -1))
+        if isinstance(seen, list)
+        else (-1, -1)
+    )
+    raw_number = issue.get("number")
+    issue_number = int(raw_number) if str(raw_number).isdigit() else -1
+    return (
+        issue.get("title") == canonical_title,
+        issue.get("state") == "open",
+        latest_seen,
+        issue_number,
+    )
+
+
+def issue_index(client: GitHub, target_repo: str) -> dict[str, dict[str, Any]]:
+    """Return one deterministic survivor per canonical workflow issue title."""
+    issues = client.pages(
+        f"/repos/{target_repo}/issues", {"state": "all", "labels": ISSUE_LABEL}
+    )
+    indexed: dict[str, dict[str, Any]] = {}
+    for issue in issues:
+        if not issue.get("title") or "pull_request" in issue:
+            continue
+        identity_title = _issue_identity_title(issue)
+        current = indexed.get(identity_title)
+        if current is None or _issue_rank(issue, identity_title) > _issue_rank(
+            current, identity_title
+        ):
+            indexed[identity_title] = issue
+    return indexed
 
 
 def _bounded_state(
