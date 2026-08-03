@@ -78,6 +78,7 @@
   .empty code{background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--text)}
   .drop{margin-top:14px}
   body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   a{color:var(--primary)}
 </style>
 <!-- Canonical design tokens (scanner/dashboard/tokens.json) served at /tokens.css;
@@ -91,6 +92,7 @@
   <span class="meta" id="src">no findings loaded</span>
   <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
+<p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app"></main>
 
 <dialog id="detail" aria-labelledby="dlg-title"></dialog>
@@ -124,8 +126,15 @@ let filterSev = '', query = '';
 let lastFocus = null;
 
 function render(){
+  const activeElement = document.activeElement;
+  const activeId = activeElement?.id || null;
+  const activeSelection = activeId === 'q' && typeof activeElement.selectionStart === 'number'
+    ? {start: activeElement.selectionStart, end: activeElement.selectionEnd}
+    : null;
   const app = document.getElementById('app');
+  const liveSummary = document.getElementById('findings-summary');
   if(!ALL.length){
+    if (liveSummary) liveSummary.textContent = '';
     app.innerHTML = `<div class="empty">
       <h1>No findings loaded</h1>
       <p>Generate a report-safe findings file, then load it above (or place it next to this page).</p>
@@ -157,6 +166,11 @@ function render(){
     .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
     .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
     .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+  const findingsText = filtered.length === ALL.length
+    ? `${ALL.length} findings`
+    : `${filtered.length} of ${ALL.length} findings`;
+  const gateText = `${blocking} deploy-blocking (gate ${blocking?'active':'clear'})`;
+  const summaryText = `${findingsText} · ${gateText}`;
 
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
@@ -172,7 +186,7 @@ function render(){
 
   app.innerHTML = `
     <h1>Dashboard</h1>
-    <p class="sub">${ALL.length} findings · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
+    <p class="sub">${findingsText} · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
     <div class="cards">${cards}
       <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
     </div>
@@ -196,16 +210,13 @@ function render(){
       </div>
     </div>`;
 
+  if (liveSummary && liveSummary.textContent !== summaryText) {
+    liveSummary.textContent = summaryText;
+  }
+
   document.getElementById('q').addEventListener('input', e=>{
-    const start = e.target.selectionStart;
-    const end = e.target.selectionEnd;
     query = e.target.value.toLowerCase();
     render();
-    const el = document.getElementById('q');
-    if (el) {
-      el.focus();
-      el.setSelectionRange(start, end);
-    }
   });
   document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();});
   app.querySelectorAll('tbody tr[data-i]').forEach(tr=>{
@@ -218,6 +229,14 @@ function render(){
       }
     });
   });
+
+  const restoredElement = activeId ? document.getElementById(activeId) : null;
+  if (restoredElement) {
+    restoredElement.focus();
+    if (activeSelection && typeof restoredElement.setSelectionRange === 'function') {
+      restoredElement.setSelectionRange(activeSelection.start, activeSelection.end);
+    }
+  }
 }
 
 function openDetail(f){
