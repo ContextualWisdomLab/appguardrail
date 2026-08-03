@@ -53,6 +53,22 @@ def _finding(workflow: str = _DYNAMIC_WORKFLOW) -> dict[str, str]:
     }
 
 
+def _legacy_issue(number: int, workflow: str, seen: set[str]) -> dict:
+    """Build one legacy per-head issue for survivor-selection tests."""
+    return {
+        "number": number,
+        "state": "open",
+        "title": (
+            "[security-failure] ContextualWisdomLab/EgressWeave: " + workflow
+        ),
+        "body": issueops.marker(
+            "ContextualWisdomLab/EgressWeave",
+            workflow,
+            seen,
+        ),
+    }
+
+
 def test_security_failure_title_strips_dynamic_pr_sha_suffix() -> None:
     """Per-head dispatch names must collapse into one durable issue identity."""
     assert issueops.title(_finding()) == _CANONICAL_TITLE
@@ -91,6 +107,29 @@ def test_issue_index_reuses_legacy_dynamic_issue_under_canonical_key() -> None:
     )
 
     assert indexed == {_CANONICAL_TITLE: issue}
+
+
+def test_issue_index_uses_latest_seen_run_before_issue_number() -> None:
+    """Source-run recency, not later issue creation, selects the survivor."""
+    older_run_higher_issue = _legacy_issue(
+        999,
+        "Required OpenCode Review ContextualWisdomLab/EgressWeave#1@"
+        "1111111111111111111111111111111111111111",
+        {"100:900"},
+    )
+    newer_run_lower_issue = _legacy_issue(
+        100,
+        "Required OpenCode Review ContextualWisdomLab/EgressWeave#1@"
+        "2222222222222222222222222222222222222222",
+        {"200:1"},
+    )
+
+    indexed = collector.issue_index(
+        _IssueClient([older_run_higher_issue, newer_run_lower_issue]),
+        "ContextualWisdomLab/appguardrail",
+    )
+
+    assert indexed[_CANONICAL_TITLE] is newer_run_lower_issue
 
 
 def test_short_sha_like_suffix_is_not_rewritten() -> None:
