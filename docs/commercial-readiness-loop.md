@@ -6,6 +6,8 @@ AppGuardrail's repository-local commercial-readiness loop turns a reviewed, fini
 
 The workflow runs once per hour from the reviewed default-branch source. Every pass checks the complete open pull-request queue first. When any pull request is open, the workflow performs no product-gap dispatch. When the queue is empty, it selects the first incomplete gap from the code-reviewed registry, creates at most one active `commercial-readiness` issue, and then applies the `jules` label as a separate event.
 
+A maintainer may also invoke `workflow_dispatch`, but the write-capable job runs only when the selected ref is the repository default branch. Feature-branch workflow code never receives issue-write authority through a manual dispatch.
+
 The issue instructs the implementation agent to use test-driven development, preserve documentation and coverage, update release notes, target `develop`, and submit the result through a normal pull request. Required reviews, checks, branch protection, and the central merge policy remain authoritative.
 
 ## Failure recovery
@@ -22,7 +24,7 @@ This prevents a partial handoff from leaving the commercial-readiness loop perma
 
 ## Trust boundaries
 
-The workflow uses the repository-scoped `GITHUB_TOKEN` with `contents: read`, `pull-requests: read`, and `issues: write`. It checks out the exact reviewed workflow SHA without persisting credentials. The Python client accepts only `https://api.github.com`, rejects redirects, validates exact `owner/repository` syntax, bounds pagination to GitHub's 100-item pages, and never writes source code or merges pull requests.
+The workflow uses the repository-scoped `GITHUB_TOKEN` with `contents: read`, `pull-requests: read`, and `issues: write`. It checks out the exact reviewed workflow SHA without persisting credentials. The Python client accepts only `https://api.github.com`, rejects redirects, validates exact `owner/repository` syntax, bounds each GitHub list request to 100 items while following pagination, and never writes source code or merges pull requests.
 
 The gap marker is an exact hidden line whose identifier must exist in the reviewed registry. Arbitrary issues carrying a similar label cannot introduce unreviewed work into the dispatch queue.
 
