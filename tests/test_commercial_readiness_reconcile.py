@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from scripts.ci import commercial_readiness_loop as loop
 from scripts.ci import commercial_readiness_reconcile as reconcile
@@ -49,15 +52,32 @@ class FakeClient:
         return {}
 
 
-def _active_issue(*, labels: list[Any]) -> dict[str, Any]:
+def _active_issue(*, labels: list[Any], number: int = 321) -> dict[str, Any]:
     """Build one active issue for the first reviewed commercial gap."""
     gap = loop.COMMERCIAL_GAPS[0]
     return {
-        "number": 321,
+        "number": number,
         "state": "open",
         "body": loop.gap_marker(gap.id),
         "labels": labels,
     }
+
+
+def test_label_names_accepts_supported_shapes_and_ignores_noise() -> None:
+    """Only nonempty string labels from supported GitHub shapes are retained."""
+    assert reconcile._label_names(
+        {
+            "labels": [
+                "",
+                loop.COMMERCIAL_LABEL,
+                7,
+                {},
+                {"name": 9},
+                {"name": loop.JULES_LABEL},
+            ]
+        }
+    ) == frozenset({loop.COMMERCIAL_LABEL, loop.JULES_LABEL})
+    assert reconcile._label_names({"labels": None}) == frozenset()
 
 
 def test_reconcile_repairs_missing_jules_label() -> None:
@@ -71,11 +91,22 @@ def test_reconcile_repairs_missing_jules_label() -> None:
         loop.COMMERCIAL_GAPS[0].id,
         321,
     )
-    assert client.requests[-1] == (
-        "POST",
-        "/repos/ContextualWisdomLab/appguardrail/issues/321/labels",
-        {"labels": [loop.JULES_LABEL]},
-    )
+    assert client.requests == [
+        (
+            "POST",
+            "/repos/ContextualWisdomLab/appguardrail/labels",
+            {
+                "name": loop.JULES_LABEL,
+                "color": "1D76DB",
+                "description": "Dispatch this reviewed issue to the Jules coding agent.",
+            },
+        ),
+        (
+            "POST",
+            "/repos/ContextualWisdomLab/appguardrail/issues/321/labels",
+            {"labels": [loop.JULES_LABEL]},
+        ),
+    ]
 
 
 def test_reconcile_accepts_github_label_objects_without_mutation() -> None:
@@ -117,6 +148,14 @@ def test_reconcile_dry_run_reports_without_mutation() -> None:
     assert client.requests == []
 
 
+def test_reconcile_rejects_active_issue_without_positive_number() -> None:
+    """Malformed active issue payloads cannot be used as mutation targets."""
+    client = FakeClient(issues=[_active_issue(labels=[], number=0)])
+
+    with pytest.raises(RuntimeError, match="positive issue number"):
+        reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
+
+
 def test_reconcile_returns_noop_without_active_gap() -> None:
     """A repository without an active reviewed gap requires no recovery."""
     client = FakeClient()
@@ -124,6 +163,51 @@ def test_reconcile_returns_noop_without_active_gap() -> None:
     result = reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
 
     assert result == loop.LoopResult("noop", None, None)
+
+
+def test_parse_args_supports_explicit_and_environment_repository(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLI parsing preserves explicit dry-run and repository defaults."""
+    explicit = reconcile.parse_args(
+        ["--repository", "ContextualWisdomLab/appguardrail", "--dry-run"]
+    )
+    assert explicit.repository == "ContextualWisdomLab/appguardrail"
+    assert explicit.dry_run is True
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "ContextualWisdomLab/appguardrail")
+    defaulted = reconcile.parse_args([])
+    assert defaulted.repository == "ContextualWisdomLab/appguardrail"
+    assert defaulted.dry_run is False
+
+
+def test_main_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The recovery CLI fails closed before GitHub access without a token."""
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+
+    with pytest.raises(SystemExit, match="GH_TOKEN is required"):
+        reconcile.main(["--repository", "ContextualWisdomLab/appguardrail"])
+
+
+def test_main_prints_machine_readable_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The recovery CLI emits a deterministic JSON decision contract."""
+    client = FakeClient()
+    monkeypatch.setenv("GH_TOKEN", "workflow-token")
+    monkeypatch.setattr(loop, "GitHub", lambda token: client)
+
+    assert reconcile.main(
+        ["--repository", "ContextualWisdomLab/appguardrail"]
+    ) == 0
+
+    assert json.loads(capsys.readouterr().out) == {
+        "action": "noop",
+        "gap_id": None,
+        "issue_number": None,
+        "pull_requests": [],
+    }
 
 
 def test_workflow_runs_recovery_even_after_primary_step_failure() -> None:
