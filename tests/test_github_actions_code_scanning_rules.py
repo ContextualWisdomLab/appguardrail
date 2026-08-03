@@ -131,6 +131,25 @@ jobs:
     assert not _matches(workflow)
 
 
+def test_delegation_marker_inside_run_block_does_not_suppress_warning() -> None:
+    """Shell comments must not masquerade as a file-level delegation marker."""
+    workflow = """
+name: Branch-history Trivy
+on:
+  push:
+    branches: [develop]
+jobs:
+  scan:
+    steps:
+      - run: |
+          # appguardrail: central-code-scanning
+          echo "not a workflow-level marker"
+      - uses: github/codeql-action/upload-sarif@v3
+"""
+
+    assert _matches(workflow)
+
+
 def test_informal_central_workflow_comment_does_not_suppress_warning() -> None:
     """Only the exact auditable delegation marker may suppress the warning."""
     workflow = """
