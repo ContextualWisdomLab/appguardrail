@@ -3,6 +3,9 @@ rules:
   # unless PR analysis is intentionally delegated to a centrally managed
   # required workflow. Delegated workflows can opt out explicitly with the
   # top-level marker documented in the remediation below.
+  # The matcher accepts compact `- uses:` steps and multi-line action steps
+  # where ordinary step metadata precedes `uses`, while rejecting action-like
+  # text nested inside shell `run` blocks.
 
   - id: github-actions-sarif-missing-pull-request-trigger
     patterns:
