@@ -52,8 +52,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -1674,7 +1672,6 @@ def _is_safe_url(url: str) -> bool:
 
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
-    import urllib.error
     import urllib.request
 
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
@@ -2157,7 +2154,11 @@ def _collect_files(base_path: Path):
                                 dirs.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             idx = entry.name.rfind(".")
-                            ext = entry.name[idx:] if idx > 0 else ""
+                            ext = (
+                                entry.name[idx:]
+                                if idx > 0 and entry.name[:idx].replace(".", "")
+                                else ""
+                            )
                             if ext.lower() not in SKIP_EXTENSIONS:
                                 yield Path(entry.path)
                     except (OSError, PermissionError):
