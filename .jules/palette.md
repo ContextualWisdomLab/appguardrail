@@ -45,3 +45,7 @@
 ## 2024-11-20 - Empty State Clear Filters CTA
 **Learning:** Users can get stuck when filtering a dashboard to zero results, and forcing them to manually clear multiple inputs creates friction.
 **Action:** Add an interactive 'Clear filters' Call-To-Action within empty state messages to instantly reset state and refocus the primary input.
+
+## 2026-08-03 - Focus Restoration and Stable Live Regions
+**Learning:** Full-DOM replacement removes active controls and any live region nested inside the replaced subtree. Restoring only focus is insufficient for editable fields because their selection range is also lost.
+**Action:** Capture the active element id and text selection bounds before rendering, restore both afterward, and publish updates through a persistent `aria-live="polite"` and `aria-atomic="true"` region by changing only its `textContent`.
