@@ -6,7 +6,7 @@ rules:
 
   - id: github-actions-sarif-missing-pull-request-trigger
     patterns:
-      - pattern-regex: '\A(?=[\s\S]*^[ \t]+-[ \t]*["'']?uses["'']?[ \t]*:[ \t]*["'']?(?i:github/codeql-action/upload-sarif)@)(?![\s\S]*^#[ \t]*appguardrail:[ \t]*central-code-scanning[ \t]*$)(?![\s\S]*^["'']?on["'']?[ \t]*:[ \t]*(?:(?:["'']?(?:pull_request(?:_target)?|workflow_call)\b["'']?)|\[[^#\n]*\b(?:pull_request(?:_target)?|workflow_call)\b|\{[^#\n]*\b(?:pull_request(?:_target)?|workflow_call)\b|(?:#[^\n]*)?\n(?:(?:[ \t]+[^\n]*\n)|(?:[ \t]*\n))*[ \t]+["'']?(?:pull_request(?:_target)?|workflow_call)\b["'']?[ \t]*:))[\s\S]*\Z'
+      - pattern-regex: '\A(?=[\s\S]*(?:^[ \t]+-[ \t]*["'']?uses["'']?[ \t]*:[ \t]*["'']?(?i:github/codeql-action/upload-sarif)@|^(?P<step_indent>[ \t]+)-[ \t]*(?![ \t]*["'']?(?:run|uses)["'']?[ \t]*:)[^\n]*\n(?:(?P=step_indent)[ \t]+(?![ \t]*["'']?run["'']?[ \t]*:)[^\n]*\n){0,8}(?P=step_indent)[ \t]+["'']?uses["'']?[ \t]*:[ \t]*["'']?(?i:github/codeql-action/upload-sarif)@))(?![\s\S]*^#[ \t]*appguardrail:[ \t]*central-code-scanning[ \t]*$)(?![\s\S]*^["'']?on["'']?[ \t]*:[ \t]*(?:(?:["'']?(?:pull_request(?:_target)?|workflow_call)\b["'']?)|\[[^#\n]*\b(?:pull_request(?:_target)?|workflow_call)\b|\{[^#\n]*\b(?:pull_request(?:_target)?|workflow_call)\b|(?:#[^\n]*)?\n(?:(?:[ \t]+[^\n]*\n)|(?:[ \t]*\n))*[ \t]+["'']?(?:pull_request(?:_target)?|workflow_call)\b["'']?[ \t]*:))[\s\S]*\Z'
     message: |
       This repository-local GitHub Actions workflow uploads SARIF but has no
       pull_request, pull_request_target, or reusable workflow_call entry point.
