@@ -198,6 +198,8 @@ def render_gap_issue(gap: CommercialGap) -> str:
 - Write the failing regression test first, confirm the expected RED result, then implement the smallest production change that makes it GREEN.
 - Keep public functions, classes, modules, and non-obvious behavior fully documented; preserve 100% docstring and code coverage for changed code.
 - Run focused and full validation, address every valid review thread, and never bypass required GitHub Checks or branch protection.
+- Research uncertain implementation choices through current authoritative primary documentation or international standards; use Context7 for current library contracts and Consensus for peer-reviewed evidence when the decision benefits from research.
+- For UI or workflow-experience changes, use Figma or Product Design before implementation. Use Visualize for quantitative product, quality, or operational evidence when a chart materially improves the decision.
 - Update user documentation and `CHANGELOG.md`; bump and release only when the resulting product slice is release-ready.
 - Target `develop` and preserve standalone behavior plus modular MSA compatibility with ContextualWisdomLab organization infrastructure and naruon.
 - Use descriptive nonnumeric identifiers. New database object names must contain at least two words in snake_case, CamelCase, or PascalCase, with snake_case preferred.
