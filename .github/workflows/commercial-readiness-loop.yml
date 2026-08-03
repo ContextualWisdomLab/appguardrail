@@ -1,0 +1,49 @@
+name: Commercial Readiness Loop
+
+on:
+  schedule:
+    # GitHub cron is UTC. Minute 17 avoids the busiest top-of-hour queue while
+    # preserving an exact one-hour cadence.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: commercial-readiness-loop
+  cancel-in-progress: false
+
+jobs:
+  dispatch-reviewed-gap:
+    # Scheduled workflows are loaded from the default branch. A maintainer may
+    # also run the workflow manually, but only while the selected ref is that
+    # same reviewed default branch; feature-branch code never receives issue
+    # write permission through workflow_dispatch.
+    if: github.event_name == 'schedule' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout reviewed default-branch source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Run bounded commercial-readiness loop
+        run: |
+          set -euo pipefail
+          python3 -m scripts.ci.commercial_readiness_loop \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Reconcile interrupted issue handoff
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 -m scripts.ci.commercial_readiness_reconcile \
+            --repository "$GITHUB_REPOSITORY"
