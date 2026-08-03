@@ -49,3 +49,7 @@
 ## 2026-08-03 - Focus Restoration and Stable Live Regions
 **Learning:** Full-DOM replacement removes active controls and any live region nested inside the replaced subtree. Restoring only focus is insufficient for editable fields because their selection range is also lost.
 **Action:** Capture the active element id and text selection bounds before rendering, restore both afterward, and publish updates through a persistent `aria-live="polite"` and `aria-atomic="true"` region by changing only its `textContent`.
+
+## 2025-02-18 - Global Keyboard Shortcut Hints
+**Learning:** Adding a global keyboard shortcut (like `/` to search) improves navigation speed for power users, but it is undiscoverable without visual hints.
+**Action:** Always add a `title` attribute (or a tooltip) to the corresponding input or button to act as a discoverable hint for the keyboard shortcut.

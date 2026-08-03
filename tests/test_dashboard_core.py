@@ -231,3 +231,9 @@ def test_dashboard_empty_state_clear_filters():
     assert "aria-label=\"Clear filters\"" in html
     assert "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\"" in html
     assert "Clear filters</button>" in html
+
+def test_dashboard_search_shortcut():
+    """Search input should have a tooltip and global shortcut listener."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert "title=\"Press '/' to search\"" in html
+    assert "e.key === \"/\" && e.target.tagName !== \"INPUT\"" in html

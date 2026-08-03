@@ -194,7 +194,7 @@ function render(){
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
       <div>
         <div class="toolbar">
-          <input type="search" id="q" placeholder="Search message, file, rule, category" aria-label="Search findings" value="${esc(query)}">
+          <input type="search" id="q" placeholder="Search message, file, rule, category" aria-label="Search findings" title="Press '/' to search" value="${esc(query)}">
           <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
@@ -289,6 +289,15 @@ document.getElementById('file').addEventListener('change', e=>{
   const f = e.target.files[0]; if(!f) return;
   f.text().then(t=>{ try{ load(JSON.parse(t), f.name); }catch(err){ alert('Invalid JSON: '+err.message); } });
 });
+
+// global keyboard shortcuts
+addEventListener("keydown", e => {
+  if (e.key === "/" && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA" && e.target.tagName !== "SELECT") {
+    e.preventDefault();
+    document.getElementById("q")?.focus();
+  }
+});
+
 // drag & drop
 let dragDepth = 0;
 const isFileDrag = e => Array.from(e.dataTransfer?.types || []).includes('Files');
