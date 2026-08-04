@@ -36,7 +36,17 @@ WORKFLOW_DISPATCH_SUFFIX_RE = re.compile(
 _LINE_SEPARATOR_TRANSLATION = str.maketrans(
     {
         separator: "\n"
-        for separator in ("\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+        for separator in (
+            "\r",
+            "\v",
+            "\f",
+            "\x1c",
+            "\x1d",
+            "\x1e",
+            "\x85",
+            "\u2028",
+            "\u2029",
+        )
     }
 )
 SECRET_RE = [
@@ -340,11 +350,13 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class CodeScanningAPIError(Exception):
     """Raised when GitHub Code Scanning API requests fail."""
+
     pass
 
 
 class CodeScanningPermissionError(CodeScanningAPIError):
     """Raised when Code Scanning API requests return 403 or 404 indicating partial permissions."""
+
     pass
 
 
@@ -391,21 +403,21 @@ def detect_code_scanning_drift(
     missing = []
     for tool_name, category in sorted(base_coverage_set):
         if (tool_name, category) not in head_coverage_set:
-            missing.append({
-                "tool_name": tool_name,
-                "category": category,
-            })
+            missing.append(
+                {
+                    "tool_name": tool_name,
+                    "category": category,
+                }
+            )
 
     return {
         "drifted": len(missing) > 0,
         "missing": missing,
         "base_coverage": [
-            {"tool_name": t, "category": c}
-            for t, c in sorted(base_coverage_set)
+            {"tool_name": t, "category": c} for t, c in sorted(base_coverage_set)
         ],
         "head_coverage": [
-            {"tool_name": t, "category": c}
-            for t, c in sorted(head_coverage_set)
+            {"tool_name": t, "category": c} for t, c in sorted(head_coverage_set)
         ],
     }
 
@@ -458,7 +470,11 @@ def fetch_code_scanning_analyses(
                 if not payload:
                     break
                 text = payload.decode("utf-8", errors="replace")
-                chunk = json.loads(text) if "application/json" in content_type else json.loads(text)
+                chunk = (
+                    json.loads(text)
+                    if "application/json" in content_type
+                    else json.loads(text)
+                )
                 if not isinstance(chunk, list):
                     break
                 analyses.extend(chunk)
@@ -493,7 +509,11 @@ def has_local_sarif_trigger_finding(workflow_contents: list[str]) -> bool:
     for content in workflow_contents:
         if "github/codeql-action/upload-sarif" in content.lower():
             # Check if suppressed by central marker
-            if re.search(r"^#\s*appguardrail\s*:\s*central-code-scanning\s*$", content, re.MULTILINE):
+            if re.search(
+                r"^#\s*appguardrail\s*:\s*central-code-scanning\s*$",
+                content,
+                re.MULTILINE,
+            ):
                 continue
             # Check for PR triggers
             has_pr_trigger = False

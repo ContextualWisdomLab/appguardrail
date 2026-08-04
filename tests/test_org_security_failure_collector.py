@@ -110,7 +110,10 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "^[A-Za-z0-9_.-]+$" in workflow
     assert 'repository_key="${repository,,}"' in workflow
     assert "Check GitHub App private key secret availability" in workflow
-    assert "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY" in workflow
+    assert (
+        "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY"
+        in workflow
+    )
     assert "Invalid or blank collector repository allowlist entry" in workflow
     assert "Duplicate collector repository allowlist entry" in workflow
     assert 'echo "repositories=$repositories_csv"' in workflow
@@ -180,7 +183,7 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
         '"/app/docker_entrypoint.py"]' in dockerfile
     )
     assert (
-        'HEALTHCHECK --interval=5m --timeout=10s --start-period=30s '
+        "HEALTHCHECK --interval=5m --timeout=10s --start-period=30s "
         '--retries=3 CMD ["/usr/local/bin/python", "-I", '
         '"/app/docker_entrypoint.py", "--help"]' in dockerfile
     )
@@ -587,3 +590,85 @@ def test_build_finding_uses_only_non_sensitive_failure_metadata():
     assert "PRIVATE_SOURCE_MARKER" not in item["snippet"]
     assert "secret" not in item["snippet"]
     assert "job_log" not in collector.GitHub.__dict__
+
+
+def test_collect_drift_findings(monkeypatch):
+    """Verify collect_drift_findings correctly identifies drift and constructs a finding."""
+
+    class FakeCollectorClient:
+        def __init__(self):
+            self.pages_calls = []
+            self.request_calls = []
+            self.token = "fake-token"
+
+        def pages(self, path, params=None):
+            self.pages_calls.append((path, params))
+            if path.endswith("/pulls"):
+                return [
+                    {
+                        "number": 42,
+                        "html_url": "https://github.com/owner/repo/pull/42",
+                        "head": {"ref": "feature", "sha": "headsha"},
+                    }
+                ]
+            return []
+
+        def request(self, method, path, params=None):
+            self.request_calls.append((method, path, params))
+            if path.endswith("contents/.github/workflows"):
+                return [
+                    {
+                        "type": "file",
+                        "name": "scan.yml",
+                        "path": ".github/workflows/scan.yml",
+                    }
+                ]
+            if path.endswith("scan.yml"):
+                # No PR triggers, so has_local_sarif_trigger_finding is True
+                import base64
+
+                content = b"""
+name: Scan
+on:
+  push:
+jobs:
+  build:
+    steps:
+      - uses: github/codeql-action/upload-sarif@v3
+                """
+                return {"content": base64.b64encode(content).decode("utf-8")}
+            return None
+
+    client = FakeCollectorClient()
+
+    # 1. Test when there is local trigger finding (should NOT duplicate / should return empty)
+    def mock_fetch(token, repo, ref, api_url="https://api.github.com"):
+        if "refs/heads/main" in ref:
+            return [{"tool": {"name": "CodeQL"}, "category": "py"}]
+        return []  # head is empty -> drift!
+
+    import appguardrail_core.issueops as issueops_mod
+
+    monkeypatch.setattr(issueops_mod, "fetch_code_scanning_analyses", mock_fetch)
+
+    findings = collector.collect_drift_findings(
+        client, "owner/repo", "main", "fake-token"
+    )
+    # Since has_local_sarif_trigger_finding is True, it is skipped to prevent duplicate
+    assert len(findings) == 0
+
+    # 2. Test when there is NO local trigger finding (should return the drift finding)
+    def mock_request_no_trigger(method, path, params=None):
+        if "contents/.github/workflows" in path:
+            return []  # no workflows -> no local trigger finding
+        return None
+
+    client.request = mock_request_no_trigger
+    findings = collector.collect_drift_findings(
+        client, "owner/repo", "main", "fake-token"
+    )
+    assert len(findings) == 1
+    assert findings[0]["repo"] == "owner/repo"
+    assert findings[0]["workflow"] == "GitHub Code Scanning Drift"
+    assert findings[0]["pr_numbers"] == [42]
+    assert "GitHub Code Scanning analysis drift" in findings[0]["snippet"]

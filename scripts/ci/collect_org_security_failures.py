@@ -179,11 +179,125 @@ def build_finding(
     }
 
 
+def collect_drift_findings(
+    client: GitHub, repo: str, default_branch: str, token: str
+) -> list[dict[str, Any]]:
+    """Fetch open PRs and check for Code Scanning analysis drift."""
+    from appguardrail_core.issueops import (
+        detect_code_scanning_drift,
+        fetch_code_scanning_analyses,
+        has_local_sarif_trigger_finding,
+    )
+
+    findings: list[dict[str, Any]] = []
+    try:
+        pulls = client.pages(f"/repos/{repo}/pulls", {"state": "open"})
+    except Exception as exc:
+        print(f"::warning::Failed to fetch pulls for {repo}: {exc}")
+        return findings
+
+    if not pulls:
+        return findings
+
+    base_ref = f"refs/heads/{default_branch}"
+    try:
+        base_analyses = fetch_code_scanning_analyses(token, repo, base_ref)
+    except Exception as exc:
+        print(
+            f"::warning::Failed to fetch base analyses for {repo} on {base_ref}: {exc}"
+        )
+        return findings
+
+    if not base_analyses:
+        return findings
+
+    for pr in pulls:
+        pr_number = pr.get("number")
+        if not pr_number:
+            continue
+        head_ref = f"refs/pull/{pr_number}/merge"
+
+        try:
+            head_analyses = fetch_code_scanning_analyses(token, repo, head_ref)
+        except Exception as exc:
+            print(
+                f"::warning::Failed to fetch head analyses for {repo} on {head_ref}: {exc}"
+            )
+            continue
+
+        drift_result = detect_code_scanning_drift(base_analyses, head_analyses)
+        if drift_result["drifted"]:
+            workflow_contents: list[str] = []
+            try:
+                contents = client.request(
+                    "GET",
+                    f"/repos/{repo}/contents/.github/workflows",
+                    params={"ref": pr["head"]["ref"]},
+                )
+                if isinstance(contents, list):
+                    for item in contents:
+                        if (
+                            isinstance(item, dict)
+                            and item.get("type") == "file"
+                            and str(item.get("name") or "").endswith((".yml", ".yaml"))
+                        ):
+                            file_content = client.request(
+                                "GET",
+                                f"/repos/{repo}/contents/{item['path']}",
+                                params={"ref": pr["head"]["ref"]},
+                            )
+                            if isinstance(file_content, dict) and file_content.get(
+                                "content"
+                            ):
+                                import base64
+
+                                decoded = base64.b64decode(
+                                    file_content["content"]
+                                ).decode("utf-8", errors="replace")
+                                workflow_contents.append(decoded)
+            except Exception as exc:
+                print(
+                    f"::warning::Failed to fetch workflows for {repo} on PR {pr_number}: {exc}"
+                )
+
+            if not has_local_sarif_trigger_finding(workflow_contents):
+                missing_desc = ", ".join(
+                    f"{m['tool_name']}({m['category'] or 'no category'})"
+                    for m in drift_result["missing"]
+                )
+                finding = {
+                    "repo": repo,
+                    "workflow": "GitHub Code Scanning Drift",
+                    "run_id": pr_number,
+                    "run_url": pr.get("html_url")
+                    or f"https://github.com/{repo}/pull/{pr_number}",
+                    "job_id": pr_number,
+                    "job_name": "drift-detector",
+                    "job_url": pr.get("html_url")
+                    or f"https://github.com/{repo}/pull/{pr_number}",
+                    "conclusion": "failure",
+                    "branch": pr["head"]["ref"],
+                    "head_sha": pr["head"]["sha"],
+                    "event": "pull_request",
+                    "pr_numbers": [pr_number],
+                    "snippet": (
+                        "AppGuardrail has detected GitHub Code Scanning analysis drift.\n"
+                        f"The default/base branch ({base_ref}) runs tools that are missing "
+                        f"from the pull request head branch ({head_ref}).\n"
+                        f"Missing tool/category runs: {missing_desc}\n"
+                        "This configuration loss cannot be observed by repository-local source scanning."
+                    ),
+                }
+                findings.append(finding)
+
+    return findings
+
+
 def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
     """Collect failed security workflow jobs across the configured organization."""
     if args.run_url:
         repo, run_id = parse_run_url(args.run_url)
-        repos = [{"full_name": repo}]
+        repos = [{"full_name": repo, "default_branch": "main"}]
         fixed_runs = {
             repo: [client.request("GET", f"/repos/{repo}/actions/runs/{run_id}")]
         }
@@ -200,18 +314,33 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
         repo = repo_info["full_name"]
         if not repo.startswith(f"{args.owner}/"):
             continue
+
+        default_branch = repo_info.get("default_branch") or "main"
+        findings.extend(
+            collect_drift_findings(client, repo, default_branch, client.token)
+        )
+
         runs = fixed_runs.get(repo)
         if runs is None:
-            runs = [
-                r
-                for r in client.pages(
-                    f"/repos/{repo}/actions/runs", {"status": "completed"}
-                )
-                if is_failure(r.get("conclusion"))
-                and parse_time(r.get("updated_at") or r.get("created_at")) >= cutoff
-            ]
+            try:
+                runs = [
+                    r
+                    for r in client.pages(
+                        f"/repos/{repo}/actions/runs", {"status": "completed"}
+                    )
+                    if is_failure(r.get("conclusion"))
+                    and parse_time(r.get("updated_at") or r.get("created_at")) >= cutoff
+                ]
+            except Exception as exc:
+                print(f"::warning::Failed to fetch runs for {repo}: {exc}")
+                runs = []
         for run in runs:
-            for job in client.pages(f"/repos/{repo}/actions/runs/{run['id']}/jobs"):
+            try:
+                jobs = client.pages(f"/repos/{repo}/actions/runs/{run['id']}/jobs")
+            except Exception as exc:
+                print(f"::warning::Failed to fetch jobs for run {run.get('id')}: {exc}")
+                continue
+            for job in jobs:
                 if is_failure(
                     job.get("conclusion") or run.get("conclusion")
                 ) and is_security_name(

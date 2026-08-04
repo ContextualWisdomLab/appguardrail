@@ -47,21 +47,6 @@ class LoopResult:
 
 COMMERCIAL_GAPS = (
     CommercialGap(
-        id="github-code-scanning-analysis-drift",
-        title="feat(issueops): detect GitHub Code Scanning analysis drift",
-        objective=(
-            "Add an authenticated GitHub-state detector that compares default-branch "
-            "and pull-request Code Scanning tool/category coverage so AppGuardrail can "
-            "identify configuration loss that repository-local source scanning cannot observe."
-        ),
-        acceptance=(
-            "Represent the base-vs-head tool/category comparison as a stable core API.",
-            "Cover absent current-head analyses, stable categories, central required workflows, pagination, partial permissions, and API failures with regression tests.",
-            "Integrate the result into IssueOps without duplicating repository-local SARIF-trigger findings.",
-            "Resolve or supersede issues #310 and #311 only when live evidence supports closure.",
-        ),
-    ),
-    CommercialGap(
         id="openssf-best-practices-evidence",
         title="feat(governance): ingest OpenSSF Best Practices evidence",
         objective=(
@@ -158,7 +143,9 @@ class GitHub:
             page_params = dict(params or {}, per_page=100, page=page)
             chunk = self.request("GET", path, params=page_params) or []
             if not isinstance(chunk, list):
-                raise RuntimeError(f"GitHub list endpoint returned non-list data: {path}")
+                raise RuntimeError(
+                    f"GitHub list endpoint returned non-list data: {path}"
+                )
             items.extend(chunk)
             if len(chunk) < 100:
                 return items
