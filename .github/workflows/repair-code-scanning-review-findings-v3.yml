@@ -2,6 +2,7 @@ name: Repair Code Scanning Review Findings V3
 
 on:
   push:
+    # The workflow is first committed, then this reviewed update triggers it.
     branches: [feat/code-scanning-analysis-drift-862]
     paths: [.github/workflows/repair-code-scanning-review-findings-v3.yml]
 
