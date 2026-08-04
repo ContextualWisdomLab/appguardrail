@@ -183,10 +183,14 @@ def update_retention_policy(
     """Apply one owner-authorized revision using optimistic concurrency."""
     if not isinstance(policy, RetentionPolicy):
         raise ValueError("policy must be a RetentionPolicy")
-    if expected_revision != policy.revision:
+    normalized_expected_revision = _positive_integer(
+        expected_revision,
+        "expected_revision",
+    )
+    if normalized_expected_revision != policy.revision:
         raise RetentionPolicyConflict(
-            f"retention policy revision conflict: expected {expected_revision}, "
-            f"current {policy.revision}"
+            "retention policy revision conflict: expected "
+            f"{normalized_expected_revision}, current {policy.revision}"
         )
     if not isinstance(changes, Mapping):
         raise ValueError("changes must be an object")
@@ -255,7 +259,7 @@ def _preview_payload(
     for category in RETENTION_CATEGORIES:
         if normalized_held[category] > normalized_eligible[category]:
             raise ValueError("held count cannot exceed eligible count")
-    if set(cutoffs) != set(RETENTION_CATEGORIES):
+    if not isinstance(cutoffs, Mapping) or set(cutoffs) != set(RETENTION_CATEGORIES):
         raise ValueError("cutoff mapping must contain every retention category")
     normalized_cutoffs = {
         category: _canonical_utc(cutoffs[category], f"{category} cutoff")
@@ -339,6 +343,14 @@ def verify_purge_preview(
     """Reject tampered previews and previews stale against current tenant state."""
     if not isinstance(preview, PurgePreview):
         raise ValueError("preview must be a PurgePreview")
+    normalized_policy_revision = _positive_integer(
+        policy_revision,
+        "policy_revision",
+    )
+    normalized_legal_hold_revision = _nonnegative_integer(
+        legal_hold_revision,
+        "legal_hold_revision",
+    )
     payload = _preview_payload(
         preview_id=preview.preview_id,
         tenant_id=preview.tenant_id,
@@ -352,8 +364,8 @@ def verify_purge_preview(
     if preview.preview_hash != _canonical_hash(payload):
         raise ValueError("purge preview hash does not match its payload")
     if (
-        preview.policy_revision != policy_revision
-        or preview.legal_hold_revision != legal_hold_revision
+        preview.policy_revision != normalized_policy_revision
+        or preview.legal_hold_revision != normalized_legal_hold_revision
     ):
         raise StalePurgePreview("purge preview is stale against current tenant state")
 
@@ -394,18 +406,23 @@ class PurgeReceipt:
 def create_purge_receipt(
     preview: PurgePreview,
     *,
+    policy_revision: int,
+    legal_hold_revision: int,
     receipt_id: str,
     executed_at: str,
     audit_event_id: str,
 ) -> PurgeReceipt:
-    """Create completion evidence from a previously verified purge preview."""
+    """Create completion evidence after an explicit final current-state check."""
     if not isinstance(preview, PurgePreview):
         raise ValueError("preview must be a PurgePreview")
     verify_purge_preview(
         preview,
-        policy_revision=preview.policy_revision,
-        legal_hold_revision=preview.legal_hold_revision,
+        policy_revision=policy_revision,
+        legal_hold_revision=legal_hold_revision,
     )
+    normalized_executed_at = _canonical_utc(executed_at, "executed_at")
+    if normalized_executed_at < preview.created_at:
+        raise ValueError("executed_at cannot precede purge preview creation")
     return PurgeReceipt(
         receipt_id=_identifier(receipt_id, "receipt_id"),
         tenant_id=preview.tenant_id,
@@ -419,6 +436,6 @@ def create_purge_receipt(
             for category in RETENTION_CATEGORIES
         },
         held_counts=dict(preview.held_counts),
-        executed_at=_canonical_utc(executed_at, "executed_at"),
+        executed_at=normalized_executed_at,
         audit_event_id=_identifier(audit_event_id, "audit_event_id"),
     )
