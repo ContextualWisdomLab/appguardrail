@@ -57,9 +57,18 @@ def test_module_entrypoint_serializes_offline_evidence(
     assert payload["findings"][0]["evidence_status"] == "unavailable"
 
 
-def test_report_url_guard_rejects_invalid_authority_syntax() -> None:
-    """Malformed URL authorities cannot escape into generated Markdown links."""
-    assert appguardrail_core.openssf_report._safe_project_url("https://[::1") == ""
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "https://[::1",
+        "https://www.bestpractices.dev:443/projects/1",
+        "https://www.bestpractices.dev/projects/1?download=true",
+        "https://www.bestpractices.dev/projects/1#badge",
+    ],
+)
+def test_report_url_guard_rejects_noncanonical_public_urls(candidate: str) -> None:
+    """Only the exact public project authority and path may become report links."""
+    assert appguardrail_core.openssf_report._safe_project_url(candidate) == ""
 
 
 def test_report_unknown_status_and_tier_fall_back_safely() -> None:
