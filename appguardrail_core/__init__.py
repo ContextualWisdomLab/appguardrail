@@ -1,5 +1,14 @@
 """Reusable AppGuardrail core helpers."""
 
+from appguardrail_core.code_scanning import (
+    AnalysisEvidence,
+    AnalysisIdentity,
+    AnalysisSnapshot,
+    DriftAssessment,
+    build_snapshot as build_code_scanning_snapshot,
+    compare_snapshots as compare_code_scanning_snapshots,
+    normalize_analysis as normalize_code_scanning_analysis,
+)
 from appguardrail_core.external import (ExternalEngineDecision,
                                         ExternalScanPlan,
                                         build_external_scan_plan)
@@ -32,7 +41,11 @@ from appguardrail_core.rules import (RuleMetadata, build_rule_metadata,
                                      validate_rule_metadata)
 
 __all__ = [
+    "AnalysisEvidence",
+    "AnalysisIdentity",
+    "AnalysisSnapshot",
     "DEPLOY_BLOCKING_SEVERITIES",
+    "DriftAssessment",
     "ExternalEngineDecision",
     "ExternalScanPlan",
     "BuyerEvidenceMetric",
@@ -49,17 +62,20 @@ __all__ = [
     "SaleReadinessScore",
     "StackProfile",
     "build_buyer_evidence_pack",
+    "build_code_scanning_snapshot",
     "build_external_scan_plan",
     "build_org_inventory",
     "build_rule_metadata",
     "buyer_evidence_pack_to_dict",
     "classify_pr_gate",
+    "compare_code_scanning_snapshots",
     "detect_language_axes",
     "detect_stack_profile",
     "extract_public_references",
     "finding_sort_key",
     "gate_action_bucket",
     "is_deploy_blocking",
+    "normalize_code_scanning_analysis",
     "normalize_finding",
     "normalize_findings",
     "render_org_readiness_report",
