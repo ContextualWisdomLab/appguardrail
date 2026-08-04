@@ -231,3 +231,11 @@ def test_dashboard_empty_state_clear_filters():
     assert "aria-label=\"Clear filters\"" in html
     assert "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\"" in html
     assert "Clear filters</button>" in html
+
+
+def test_dashboard_dialog_close_button_has_tooltip():
+    """Dialog close button must have a title tooltip for discoverability."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert "title=\"Close (Esc)\"" in html
+    assert "aria-label=\"Close\"" in html
