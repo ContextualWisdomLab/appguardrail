@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+import urllib.error
+import urllib.parse
+import urllib.request
 
 FAILURES = {"failure", "cancelled", "timed_out", "action_required"}
 SECURITY_TERMS = (
@@ -243,7 +246,18 @@ def diagnosis(finding: dict[str, Any]) -> str:
     names = f"{finding.get('workflow', '')} {finding.get('job_name', '')}".lower()
     conclusion = str(finding.get("conclusion") or "unknown").lower()
 
-    if "strix" in names:
+    if "drift" in names:
+        likely_cause = (
+            "GitHub Code Scanning configuration has drifted. Tools or categories configured "
+            "on the default/base branch are missing from the pull request head branch. This "
+            "configuration loss cannot be observed by repository-local source scanning."
+        )
+        actions = [
+            "Verify that all static analysis tools and categories configured on the default/base branch are also run and uploaded on the pull request.",
+            "If using a central required workflow, ensure it is correctly triggered and completes on pull requests.",
+            "Do not modify or remove security workflow triggers in pull requests without authorization.",
+        ]
+    elif "strix" in names:
         likely_cause = (
             "The Strix security gate did not complete successfully. This metadata alone "
             "does not prove that a vulnerability was found; scanner setup, execution, "
@@ -314,6 +328,182 @@ def issue_body(finding: dict[str, Any], seen: set[str]) -> str:
             diagnosis(finding),
         ]
     )
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so that credentials cannot be forwarded to another origin."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Reject redirect request and cause urllib to raise an error."""
+        return None
+
+
+class CodeScanningAPIError(Exception):
+    """Raised when GitHub Code Scanning API requests fail."""
+    pass
+
+
+class CodeScanningPermissionError(CodeScanningAPIError):
+    """Raised when Code Scanning API requests return 403 or 404 indicating partial permissions."""
+    pass
+
+
+def normalize_category(category: str | None) -> str:
+    """Normalize a Code Scanning category for stable comparison."""
+    if not category:
+        return ""
+    return str(category).strip().strip("/").lower()
+
+
+def detect_code_scanning_drift(
+    base_analyses: list[dict[str, Any]],
+    head_analyses: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compare base-vs-head Code Scanning tool/category coverage to identify drift.
+
+    Args:
+        base_analyses: List of analysis dicts from the default/base branch.
+        head_analyses: List of analysis dicts from the head/PR branch.
+
+    Returns:
+        A dictionary summarizing the drift analysis, including:
+        - 'drifted' (bool): True if any base tool/category is missing in head.
+        - 'missing' (list of dicts): The list of missing tool/category pairs.
+        - 'base_coverage' (list of dicts): Unique tool/category pairs on base.
+        - 'head_coverage' (list of dicts): Unique tool/category pairs on head.
+    """
+    base_coverage_set = set()
+    for analysis in base_analyses:
+        tool = analysis.get("tool") or {}
+        tool_name = tool.get("name")
+        if tool_name:
+            category = normalize_category(analysis.get("category"))
+            base_coverage_set.add((tool_name, category))
+
+    head_coverage_set = set()
+    for analysis in head_analyses:
+        tool = analysis.get("tool") or {}
+        tool_name = tool.get("name")
+        if tool_name:
+            category = normalize_category(analysis.get("category"))
+            head_coverage_set.add((tool_name, category))
+
+    missing = []
+    for tool_name, category in sorted(base_coverage_set):
+        if (tool_name, category) not in head_coverage_set:
+            missing.append({
+                "tool_name": tool_name,
+                "category": category,
+            })
+
+    return {
+        "drifted": len(missing) > 0,
+        "missing": missing,
+        "base_coverage": [
+            {"tool_name": t, "category": c}
+            for t, c in sorted(base_coverage_set)
+        ],
+        "head_coverage": [
+            {"tool_name": t, "category": c}
+            for t, c in sorted(head_coverage_set)
+        ],
+    }
+
+
+def fetch_code_scanning_analyses(
+    token: str,
+    repo: str,
+    ref: str,
+    api_url: str = "https://api.github.com",
+) -> list[dict[str, Any]]:
+    """Fetch all pages of Code Scanning analyses for a repository and ref.
+
+    Args:
+        token: Authenticated GitHub API token.
+        repo: Repository in 'owner/repo' format.
+        ref: Git reference (e.g., 'refs/heads/main').
+        api_url: GitHub API root URL.
+
+    Returns:
+        List of Code Scanning analysis dicts.
+
+    Raises:
+        CodeScanningPermissionError: If API returns 403 or 404 (partial permissions).
+        CodeScanningAPIError: If any other GitHub API error occurs.
+    """
+    if api_url.rstrip("/") != "https://api.github.com":
+        raise ValueError("GitHub API root must be https://api.github.com")
+
+    opener = urllib.request.build_opener(NoRedirect)
+    analyses: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        query = urllib.parse.urlencode({"ref": ref, "per_page": 100, "page": page})
+        url = f"{api_url.rstrip('/')}/repos/{repo}/code-scanning/analyses?{query}"
+        req = urllib.request.Request(
+            url,
+            method="GET",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "appguardrail-drift-detector",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        try:
+            with opener.open(req, timeout=30) as response:
+                content_type = response.headers.get("content-type", "")
+                payload = response.read()
+                if not payload:
+                    break
+                text = payload.decode("utf-8", errors="replace")
+                chunk = json.loads(text) if "application/json" in content_type else json.loads(text)
+                if not isinstance(chunk, list):
+                    break
+                analyses.extend(chunk)
+                if len(chunk) < 100:
+                    break
+                page += 1
+        except urllib.error.HTTPError as exc:
+            if exc.code in (403, 404):
+                raise CodeScanningPermissionError(
+                    f"GitHub Code Scanning API access denied ({exc.code}): {exc.reason}"
+                ) from exc
+            raise CodeScanningAPIError(
+                f"GitHub Code Scanning API error ({exc.code}): {exc.reason}"
+            ) from exc
+        except Exception as exc:
+            raise CodeScanningAPIError(
+                f"GitHub Code Scanning API request failed: {exc}"
+            ) from exc
+
+    return analyses
+
+
+def has_local_sarif_trigger_finding(workflow_contents: list[str]) -> bool:
+    """Check if any workflow content uploads SARIF but lacks PR triggers.
+
+    Args:
+        workflow_contents: List of workflow YAML strings.
+
+    Returns:
+        True if any workflow uploads SARIF but lacks PR triggers.
+    """
+    for content in workflow_contents:
+        if "github/codeql-action/upload-sarif" in content.lower():
+            # Check if suppressed by central marker
+            if re.search(r"^#\s*appguardrail\s*:\s*central-code-scanning\s*$", content, re.MULTILINE):
+                continue
+            # Check for PR triggers
+            has_pr_trigger = False
+            for trigger in ("pull_request", "pull_request_target", "workflow_call"):
+                if re.search(rf"\b{trigger}\b", content):
+                    has_pr_trigger = True
+                    break
+            if not has_pr_trigger:
+                return True
+    return False
 
 
 def issue_comment(finding: dict[str, Any]) -> str:
