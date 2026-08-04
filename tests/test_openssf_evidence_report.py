@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from appguardrail_core.reports import ReportContext, render_buyer_diligence_report
+from appguardrail_core.reports import (
+    ReportContext,
+    render_buyer_diligence_report,
+    render_report,
+)
 
 
 GENERATED_AT = "2026-08-04T08:00:00Z"
@@ -17,7 +21,11 @@ def _finding(
     """Return one normalized-evidence-shaped finding for report tests."""
     return {
         "rule_id": "openssf-best-practices-evidence",
-        "severity": "INFO" if status in {"in_progress", "passing", "silver", "gold"} else "WARNING",
+        "severity": (
+            "INFO"
+            if status in {"in_progress", "passing", "silver", "gold"}
+            else "WARNING"
+        ),
         "message": "OpenSSF evidence state.",
         "file": "OpenSSF Best Practices API",
         "line": 1,
@@ -51,9 +59,31 @@ def test_report_renders_dedicated_openssf_evidence_table() -> None:
     report = _report([_finding()])
 
     assert "## OpenSSF Best Practices Evidence" in report
-    assert report.index("## OpenSSF Best Practices Evidence") < report.index("## Findings Summary")
-    assert "| Repository | Verification status | Badge tier | Verified | Evidence |" in report
-    assert "| `https://github.com/acme/project` | Gold | Gold | 2026-08-04T08:00:00Z | [Project evidence](https://www.bestpractices.dev/projects/42) |" in report
+    assert report.index("## OpenSSF Best Practices Evidence") < report.index(
+        "## Findings Summary"
+    )
+    assert (
+        "| Repository | Verification status | Badge tier | Verified | Evidence |"
+        in report
+    )
+    assert (
+        "| `https://github.com/acme/project` | Gold | Gold | "
+        "2026-08-04T08:00:00Z | "
+        "[Project evidence](https://www.bestpractices.dev/projects/42) |"
+        in report
+    )
+
+
+def test_existing_report_dispatcher_uses_the_augmented_buyer_renderer() -> None:
+    """The established `appguardrail report buyer-diligence` path gains evidence."""
+    report = render_report(
+        "buyer-diligence",
+        [_finding(status="silver", tier="silver")],
+        ReportContext(generated_at=GENERATED_AT),
+    )
+
+    assert "## OpenSSF Best Practices Evidence" in report
+    assert "| `https://github.com/acme/project` | Silver | Silver |" in report
 
 
 def test_report_distinguishes_non_affirmative_evidence_states() -> None:
@@ -71,7 +101,11 @@ def test_report_distinguishes_non_affirmative_evidence_states() -> None:
     assert "| `https://github.com/acme/b` | Malformed response | Not verified |" in report
     assert "| `https://github.com/acme/c` | Permission limited | Not verified |" in report
     assert "| `https://github.com/acme/d` | In progress | In progress |" in report
-    assert "Unavailable means no matching public evidence was observed at verification time; it does not prove non-registration." in report
+    assert (
+        "Unavailable means no matching public evidence was observed at "
+        "verification time; it does not prove non-registration."
+        in report
+    )
 
 
 def test_report_states_when_no_openssf_record_was_supplied() -> None:
@@ -79,7 +113,10 @@ def test_report_states_when_no_openssf_record_was_supplied() -> None:
     report = _report([])
 
     assert "## OpenSSF Best Practices Evidence" in report
-    assert "No OpenSSF Best Practices evidence record was supplied for this report." in report
+    assert (
+        "No OpenSSF Best Practices evidence record was supplied for this report."
+        in report
+    )
     assert "not registered" not in report.lower()
 
 
@@ -95,11 +132,16 @@ def test_report_sorts_repositories_and_neutralizes_table_injection() -> None:
 
     report = _report([hostile, alpha])
 
-    assert report.index("`https://github.com/alpha/project`") < report.index("`https://github.com/zeta/project")
+    assert report.index("`https://github.com/alpha/project`") < report.index(
+        "`https://github.com/zeta/project"
+    )
     assert "project\\|&lt;script&gt;alert(1)&lt;/script&gt;" in report
     assert "Gold\\|fake" in report
     assert "javascript:alert(1)" not in report
-    assert "Project evidence" not in report.split("https://github.com/zeta/project", 1)[1].splitlines()[0]
+    assert (
+        "Project evidence"
+        not in report.split("https://github.com/zeta/project", 1)[1].splitlines()[0]
+    )
 
 
 def test_non_evidence_findings_do_not_create_evidence_rows() -> None:
@@ -116,6 +158,8 @@ def test_non_evidence_findings_do_not_create_evidence_rows() -> None:
 
     report = _report([ordinary])
 
-    evidence_section = report.split("## OpenSSF Best Practices Evidence", 1)[1].split("## Findings Summary", 1)[0]
+    evidence_section = report.split("## OpenSSF Best Practices Evidence", 1)[1].split(
+        "## Findings Summary", 1
+    )[0]
     assert "No OpenSSF Best Practices evidence record was supplied" in evidence_section
     assert "dangerous-eval" not in evidence_section
