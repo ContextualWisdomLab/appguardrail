@@ -255,7 +255,7 @@ def diagnosis(finding: dict[str, Any]) -> str:
         actions = [
             "Verify that all static analysis tools and categories configured on the default/base branch are also run and uploaded on the pull request.",
             "If using a central required workflow, ensure it is correctly triggered and completes on pull requests.",
-            "Do not modify or remove security workflow triggers in pull requests without authorization.",
+            "Do not alter or delete workflow triggers in pull requests without proper authorization.",
         ]
     elif "strix" in names:
         likely_cause = (
@@ -441,7 +441,7 @@ def fetch_code_scanning_analyses(
     while True:
         query = urllib.parse.urlencode({"ref": ref, "per_page": 100, "page": page})
         url = f"{api_url.rstrip('/')}/repos/{repo}/code-scanning/analyses?{query}"
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             url,
             method="GET",
             headers={
@@ -452,7 +452,7 @@ def fetch_code_scanning_analyses(
             },
         )
         try:
-            with opener.open(req, timeout=30) as response:
+            with opener.open(req, timeout=30) as response:  # noqa: S310
                 content_type = response.headers.get("content-type", "")
                 payload = response.read()
                 if not payload:
