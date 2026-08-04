@@ -69,18 +69,20 @@ def verify_coverage(targets: Iterable[CoverageTarget]) -> None:
 
 
 def _execute_tests(test_paths: list[str]) -> dict[tuple[str, int], int]:
-    """Run focused pytest files under the standard-library line tracer."""
+    """Run focused pytest files under the standard-library line tracer.
+
+    The standard-library tracer caches ignore decisions by a file's basename
+    module name. Using directory ignores therefore lets an ignored dependency's
+    ``__init__.py`` suppress every repository package initializer with the same
+    basename. The focused gate traces without directory ignores and filters the
+    resulting counts by exact resolved target path in :func:`measure_coverage`.
+    """
     import pytest
 
-    ignoredirs = tuple(
-        str(Path(directory).resolve())
-        for directory in {sys.prefix, sys.exec_prefix}
-        if directory
-    )
     tracer = trace.Trace(
         count=True,
         trace=False,
-        ignoredirs=ignoredirs,
+        ignoredirs=(),
     )
     exit_code = tracer.runfunc(pytest.main, ["-q", *test_paths])
     if exit_code != 0:
