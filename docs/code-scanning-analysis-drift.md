@@ -76,6 +76,10 @@ Confirmed drift creates one issue per repository, pull-request number, and exact
 
 The issue explicitly states that it is based on live GitHub state and not inferred from workflow text. Operators should restore the missing tool/category or repair the errored SARIF upload, rerun Code Scanning for the same exact head, and verify a clean comparison before merging.
 
+## Quality verification
+
+The exact-head Tests workflow runs the full Python suite on Python 3.11 and 3.13. On Python 3.13, a dependency-free standard-library tracer then runs the focused live-drift regression suites and compares observed statement lines with Python's executable-line map. Both `appguardrail_core/code_scanning.py` and `scripts/ci/collect_code_scanning_drift.py` must reach unrounded 100% statement coverage; a single missing statement fails the workflow and prints its exact line number. Explicit `# pragma: no cover` exclusions are limited to reviewed process entry points whose behavior is exercised through `main()` tests.
+
 ## Local invocation
 
 Use two GitHub App installation tokens with separate scopes:
