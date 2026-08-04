@@ -82,6 +82,26 @@ def test_repository_evidence_identity_rejects_query_and_fragment(
         )
 
 
+def test_invalid_returned_project_url_is_not_trusted() -> None:
+    """Malformed service URL fields cannot establish the queried project identity."""
+    result = evidence.parse_project_matches(
+        [
+            {
+                "id": 865,
+                "badge_level": "passing",
+                "tiered_percentage": 100,
+                "repo_url": "javascript:alert(1)",
+            }
+        ],
+        repository_url=REPOSITORY_URL,
+        verified_at=VERIFIED_AT,
+        source_origin=evidence.CURRENT_ORIGIN,
+    )
+
+    assert result.status == "malformed"
+    assert result.reason == "project_url_mismatch"
+
+
 def test_live_collection_rejects_empty_verification_timestamp_before_network() -> None:
     """Every affirmative or non-affirmative transport result needs audit time."""
     opener = FalsyOpener()
