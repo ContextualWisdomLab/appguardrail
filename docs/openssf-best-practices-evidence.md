@@ -121,3 +121,21 @@ The OpenSSF service asks API users to provide attribution. Reports and findings 
 The current website policy states that publicly available non-code content added or edited after **2024-08-23** is released under **CDLA-Permissive-2.0**. Earlier contributions were licensed under **CC-BY-3.0** or **CC-BY-3.0+**. AppGuardrail records this date-dependent policy rather than claiming that all returned data uses one historical license.
 
 Operators should respect the documented rate guidance; requests other than badge images should remain at or below approximately one request per second.
+
+## Standards basis
+
+The evidence boundary follows RFC 3986 when separating URI scheme, authority, path, query, fragment, and user information. Canonical public project evidence therefore rejects credentials, unexpected ports, query strings, and fragments instead of treating a partially matching URL as trustworthy.
+
+The transport accepts `application/json` and registered `application/*+json` structured media types in accordance with RFC 6839. JSON input is decoded as UTF-8 and parsed under the interoperable JSON grammar defined by RFC 8259; malformed or excessively nested input fails closed without creating affirmative evidence.
+
+## References (APA 7th)
+
+Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform Resource Identifier (URI): Generic syntax* (RFC 3986). RFC Editor. https://doi.org/10.17487/RFC3986
+
+Bray, T. (2017). *The JavaScript Object Notation (JSON) data interchange format* (RFC 8259). RFC Editor. https://doi.org/10.17487/RFC8259
+
+Hansen, T., & Melnikov, A. (2013). *Additional media type structured syntax suffixes* (RFC 6839). RFC Editor. https://doi.org/10.17487/RFC6839
+
+Open Source Security Foundation. (n.d.). *Application programming interface (API).* GitHub. Retrieved August 4, 2026, from https://github.com/ossf/best-practices-badge/blob/main/docs/api.md
+
+Open Source Security Foundation. (n.d.). *OpenSSF Best Practices Badge.* Retrieved August 4, 2026, from https://www.bestpractices.dev/
