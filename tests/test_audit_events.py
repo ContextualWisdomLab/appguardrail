@@ -56,6 +56,27 @@ def test_create_and_verify_two_event_tenant_chain() -> None:
     assert second.to_dict()["event_hash"] == second.event_hash
 
 
+def test_trusted_checkpoint_detects_tail_truncation() -> None:
+    """A trusted count and head hash make deletion of the final event detectable."""
+    first = _event()
+    second = _event(sequence_number=2, previous_event_hash=first.event_hash)
+
+    verify_audit_chain(
+        (first, second),
+        tenant_id=TENANT_ID,
+        expected_event_count=2,
+        expected_head_hash=second.event_hash,
+    )
+
+    with pytest.raises(ValueError, match="checkpoint"):
+        verify_audit_chain(
+            (first,),
+            tenant_id=TENANT_ID,
+            expected_event_count=2,
+            expected_head_hash=second.event_hash,
+        )
+
+
 def test_canonical_summary_order_produces_identical_event_hash() -> None:
     """JSON object insertion order cannot alter the cryptographic event identity."""
     left = _event(summary={"after": {"revision": 2}, "before": {"revision": 1}})
@@ -103,6 +124,8 @@ def test_secret_and_customer_evidence_fields_are_redacted_before_hashing() -> No
             "safe": {
                 "role": "owner",
                 "message": "Bearer another-secret",
+                "provider_reference": "ghp_0123456789abcdef",
+                "model_reference": "sk-ant-api03-0123456789abcdef",
                 "record_count": 7,
             },
         }
@@ -113,14 +136,30 @@ def test_secret_and_customer_evidence_fields_are_redacted_before_hashing() -> No
     assert summary["safe"]["record_count"] == 7
     assert summary["api_key"] == "[REDACTED]"
     assert summary["safe"]["message"] == "[REDACTED]"
+    assert summary["safe"]["provider_reference"] == "[REDACTED]"
+    assert summary["safe"]["model_reference"] == "[REDACTED]"
     for forbidden in (
         "agk_super_secret",
         "should-not-appear",
         "user:pass",
         "token=hidden",
         "customer secret",
+        "ghp_0123456789abcdef",
+        "sk-ant-api03-0123456789abcdef",
     ):
         assert forbidden not in rendered
+
+
+def test_event_export_resanitizes_post_creation_summary_mutation() -> None:
+    """A mutable nested object cannot inject a secret into later audit exports."""
+    event = _event()
+    event.summary["provider_reference"] = "ghp_0123456789abcdef"
+
+    exported = event.to_dict()
+
+    assert exported["summary"]["provider_reference"] == "[REDACTED]"
+    with pytest.raises(ValueError, match="event hash"):
+        verify_audit_chain((event,), tenant_id=TENANT_ID)
 
 
 def test_summary_normalizes_json_scalars_lists_and_tuples() -> None:
@@ -144,9 +183,10 @@ def test_summary_normalizes_json_scalars_lists_and_tuples() -> None:
         (["not-an-object"], "must be an object"),
         ({"": "empty-key"}, "non-empty string keys"),
         ({"unsupported": object()}, "unsupported audit value"),
+        ({"role": "owner", " role ": "viewer"}, "duplicate normalized key"),
     ],
 )
-def test_summary_rejects_non_object_empty_key_and_unsupported_values(
+def test_summary_rejects_noncanonical_object_shapes(
     summary: object,
     match: str,
 ) -> None:
@@ -204,9 +244,22 @@ def test_audit_summary_has_bounded_depth_and_encoded_size() -> None:
         sanitize_audit_summary({"note": "x" * 20_000})
 
 
+@pytest.mark.parametrize("tenant_id", [0, True])
+def test_empty_chain_still_validates_tenant_identity(tenant_id: object) -> None:
+    """An empty iterator cannot bypass the tenant identity trust boundary."""
+    with pytest.raises(ValueError, match="tenant_id"):
+        verify_audit_chain((), tenant_id=tenant_id)
+
+
 def test_empty_chain_is_valid_and_non_event_members_are_rejected() -> None:
     """A tenant may have no events, but an invalid collection member is never ignored."""
     verify_audit_chain((), tenant_id=TENANT_ID)
+    verify_audit_chain(
+        (),
+        tenant_id=TENANT_ID,
+        expected_event_count=0,
+        expected_head_hash=GENESIS_EVENT_HASH,
+    )
 
     with pytest.raises(ValueError, match="AuditEvent"):
         verify_audit_chain((object(),), tenant_id=TENANT_ID)
