@@ -48,7 +48,7 @@ def test_operator_documentation_records_limits_and_apa_seventh_references() -> N
         "product defaults, not legal advice",
         "tamper-evident",
         "not physically immutable",
-        "tail-truncation detection",
+        "Tail-truncation detection",
         "current policy and legal-hold revisions",
         "legal hold",
         "optimistic concurrency",
