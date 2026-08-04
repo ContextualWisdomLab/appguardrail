@@ -49,3 +49,7 @@
 ## 2026-08-03 - Focus Restoration and Stable Live Regions
 **Learning:** Full-DOM replacement removes active controls and any live region nested inside the replaced subtree. Restoring only focus is insufficient for editable fields because their selection range is also lost.
 **Action:** Capture the active element id and text selection bounds before rendering, restore both afterward, and publish updates through a persistent `aria-live="polite"` and `aria-atomic="true"` region by changing only its `textContent`.
+
+## 2026-08-03 - Global Keyboard Shortcuts Interference
+**Learning:** Adding a global keyboard shortcut (like `/` for search) without checking the currently focused element disrupts user text input. If a user tries to type the shortcut character into any standard input, textarea, or select element, the keydown event is hijacked.
+**Action:** When implementing global keyboard shortcuts, always check `document.activeElement.tagName` and ignore the shortcut if the user is currently focused on an interactive text element (`input`, `textarea`, `select`).
