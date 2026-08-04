@@ -1,5 +1,5 @@
 name: Repair Code Scanning Operational Hardening
-# Second push intentionally triggers this branch-local one-shot workflow.
+# This temporary branch-local workflow validates production changes before push.
 
 on:
   push:
@@ -37,6 +37,7 @@ jobs:
           from pathlib import Path
 
           def replace_once(path_text: str, old: str, new: str) -> None:
+              """Replace one exact reviewed source fragment or fail closed."""
               path = Path(path_text)
               source = path.read_text(encoding="utf-8")
               if source.count(old) != 1:
@@ -47,14 +48,17 @@ jobs:
 
           collector_path = Path("scripts/ci/collect_code_scanning_drift.py")
           collector = collector_path.read_text(encoding="utf-8")
-          old_label = '''    except RuntimeError as exc:
-              if "422" not in str(exc):
-                  raise
-          '''.replace("          ", "")
-          new_label = '''    except GitHubAPIError as exc:
-              if exc.status != 422:
-                  raise
-          '''.replace("          ", "")
+
+          old_label = (
+              '    except RuntimeError as exc:\n'
+              '        if "422" not in str(exc):\n'
+              '            raise\n'
+          )
+          new_label = (
+              '    except GitHubAPIError as exc:\n'
+              '        if exc.status != 422:\n'
+              '            raise\n'
+          )
           if collector.count(old_label) != 1:
               raise SystemExit("expected one legacy label error handler")
           collector = collector.replace(old_label, new_label)
@@ -62,46 +66,52 @@ jobs:
           parse_marker = "\n\ndef parse_args(argv: list[str]) -> argparse.Namespace:\n"
           if collector.count(parse_marker) != 1:
               raise SystemExit("expected one parse_args marker")
-          helper = '''
-
-          def _positive_int(value: str) -> int:
-              """Parse one strictly positive integer for bounded collector options."""
-              try:
-                  parsed = int(value)
-              except ValueError as exc:
-                  raise argparse.ArgumentTypeError(
-                      "value must be a positive integer"
-                  ) from exc
-              if parsed <= 0:
-                  raise argparse.ArgumentTypeError("value must be a positive integer")
-              return parsed
-          '''.replace("          ", "")
-          collector = collector.replace(parse_marker, helper + parse_marker)
-
-          old_argument = '''    parser.add_argument(
-              "--max-pull-requests",
-              type=int,
-              default=int(
-                  os.getenv(
-                      "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
-                      str(DEFAULT_MAX_PULL_REQUESTS),
-                  )
-              ),
+          positive_integer_helper = (
+              "\n\ndef _positive_int(value: str) -> int:\n"
+              '    """Parse one strictly positive integer for bounded collector options."""\n'
+              "    try:\n"
+              "        parsed = int(value)\n"
+              "    except ValueError as exc:\n"
+              "        raise argparse.ArgumentTypeError(\n"
+              '            "value must be a positive integer"\n'
+              "        ) from exc\n"
+              "    if parsed <= 0:\n"
+              '        raise argparse.ArgumentTypeError("value must be a positive integer")\n'
+              "    return parsed\n"
           )
-          '''.replace("          ", "")
-          new_argument = '''    parser.add_argument(
-              "--max-pull-requests",
-              type=_positive_int,
-              default=os.getenv(
-                  "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
-                  str(DEFAULT_MAX_PULL_REQUESTS),
-              ),
+          collector = collector.replace(
+              parse_marker,
+              positive_integer_helper + parse_marker,
           )
-          '''.replace("          ", "")
+
+          old_argument = (
+              '    parser.add_argument(\n'
+              '        "--max-pull-requests",\n'
+              '        type=int,\n'
+              '        default=int(\n'
+              '            os.getenv(\n'
+              '                "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",\n'
+              '                str(DEFAULT_MAX_PULL_REQUESTS),\n'
+              '            )\n'
+              '        ),\n'
+              '    )\n'
+          )
+          new_argument = (
+              '    parser.add_argument(\n'
+              '        "--max-pull-requests",\n'
+              '        type=_positive_int,\n'
+              '        default=os.getenv(\n'
+              '            "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",\n'
+              '            str(DEFAULT_MAX_PULL_REQUESTS),\n'
+              '        ),\n'
+              '    )\n'
+          )
           if collector.count(old_argument) != 1:
               raise SystemExit("expected one max-pull-requests argument block")
-          collector = collector.replace(old_argument, new_argument)
-          collector_path.write_text(collector, encoding="utf-8")
+          collector_path.write_text(
+              collector.replace(old_argument, new_argument),
+              encoding="utf-8",
+          )
 
           replace_once(
               ".github/workflows/org-security-failure-collector.yml",
@@ -112,33 +122,21 @@ jobs:
 
           replace_once(
               ".github/workflows/tests.yml",
-              '''            --test tests/test_code_scanning_module_entrypoint.py \\
-              --test tests/test_code_scanning_page_result_issue_index.py \\
-              --test tests/test_code_scanning_remaining_coverage.py \\
-              --test tests/test_code_scanning_review_regressions.py
-          '''.replace("          ", ""),
-              '''            --test tests/test_code_scanning_module_entrypoint.py \\
-              --test tests/test_code_scanning_operational_hardening.py \\
-              --test tests/test_code_scanning_page_result_issue_index.py \\
-              --test tests/test_code_scanning_remaining_coverage.py \\
-              --test tests/test_code_scanning_review_regressions.py
-          '''.replace("          ", ""),
+              '            --test tests/test_code_scanning_module_entrypoint.py \\\n',
+              '            --test tests/test_code_scanning_module_entrypoint.py \\\n'
+              '            --test tests/test_code_scanning_operational_hardening.py \\\n',
           )
 
-          replace_once(
-              "tests/test_code_scanning_coverage_edges.py",
-              '''def test_label_creation_tolerates_duplicate_only() -> None:
-              """GitHub's existing-label response is harmless while other failures propagate."""
-              duplicate = IssueClient()
-              duplicate.raise_message = "422 already_exists"
-              drift._ensure_label(duplicate, "ContextualWisdomLab/appguardrail", "x")
-
-              failure = IssueClient()
-              failure.raise_message = "500 unavailable"
-              with pytest.raises(RuntimeError, match="500"):
-                  drift._ensure_label(failure, "ContextualWisdomLab/appguardrail", "x")
-          '''.replace("          ", ""),
-              '''def test_label_creation_tolerates_duplicate_only() -> None:
+          test_path = Path("tests/test_code_scanning_coverage_edges.py")
+          test_source = test_path.read_text(encoding="utf-8")
+          function_start = test_source.index(
+              "def test_label_creation_tolerates_duplicate_only() -> None:\n"
+          )
+          function_end = test_source.index(
+              "\n\ndef test_publish_reopens_changed_closed_issue_and_bounds_updates",
+              function_start,
+          )
+          replacement_function = '''def test_label_creation_tolerates_duplicate_only() -> None:
               """GitHub's existing-label response is harmless while other failures propagate."""
 
               class LabelClient:
@@ -160,7 +158,16 @@ jobs:
                       LabelClient(500), "ContextualWisdomLab/appguardrail", "x"
                   )
               assert exc_info.value.status == 500
-          '''.replace("          ", ""),
+          '''
+          replacement_function = "\n".join(
+              line[14:] if line.startswith("              ") else line
+              for line in replacement_function.splitlines()
+          ) + "\n"
+          test_path.write_text(
+              test_source[:function_start]
+              + replacement_function
+              + test_source[function_end:],
+              encoding="utf-8",
           )
           PY
           git diff --check
@@ -183,10 +190,9 @@ jobs:
             --test tests/test_code_scanning_page_result_issue_index.py \
             --test tests/test_code_scanning_remaining_coverage.py \
             --test tests/test_code_scanning_review_regressions.py
-      - name: Commit verified fixes and remove one-shot workflow
+      - name: Commit verified production fixes
         run: |
           set -euo pipefail
-          git rm .github/workflows/repair-code-scanning-operational-hardening.yml
           git add \
             .github/workflows/org-security-failure-collector.yml \
             .github/workflows/tests.yml \
