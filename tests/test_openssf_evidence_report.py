@@ -54,6 +54,11 @@ def _report(findings: list[dict[str, object]]) -> str:
     )
 
 
+def _evidence_row(report: str, repository: str) -> str:
+    """Return the rendered table row carrying one repository value."""
+    return report.split(repository, 1)[1].splitlines()[0]
+
+
 def test_report_renders_dedicated_openssf_evidence_table() -> None:
     """Buyer diligence must surface tier, timestamp, repository, and evidence link."""
     report = _report([_finding()])
@@ -141,7 +146,7 @@ def test_report_sorts_repositories_and_neutralizes_table_injection() -> None:
     )
     assert "project\\|&lt;script&gt;alert(1)&lt;/script&gt;" in report
     assert "Gold\\|fake" not in report
-    hostile_row = report.split("https://github.com/zeta/project", 1)[1].splitlines()[0]
+    hostile_row = _evidence_row(report, "https://github.com/zeta/project")
     assert "| Malformed response | Not verified |" in hostile_row
     assert "javascript:alert(1)" not in report
     assert "Project evidence" not in hostile_row
@@ -152,7 +157,32 @@ def test_report_rejects_project_id_and_evidence_url_mismatch() -> None:
     finding = _finding(evidence_url="https://www.bestpractices.dev/projects/43")
 
     report = _report([finding])
-    row = report.split("https://github.com/acme/project", 1)[1].splitlines()[0]
+    row = _evidence_row(report, "https://github.com/acme/project")
+
+    assert "| Malformed response | Not verified |" in row
+    assert "Project evidence" not in row
+
+
+def test_report_rejects_invalid_affirmative_project_id() -> None:
+    """An affirmative status needs a positive non-Boolean project identifier."""
+    finding = _finding()
+    finding["project_id"] = True
+
+    report = _report([finding])
+    row = _evidence_row(report, "https://github.com/acme/project")
+
+    assert "| Malformed response | Not verified |" in row
+    assert "Project evidence" not in row
+
+
+def test_report_rejects_stale_non_affirmative_badge_metadata() -> None:
+    """A failed verification state cannot retain a stale project URL or percentage."""
+    finding = _finding(status="unavailable", tier="", evidence_url="")
+    finding["evidence_url"] = "https://www.bestpractices.dev/projects/42"
+    finding["tiered_percentage"] = 100
+
+    report = _report([finding])
+    row = _evidence_row(report, "https://github.com/acme/project")
 
     assert "| Malformed response | Not verified |" in row
     assert "Project evidence" not in row
