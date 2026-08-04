@@ -600,40 +600,48 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Collect or ingest evidence and emit one normalized findings envelope."""
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    timestamp = _normalize_verified_at(args.verified_at or _utc_timestamp())
-    if args.source_json:
-        source_path = Path(args.source_json)
-        try:
-            with source_path.open("rb") as source_file:
-                source_bytes = source_file.read(MAX_RESPONSE_BYTES + 1)
-        except OSError:
-            print(f"Cannot read OpenSSF evidence source: {source_path}", file=sys.stderr)
-            return 1
-        if len(source_bytes) > MAX_RESPONSE_BYTES:
-            print(
-                f"OpenSSF evidence source exceeds {MAX_RESPONSE_BYTES} bytes: {source_path}",
-                file=sys.stderr,
+    try:
+        timestamp = _normalize_verified_at(args.verified_at or _utc_timestamp())
+        if args.source_json:
+            source_path = Path(args.source_json)
+            try:
+                with source_path.open("rb") as source_file:
+                    source_bytes = source_file.read(MAX_RESPONSE_BYTES + 1)
+            except OSError:
+                print(
+                    f"Cannot read OpenSSF evidence source: {source_path}",
+                    file=sys.stderr,
+                )
+                return 1
+            if len(source_bytes) > MAX_RESPONSE_BYTES:
+                print(
+                    f"OpenSSF evidence source exceeds {MAX_RESPONSE_BYTES} bytes: {source_path}",
+                    file=sys.stderr,
+                )
+                return 1
+            try:
+                payload = json.loads(source_bytes.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+                print(
+                    "OpenSSF evidence source contains invalid JSON or UTF-8: "
+                    f"{source_path}",
+                    file=sys.stderr,
+                )
+                return 1
+            record = parse_project_matches(
+                payload,
+                repository_url=args.repository_url,
+                verified_at=timestamp,
+                source_origin=args.source_origin,
             )
-            return 1
-        try:
-            payload = json.loads(source_bytes.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
-            print(
-                f"OpenSSF evidence source contains invalid JSON or UTF-8: {source_path}",
-                file=sys.stderr,
+        else:
+            record = collect_openssf_evidence(
+                args.repository_url,
+                verified_at=timestamp,
             )
-            return 1
-        record = parse_project_matches(
-            payload,
-            repository_url=args.repository_url,
-            verified_at=timestamp,
-            source_origin=args.source_origin,
-        )
-    else:
-        record = collect_openssf_evidence(
-            args.repository_url,
-            verified_at=timestamp,
-        )
+    except ValueError as exc:
+        print(f"Invalid OpenSSF evidence input: {exc}", file=sys.stderr)
+        return 1
 
     rendered = json.dumps(findings_envelope(record), indent=2, sort_keys=True) + "\n"
     if args.out:
