@@ -1,0 +1,75 @@
+name: Repair Code Scanning Review Findings V3
+
+on:
+  push:
+    branches: [feat/code-scanning-analysis-drift-862]
+    paths: [.github/workflows/repair-code-scanning-review-findings-v3.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-code-scanning-review-findings-v3
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor == 'seonghobae' && github.ref == 'refs/heads/feat/code-scanning-analysis-drift-862'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/code-scanning-analysis-drift-862
+          fetch-depth: 1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Install hash-locked tests
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Apply exact reviewed fixes
+        run: |
+          set -euo pipefail
+          python -m scripts.ci.repair_code_scanning_review_findings
+          git diff --check
+      - name: Verify full and exact coverage suites
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/code_scanning.py \
+            --module scripts/ci/collect_code_scanning_drift.py \
+            --test tests/test_code_scanning_core.py \
+            --test tests/test_code_scanning_coverage_edges.py \
+            --test tests/test_code_scanning_drift_collector.py \
+            --test tests/test_code_scanning_drift_issueops.py \
+            --test tests/test_code_scanning_drift_release_contract.py \
+            --test tests/test_code_scanning_drift_transport_edges.py \
+            --test tests/test_code_scanning_drift_workflow.py \
+            --test tests/test_code_scanning_module_entrypoint.py \
+            --test tests/test_code_scanning_page_result_issue_index.py \
+            --test tests/test_code_scanning_remaining_coverage.py \
+            --test tests/test_code_scanning_review_regressions.py
+      - name: Commit verified fixes and remove one-shot repair files
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/repair-code-scanning-review-findings.yml \
+            .github/workflows/repair-code-scanning-review-findings-v2.yml \
+            .github/workflows/repair-code-scanning-review-findings-v3.yml \
+            scripts/ci/repair_code_scanning_review_findings.py
+          git add \
+            .github/workflows/tests.yml \
+            CHANGELOG.d/862-code-scanning-analysis-drift.md \
+            docs/code-scanning-analysis-drift.md \
+            scripts/ci/collect_code_scanning_drift.py \
+            scripts/ci/verify_module_coverage.py \
+            tests/test_code_scanning_core.py \
+            tests/test_code_scanning_drift_collector.py
+          git diff --cached --check
+          git config user.name 'appguardrail-maintainer'
+          git config user.email '8172694+seonghobae@users.noreply.github.com'
+          git commit -m 'fix(code-scanning): address exact-head review findings'
+          git push origin HEAD:feat/code-scanning-analysis-drift-862
