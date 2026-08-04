@@ -80,3 +80,9 @@ def test_report_unknown_status_and_tier_fall_back_safely() -> None:
     assert "Malformed response" in section
     assert "Not verified" in section
     assert "Not available" in section
+
+
+def test_report_augmentation_requires_one_summary_marker() -> None:
+    """Unexpected report structure fails closed instead of silently dropping evidence."""
+    with pytest.raises(ValueError, match="findings summary"):
+        openssf_report.augment_buyer_diligence_report("no report marker", [])
