@@ -1,5 +1,10 @@
 """Reusable AppGuardrail core helpers."""
 
+from __future__ import annotations
+
+from typing import Any, Iterable
+
+from appguardrail_core import reports as _reports
 from appguardrail_core.code_scanning import (
     AnalysisEvidence,
     AnalysisIdentity,
@@ -42,6 +47,7 @@ from appguardrail_core.openssf_evidence import (
     evidence_to_finding,
     parse_project_matches as parse_openssf_project_matches,
 )
+from appguardrail_core.openssf_report import augment_buyer_diligence_report
 from appguardrail_core.org_intelligence import (
     BuyerEvidenceMetric,
     BuyerEvidencePack,
@@ -56,16 +62,33 @@ from appguardrail_core.org_intelligence import (
     render_org_readiness_report,
     summarize_pr_gates,
 )
-from appguardrail_core.reports import (
-    ReportContext,
-    render_buyer_diligence_report,
-)
 from appguardrail_core.rules import (
     RuleMetadata,
     build_rule_metadata,
     extract_public_references,
     validate_rule_metadata,
 )
+
+
+ReportContext = _reports.ReportContext
+_BASE_BUYER_DILIGENCE_RENDERER = _reports.render_buyer_diligence_report
+
+
+def render_buyer_diligence_report(
+    findings: Iterable[dict[str, Any]],
+    context: ReportContext | None = None,
+) -> str:
+    """Render the standard buyer report with auditable OpenSSF evidence inserted."""
+    materialized = list(findings)
+    rendered = _BASE_BUYER_DILIGENCE_RENDERER(materialized, context)
+    return augment_buyer_diligence_report(rendered, materialized)
+
+
+# ``reports.render_report`` resolves this module global at call time.  Installing
+# the wrapper at the package boundary preserves the established report module
+# while keeping the evidence vertical independently importable and testable.
+_reports.render_buyer_diligence_report = render_buyer_diligence_report
+
 
 __all__ = [
     "AnalysisEvidence",
