@@ -6,7 +6,7 @@
 
 **Architecture:** Add dependency-free core modules that parse exact repository-URL search responses from the official current and historical OpenSSF Best Practices origins into an immutable evidence record. Keep transport classification separate from payload parsing, convert every state into one normalized governance finding, publish a dedicated installed CLI entry point, and compose the same metadata into the existing buyer-diligence report at the reusable package boundary. Unknown, inaccessible, or malformed evidence remains explicit and never becomes a claim of non-registration.
 
-**Tech Stack:** Python 3.10+, standard-library `urllib`, `json`, `dataclasses`, existing AppGuardrail findings/report contracts, pytest, existing exact statement-coverage tracer.
+**Tech Stack:** Python 3.11+, standard-library `urllib`, `json`, `dataclasses`, existing AppGuardrail findings/report contracts, pytest, existing exact statement-coverage tracer.
 
 ## Global Constraints
 
@@ -109,7 +109,7 @@ Expected: FAIL because the command is absent.
 
 - [ ] **Step 3: Implement the command**
 
-Offline mode must parse the saved response through the same pure parser as live mode. Output exactly one normalized finding in the standard findings envelope. Evidence-state outcomes return success; malformed local input and file I/O errors return a clear non-zero result. Align package metadata, lock metadata, README, and the main CI matrix on the tested Python 3.10 minimum.
+Offline mode must parse the saved response through the same pure parser as live mode. Output exactly one normalized finding in the standard findings envelope. Evidence-state outcomes return success; malformed local input and file I/O errors return a clear non-zero result. Align package metadata, lock metadata, README, and the main CI matrix on the tested Python 3.11 minimum.
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
