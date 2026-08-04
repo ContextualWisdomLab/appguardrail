@@ -216,4 +216,5 @@ jobs:
           name: code-scanning-operational-fix
           path: ${{ runner.temp }}/code-scanning-operational-fix
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 1
