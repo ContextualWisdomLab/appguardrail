@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import runpy
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import appguardrail_core
 from appguardrail_core import openssf_evidence as evidence
 from appguardrail_core import openssf_report
 
@@ -21,7 +23,9 @@ def test_redirect_guard_refuses_every_redirect() -> None:
     """The public redirect handler never creates a follow-up request."""
     guard = evidence.NoRedirect()
 
-    assert guard.redirect_request(object(), object(), 302, "redirect", {}, "https://attacker.invalid") is None
+    assert guard.redirect_request(
+        object(), object(), 302, "redirect", {}, "https://attacker.invalid"
+    ) is None
 
 
 def test_module_entrypoint_serializes_offline_evidence(
@@ -86,3 +90,17 @@ def test_report_augmentation_requires_one_summary_marker() -> None:
     """Unexpected report structure fails closed instead of silently dropping evidence."""
     with pytest.raises(ValueError, match="findings summary"):
         openssf_report.augment_buyer_diligence_report("no report marker", [])
+
+
+def test_package_reload_keeps_one_non_recursive_evidence_section() -> None:
+    """Reloading the public package cannot wrap an earlier wrapper recursively."""
+    first_reload = importlib.reload(appguardrail_core)
+    second_reload = importlib.reload(first_reload)
+
+    report = second_reload.render_buyer_diligence_report(
+        [],
+        second_reload.ReportContext(generated_at=VERIFIED_AT),
+    )
+
+    assert report.count("## OpenSSF Best Practices Evidence") == 1
+    assert report.count("## Findings Summary") == 1
