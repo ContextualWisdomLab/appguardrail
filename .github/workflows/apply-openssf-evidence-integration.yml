@@ -58,15 +58,14 @@ jobs:
           )
           replace_once(
               "appguardrail_core/reports.py",
-              "    lines.extend(_evidence_section(context.evidence, generated_at))\n"
-              "    lines.extend(\n"
-              "        [\n"
-              "            \"## Findings Summary\",\n",
-              "    lines.extend(_evidence_section(context.evidence, generated_at))\n"
-              "    lines.extend(render_openssf_evidence_section(normalized))\n"
-              "    lines.extend(\n"
-              "        [\n"
-              "            \"## Findings Summary\",\n",
+              '        "## Findings Summary",\n'
+              '        "",\n'
+              '    ]\n\n'
+              '    if normalized:\n',
+              '    ]\n'
+              '    lines.extend(render_openssf_evidence_section(normalized))\n'
+              '    lines.extend(["## Findings Summary", ""])\n\n'
+              '    if normalized:\n',
           )
 
           cli_path = Path("scanner/cli/appguardrail.py")
@@ -116,10 +115,10 @@ jobs:
               line[10:] if line.startswith("          ") else line
               for line in command_function.splitlines()
           ) + "\n"
-          marker = "\ndef cmd_report("
-          if cli.count(marker) != 1:
+          command_marker = "\ndef cmd_report("
+          if cli.count(command_marker) != 1:
               raise SystemExit("expected one cmd_report marker")
-          cli = cli.replace(marker, command_function + marker, 1)
+          cli = cli.replace(command_marker, command_function + command_marker, 1)
 
           parser_block = '''
               openssf_parser = subparsers.add_parser(
@@ -141,10 +140,16 @@ jobs:
               line[10:] if line.startswith("          ") else line
               for line in parser_block.splitlines()
           ) + "\n"
-          parser_marker = "    report_parser = subparsers.add_parser(\n"
+          parser_marker = "    # report\n    report_parser = subparsers.add_parser(\n"
           if cli.count(parser_marker) != 1:
               raise SystemExit("expected one report parser marker")
-          cli = cli.replace(parser_marker, parser_block + parser_marker, 1)
+          cli = cli.replace(
+              parser_marker,
+              "    # OpenSSF Best Practices evidence\n"
+              + parser_block
+              + "    # report\n    report_parser = subparsers.add_parser(\n",
+              1,
+          )
 
           dispatch_marker = '    elif args.command == "report":\n'
           if cli.count(dispatch_marker) != 1:
@@ -181,7 +186,8 @@ jobs:
             --test tests/test_openssf_evidence_transport.py \
             --test tests/test_openssf_evidence_cli.py \
             --test tests/test_openssf_evidence_report.py \
-            --test tests/test_openssf_evidence_release_contract.py
+            --test tests/test_openssf_evidence_release_contract.py \
+            --test tests/test_openssf_evidence_coverage_edges.py
           python -m compileall -q appguardrail_core scanner scripts tests
 
       - name: Commit verified integration
