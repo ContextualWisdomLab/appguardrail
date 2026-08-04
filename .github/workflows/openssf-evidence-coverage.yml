@@ -36,7 +36,8 @@ jobs:
             tests/test_openssf_evidence_transport.py \
             tests/test_openssf_evidence_cli.py \
             tests/test_openssf_evidence_report.py \
-            tests/test_openssf_evidence_release_contract.py
+            tests/test_openssf_evidence_release_contract.py \
+            tests/test_openssf_evidence_coverage_edges.py
 
       - name: Verify exact unrounded statement coverage
         run: |
@@ -47,4 +48,5 @@ jobs:
             --test tests/test_openssf_evidence_transport.py \
             --test tests/test_openssf_evidence_cli.py \
             --test tests/test_openssf_evidence_report.py \
-            --test tests/test_openssf_evidence_release_contract.py
+            --test tests/test_openssf_evidence_release_contract.py \
+            --test tests/test_openssf_evidence_coverage_edges.py
