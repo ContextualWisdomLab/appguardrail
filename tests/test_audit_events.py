@@ -123,6 +123,38 @@ def test_secret_and_customer_evidence_fields_are_redacted_before_hashing() -> No
         assert forbidden not in rendered
 
 
+def test_summary_normalizes_json_scalars_lists_and_tuples() -> None:
+    """Supported metadata has one JSON representation before it contributes to a hash."""
+    summary = sanitize_audit_summary(
+        {
+            "values": (None, True, 7, "safe"),
+            "nested": [{"role": "viewer"}],
+        }
+    )
+
+    assert summary == {
+        "nested": [{"role": "viewer"}],
+        "values": [None, True, 7, "safe"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("summary", "match"),
+    [
+        (["not-an-object"], "must be an object"),
+        ({"": "empty-key"}, "non-empty string keys"),
+        ({"unsupported": object()}, "unsupported audit value"),
+    ],
+)
+def test_summary_rejects_non_object_empty_key_and_unsupported_values(
+    summary: object,
+    match: str,
+) -> None:
+    """Noncanonical metadata cannot be silently coerced into audit evidence."""
+    with pytest.raises(ValueError, match=match):
+        sanitize_audit_summary(summary)
+
+
 @pytest.mark.parametrize(
     ("overrides", "match"),
     [
@@ -178,3 +210,5 @@ def test_empty_chain_is_valid_and_non_event_members_are_rejected() -> None:
 
     with pytest.raises(ValueError, match="AuditEvent"):
         verify_audit_chain((object(),), tenant_id=TENANT_ID)
+    with pytest.raises(ValueError, match="AuditEvent"):
+        recompute_event_hash(object())
