@@ -487,7 +487,16 @@ def _fetch_origin(
             source_origin=source_origin,
             reason="timeout",
         )
-    except (urllib.error.URLError, OSError):
+    except urllib.error.URLError as exc:
+        reason = "timeout" if isinstance(exc.reason, TimeoutError) else "network_error"
+        return _non_affirmative_evidence(
+            "unavailable",
+            repository_url=repository_url,
+            verified_at=verified_at,
+            source_origin=source_origin,
+            reason=reason,
+        )
+    except OSError:
         return _non_affirmative_evidence(
             "unavailable",
             repository_url=repository_url,
