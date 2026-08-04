@@ -99,6 +99,18 @@ def test_owner_update_requires_expected_revision_and_increments_once() -> None:
         )
 
 
+def test_owner_update_rejects_boolean_revision_alias() -> None:
+    """Python Boolean equality cannot bypass the optimistic revision boundary."""
+    with pytest.raises(ValueError, match="expected_revision"):
+        update_retention_policy(
+            _policy(),
+            expected_revision=True,
+            changes={"scan_history_days": 120},
+            updated_at="2026-08-04T12:20:00Z",
+            updated_by="owner-key-9",
+        )
+
+
 def test_update_rejects_unknown_fields_and_identity_mutation() -> None:
     """The pure update boundary cannot mutate tenant identity or accept typo fields."""
     policy = _policy()
@@ -224,6 +236,33 @@ def test_preview_fails_closed_after_policy_or_legal_hold_change(
         )
 
 
+@pytest.mark.parametrize(
+    ("policy_revision", "legal_hold_revision", "match"),
+    [(True, 3, "policy_revision"), (1, True, "legal_hold_revision")],
+)
+def test_preview_verification_rejects_boolean_revision_aliases(
+    policy_revision: object,
+    legal_hold_revision: object,
+    match: str,
+) -> None:
+    """Current-state checks reject Boolean values that compare equal to integers."""
+    preview = build_purge_preview(
+        _policy(),
+        preview_id="purge-preview-1",
+        legal_hold_revision=3,
+        created_at=AS_OF,
+        eligible_counts={category: 0 for category in RETENTION_CATEGORIES},
+        held_counts={category: 0 for category in RETENTION_CATEGORIES},
+    )
+
+    with pytest.raises(ValueError, match=match):
+        verify_purge_preview(
+            preview,
+            policy_revision=policy_revision,
+            legal_hold_revision=legal_hold_revision,
+        )
+
+
 def test_receipt_preserves_preview_counts_without_customer_evidence() -> None:
     """Completed purge evidence contains counts and identity, never deleted record bodies."""
     preview = build_purge_preview(
@@ -237,6 +276,8 @@ def test_receipt_preserves_preview_counts_without_customer_evidence() -> None:
 
     receipt = create_purge_receipt(
         preview,
+        policy_revision=1,
+        legal_hold_revision=3,
         receipt_id="purge-receipt-1",
         executed_at="2026-08-04T12:35:00Z",
         audit_event_id="audit-event-9",
@@ -248,6 +289,28 @@ def test_receipt_preserves_preview_counts_without_customer_evidence() -> None:
     assert receipt.audit_event_id == "audit-event-9"
     assert "findings" not in rendered
     assert "snippet" not in rendered
+
+
+def test_receipt_creation_rejects_stale_preview_state() -> None:
+    """Receipt creation cannot bypass the final current-state revision check."""
+    preview = build_purge_preview(
+        _policy(),
+        preview_id="purge-preview-1",
+        legal_hold_revision=3,
+        created_at=AS_OF,
+        eligible_counts={category: 0 for category in RETENTION_CATEGORIES},
+        held_counts={category: 0 for category in RETENTION_CATEGORIES},
+    )
+
+    with pytest.raises(StalePurgePreview, match="stale"):
+        create_purge_receipt(
+            preview,
+            policy_revision=2,
+            legal_hold_revision=3,
+            receipt_id="purge-receipt-1",
+            executed_at="2026-08-04T12:35:00Z",
+            audit_event_id="audit-event-9",
+        )
 
 
 def test_preview_rejects_missing_extra_negative_and_held_overflow_counts() -> None:
@@ -298,13 +361,26 @@ def test_preview_and_receipt_validate_identity_and_canonical_time() -> None:
     with pytest.raises(ValueError, match="executed_at"):
         create_purge_receipt(
             preview,
+            policy_revision=1,
+            legal_hold_revision=0,
             receipt_id="purge-receipt-1",
             executed_at="yesterday",
+            audit_event_id="audit-event-1",
+        )
+    with pytest.raises(ValueError, match="cannot precede"):
+        create_purge_receipt(
+            preview,
+            policy_revision=1,
+            legal_hold_revision=0,
+            receipt_id="purge-receipt-1",
+            executed_at="2026-08-04T12:29:59Z",
             audit_event_id="audit-event-1",
         )
     with pytest.raises(ValueError, match="receipt_id"):
         create_purge_receipt(
             preview,
+            policy_revision=1,
+            legal_hold_revision=0,
             receipt_id="",
             executed_at=AS_OF,
             audit_event_id="audit-event-1",
@@ -312,6 +388,8 @@ def test_preview_and_receipt_validate_identity_and_canonical_time() -> None:
     with pytest.raises(ValueError, match="audit_event_id"):
         create_purge_receipt(
             preview,
+            policy_revision=1,
+            legal_hold_revision=0,
             receipt_id="purge-receipt-1",
             executed_at=AS_OF,
             audit_event_id="",
