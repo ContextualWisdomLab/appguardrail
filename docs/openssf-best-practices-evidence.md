@@ -12,6 +12,8 @@ https://www.bestpractices.dev/projects.json?url=<URL-encoded repository URL>
 
 The API returns an array of matching projects. AppGuardrail accepts one valid match, treats an empty array as unavailable public evidence, and treats multiple matches as ambiguous. The query uses the documented `.json` URL form; it does not use the HTTP `Accept` header to select a format.
 
+A returned project is accepted only when its `repo_url` or `homepage_url` matches the exact normalized URL that was queried. A response containing an unrelated project ID or badge level is classified as `malformed` instead of becoming affirmative evidence.
+
 The current service origin is:
 
 ```text
@@ -36,7 +38,7 @@ AppGuardrail queries the historical origin only after the current origin returns
 | `gold` | The official project record reports the gold badge. |
 | `unavailable` | No matching public evidence was observed, or the public service could not be reached. This does not prove non-registration. |
 | `permission_limited` | The service returned an access-limited response, so no badge claim was made. |
-| `malformed` | The response was invalid, ambiguous, oversized, redirected, or used an unsupported badge level. |
+| `malformed` | The response was invalid, ambiguous, oversized, redirected, used an unsupported badge level, or did not carry the queried URL identity. |
 
 The badge level is read from the official `badge_level` field. AppGuardrail does not infer a badge from `tiered_percentage`. The percentage is retained only as supporting evidence when it is a valid integer from 0 through 300.
 
@@ -52,7 +54,7 @@ appguardrail-openssf-evidence \
 
 The output uses the standard `appguardrail.findings.v1` envelope and contains one governance finding. Positive badge evidence is informational. Unavailable, permission-limited, and malformed evidence is a warning for diligence review; it is not a deploy blocker.
 
-Live requests are pinned to the two documented service origins, reject redirects, limit response size, and use a bounded timeout. The collector never copies HTTP error bodies into findings or logs.
+Live requests are pinned to the two documented service origins, reject redirects, require a JSON media type, limit response size to 1,000,000 bytes, and use a bounded timeout. The collector closes HTTP error streams and never copies response bodies into findings or logs.
 
 ## Offline and reproducible ingestion
 
@@ -74,12 +76,16 @@ For a response saved from the historical service, add:
 
 `--verified-at` makes evidence reconstruction deterministic. It must use UTC second precision (`YYYY-MM-DDTHH:MM:SSZ`). Without it, AppGuardrail records the current UTC timestamp at second precision.
 
+Offline input follows the same 1,000,000-byte bound and strict UTF-8/JSON decoding contract as live collection. Invalid, recursively pathological, or oversized local evidence returns a concise non-zero command result rather than exhausting memory or publishing an unverifiable badge claim.
+
 The same implementation is available as a Python module for minimal environments:
 
 ```bash
 python -m appguardrail_core.openssf_evidence \
   --repository-url https://github.com/ContextualWisdomLab/appguardrail
 ```
+
+The package's supported interpreter floor is Python 3.10 and the repository tests that floor directly.
 
 ## Buyer-diligence reports
 
@@ -99,13 +105,19 @@ The report includes an **OpenSSF Best Practices Evidence** table containing:
 - verification timestamp; and
 - canonical public project evidence URL, if one was established.
 
+The report revalidates status, tier, project ID, and canonical project URL before displaying affirmative evidence. Inconsistent externally supplied metadata is rendered as malformed and never as a badge claim.
+
 If the report receives no OpenSSF evidence record, it says that no record was supplied. It does not claim that the project is unregistered.
 
-## Official source and attribution
+## Official source, attribution, and license policy
 
 This integration follows the **OpenSSF Best Practices Badge API** documentation:
 
 - <https://github.com/ossf/best-practices-badge/blob/main/docs/api.md>
 - <https://www.bestpractices.dev>
 
-The OpenSSF documentation asks API users to provide attribution. Reports and findings therefore retain the official source URL and identify the source as the **OpenSSF Best Practices badge contributors**. Publicly available non-code content is attributed as **CC-BY-3.0+**. Operators should respect the documented rate guidance; requests other than badge images should remain at or below approximately one request per second.
+The OpenSSF service asks API users to provide attribution. Reports and findings identify the source as the **OpenSSF Best Practices badge contributors**.
+
+The current website policy states that publicly available non-code content added or edited after **2024-08-23** is released under **CDLA-Permissive-2.0**. Earlier contributions were licensed under **CC-BY-3.0** or **CC-BY-3.0+**. AppGuardrail records this date-dependent policy rather than claiming that all returned data uses one historical license.
+
+Operators should respect the documented rate guidance; requests other than badge images should remain at or below approximately one request per second.
