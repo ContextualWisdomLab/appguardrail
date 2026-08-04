@@ -145,6 +145,33 @@ def test_module_cli_rejects_oversized_offline_evidence(
     assert "exceeds" in capsys.readouterr().err.lower()
 
 
+@pytest.mark.parametrize(
+    ("arguments", "detail"),
+    [
+        (
+            ["--repository-url", "file:///tmp/repo", "--verified-at", VERIFIED_AT],
+            "repository URL",
+        ),
+        (
+            ["--repository-url", REPOSITORY_URL, "--verified-at", "2026-08-04"],
+            "verified_at",
+        ),
+    ],
+)
+def test_module_cli_reports_invalid_identity_without_a_traceback(
+    capsys: pytest.CaptureFixture[str],
+    arguments: list[str],
+    detail: str,
+) -> None:
+    """Invalid operator input returns one concise non-zero command result."""
+    assert evidence.main(arguments) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Invalid OpenSSF evidence input:" in captured.err
+    assert detail in captured.err
+
+
 def test_module_cli_reports_source_and_output_io_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
