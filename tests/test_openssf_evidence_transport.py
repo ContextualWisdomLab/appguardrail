@@ -58,6 +58,16 @@ class SequenceOpener:
         return outcome
 
 
+def _project(level: str, project_id: int = 865) -> dict[str, object]:
+    """Return one exact-repository OpenSSF project response object."""
+    return {
+        "id": project_id,
+        "badge_level": level,
+        "tiered_percentage": 300 if level == "gold" else 100,
+        "repo_url": REPOSITORY_URL,
+    }
+
+
 def _json_response(payload: object) -> Response:
     """Encode one JSON payload as an HTTP response."""
     return Response(json.dumps(payload).encode("utf-8"))
@@ -77,9 +87,7 @@ def _http_error(status: int) -> urllib.error.HTTPError:
 
 def test_current_origin_success_does_not_query_legacy() -> None:
     """A current-origin match is authoritative and avoids an unnecessary fallback."""
-    opener = SequenceOpener(
-        _json_response([{"id": 865, "badge_level": "gold", "tiered_percentage": 300}])
-    )
+    opener = SequenceOpener(_json_response([_project("gold")]))
 
     result = evidence.collect_openssf_evidence(
         REPOSITORY_URL,
@@ -100,7 +108,7 @@ def test_valid_empty_current_result_falls_back_to_legacy() -> None:
     """Legacy evidence is queried only after a valid empty current-origin search."""
     opener = SequenceOpener(
         _json_response([]),
-        _json_response([{"id": 42, "badge_level": "passing", "tiered_percentage": 100}]),
+        _json_response([_project("passing", project_id=42)]),
     )
 
     result = evidence.collect_openssf_evidence(
@@ -176,6 +184,7 @@ def test_redirect_response_is_rejected_without_origin_following() -> None:
         (Response(b"not-json"), "invalid_json"),
         (_json_response({"projects": []}), "payload_not_array"),
         (Response(b"[]", "text/html"), "unexpected_content_type"),
+        (Response(b"[]", "application/notjson"), "unexpected_content_type"),
         (Response(b"x" * (1_000_001)), "response_too_large"),
     ],
 )
@@ -192,6 +201,42 @@ def test_invalid_or_oversized_responses_are_malformed(
 
     assert result.status == "malformed"
     assert result.reason == reason
+
+
+def test_structured_json_media_type_is_accepted() -> None:
+    """Standards-compatible structured JSON media types remain interoperable."""
+    result = evidence.collect_openssf_evidence(
+        REPOSITORY_URL,
+        verified_at=VERIFIED_AT,
+        opener=SequenceOpener(
+            Response(
+                json.dumps([_project("silver")]).encode("utf-8"),
+                "application/vnd.openssf.project+json; charset=utf-8",
+            )
+        ),
+    )
+
+    assert result.status == "silver"
+
+
+def test_recursive_json_decoder_failure_is_classified_as_malformed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pathological nesting cannot escape the bounded evidence-state contract."""
+
+    def fail_decode(_body: str) -> object:
+        """Raise the recursion failure produced by an excessively nested payload."""
+        raise RecursionError("nested")
+
+    monkeypatch.setattr(evidence.json, "loads", fail_decode)
+    result = evidence.collect_openssf_evidence(
+        REPOSITORY_URL,
+        verified_at=VERIFIED_AT,
+        opener=SequenceOpener(Response(b"[]")),
+    )
+
+    assert result.status == "malformed"
+    assert result.reason == "invalid_json"
 
 
 @pytest.mark.parametrize(
@@ -220,9 +265,7 @@ def test_network_failures_are_unavailable_without_exception_details(
 
 def test_default_timestamp_and_opener_are_constructed(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public collector supplies deterministic helpers when callers omit them."""
-    opener = SequenceOpener(
-        _json_response([{"id": 9, "badge_level": "silver", "tiered_percentage": 200}])
-    )
+    opener = SequenceOpener(_json_response([_project("silver", project_id=9)]))
     monkeypatch.setattr(evidence, "_utc_timestamp", lambda: VERIFIED_AT)
     monkeypatch.setattr(evidence.urllib.request, "build_opener", lambda *_handlers: opener)
 
