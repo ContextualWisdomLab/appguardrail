@@ -61,12 +61,14 @@ def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
     ).read_text(encoding="utf-8")
 
     assert "appguardrail_core/openssf_evidence.py" in workflow
+    assert "appguardrail_core/openssf_report.py" in workflow
     for path in (
         "tests/test_openssf_evidence.py",
         "tests/test_openssf_evidence_transport.py",
         "tests/test_openssf_evidence_cli.py",
         "tests/test_openssf_evidence_report.py",
         "tests/test_openssf_evidence_release_contract.py",
+        "tests/test_openssf_evidence_coverage_edges.py",
     ):
         assert path in workflow
     assert "python -m scripts.ci.verify_module_coverage" in workflow
