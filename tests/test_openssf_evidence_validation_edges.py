@@ -32,7 +32,14 @@ class Response:
     def read(self, _size: int = -1) -> bytes:
         """Return one passing project response."""
         return json.dumps(
-            [{"id": 865, "badge_level": "passing", "tiered_percentage": 100}]
+            [
+                {
+                    "id": 865,
+                    "badge_level": "passing",
+                    "tiered_percentage": 100,
+                    "repo_url": REPOSITORY_URL,
+                }
+            ]
         ).encode("utf-8")
 
 
