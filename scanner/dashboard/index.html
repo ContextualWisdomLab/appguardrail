@@ -76,6 +76,8 @@
   .kv{color:var(--muted);font-size:12px}
   .empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:40px;text-align:center;color:var(--muted)}
   .empty code{background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--text)}
+  .primary-action{min-height:44px;padding:10px 16px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer;font:inherit;font-weight:700}
+  .primary-action:hover{filter:brightness(.94)}
   .drop{margin-top:14px}
   body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -90,7 +92,7 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" onclick="this.value=null" style="margin-left:12px">
+  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app"></main>
@@ -139,9 +141,12 @@ function render(){
       <h1>No findings loaded</h1>
       <p>Generate a report-safe findings file, then load it above (or place it next to this page).</p>
       <p><code>appguardrail scan --findings-json reports/findings.json .</code></p>
-      <p class="drop">Serve the repo (<code>python3 -m http.server</code>) and open <code>/dashboard/</code>, or drag a <code>findings.json</code> onto this window.</p>
-      <p><button type="button" onclick="document.getElementById('file').click()">Browse for findings.json</button></p>
+      <p id="findings-upload-help" class="drop">Serve the repo (<code>python3 -m http.server</code>) and open <code>/dashboard/</code>, or drag a <code>findings.json</code> onto this window.</p>
+      <p><button type="button" id="browse-findings" class="primary-action" aria-describedby="findings-upload-help">Browse findings.json</button></p>
     </div>`;
+    const browseFindings = document.getElementById('browse-findings');
+    const fileInput = document.getElementById('file');
+    browseFindings.addEventListener('click', () => fileInput.click());
     return;
   }
   const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
@@ -286,9 +291,12 @@ function load(data, srcLabel){
   render();
 }
 
-document.getElementById('file').addEventListener('change', e=>{
-  const f = e.target.files[0]; if(!f) return;
-  f.text().then(t=>{ try{ load(JSON.parse(t), f.name); }catch(err){ alert('Invalid JSON: '+err.message); } });
+const fileInput = document.getElementById('file');
+fileInput.addEventListener('change', () => {
+  const selectedFile = fileInput.files?.[0];
+  fileInput.value = '';
+  if(!selectedFile) return;
+  selectedFile.text().then(t=>{ try{ load(JSON.parse(t), selectedFile.name); }catch(err){ alert('Invalid JSON: '+err.message); } });
 });
 // drag & drop
 let dragDepth = 0;
