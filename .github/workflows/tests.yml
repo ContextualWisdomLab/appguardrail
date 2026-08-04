@@ -37,6 +37,7 @@ jobs:
             --module appguardrail_core/code_scanning.py \
             --module scripts/ci/collect_code_scanning_drift.py \
             --test tests/test_code_scanning_core.py \
+            --test tests/test_code_scanning_coverage_edges.py \
             --test tests/test_code_scanning_drift_collector.py \
             --test tests/test_code_scanning_drift_issueops.py \
             --test tests/test_code_scanning_drift_release_contract.py \
