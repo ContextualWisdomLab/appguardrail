@@ -60,6 +60,7 @@ def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
         ROOT / ".github" / "workflows" / "openssf-evidence-coverage.yml"
     ).read_text(encoding="utf-8")
 
+    assert "appguardrail_core/__init__.py" in workflow
     assert "appguardrail_core/openssf_evidence.py" in workflow
     assert "appguardrail_core/openssf_report.py" in workflow
     for path in (
