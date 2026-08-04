@@ -38,7 +38,7 @@ AppGuardrail is a **persistent security layer for AI-assisted builders** — not
 
 ### Run the CLI
 
-Requires Python 3.9 or newer.
+Requires Python 3.10 or newer.
 
 Install from PyPI:
 
