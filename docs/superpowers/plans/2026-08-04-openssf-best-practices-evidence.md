@@ -6,15 +6,18 @@
 
 **Architecture:** Add dependency-free core modules that parse exact repository-URL search responses from the official current and historical OpenSSF Best Practices origins into an immutable evidence record. Keep transport classification separate from payload parsing, convert every state into one normalized governance finding, publish a dedicated installed CLI entry point, and compose the same metadata into the existing buyer-diligence report at the reusable package boundary. Unknown, inaccessible, or malformed evidence remains explicit and never becomes a claim of non-registration.
 
-**Tech Stack:** Python 3.9+, standard-library `urllib`, `json`, `dataclasses`, existing AppGuardrail findings/report contracts, pytest, existing exact statement-coverage tracer.
+**Tech Stack:** Python 3.10+, standard-library `urllib`, `json`, `dataclasses`, existing AppGuardrail findings/report contracts, pytest, existing exact statement-coverage tracer.
 
 ## Global Constraints
 
 - Use only `https://www.bestpractices.dev` and `https://bestpractices.coreinfrastructure.org` as evidence-service origins.
 - Query the official exact-URL search endpoint `/projects.json?url=<repository-url>`; do not scrape HTML.
+- Require the returned `repo_url` or `homepage_url` to match the normalized queried URL before publishing affirmative evidence.
 - Recognize only `in_progress`, `passing`, `silver`, and `gold` badge levels.
 - Treat empty results as `unavailable`, not proof that a project is unregistered.
 - Treat permission responses, malformed payloads, ambiguous matches, and network/service failures as explicit non-affirmative states.
+- Bound live and offline response bodies to 1,000,000 bytes and reject redirects, invalid UTF-8, recursively malformed JSON, and non-JSON media types.
+- Preserve the OpenSSF contributor attribution and the current date-dependent content policy: CDLA-Permissive-2.0 after 2024-08-23, earlier contributions under CC-BY-3.0 or CC-BY-3.0+.
 - Keep the collector independently importable and executable without importing the monolithic scanner CLI or adding third-party dependencies.
 - Preserve 100% statement coverage and complete docstrings for all new production code.
 - Update user documentation and a changelog fragment; do not bump the package version until the complete release candidate is validated.
@@ -34,7 +37,7 @@
 
 - [ ] **Step 1: Write failing parser and finding tests**
 
-Cover exact parsing for `in_progress`, `passing`, `silver`, and `gold`; empty arrays; non-list payloads; multiple matches; invalid identifiers; unknown tiers; Boolean-as-integer rejection; deterministic timestamps; conservative messages; and normalized custom evidence fields.
+Cover exact parsing for `in_progress`, `passing`, `silver`, and `gold`; exact returned URL identity; empty arrays; non-list payloads; multiple matches; invalid identifiers; unknown tiers; Boolean-as-integer rejection; deterministic canonical timestamps; conservative messages; license attribution; and normalized custom evidence fields.
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
@@ -43,11 +46,11 @@ Expected: collection error because `appguardrail_core.openssf_evidence` does not
 
 - [ ] **Step 3: Implement the immutable model and pure parser**
 
-Use a frozen dataclass. Validate repository URL, source origin, project identifier, tier, and optional tiered percentage. Generate canonical evidence URLs as `https://www.bestpractices.dev/projects/<id>` and never infer a tier from percentages.
+Use a frozen dataclass. Validate repository URL, source origin, project identifier, tier, optional tiered percentage, canonical UTC timestamp, and response identity. Generate canonical evidence URLs as `https://www.bestpractices.dev/projects/<id>` and never infer a tier from percentages.
 
 - [ ] **Step 4: Convert evidence to normalized governance findings**
 
-Emit rule `openssf-best-practices-evidence`, category `supply-chain`, context `governance`, conservative INFO/WARNING severities, official references, and custom fields for status, tier, URL, verification timestamp, project ID, percentage, repository URL, source origin, and reason.
+Emit rule `openssf-best-practices-evidence`, category `supply-chain`, context `governance`, conservative INFO/WARNING severities, official references, source attribution, date-dependent content-license policy, and custom fields for status, tier, URL, verification timestamp, project ID, percentage, repository URL, source origin, and reason.
 
 - [ ] **Step 5: Run focused tests and verify GREEN**
 
@@ -66,7 +69,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing transport-classification tests**
 
-Cover current-origin success, current empty-result fallback to the historical origin, no historical call after a current match, redirects, HTTP 401/403, HTTP 404, HTTP 429/5xx, invalid JSON, non-list JSON, timeout/network failure, response-size bounds, and deterministic verification timestamps.
+Cover current-origin success, current empty-result fallback to the historical origin, no historical call after a current match, redirects, HTTP 401/403, HTTP 404, HTTP 429/5xx, invalid or recursively malformed JSON, non-list JSON, strict and structured JSON media types, timeout/network failure, response-size bounds, and deterministic verification timestamps.
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
@@ -75,7 +78,7 @@ Expected: FAIL because the collector is absent.
 
 - [ ] **Step 3: Implement fixed-origin collection**
 
-Use a no-redirect opener, percent-encode the repository URL, require JSON payloads, bound timeout and body size, classify transport failures without response-body leakage, and query the historical origin only when the current origin returns a valid empty result.
+Use a no-redirect opener, percent-encode the repository URL, require JSON media types, bound timeout and body size, close HTTP error streams, classify transport failures without response-body leakage, and query the historical origin only when the current origin returns a valid empty result.
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
@@ -86,6 +89,9 @@ Expected: PASS.
 
 **Files:**
 - Modify: `pyproject.toml`
+- Modify: `uv.lock`
+- Modify: `README.md`
+- Modify: `.github/workflows/tests.yml`
 - Test: `tests/test_openssf_evidence_cli.py`
 
 **Interfaces:**
@@ -94,7 +100,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing CLI tests**
 
-Cover the installed entry point, offline source JSON, stdout output, file output, deterministic timestamp, invalid source JSON, missing required repository URL, and preservation of the `appguardrail.findings.v1` envelope.
+Cover the installed entry point, bounded offline source JSON, stdout output, file output, deterministic timestamp, invalid UTF-8/JSON, oversized input, missing required repository URL, and preservation of the `appguardrail.findings.v1` envelope.
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
@@ -103,7 +109,7 @@ Expected: FAIL because the command is absent.
 
 - [ ] **Step 3: Implement the command**
 
-Offline mode must parse the saved response through the same pure parser as live mode. Output exactly one normalized finding in the standard findings envelope. Evidence-state outcomes return success; malformed local input and file I/O errors return a clear non-zero result.
+Offline mode must parse the saved response through the same pure parser as live mode. Output exactly one normalized finding in the standard findings envelope. Evidence-state outcomes return success; malformed local input and file I/O errors return a clear non-zero result. Align package metadata, lock metadata, README, and the main CI matrix on the tested Python 3.10 minimum.
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
@@ -123,7 +129,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing report tests**
 
-Cover passing/silver/gold/in-progress rows, unavailable/malformed/permission-limited wording, evidence links, deterministic timestamps, Markdown-safe values, multiple repositories, dispatcher integration, and the explicit statement that no evidence record was supplied when absent.
+Cover passing/silver/gold/in-progress rows, unavailable/malformed/permission-limited wording, canonical evidence links, project ID/link consistency, stale non-affirmative metadata, deterministic timestamps, Markdown-safe values, multiple repositories, dispatcher integration, source attribution/license policy, and the explicit statement that no evidence record was supplied when absent.
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
@@ -132,7 +138,7 @@ Expected: FAIL because the report section is absent.
 
 - [ ] **Step 3: Compose the evidence section at the package boundary**
 
-Keep the established report module independently usable. Install one documented package-level wrapper that materializes the input once, invokes the existing buyer renderer, and inserts the evidence section before the findings summary. Rebind the report module's public renderer so the existing dispatcher and scanner CLI use the same composition.
+Keep the established report module independently usable. Install one documented package-level wrapper that materializes the input once, invokes the existing buyer renderer, and inserts the evidence section before the findings summary. Rebind the report module's public renderer so the existing dispatcher and scanner CLI use the same composition. Fail closed when externally supplied status, tier, project ID, or evidence URL metadata is inconsistent.
 
 - [ ] **Step 4: Run focused tests and verify GREEN**
 
@@ -147,26 +153,27 @@ Expected: PASS.
 - Create: `.github/workflows/openssf-evidence-coverage.yml`
 - Test: `tests/test_openssf_evidence_release_contract.py`
 - Test: `tests/test_openssf_evidence_coverage_edges.py`
+- Test: `tests/test_openssf_evidence_validation_edges.py`
 
 **Interfaces:**
 - Produces: exact statement-coverage enforcement, operator documentation, release notes, and a deterministic next-gap order.
 
 - [ ] **Step 1: Write failing release and edge-contract tests**
 
-Require documentation, changelog fragment, official endpoint/status language, public exports, the installed script, report composition boundaries, redirect/entrypoint edge coverage, and `enterprise-retention-audit-policy` immediately after the OpenSSF gap in the bounded registry.
+Require documentation, changelog fragment, official endpoint/status/license language, public exports, the installed script, package compatibility metadata, report composition boundaries, redirect/entrypoint/reload edge coverage, canonical evidence invariants, and `enterprise-retention-audit-policy` immediately after the OpenSSF gap in the bounded registry.
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `python -m pytest tests/test_openssf_evidence_release_contract.py tests/test_openssf_evidence_coverage_edges.py -q`
+Run: `python -m pytest tests/test_openssf_evidence_release_contract.py tests/test_openssf_evidence_coverage_edges.py tests/test_openssf_evidence_validation_edges.py -q`
 Expected: FAIL until docs, packaging, workflow, and production edges exist.
 
 - [ ] **Step 3: Add exact coverage enforcement**
 
-Use `scripts.ci.verify_module_coverage` against `appguardrail_core/openssf_evidence.py`, `appguardrail_core/openssf_report.py`, and every OpenSSF-focused test in a least-privilege Python 3.13 workflow.
+Use `scripts.ci.verify_module_coverage` against `appguardrail_core/__init__.py`, `appguardrail_core/openssf_evidence.py`, `appguardrail_core/openssf_report.py`, and every OpenSSF-focused test in a least-privilege Python 3.13 workflow.
 
 - [ ] **Step 4: Document operation and evidence semantics**
 
-Document current/historical origins, exact-URL lookup, state meanings, offline mode, attribution, rate-limit-friendly usage, report integration, and the distinction between unavailable evidence and proven non-registration.
+Document current/historical origins, exact-URL lookup and response identity, state meanings, bounded offline mode, attribution and date-dependent license policy, rate-limit-friendly usage, report integration, and the distinction between unavailable evidence and proven non-registration.
 
 - [ ] **Step 5: Preserve deterministic handoff**
 
@@ -176,8 +183,8 @@ Keep the OpenSSF gap followed immediately by the enterprise retention/audit-poli
 
 Run:
 - `python -m pytest -q`
-- `python -m scripts.ci.verify_module_coverage --module appguardrail_core/openssf_evidence.py --module appguardrail_core/openssf_report.py --test tests/test_openssf_evidence.py --test tests/test_openssf_evidence_transport.py --test tests/test_openssf_evidence_cli.py --test tests/test_openssf_evidence_report.py --test tests/test_openssf_evidence_release_contract.py --test tests/test_openssf_evidence_coverage_edges.py`
+- `python -m scripts.ci.verify_module_coverage --module appguardrail_core/__init__.py --module appguardrail_core/openssf_evidence.py --module appguardrail_core/openssf_report.py --test tests/test_openssf_evidence.py --test tests/test_openssf_evidence_transport.py --test tests/test_openssf_evidence_cli.py --test tests/test_openssf_evidence_report.py --test tests/test_openssf_evidence_release_contract.py --test tests/test_openssf_evidence_coverage_edges.py --test tests/test_openssf_evidence_validation_edges.py`
 - `python -m compileall -q appguardrail_core scanner scripts tests`
 - `git diff --check`
 
-Expected: all commands pass, with exact unrounded 100% statement coverage for both new production modules.
+Expected: all commands pass, with exact unrounded 100% statement coverage for the public package composition boundary and both new production modules.
