@@ -511,8 +511,8 @@ def _ensure_label(client: Any, target_repo: str, label: str) -> None:
                 "description": "Live GitHub Code Scanning analysis drift evidence.",
             },
         )
-    except RuntimeError as exc:
-        if "422" not in str(exc):
+    except GitHubAPIError as exc:
+        if exc.status != 422:
             raise
 
 
@@ -588,6 +588,19 @@ def publish_records(
     return published
 
 
+def _positive_int(value: str) -> int:
+    """Parse one strictly positive integer for bounded collector options."""
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "value must be a positive integer"
+        ) from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be a positive integer")
+    return parsed
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse bounded organization, target, and allowlist inputs for the collector."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -605,12 +618,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--max-pull-requests",
-        type=int,
-        default=int(
-            os.getenv(
-                "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
-                str(DEFAULT_MAX_PULL_REQUESTS),
-            )
+        type=_positive_int,
+        default=os.getenv(
+            "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
+            str(DEFAULT_MAX_PULL_REQUESTS),
         ),
     )
     return parser.parse_args(argv)

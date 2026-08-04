@@ -324,14 +324,26 @@ def test_issue_index_filters_noise_and_pull_requests() -> None:
 
 def test_label_creation_tolerates_duplicate_only() -> None:
     """GitHub's existing-label response is harmless while other failures propagate."""
-    duplicate = IssueClient()
-    duplicate.raise_message = "422 already_exists"
-    drift._ensure_label(duplicate, "ContextualWisdomLab/appguardrail", "x")
 
-    failure = IssueClient()
-    failure.raise_message = "500 unavailable"
-    with pytest.raises(RuntimeError, match="500"):
-        drift._ensure_label(failure, "ContextualWisdomLab/appguardrail", "x")
+    class LabelClient:
+        """Raise one typed GitHub response for label creation."""
+
+        def __init__(self, status: int) -> None:
+            """Store the response status."""
+            self.status = status
+
+        def request(self, *_args, **_kwargs):
+            """Raise the configured typed response."""
+            raise drift.GitHubAPIError(self.status)
+
+    drift._ensure_label(
+        LabelClient(422), "ContextualWisdomLab/appguardrail", "x"
+    )
+    with pytest.raises(drift.GitHubAPIError) as exc_info:
+        drift._ensure_label(
+            LabelClient(500), "ContextualWisdomLab/appguardrail", "x"
+        )
+    assert exc_info.value.status == 500
 
 
 def test_publish_reopens_changed_closed_issue_and_bounds_updates(monkeypatch) -> None:
