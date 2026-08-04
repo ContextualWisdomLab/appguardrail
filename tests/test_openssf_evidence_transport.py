@@ -243,6 +243,7 @@ def test_recursive_json_decoder_failure_is_classified_as_malformed(
     ("failure", "reason"),
     [
         (urllib.error.URLError("dns"), "network_error"),
+        (urllib.error.URLError(TimeoutError("slow")), "timeout"),
         (TimeoutError("slow"), "timeout"),
         (OSError("socket"), "network_error"),
     ],
