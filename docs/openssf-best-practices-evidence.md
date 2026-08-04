@@ -24,7 +24,7 @@ The historical service origin is also recognized for migration-compatible eviden
 https://bestpractices.coreinfrastructure.org
 ```
 
-AppGuardrail queries the legacy origin only after the current origin returns a valid empty array. Permission failures, malformed responses, redirects, rate limiting, and service failures do not trigger a legacy lookup because those states do not establish that the current service has no matching record.
+AppGuardrail queries the historical origin only after the current origin returns a valid empty array. Permission failures, malformed responses, redirects, rate limiting, and service failures do not trigger a historical lookup because those states do not establish that the current service has no matching record.
 
 ## Evidence states
 
@@ -72,7 +72,7 @@ For a response saved from the historical service, add:
 --source-origin https://bestpractices.coreinfrastructure.org
 ```
 
-`--verified-at` makes evidence reconstruction deterministic. Without it, AppGuardrail records the current UTC timestamp at second precision.
+`--verified-at` makes evidence reconstruction deterministic. It must use UTC second precision (`YYYY-MM-DDTHH:MM:SSZ`). Without it, AppGuardrail records the current UTC timestamp at second precision.
 
 The same implementation is available as a Python module for minimal environments:
 
@@ -108,4 +108,4 @@ This integration follows the **OpenSSF Best Practices Badge API** documentation:
 - <https://github.com/ossf/best-practices-badge/blob/main/docs/api.md>
 - <https://www.bestpractices.dev>
 
-The OpenSSF documentation asks API users to provide attribution. Reports and findings therefore retain the official source URL and identify the source as the OpenSSF Best Practices Badge contributors. Operators should respect the documented rate guidance; requests other than badge images should remain at or below approximately one request per second.
+The OpenSSF documentation asks API users to provide attribution. Reports and findings therefore retain the official source URL and identify the source as the **OpenSSF Best Practices badge contributors**. Publicly available non-code content is attributed as **CC-BY-3.0+**. Operators should respect the documented rate guidance; requests other than badge images should remain at or below approximately one request per second.
