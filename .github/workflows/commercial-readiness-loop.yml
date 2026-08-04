@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   group: commercial-readiness-loop
@@ -20,11 +20,11 @@ jobs:
   dispatch-reviewed-gap:
     # Scheduled workflows are loaded from the default branch. A maintainer may
     # also run the workflow manually, but only while the selected ref is that
-    # same reviewed default branch; feature-branch code never receives issue
-    # write permission through workflow_dispatch.
+    # same reviewed default branch; feature-branch code never receives the
+    # NVIDIA credential or repository write permission.
     if: github.event_name == 'schedule' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 55
     env:
       GH_TOKEN: ${{ github.token }}
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -33,17 +33,80 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 1
           persist-credentials: false
 
-      - name: Run bounded commercial-readiness loop
+      - name: Select one bounded commercial-readiness issue
+        id: decision
         run: |
           set -euo pipefail
-          python3 -m scripts.ci.commercial_readiness_loop \
-            --repository "$GITHUB_REPOSITORY"
+          decision="$(
+            python3 -m scripts.ci.commercial_readiness_loop \
+              --repository "$GITHUB_REPOSITORY"
+          )"
+          printf '%s\n' "$decision"
 
-      - name: Reconcile interrupted issue handoff
-        if: always()
+          action="$(
+            jq -er '.action | select(type == "string" and test("^(dispatch-gap|wait-gap|wait-prs|complete)$"))' \
+              <<<"$decision"
+          )"
+          gap_id="$(jq -r '.gap_id // empty' <<<"$decision")"
+          issue_number=""
+          if [ "$action" = "dispatch-gap" ] || [ "$action" = "wait-gap" ]; then
+            if ! issue_number="$(
+              jq -er '.issue_number | select(type == "number" and . > 0) | tostring' \
+                <<<"$decision"
+            )"; then
+              echo "::error::issue_number must be a positive integer for an active gap."
+              exit 1
+            fi
+          fi
+
+          {
+            echo "action=$action"
+            echo "gap_id=$gap_id"
+            echo "issue_number=$issue_number"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Require the dedicated NVIDIA NIM credential
+        if: >-
+          (steps.decision.outputs.action == 'dispatch-gap' ||
+          steps.decision.outputs.action == 'wait-gap') &&
+          steps.decision.outputs.issue_number != '' &&
+          steps.decision.outputs.issue_number != 'null'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
         run: |
           set -euo pipefail
-          python3 -m scripts.ci.commercial_readiness_reconcile \
-            --repository "$GITHUB_REPOSITORY"
+          test -n "${NVIDIA_API_KEY:-}" || {
+            echo "::error::NVIDIA_NIM_API_KEY is required for the commercial OpenCode Agent."
+            exit 1
+          }
+
+      - name: Run the bounded OpenCode commercial builder
+        if: >-
+          (steps.decision.outputs.action == 'dispatch-gap' ||
+          steps.decision.outputs.action == 'wait-gap') &&
+          steps.decision.outputs.issue_number != '' &&
+          steps.decision.outputs.issue_number != 'null'
+        uses: anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a # github-v1.2.19
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: nvidia-nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+          agent: commercial-builder
+          share: "false"
+          use_github_token: "true"
+          prompt: |
+            Read the exact active issue #${{ steps.decision.outputs.issue_number }} in ${{ github.repository }} before changing code.
+            Implement only that issue's reviewed acceptance criteria on a new branch from the current default branch.
+            Write the failing tests first and preserve visible RED-to-GREEN commit ordering.
+            Keep changed production code at exact 100% statement coverage with complete docstrings and realistic security, isolation, failure-recovery, and domain-correctness tests.
+            Research material decisions through current authoritative primary standards or peer-reviewed sources and record material sources in operator documentation using APA 7th references.
+            Use `NVIDIA_NIM_API_KEY` only through the provided `NVIDIA_API_KEY` environment mapping. Do not add another model credential and do not change any review-agent credential, required review, or branch-protection path.
+            Preserve standalone operation and modular MSA compatibility with ContextualWisdomLab organization infrastructure, contextual-orchestrator where it creates a clear benefit, and naruon.
+            Update user/operator documentation and a `CHANGELOG.d` fragment. Promote to CHANGELOG.md or bump a version only when a complete release candidate is proven.
+            Run focused and full verification, inspect the final diff, and address all valid findings.
+            Open exactly one pull request targeting `develop` with `Closes #${{ steps.decision.outputs.issue_number }}` in the body.
+            Do not merge the pull request. Do not tag, publish, or release. Stop after the reviewable pull request is opened.
