@@ -60,18 +60,17 @@ def test_changelog_fragment_describes_buyer_visible_evidence() -> None:
     assert "CDLA-Permissive-2.0" in changelog
 
 
-def test_evidence_module_avoids_python_311_only_utc_alias() -> None:
-    """The new module remains importable on the package's Python 3.10 surface."""
+def test_evidence_module_uses_explicit_utc_timezone() -> None:
+    """Evidence timestamps use a timezone-aware UTC clock before serialization."""
     source = (ROOT / "appguardrail_core" / "openssf_evidence.py").read_text(
         encoding="utf-8"
     )
 
-    assert "from datetime import UTC" not in source
-    assert "timezone.utc" in source
+    assert "datetime.now(timezone.utc)" in source
 
 
 def test_package_metadata_matches_the_tested_python_floor() -> None:
-    """Published compatibility must not claim an untested Python interpreter."""
+    """Published compatibility must not claim an unsupported interpreter."""
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     lockfile = (ROOT / "uv.lock").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -79,12 +78,13 @@ def test_package_metadata_matches_the_tested_python_floor() -> None:
         encoding="utf-8"
     )
 
-    assert 'requires-python = ">=3.10"' in pyproject
+    assert 'requires-python = ">=3.11"' in pyproject
     assert '"Programming Language :: Python :: 3.9"' not in pyproject
-    assert '"Programming Language :: Python :: 3.10"' in pyproject
-    assert 'requires-python = ">=3.10"' in lockfile
-    assert "Requires Python 3.10 or newer." in readme
-    assert "python-version: ['3.10', '3.11', '3.13']" in tests_workflow
+    assert '"Programming Language :: Python :: 3.10"' not in pyproject
+    assert '"Programming Language :: Python :: 3.11"' in pyproject
+    assert 'requires-python = ">=3.11"' in lockfile
+    assert "Requires Python 3.11 or newer." in readme
+    assert "python-version: ['3.11', '3.13']" in tests_workflow
 
 
 def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
