@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
 import re
+import sys
 import urllib.error
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 
 from appguardrail_core.code_scanning import (
@@ -19,7 +22,7 @@ from appguardrail_core.code_scanning import (
 )
 from scripts.ci.commercial_readiness_loop import (
     GitHub as _BaseGitHub,
-    NoRedirect,
+    NoRedirect as _BaseNoRedirect,
 )
 
 
@@ -33,6 +36,10 @@ MARKER_PREFIX = "<!-- appguardrail-code-scanning-drift:"
 MARKER_SUFFIX = "-->"
 _REPOSITORY_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
+
+
+class NoRedirect(_BaseNoRedirect):
+    """Public collector redirect guard that rejects every authenticated redirect."""
 
 
 class GitHubAPIError(RuntimeError):
@@ -73,6 +80,14 @@ class PullRequestDriftRecord:
 class GitHub(_BaseGitHub):
     """GitHub client that converts transport failures into body-safe status errors."""
 
+    def __init__(self, token: str, api: str = "https://api.github.com") -> None:
+        """Create a fixed-origin client using the collector's public redirect guard."""
+        super().__init__(token, api)
+        self.opener = self.opener.__class__() if False else None
+        import urllib.request
+
+        self.opener = urllib.request.build_opener(NoRedirect)
+
     def request(
         self,
         method: str,
@@ -99,6 +114,10 @@ class GitHub(_BaseGitHub):
             page_params = dict(params or {}, per_page=100, page=page)
             try:
                 chunk = self.request("GET", path, params=page_params)
+            except json.JSONDecodeError:
+                return PageResult(
+                    "malformed_payload", tuple(items), False, "invalid-json"
+                )
             except GitHubAPIError as exc:
                 status = {
                     403: "permission_denied",
@@ -385,9 +404,7 @@ def parse_drift_marker(body: str | None) -> dict[str, Any]:
         payload = json.loads(text[start + len(MARKER_PREFIX) : end].strip())
     except (json.JSONDecodeError, TypeError):
         return {}
-    if not isinstance(payload, dict):
-        return {}
-    return payload
+    return payload if isinstance(payload, dict) else {}
 
 
 def drift_issue_title(record: PullRequestDriftRecord) -> str:
@@ -534,7 +551,12 @@ def publish_records(
             client.request(
                 "POST",
                 f"/repos/{target_repo}/issues/{existing['number']}/comments",
-                {"body": "Live Code Scanning drift evidence changed for this exact head.\n\n" + _identity_rows(record)},
+                {
+                    "body": (
+                        "Live Code Scanning drift evidence changed for this exact "
+                        "head.\n\n" + _identity_rows(record)
+                    )
+                },
             )
             existing.update(data)
             published += 1
@@ -560,11 +582,8 @@ def publish_records(
     return published
 
 
-def parse_args(argv: list[str]):
+def parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse bounded organization, target, and allowlist inputs for the collector."""
-    import argparse
-    import os
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--owner",
@@ -593,9 +612,6 @@ def parse_args(argv: list[str]):
 
 def main(argv: list[str] | None = None) -> int:
     """Collect with read scope, publish with issue scope, and print bounded telemetry."""
-    import os
-    import sys
-
     args = parse_args(sys.argv[1:] if argv is None else argv)
     read_token = (os.getenv("GH_READ_TOKEN") or "").strip()
     write_token = (os.getenv("GH_WRITE_TOKEN") or "").strip()
