@@ -1,0 +1,198 @@
+name: Repair Code Scanning Operational Hardening
+
+on:
+  push:
+    branches: [feat/code-scanning-analysis-drift-862]
+    paths: [.github/workflows/repair-code-scanning-operational-hardening.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-code-scanning-operational-hardening
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor == 'seonghobae' && github.ref == 'refs/heads/feat/code-scanning-analysis-drift-862'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/code-scanning-analysis-drift-862
+          fetch-depth: 1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Install hash-locked tests
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Apply reviewed operational fixes
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path_text: str, old: str, new: str) -> None:
+              path = Path(path_text)
+              source = path.read_text(encoding="utf-8")
+              if source.count(old) != 1:
+                  raise SystemExit(
+                      f"expected exactly one reviewed replacement in {path_text}: {old!r}"
+                  )
+              path.write_text(source.replace(old, new), encoding="utf-8")
+
+          collector_path = Path("scripts/ci/collect_code_scanning_drift.py")
+          collector = collector_path.read_text(encoding="utf-8")
+          old_label = '''    except RuntimeError as exc:
+              if "422" not in str(exc):
+                  raise
+          '''.replace("          ", "")
+          new_label = '''    except GitHubAPIError as exc:
+              if exc.status != 422:
+                  raise
+          '''.replace("          ", "")
+          if collector.count(old_label) != 1:
+              raise SystemExit("expected one legacy label error handler")
+          collector = collector.replace(old_label, new_label)
+
+          parse_marker = "\n\ndef parse_args(argv: list[str]) -> argparse.Namespace:\n"
+          if collector.count(parse_marker) != 1:
+              raise SystemExit("expected one parse_args marker")
+          helper = '''
+
+          def _positive_int(value: str) -> int:
+              """Parse one strictly positive integer for bounded collector options."""
+              try:
+                  parsed = int(value)
+              except ValueError as exc:
+                  raise argparse.ArgumentTypeError(
+                      "value must be a positive integer"
+                  ) from exc
+              if parsed <= 0:
+                  raise argparse.ArgumentTypeError("value must be a positive integer")
+              return parsed
+          '''.replace("          ", "")
+          collector = collector.replace(parse_marker, helper + parse_marker)
+
+          old_argument = '''    parser.add_argument(
+              "--max-pull-requests",
+              type=int,
+              default=int(
+                  os.getenv(
+                      "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
+                      str(DEFAULT_MAX_PULL_REQUESTS),
+                  )
+              ),
+          )
+          '''.replace("          ", "")
+          new_argument = '''    parser.add_argument(
+              "--max-pull-requests",
+              type=_positive_int,
+              default=os.getenv(
+                  "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
+                  str(DEFAULT_MAX_PULL_REQUESTS),
+              ),
+          )
+          '''.replace("          ", "")
+          if collector.count(old_argument) != 1:
+              raise SystemExit("expected one max-pull-requests argument block")
+          collector = collector.replace(old_argument, new_argument)
+          collector_path.write_text(collector, encoding="utf-8")
+
+          replace_once(
+              ".github/workflows/org-security-failure-collector.yml",
+              '            --repositories "$CODE_SCANNING_DRIFT_REPOSITORIES"\n',
+              '            --repositories "$CODE_SCANNING_DRIFT_REPOSITORIES" \\\n'
+              '            --max-pull-requests "50"\n',
+          )
+
+          replace_once(
+              ".github/workflows/tests.yml",
+              '''            --test tests/test_code_scanning_module_entrypoint.py \\
+              --test tests/test_code_scanning_page_result_issue_index.py \\
+              --test tests/test_code_scanning_remaining_coverage.py \\
+              --test tests/test_code_scanning_review_regressions.py
+          '''.replace("          ", ""),
+              '''            --test tests/test_code_scanning_module_entrypoint.py \\
+              --test tests/test_code_scanning_operational_hardening.py \\
+              --test tests/test_code_scanning_page_result_issue_index.py \\
+              --test tests/test_code_scanning_remaining_coverage.py \\
+              --test tests/test_code_scanning_review_regressions.py
+          '''.replace("          ", ""),
+          )
+
+          replace_once(
+              "tests/test_code_scanning_coverage_edges.py",
+              '''def test_label_creation_tolerates_duplicate_only() -> None:
+              """GitHub's existing-label response is harmless while other failures propagate."""
+              duplicate = IssueClient()
+              duplicate.raise_message = "422 already_exists"
+              drift._ensure_label(duplicate, "ContextualWisdomLab/appguardrail", "x")
+
+              failure = IssueClient()
+              failure.raise_message = "500 unavailable"
+              with pytest.raises(RuntimeError, match="500"):
+                  drift._ensure_label(failure, "ContextualWisdomLab/appguardrail", "x")
+          '''.replace("          ", ""),
+              '''def test_label_creation_tolerates_duplicate_only() -> None:
+              """GitHub's existing-label response is harmless while other failures propagate."""
+
+              class LabelClient:
+                  """Raise one typed GitHub response for label creation."""
+
+                  def __init__(self, status: int) -> None:
+                      """Store the response status."""
+                      self.status = status
+
+                  def request(self, *_args, **_kwargs):
+                      """Raise the configured typed response."""
+                      raise drift.GitHubAPIError(self.status)
+
+              drift._ensure_label(
+                  LabelClient(422), "ContextualWisdomLab/appguardrail", "x"
+              )
+              with pytest.raises(drift.GitHubAPIError) as exc_info:
+                  drift._ensure_label(
+                      LabelClient(500), "ContextualWisdomLab/appguardrail", "x"
+                  )
+              assert exc_info.value.status == 500
+          '''.replace("          ", ""),
+          )
+          PY
+          git diff --check
+      - name: Verify full and exact coverage suites
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/code_scanning.py \
+            --module scripts/ci/collect_code_scanning_drift.py \
+            --test tests/test_code_scanning_core.py \
+            --test tests/test_code_scanning_coverage_edges.py \
+            --test tests/test_code_scanning_drift_collector.py \
+            --test tests/test_code_scanning_drift_issueops.py \
+            --test tests/test_code_scanning_drift_release_contract.py \
+            --test tests/test_code_scanning_drift_transport_edges.py \
+            --test tests/test_code_scanning_drift_workflow.py \
+            --test tests/test_code_scanning_module_entrypoint.py \
+            --test tests/test_code_scanning_operational_hardening.py \
+            --test tests/test_code_scanning_page_result_issue_index.py \
+            --test tests/test_code_scanning_remaining_coverage.py \
+            --test tests/test_code_scanning_review_regressions.py
+      - name: Commit verified fixes and remove one-shot workflow
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/repair-code-scanning-operational-hardening.yml
+          git add \
+            .github/workflows/org-security-failure-collector.yml \
+            .github/workflows/tests.yml \
+            scripts/ci/collect_code_scanning_drift.py \
+            tests/test_code_scanning_coverage_edges.py
+          git diff --cached --check
+          git config user.name 'appguardrail-maintainer'
+          git config user.email '8172694+seonghobae@users.noreply.github.com'
+          git commit -m 'fix(code-scanning): validate operational bounds'
+          git push origin HEAD:feat/code-scanning-analysis-drift-862
