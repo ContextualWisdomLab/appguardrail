@@ -42,8 +42,10 @@ The badge level is read from the official `badge_level` field. AppGuardrail does
 
 ## Live collection
 
+The wheel installs a dedicated command so the evidence collector remains independently usable and can also be imported into an organization service or naruon module:
+
 ```bash
-appguardrail openssf-evidence \
+appguardrail-openssf-evidence \
   --repository-url https://github.com/ContextualWisdomLab/appguardrail \
   --out reports/openssf-findings.json
 ```
@@ -57,7 +59,7 @@ Live requests are pinned to the two documented service origins, reject redirects
 Save the exact JSON array returned by the official URL lookup and ingest it later:
 
 ```bash
-appguardrail openssf-evidence \
+appguardrail-openssf-evidence \
   --repository-url https://github.com/ContextualWisdomLab/appguardrail \
   --source-json evidence/projects.json \
   --verified-at 2026-08-04T09:00:00Z \
@@ -71,6 +73,13 @@ For a response saved from the historical service, add:
 ```
 
 `--verified-at` makes evidence reconstruction deterministic. Without it, AppGuardrail records the current UTC timestamp at second precision.
+
+The same implementation is available as a Python module for minimal environments:
+
+```bash
+python -m appguardrail_core.openssf_evidence \
+  --repository-url https://github.com/ContextualWisdomLab/appguardrail
+```
 
 ## Buyer-diligence reports
 
