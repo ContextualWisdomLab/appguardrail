@@ -1,4 +1,5 @@
 name: Repair Code Scanning Operational Hardening
+# Second push intentionally triggers this branch-local one-shot workflow.
 
 on:
   push:
