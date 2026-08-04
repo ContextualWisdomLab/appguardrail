@@ -25,8 +25,14 @@ class CoverageTarget:
         return tuple(sorted(self.executable - self.executed))
 
 
+def _is_statement_line(source_line: str) -> bool:
+    """Return whether a trace line is a statement rather than a structural clause."""
+    stripped = source_line.strip()
+    return stripped not in {"else:", "finally:"}
+
+
 def executable_lines(path: Path) -> frozenset[int]:
-    """Return executable source lines excluding reviewed non-line and no-cover entries."""
+    """Return executable source lines excluding reviewed structural and no-cover lines."""
     resolved = path.resolve()
     source_lines = resolved.read_text(encoding="utf-8").splitlines()
     discovered = trace._find_executable_linenos(str(resolved))  # noqa: SLF001
@@ -35,6 +41,7 @@ def executable_lines(path: Path) -> frozenset[int]:
         for line_number in discovered
         if isinstance(line_number, int)
         and 1 <= line_number <= len(source_lines)
+        and _is_statement_line(source_lines[line_number - 1])
         and "# pragma: no cover" not in source_lines[line_number - 1]
     )
 
