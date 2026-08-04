@@ -113,14 +113,18 @@ def test_preview_rejects_non_policy_non_mapping_and_negative_hold_revision() -> 
 
 
 def test_preview_verification_rejects_non_preview_and_cutoff_shape_mutation() -> None:
-    """Execution validation rejects untyped evidence and incomplete cutoff snapshots."""
+    """Execution validation rejects untyped evidence and malformed cutoff snapshots."""
     with pytest.raises(ValueError, match="PurgePreview"):
         verify_purge_preview(object(), policy_revision=1, legal_hold_revision=0)
 
     preview = _preview()
-    tampered = replace(preview, cutoffs={"scan_history": TIMESTAMP})
+    incomplete = replace(preview, cutoffs={"scan_history": TIMESTAMP})
     with pytest.raises(ValueError, match="cutoff mapping"):
-        verify_purge_preview(tampered, policy_revision=1, legal_hold_revision=0)
+        verify_purge_preview(incomplete, policy_revision=1, legal_hold_revision=0)
+
+    non_mapping = replace(preview, cutoffs=[])
+    with pytest.raises(ValueError, match="cutoff mapping"):
+        verify_purge_preview(non_mapping, policy_revision=1, legal_hold_revision=0)
 
 
 def test_receipt_creation_rejects_non_preview() -> None:
@@ -128,6 +132,8 @@ def test_receipt_creation_rejects_non_preview() -> None:
     with pytest.raises(ValueError, match="PurgePreview"):
         create_purge_receipt(
             object(),
+            policy_revision=1,
+            legal_hold_revision=0,
             receipt_id="purge-receipt-1",
             executed_at=TIMESTAMP,
             audit_event_id="audit-event-1",
@@ -151,6 +157,8 @@ def test_receipt_deleted_counts_exclude_records_under_legal_hold() -> None:
 
     receipt = create_purge_receipt(
         preview,
+        policy_revision=1,
+        legal_hold_revision=4,
         receipt_id="purge-receipt-1",
         executed_at="2026-08-04T12:31:00Z",
         audit_event_id="audit-event-1",
