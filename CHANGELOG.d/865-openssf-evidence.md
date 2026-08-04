@@ -5,4 +5,4 @@
 - Added a dedicated OpenSSF Best Practices section to buyer-diligence reports, preserving tier, evidence URL, verification timestamp, source attribution, and the current date-dependent content-license policy without treating unavailable evidence as proof of non-registration.
 - Evidence collection now requires the returned project `repo_url` or `homepage_url` to match the queried URL, requires canonical UTC timestamps and JSON media types, rejects recursively malformed or oversized input, and closes HTTP error streams.
 - Buyer-diligence rendering now fails closed when externally supplied verification status, badge tier, project ID, or evidence URL metadata is inconsistent, preventing malformed records from being displayed as affirmative badge claims.
-- Corrected package metadata to the tested Python 3.10 minimum and added Python 3.10 to the main test matrix.
+- Corrected package metadata and documentation to the tested Python 3.11 minimum.
