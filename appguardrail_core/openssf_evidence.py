@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -34,7 +35,12 @@ API_DOCUMENTATION_URL = (
     "https://github.com/ossf/best-practices-badge/blob/main/docs/api.md"
 )
 ATTRIBUTION = "OpenSSF Best Practices badge contributors"
-CONTENT_LICENSE = "CC-BY-3.0+"
+CONTENT_LICENSE = (
+    "CDLA-Permissive-2.0 for public non-code content added or edited after "
+    "2024-08-23; earlier contributions CC-BY-3.0 or CC-BY-3.0+"
+)
+CONTENT_LICENSE_POLICY_URL = f"{CURRENT_ORIGIN}/en"
+_UTC_TIMESTAMP_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -100,6 +106,10 @@ def _normalize_source_origin(value: str) -> str:
 def _normalize_verified_at(value: str | None) -> str:
     """Require one canonical UTC audit timestamp for every evidence outcome."""
     verified_at = str(value or "").strip()
+    if not _UTC_TIMESTAMP_RE.fullmatch(verified_at):
+        raise ValueError(
+            "verified_at must use UTC second precision: YYYY-MM-DDTHH:MM:SSZ"
+        )
     try:
         datetime.strptime(verified_at, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError as exc:
@@ -125,6 +135,23 @@ def _non_affirmative_evidence(
         source_origin=source_origin,
         reason=reason,
     )
+
+
+def _project_matches_repository(
+    project: dict[str, Any], repository_url: str
+) -> bool:
+    """Return whether the official result carries the queried URL identity."""
+    for field in ("repo_url", "homepage_url"):
+        candidate = project.get(field)
+        if not isinstance(candidate, str) or not candidate.strip():
+            continue
+        try:
+            normalized_candidate = _normalize_repository_url(candidate)
+        except ValueError:
+            continue
+        if normalized_candidate == repository_url:
+            return True
+    return False
 
 
 def parse_project_matches(
@@ -216,6 +243,15 @@ def parse_project_matches(
             verified_at=normalized_timestamp,
             source_origin=normalized_origin,
             reason="invalid_tiered_percentage",
+        )
+
+    if not _project_matches_repository(project, normalized_repository):
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="project_url_mismatch",
         )
 
     return OpenSSFEvidence(
@@ -341,7 +377,11 @@ def _status_remediation(evidence: OpenSSFEvidence) -> str:
 def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
     """Convert one evidence record into a normalized governance finding."""
     evidence = _validated_evidence(evidence)
-    references = [CURRENT_ORIGIN, API_DOCUMENTATION_URL]
+    references = [
+        CURRENT_ORIGIN,
+        API_DOCUMENTATION_URL,
+        CONTENT_LICENSE_POLICY_URL,
+    ]
     if evidence.evidence_url:
         references.append(evidence.evidence_url)
     remediation = _status_remediation(evidence)
@@ -355,6 +395,7 @@ def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
         "source": "openssf-best-practices",
         "attribution": ATTRIBUTION,
         "content_license": CONTENT_LICENSE,
+        "content_license_policy_url": CONTENT_LICENSE_POLICY_URL,
         "category": "supply-chain",
         "confidence": "high" if evidence.status in BADGE_LEVELS else "medium",
         "context": "governance",
@@ -385,6 +426,14 @@ def _project_search_url(origin: str, repository_url: str) -> str:
     return f"{origin}/projects.json?{query}"
 
 
+def _is_json_media_type(value: Any) -> bool:
+    """Return whether a Content-Type is JSON or a structured JSON subtype."""
+    media_type = str(value or "").split(";", 1)[0].strip().lower()
+    return media_type == "application/json" or (
+        media_type.startswith("application/") and media_type.endswith("+json")
+    )
+
+
 def _fetch_origin(
     repository_url: str,
     *,
@@ -401,8 +450,7 @@ def _fetch_origin(
     )
     try:
         with opener.open(request, timeout=timeout) as response:  # noqa: S310
-            content_type = str(response.headers.get("content-type", "")).lower()
-            if "json" not in content_type:
+            if not _is_json_media_type(response.headers.get("content-type", "")):
                 return _non_affirmative_evidence(
                     "malformed",
                     repository_url=repository_url,
@@ -458,7 +506,7 @@ def _fetch_origin(
         )
     try:
         payload = json.loads(body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
         return _non_affirmative_evidence(
             "malformed",
             repository_url=repository_url,
@@ -556,14 +604,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.source_json:
         source_path = Path(args.source_json)
         try:
-            raw = source_path.read_text(encoding="utf-8")
+            with source_path.open("rb") as source_file:
+                source_bytes = source_file.read(MAX_RESPONSE_BYTES + 1)
         except OSError:
             print(f"Cannot read OpenSSF evidence source: {source_path}", file=sys.stderr)
             return 1
+        if len(source_bytes) > MAX_RESPONSE_BYTES:
+            print(
+                f"OpenSSF evidence source exceeds {MAX_RESPONSE_BYTES} bytes: {source_path}",
+                file=sys.stderr,
+            )
+            return 1
         try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            print(f"OpenSSF evidence source contains invalid JSON: {exc}", file=sys.stderr)
+            payload = json.loads(source_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+            print(
+                f"OpenSSF evidence source contains invalid JSON or UTF-8: {source_path}",
+                file=sys.stderr,
+            )
             return 1
         record = parse_project_matches(
             payload,
