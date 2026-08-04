@@ -10,7 +10,8 @@ import os
 import re
 import sys
 import urllib.error
-from dataclasses import asdict, dataclass
+import urllib.request
+from dataclasses import dataclass
 from typing import Any, Iterable
 
 from appguardrail_core.code_scanning import (
@@ -83,9 +84,6 @@ class GitHub(_BaseGitHub):
     def __init__(self, token: str, api: str = "https://api.github.com") -> None:
         """Create a fixed-origin client using the collector's public redirect guard."""
         super().__init__(token, api)
-        self.opener = self.opener.__class__() if False else None
-        import urllib.request
-
         self.opener = urllib.request.build_opener(NoRedirect)
 
     def request(
