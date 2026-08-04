@@ -17,7 +17,14 @@ VERIFIED_AT = "2026-08-04T09:00:00Z"
 
 def _source_payload() -> list[dict[str, object]]:
     """Return one saved exact-URL search response."""
-    return [{"id": 865, "badge_level": "silver", "tiered_percentage": 200}]
+    return [
+        {
+            "id": 865,
+            "badge_level": "silver",
+            "tiered_percentage": 200,
+            "repo_url": REPOSITORY_URL,
+        }
+    ]
 
 
 def test_module_cli_reads_offline_source_and_writes_standard_envelope(
@@ -104,22 +111,38 @@ def test_module_cli_collects_live_evidence_when_source_is_absent(
     assert json.loads(capsys.readouterr().out)["findings"][0]["badge_tier"] == "passing"
 
 
-@pytest.mark.parametrize("contents", ["{", "not-json"])
-def test_module_cli_rejects_invalid_local_json(
+@pytest.mark.parametrize("contents", [b"{", b"not-json", b"\xff\xfe"])
+def test_module_cli_rejects_invalid_local_json_or_utf8(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    contents: str,
+    contents: bytes,
 ) -> None:
     """Invalid local files are operator errors rather than fabricated evidence states."""
     source = tmp_path / "invalid.json"
-    source.write_text(contents, encoding="utf-8")
+    source.write_bytes(contents)
 
     result = evidence.main(
         ["--repository-url", REPOSITORY_URL, "--source-json", str(source)]
     )
 
     assert result == 1
-    assert "invalid JSON" in capsys.readouterr().err
+    assert "invalid JSON or UTF-8" in capsys.readouterr().err
+
+
+def test_module_cli_rejects_oversized_offline_evidence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Offline evidence ingestion has the same response-size boundary as live mode."""
+    source = tmp_path / "oversized.json"
+    source.write_bytes(b" " * (evidence.MAX_RESPONSE_BYTES + 1))
+
+    result = evidence.main(
+        ["--repository-url", REPOSITORY_URL, "--source-json", str(source)]
+    )
+
+    assert result == 1
+    assert "exceeds" in capsys.readouterr().err.lower()
 
 
 def test_module_cli_reports_source_and_output_io_errors(
