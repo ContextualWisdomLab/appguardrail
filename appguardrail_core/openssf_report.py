@@ -7,6 +7,8 @@ import urllib.parse
 from collections.abc import Iterable
 from typing import Any
 
+from appguardrail_core.openssf_evidence import ATTRIBUTION, CONTENT_LICENSE
+
 
 _RULE_ID = "openssf-best-practices-evidence"
 _FINDINGS_SUMMARY_MARKER = "## Findings Summary"
@@ -104,6 +106,7 @@ def render_openssf_evidence_section(
         [
             "",
             "Unavailable means no matching public evidence was observed at verification time; it does not prove non-registration.",
+            f"Source attribution: {ATTRIBUTION} ({CONTENT_LICENSE}).",
             "",
         ]
     )
