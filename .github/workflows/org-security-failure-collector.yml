@@ -195,4 +195,5 @@ jobs:
           python3 -m scripts.ci.collect_code_scanning_drift \
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --target-repo "$GITHUB_REPOSITORY" \
-            --repositories "$CODE_SCANNING_DRIFT_REPOSITORIES"
+            --repositories "$CODE_SCANNING_DRIFT_REPOSITORIES" \
+            --max-pull-requests "50"
