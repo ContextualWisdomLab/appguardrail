@@ -115,13 +115,13 @@ class RetentionPolicy:
     updated_by: str
 
     def __post_init__(self) -> None:
-        """Validate all identity, duration, and audit metadata at construction."""
+        """Validate and canonicalize identity, duration, and audit metadata."""
         _positive_integer(self.tenant_id, "tenant_id")
         _positive_integer(self.revision, "revision")
         for field_name in _DURATION_FIELDS:
             _retention_days(getattr(self, field_name), field_name)
-        _canonical_utc(self.updated_at, "updated_at")
-        _identifier(self.updated_by, "updated_by")
+        object.__setattr__(self, "updated_at", _canonical_utc(self.updated_at, "updated_at"))
+        object.__setattr__(self, "updated_by", _identifier(self.updated_by, "updated_by"))
 
     @classmethod
     def default(
@@ -414,7 +414,10 @@ def create_purge_receipt(
         policy_revision=preview.policy_revision,
         legal_hold_revision=preview.legal_hold_revision,
         cutoffs=dict(preview.cutoffs),
-        deleted_counts=dict(preview.eligible_counts),
+        deleted_counts={
+            category: preview.eligible_counts[category] - preview.held_counts[category]
+            for category in RETENTION_CATEGORIES
+        },
         held_counts=dict(preview.held_counts),
         executed_at=_canonical_utc(executed_at, "executed_at"),
         audit_event_id=_identifier(audit_event_id, "audit_event_id"),
