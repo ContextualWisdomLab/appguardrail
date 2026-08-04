@@ -75,9 +75,11 @@ def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
     assert "permissions:\n  contents: read" in workflow
 
 
-def test_commercial_readiness_registry_advances_to_retention_controls() -> None:
-    """The hourly loop must not redispatch the completed evidence vertical."""
+def test_commercial_readiness_registry_preserves_the_next_gap_order() -> None:
+    """Closing issue #865 makes retention controls the next deterministic slice."""
     gap_ids = tuple(gap.id for gap in COMMERCIAL_GAPS)
 
-    assert "openssf-best-practices-evidence" not in gap_ids
-    assert gap_ids[0] == "enterprise-retention-audit-policy"
+    assert gap_ids[:2] == (
+        "openssf-best-practices-evidence",
+        "enterprise-retention-audit-policy",
+    )
