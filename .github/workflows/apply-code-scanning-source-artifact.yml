@@ -1,4 +1,5 @@
 name: Apply Verified Code Scanning Source Artifact
+# Second branch push intentionally activates this one-shot workflow.
 
 on:
   push:
