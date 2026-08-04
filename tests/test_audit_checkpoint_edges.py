@@ -6,6 +6,7 @@ import pytest
 
 from appguardrail_core.audit_events import (
     GENESIS_EVENT_HASH,
+    AuditEvent,
     create_audit_event,
     verify_audit_chain,
 )
@@ -15,7 +16,7 @@ TENANT_ID = 41
 OCCURRED_AT = "2026-08-04T12:10:00Z"
 
 
-def _event(*, sequence_number: int, previous_event_hash: str):
+def _event(*, sequence_number: int, previous_event_hash: str) -> AuditEvent:
     """Return one deterministic audit event for checkpoint edge tests."""
     return create_audit_event(
         tenant_id=TENANT_ID,
@@ -58,4 +59,20 @@ def test_head_checkpoint_detects_tail_substitution_at_the_same_count() -> None:
             tenant_id=TENANT_ID,
             expected_event_count=1,
             expected_head_hash=second.event_hash,
+        )
+
+
+def test_event_time_rejects_semantically_invalid_calendar_components() -> None:
+    """A timestamp matching the text shape still must represent a real UTC instant."""
+    with pytest.raises(ValueError, match="occurred_at"):
+        create_audit_event(
+            tenant_id=TENANT_ID,
+            sequence_number=1,
+            event_id="audit-event-invalid-time",
+            event_type="retention.policy.updated",
+            actor_id="owner-key-7",
+            request_id="request-invalid-time",
+            occurred_at="2026-13-40T25:61:61Z",
+            summary={"policy_revision": 1},
+            previous_event_hash=GENESIS_EVENT_HASH,
         )
