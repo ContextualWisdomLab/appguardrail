@@ -72,6 +72,11 @@ def test_report_renders_dedicated_openssf_evidence_table() -> None:
         "[Project evidence](https://www.bestpractices.dev/projects/42) |"
         in report
     )
+    assert (
+        "Source attribution: OpenSSF Best Practices badge contributors "
+        "(CC-BY-3.0+)."
+        in report
+    )
 
 
 def test_existing_report_dispatcher_uses_the_augmented_buyer_renderer() -> None:
