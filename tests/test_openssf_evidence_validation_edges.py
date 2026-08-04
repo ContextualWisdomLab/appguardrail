@@ -17,7 +17,9 @@ VERIFIED_AT = "2026-08-04T11:00:00Z"
 class Response:
     """Minimal JSON response for opener-selection tests."""
 
-    headers = {"content-type": "application/json"}
+    def __init__(self) -> None:
+        """Create independent JSON response headers for this response."""
+        self.headers = {"content-type": "application/json"}
 
     def __enter__(self) -> "Response":
         """Return this response for context-manager use."""
