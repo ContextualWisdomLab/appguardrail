@@ -52,6 +52,9 @@ def verify_coverage(targets: Iterable[CoverageTarget]) -> None:
     for target in targets:
         total = len(target.executable)
         covered = len(target.executable & target.executed)
+        if total == 0:
+            failures.append(f"{target.path}: no executable statement lines")
+            continue
         if target.missing:
             failures.append(
                 f"{target.path}: {covered}/{total}; missing lines "

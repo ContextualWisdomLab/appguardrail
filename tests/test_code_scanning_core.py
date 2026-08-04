@@ -98,7 +98,7 @@ def test_normalize_analysis_rejects_deprecated_top_level_tool_name() -> None:
     payload.pop("tool")
     payload["tool_name"] = "Trivy"
 
-    with pytest.raises(ValueError, match="tool.name"):
+    with pytest.raises(ValueError, match=r"tool\.name"):
         normalize_analysis(payload)
 
 

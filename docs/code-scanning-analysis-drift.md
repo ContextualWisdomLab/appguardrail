@@ -78,7 +78,7 @@ The issue explicitly states that it is based on live GitHub state and not inferr
 
 ## Quality verification
 
-The exact-head Tests workflow first runs the complete repository test suite on Python 3.11 and 3.13. On Python 3.13, a dependency-free standard-library tracer then runs the focused live-drift regression suites and compares observed statement lines with Python's executable-line map. Both `appguardrail_core/code_scanning.py` and `scripts/ci/collect_code_scanning_drift.py` must reach unrounded 100% statement coverage; a single missing statement fails the workflow and prints its exact line number. This focused statement gate supplements rather than replaces the full-suite regression gate. Explicit `# pragma: no cover` exclusions are limited to reviewed process entry points whose behavior is exercised through `main()` tests.
+The exact-head Tests workflow first runs the complete repository test suite on Python 3.11 and 3.13. On Python 3.13, a standard-library tracer without coverage plugins then runs the focused live-drift regression suites and compares observed statement lines with Python's executable-line map. Both `appguardrail_core/code_scanning.py` and `scripts/ci/collect_code_scanning_drift.py` must reach unrounded 100% statement coverage; a single missing statement fails the workflow and prints its exact line number. This focused statement gate supplements rather than replaces the full-suite regression gate. Explicit `# pragma: no cover` exclusions are limited to reviewed process entry points whose behavior is exercised through `main()` tests.
 
 ## Local invocation
 

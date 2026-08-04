@@ -73,7 +73,7 @@ def test_no_redirect_rejects_authenticated_redirects() -> None:
 def test_github_client_pins_public_api_origin() -> None:
     """Callers cannot replace the reviewed GitHub API origin."""
     GitHub("token")
-    with pytest.raises(ValueError, match="api.github.com"):
+    with pytest.raises(ValueError, match=r"api\.github\.com"):
         GitHub("token", "https://attacker.invalid")
 
 

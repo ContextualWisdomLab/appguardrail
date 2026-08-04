@@ -384,9 +384,12 @@ def drift_marker(record: PullRequestDriftRecord) -> str:
         "pr": record.pr_number,
         "repo": record.repository,
     }
+    encoded = json.dumps(
+        payload, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+    ).replace(">", "\\u003e")
     return (
         f"{MARKER_PREFIX} "
-        f"{json.dumps(payload, sort_keys=True, separators=(',', ':'))} "
+        f"{encoded} "
         f"{MARKER_SUFFIX}"
     )
 
@@ -489,6 +492,9 @@ def _issue_items(client: Any, target_repo: str) -> list[dict[str, Any]]:
         for issue in values
         if isinstance(issue, dict)
         and issue.get("title")
+        and isinstance(issue.get("number"), int)
+        and not isinstance(issue.get("number"), bool)
+        and issue["number"] > 0
         and "pull_request" not in issue
     ]
 
@@ -571,11 +577,13 @@ def publish_records(
             f"/repos/{target_repo}/issues",
             {"title": title, "body": body, "labels": labels},
         )
-        issues[title] = (
-            created
-            if isinstance(created, dict)
-            else {"number": 0, "state": "open", "title": title, "body": body}
-        )
+        if (
+            isinstance(created, dict)
+            and isinstance(created.get("number"), int)
+            and not isinstance(created.get("number"), bool)
+            and created["number"] > 0
+        ):
+            issues[title] = created
         published += 1
     return published
 
