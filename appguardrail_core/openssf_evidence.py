@@ -1,0 +1,515 @@
+"""Collect conservative OpenSSF Best Practices evidence from official JSON APIs.
+
+The module keeps network transport, payload interpretation, normalized finding
+creation, and CLI serialization in one dependency-free vertical.  Evidence that
+cannot be observed or trusted remains explicit; it never becomes a claim that a
+project is unregistered or has earned a badge.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+CURRENT_ORIGIN = "https://www.bestpractices.dev"
+LEGACY_ORIGIN = "https://bestpractices.coreinfrastructure.org"
+ALLOWED_ORIGINS = frozenset({CURRENT_ORIGIN, LEGACY_ORIGIN})
+BADGE_LEVELS = frozenset({"in_progress", "passing", "silver", "gold"})
+EVIDENCE_STATUSES = BADGE_LEVELS | frozenset(
+    {"unavailable", "malformed", "permission_limited"}
+)
+MAX_RESPONSE_BYTES = 1_000_000
+DEFAULT_TIMEOUT_SECONDS = 15.0
+USER_AGENT = "appguardrail-openssf-evidence/1"
+API_DOCUMENTATION_URL = (
+    "https://github.com/ossf/best-practices-badge/blob/main/docs/api.md"
+)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so fixed-origin evidence collection cannot be retargeted."""
+
+    def redirect_request(
+        self,
+        req: object,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> None:
+        """Return no redirected request, causing urllib to expose the 3xx response."""
+        del req, fp, code, msg, headers, newurl
+        return None
+
+
+@dataclass(frozen=True)
+class OpenSSFEvidence:
+    """One auditable OpenSSF Best Practices verification outcome."""
+
+    status: str
+    repository_url: str
+    verified_at: str
+    badge_tier: str = ""
+    evidence_url: str = ""
+    project_id: int | None = None
+    tiered_percentage: int | None = None
+    source_origin: str = ""
+    reason: str = ""
+
+
+def _utc_timestamp() -> str:
+    """Return the current UTC timestamp in stable second-precision form."""
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _normalize_repository_url(value: str) -> str:
+    """Validate and normalize the exact repository URL used for public lookup."""
+    repository_url = str(value or "").strip()
+    parsed = urllib.parse.urlsplit(repository_url)
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise ValueError("repository URL must use http or https")
+    if not parsed.hostname:
+        raise ValueError("repository URL must include a host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("repository URL must not include credentials")
+    return repository_url.rstrip("/")
+
+
+def _normalize_source_origin(value: str) -> str:
+    """Return one exact official OpenSSF Best Practices service origin."""
+    source_origin = str(value or "").strip().rstrip("/")
+    if source_origin not in ALLOWED_ORIGINS:
+        raise ValueError("source origin must be an official OpenSSF origin")
+    return source_origin
+
+
+def _non_affirmative_evidence(
+    status: str,
+    *,
+    repository_url: str,
+    verified_at: str,
+    source_origin: str,
+    reason: str,
+) -> OpenSSFEvidence:
+    """Build a bounded evidence record without a badge assertion."""
+    return OpenSSFEvidence(
+        status=status,
+        repository_url=repository_url,
+        verified_at=verified_at,
+        source_origin=source_origin,
+        reason=reason,
+    )
+
+
+def parse_project_matches(
+    payload: Any,
+    *,
+    repository_url: str,
+    verified_at: str,
+    source_origin: str,
+) -> OpenSSFEvidence:
+    """Interpret one official exact-URL project search response conservatively.
+
+    The OpenSSF endpoint returns an array.  A single valid object can establish a
+    badge state; an empty array establishes only that no matching public evidence
+    was observed.  Every ambiguous or unsupported shape becomes ``malformed``.
+    """
+    normalized_repository = _normalize_repository_url(repository_url)
+    normalized_origin = _normalize_source_origin(source_origin)
+    normalized_timestamp = str(verified_at or "").strip()
+    if not normalized_timestamp:
+        raise ValueError("verified_at must be a non-empty timestamp")
+
+    if not isinstance(payload, list):
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="payload_not_array",
+        )
+    if not payload:
+        return _non_affirmative_evidence(
+            "unavailable",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="no_matching_public_project",
+        )
+    if len(payload) != 1:
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="ambiguous_match_count",
+        )
+
+    project = payload[0]
+    if not isinstance(project, dict):
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="project_not_object",
+        )
+
+    project_id = project.get("id")
+    if (
+        not isinstance(project_id, int)
+        or isinstance(project_id, bool)
+        or project_id <= 0
+    ):
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="invalid_project_id",
+        )
+
+    badge_level = str(project.get("badge_level") or "").strip().lower()
+    if badge_level not in BADGE_LEVELS:
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="unknown_badge_level",
+        )
+
+    tiered_percentage = project.get("tiered_percentage")
+    if tiered_percentage is not None and (
+        not isinstance(tiered_percentage, int)
+        or isinstance(tiered_percentage, bool)
+        or tiered_percentage < 0
+        or tiered_percentage > 300
+    ):
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=normalized_repository,
+            verified_at=normalized_timestamp,
+            source_origin=normalized_origin,
+            reason="invalid_tiered_percentage",
+        )
+
+    return OpenSSFEvidence(
+        status=badge_level,
+        repository_url=normalized_repository,
+        verified_at=normalized_timestamp,
+        badge_tier=badge_level,
+        evidence_url=f"{CURRENT_ORIGIN}/projects/{project_id}",
+        project_id=project_id,
+        tiered_percentage=tiered_percentage,
+        source_origin=normalized_origin,
+    )
+
+
+# Public alias reads naturally when imported from appguardrail_core.
+parse_openssf_project_matches = parse_project_matches
+
+
+def _status_message(evidence: OpenSSFEvidence) -> str:
+    """Return conservative buyer-facing prose for one evidence state."""
+    if evidence.status in BADGE_LEVELS:
+        tier = evidence.badge_tier.replace("_", " ")
+        return (
+            "OpenSSF Best Practices badge evidence was verified at the "
+            f"{tier} level for {evidence.repository_url}."
+        )
+    if evidence.status == "unavailable":
+        return (
+            "No matching public OpenSSF Best Practices evidence was observed at "
+            "verification time; this does not prove non-registration."
+        )
+    if evidence.status == "permission_limited":
+        return (
+            "OpenSSF Best Practices evidence could not be verified because the "
+            "service returned a permission-limited response."
+        )
+    if evidence.status == "malformed":
+        return (
+            "The OpenSSF Best Practices service returned malformed or ambiguous "
+            "evidence, so no badge claim was made."
+        )
+    raise ValueError("unsupported OpenSSF evidence status")
+
+
+def _status_remediation(evidence: OpenSSFEvidence) -> str:
+    """Return one evidence-appropriate operator action."""
+    if evidence.status in BADGE_LEVELS:
+        return (
+            "Retain the evidence URL and verification timestamp with release and "
+            "buyer-diligence artifacts; re-verify periodically for drift."
+        )
+    if evidence.status == "unavailable":
+        return (
+            "Verify the exact repository URL in the OpenSSF Best Practices service "
+            "and collect a project URL if public evidence exists."
+        )
+    if evidence.status == "permission_limited":
+        return (
+            "Retry the public JSON lookup after confirming service access; do not "
+            "substitute a badge assertion without verifiable evidence."
+        )
+    return (
+        "Inspect the saved service response, resolve malformed or ambiguous project "
+        "evidence, and repeat the exact repository URL lookup."
+    )
+
+
+def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
+    """Convert one evidence record into a normalized governance finding."""
+    if evidence.status not in EVIDENCE_STATUSES:
+        raise ValueError("unsupported OpenSSF evidence status")
+    references = [CURRENT_ORIGIN, API_DOCUMENTATION_URL]
+    if evidence.evidence_url:
+        references.append(evidence.evidence_url)
+    return {
+        "rule_id": "openssf-best-practices-evidence",
+        "severity": "INFO" if evidence.status in BADGE_LEVELS else "WARNING",
+        "message": _status_message(evidence),
+        "file": "OpenSSF Best Practices API",
+        "line": 1,
+        "snippet": "",
+        "source": "openssf-best-practices",
+        "category": "supply-chain",
+        "confidence": "high" if evidence.status in BADGE_LEVELS else "medium",
+        "context": "governance",
+        "remediation": _status_remediation(evidence),
+        "fix_prompt": _status_remediation(evidence),
+        "verification": (
+            "Repeat the official exact repository URL JSON lookup and retain the "
+            "response timestamp with the resulting evidence."
+        ),
+        "references": references,
+        "owasp": [],
+        "cwe": [],
+        "evidence_status": evidence.status,
+        "badge_tier": evidence.badge_tier,
+        "evidence_url": evidence.evidence_url,
+        "verified_at": evidence.verified_at,
+        "project_id": evidence.project_id,
+        "tiered_percentage": evidence.tiered_percentage,
+        "repository_url": evidence.repository_url,
+        "source_origin": evidence.source_origin,
+        "evidence_reason": evidence.reason,
+    }
+
+
+def _project_search_url(origin: str, repository_url: str) -> str:
+    """Build the official exact-URL JSON search endpoint."""
+    query = urllib.parse.urlencode({"url": repository_url})
+    return f"{origin}/projects.json?{query}"
+
+
+def _fetch_origin(
+    repository_url: str,
+    *,
+    verified_at: str,
+    source_origin: str,
+    opener: Any,
+    timeout: float,
+) -> OpenSSFEvidence:
+    """Fetch and classify one official origin without leaking response bodies."""
+    request = urllib.request.Request(  # noqa: S310 - origin is allowlisted
+        _project_search_url(source_origin, repository_url),
+        method="GET",
+        headers={"User-Agent": USER_AGENT},
+    )
+    try:
+        with opener.open(request, timeout=timeout) as response:  # noqa: S310
+            content_type = str(response.headers.get("content-type", "")).lower()
+            if "json" not in content_type:
+                return _non_affirmative_evidence(
+                    "malformed",
+                    repository_url=repository_url,
+                    verified_at=verified_at,
+                    source_origin=source_origin,
+                    reason="unexpected_content_type",
+                )
+            body = response.read(MAX_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        if exc.code in {401, 403}:
+            status = "permission_limited"
+            reason = f"http_{exc.code}"
+        elif 300 <= exc.code < 400:
+            status = "malformed"
+            reason = "unexpected_redirect"
+        else:
+            status = "unavailable"
+            reason = f"http_{exc.code}"
+        return _non_affirmative_evidence(
+            status,
+            repository_url=repository_url,
+            verified_at=verified_at,
+            source_origin=source_origin,
+            reason=reason,
+        )
+    except TimeoutError:
+        return _non_affirmative_evidence(
+            "unavailable",
+            repository_url=repository_url,
+            verified_at=verified_at,
+            source_origin=source_origin,
+            reason="timeout",
+        )
+    except (urllib.error.URLError, OSError):
+        return _non_affirmative_evidence(
+            "unavailable",
+            repository_url=repository_url,
+            verified_at=verified_at,
+            source_origin=source_origin,
+            reason="network_error",
+        )
+
+    if len(body) > MAX_RESPONSE_BYTES:
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=repository_url,
+            verified_at=verified_at,
+            source_origin=source_origin,
+            reason="response_too_large",
+        )
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return _non_affirmative_evidence(
+            "malformed",
+            repository_url=repository_url,
+            verified_at=verified_at,
+            source_origin=source_origin,
+            reason="invalid_json",
+        )
+    return parse_project_matches(
+        payload,
+        repository_url=repository_url,
+        verified_at=verified_at,
+        source_origin=source_origin,
+    )
+
+
+def collect_openssf_evidence(
+    repository_url: str,
+    *,
+    verified_at: str | None = None,
+    opener: Any | None = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+) -> OpenSSFEvidence:
+    """Collect current, then eligible legacy, public evidence for one repository."""
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+        raise ValueError("timeout must be a positive number")
+    normalized_repository = _normalize_repository_url(repository_url)
+    timestamp = verified_at if verified_at is not None else _utc_timestamp()
+    client = opener or urllib.request.build_opener(NoRedirect())
+    current = _fetch_origin(
+        normalized_repository,
+        verified_at=timestamp,
+        source_origin=CURRENT_ORIGIN,
+        opener=client,
+        timeout=float(timeout),
+    )
+    if not (
+        current.status == "unavailable"
+        and current.reason == "no_matching_public_project"
+    ):
+        return current
+
+    legacy = _fetch_origin(
+        normalized_repository,
+        verified_at=timestamp,
+        source_origin=LEGACY_ORIGIN,
+        opener=client,
+        timeout=float(timeout),
+    )
+    if (
+        legacy.status == "unavailable"
+        and legacy.reason == "no_matching_public_project"
+    ):
+        return OpenSSFEvidence(
+            status="unavailable",
+            repository_url=normalized_repository,
+            verified_at=timestamp,
+            source_origin=LEGACY_ORIGIN,
+            reason="no_matching_public_project_current_or_legacy",
+        )
+    return legacy
+
+
+def findings_envelope(evidence: OpenSSFEvidence) -> dict[str, Any]:
+    """Return the standard AppGuardrail findings envelope for one evidence record."""
+    return {
+        "schema": "appguardrail.findings.v1",
+        "findings": [evidence_to_finding(evidence)],
+    }
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse live or offline evidence-collection arguments."""
+    parser = argparse.ArgumentParser(
+        prog="appguardrail openssf-evidence",
+        description="Collect auditable OpenSSF Best Practices evidence.",
+    )
+    parser.add_argument("--repository-url", required=True)
+    parser.add_argument("--source-json")
+    parser.add_argument(
+        "--source-origin",
+        choices=sorted(ALLOWED_ORIGINS),
+        default=CURRENT_ORIGIN,
+    )
+    parser.add_argument("--verified-at")
+    parser.add_argument("--out")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Collect or ingest evidence and emit one normalized findings envelope."""
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    timestamp = args.verified_at or _utc_timestamp()
+    if args.source_json:
+        source_path = Path(args.source_json)
+        try:
+            raw = source_path.read_text(encoding="utf-8")
+        except OSError:
+            print(f"Cannot read OpenSSF evidence source: {source_path}", file=sys.stderr)
+            return 1
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            print(f"OpenSSF evidence source contains invalid JSON: {exc}", file=sys.stderr)
+            return 1
+        record = parse_project_matches(
+            payload,
+            repository_url=args.repository_url,
+            verified_at=timestamp,
+            source_origin=args.source_origin,
+        )
+    else:
+        record = collect_openssf_evidence(
+            args.repository_url,
+            verified_at=timestamp,
+        )
+
+    rendered = json.dumps(findings_envelope(record), indent=2, sort_keys=True) + "\n"
+    if args.out:
+        target = Path(args.out)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(rendered, encoding="utf-8")
+        except OSError:
+            print(f"Cannot write OpenSSF evidence output: {target}", file=sys.stderr)
+            return 1
+    else:
+        print(rendered, end="")
+    return 0
