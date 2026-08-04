@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [develop]
     types: [synchronize]
-    paths: [.github/workflows/repair-code-scanning-test-import.yml]
 
 permissions:
   contents: write
