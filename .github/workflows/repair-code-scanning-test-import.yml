@@ -1,8 +1,9 @@
 name: Repair Code Scanning Test Import
 
 on:
-  push:
-    branches: [feat/code-scanning-analysis-drift-862]
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
     paths: [.github/workflows/repair-code-scanning-test-import.yml]
 
 permissions:
@@ -14,7 +15,7 @@ concurrency:
 
 jobs:
   repair:
-    if: github.actor == 'seonghobae' && github.ref == 'refs/heads/feat/code-scanning-analysis-drift-862'
+    if: github.actor == 'seonghobae' && github.head_ref == 'feat/code-scanning-analysis-drift-862'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
