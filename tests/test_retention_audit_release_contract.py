@@ -48,6 +48,8 @@ def test_operator_documentation_records_limits_and_apa_seventh_references() -> N
         "product defaults, not legal advice",
         "tamper-evident",
         "not physically immutable",
+        "tail-truncation detection",
+        "current policy and legal-hold revisions",
         "legal hold",
         "optimistic concurrency",
         "idempotent",
@@ -74,6 +76,7 @@ def test_changelog_fragment_names_buyer_visible_governance_evidence() -> None:
         "tamper-evident audit",
         "purge preview",
         "legal-hold",
+        "trusted count or head-hash checkpoints",
         "exact 100% statement coverage",
     ):
         assert phrase in changelog
@@ -86,9 +89,11 @@ def test_exact_coverage_workflow_tracks_every_core_surface() -> None:
     ).read_text(encoding="utf-8")
 
     assert "permissions:\n  contents: read" in workflow
+    assert "cancel-in-progress: true" in workflow
     assert "appguardrail_core/audit_events.py" in workflow
     assert "appguardrail_core/retention_policy.py" in workflow
     assert "tests/test_audit_events.py" in workflow
+    assert "tests/test_audit_checkpoint_edges.py" in workflow
     assert "tests/test_retention_policy.py" in workflow
     assert "tests/test_retention_policy_edges.py" in workflow
     assert "tests/test_retention_audit_release_contract.py" in workflow
@@ -110,4 +115,5 @@ def test_implementation_plan_preserves_bounded_follow_up_slices() -> None:
     assert "Phase 2: descriptive SQLite schema migration" in plan
     assert "Phase 3: owner API and atomic purge execution" in plan
     assert "Phase 4: buyer-diligence and organization evidence" in plan
+    assert "trusted event-count and head-hash checkpoints" in plan
     assert "Closes #871 only after Phase 4" in plan
