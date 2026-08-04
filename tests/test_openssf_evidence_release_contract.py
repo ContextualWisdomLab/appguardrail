@@ -40,6 +40,8 @@ def test_operator_documentation_records_official_and_conservative_semantics() ->
     assert "--source-json" in documentation
     assert "buyer-diligence" in documentation
     assert "OpenSSF Best Practices Badge API" in documentation
+    assert "OpenSSF Best Practices badge contributors" in documentation
+    assert "CC-BY-3.0" in documentation
 
 
 def test_changelog_fragment_describes_buyer_visible_evidence() -> None:
@@ -52,6 +54,16 @@ def test_changelog_fragment_describes_buyer_visible_evidence() -> None:
     assert "buyer-diligence" in changelog
     assert "unavailable" in changelog
     assert "permission" in changelog
+
+
+def test_evidence_module_avoids_python_311_only_utc_alias() -> None:
+    """The new module remains importable on the package's Python 3.10 surface."""
+    source = (ROOT / "appguardrail_core" / "openssf_evidence.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from datetime import UTC" not in source
+    assert "timezone.utc" in source
 
 
 def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
