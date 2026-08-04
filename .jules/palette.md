@@ -53,3 +53,7 @@
 ## 2026-08-03 - Global Keyboard Shortcuts Interference
 **Learning:** Adding a global keyboard shortcut (like `/` for search) without checking the currently focused element disrupts user text input. If a user tries to type the shortcut character into any standard input, textarea, or select element, the keydown event is hijacked.
 **Action:** When implementing global keyboard shortcuts, always check `document.activeElement.tagName` and ignore the shortcut if the user is currently focused on an interactive text element (`input`, `textarea`, `select`).
+
+## 2026-08-04 - Native File Input Iteration Friction
+**Learning:** Browsers natively suppress `change` events on `<input type="file">` if the user selects the exact same file path they just uploaded. This breaks the local development iteration loop where a user modifies their code, regenerates a findings file, and tries to re-upload it without refreshing the page. Additionally, users often overlook header-based inputs when presented with a large empty state.
+**Action:** Always add `onclick="this.value=null"` to file inputs so consecutive selections of the same file trigger the change event. Furthermore, provide a clear, in-context CTA within empty states that proxies clicks to the hidden or out-of-focus primary input, improving discoverability.
