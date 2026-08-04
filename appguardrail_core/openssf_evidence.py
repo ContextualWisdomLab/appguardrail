@@ -1,7 +1,7 @@
 """Collect conservative OpenSSF Best Practices evidence from official JSON APIs.
 
 The module keeps network transport, payload interpretation, normalized finding
-creation, and CLI serialization in one dependency-free vertical.  Evidence that
+creation, and CLI serialization in one dependency-free vertical. Evidence that
 cannot be observed or trusted remains explicit; it never becomes a claim that a
 project is unregistered or has earned a badge.
 """
@@ -82,6 +82,8 @@ def _normalize_repository_url(value: str) -> str:
         raise ValueError("repository URL must include a host")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("repository URL must not include credentials")
+    if parsed.query or parsed.fragment:
+        raise ValueError("repository URL must not include a query or fragment")
     return repository_url.rstrip("/")
 
 
@@ -91,6 +93,14 @@ def _normalize_source_origin(value: str) -> str:
     if source_origin not in ALLOWED_ORIGINS:
         raise ValueError("source origin must be an official OpenSSF origin")
     return source_origin
+
+
+def _normalize_verified_at(value: str | None) -> str:
+    """Require one non-empty audit timestamp for every evidence outcome."""
+    verified_at = str(value or "").strip()
+    if not verified_at:
+        raise ValueError("verified_at must be a non-empty timestamp")
+    return verified_at
 
 
 def _non_affirmative_evidence(
@@ -120,15 +130,13 @@ def parse_project_matches(
 ) -> OpenSSFEvidence:
     """Interpret one official exact-URL project search response conservatively.
 
-    The OpenSSF endpoint returns an array.  A single valid object can establish a
+    The OpenSSF endpoint returns an array. A single valid object can establish a
     badge state; an empty array establishes only that no matching public evidence
-    was observed.  Every ambiguous or unsupported shape becomes ``malformed``.
+    was observed. Every ambiguous or unsupported shape becomes ``malformed``.
     """
     normalized_repository = _normalize_repository_url(repository_url)
     normalized_origin = _normalize_source_origin(source_origin)
-    normalized_timestamp = str(verified_at or "").strip()
-    if not normalized_timestamp:
-        raise ValueError("verified_at must be a non-empty timestamp")
+    normalized_timestamp = _normalize_verified_at(verified_at)
 
     if not isinstance(payload, list):
         return _non_affirmative_evidence(
@@ -216,7 +224,6 @@ def parse_project_matches(
     )
 
 
-# Public alias reads naturally when imported from appguardrail_core.
 parse_openssf_project_matches = parse_project_matches
 
 
@@ -276,6 +283,7 @@ def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
     references = [CURRENT_ORIGIN, API_DOCUMENTATION_URL]
     if evidence.evidence_url:
         references.append(evidence.evidence_url)
+    remediation = _status_remediation(evidence)
     return {
         "rule_id": "openssf-best-practices-evidence",
         "severity": "INFO" if evidence.status in BADGE_LEVELS else "WARNING",
@@ -287,8 +295,8 @@ def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
         "category": "supply-chain",
         "confidence": "high" if evidence.status in BADGE_LEVELS else "medium",
         "context": "governance",
-        "remediation": _status_remediation(evidence),
-        "fix_prompt": _status_remediation(evidence),
+        "remediation": remediation,
+        "fix_prompt": remediation,
         "verification": (
             "Repeat the official exact repository URL JSON lookup and retain the "
             "response timestamp with the resulting evidence."
@@ -407,12 +415,14 @@ def collect_openssf_evidence(
     opener: Any | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> OpenSSFEvidence:
-    """Collect current, then eligible legacy, public evidence for one repository."""
+    """Collect current, then eligible historical, evidence for one repository."""
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
         raise ValueError("timeout must be a positive number")
     normalized_repository = _normalize_repository_url(repository_url)
-    timestamp = verified_at if verified_at is not None else _utc_timestamp()
-    client = opener or urllib.request.build_opener(NoRedirect())
+    timestamp = _normalize_verified_at(
+        verified_at if verified_at is not None else _utc_timestamp()
+    )
+    client = opener if opener is not None else urllib.request.build_opener(NoRedirect())
     current = _fetch_origin(
         normalized_repository,
         verified_at=timestamp,
@@ -426,7 +436,7 @@ def collect_openssf_evidence(
     ):
         return current
 
-    legacy = _fetch_origin(
+    historical = _fetch_origin(
         normalized_repository,
         verified_at=timestamp,
         source_origin=LEGACY_ORIGIN,
@@ -434,8 +444,8 @@ def collect_openssf_evidence(
         timeout=float(timeout),
     )
     if (
-        legacy.status == "unavailable"
-        and legacy.reason == "no_matching_public_project"
+        historical.status == "unavailable"
+        and historical.reason == "no_matching_public_project"
     ):
         return OpenSSFEvidence(
             status="unavailable",
@@ -444,7 +454,7 @@ def collect_openssf_evidence(
             source_origin=LEGACY_ORIGIN,
             reason="no_matching_public_project_current_or_legacy",
         )
-    return legacy
+    return historical
 
 
 def findings_envelope(evidence: OpenSSFEvidence) -> dict[str, Any]:
@@ -458,7 +468,7 @@ def findings_envelope(evidence: OpenSSFEvidence) -> dict[str, Any]:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse live or offline evidence-collection arguments."""
     parser = argparse.ArgumentParser(
-        prog="appguardrail openssf-evidence",
+        prog="appguardrail-openssf-evidence",
         description="Collect auditable OpenSSF Best Practices evidence.",
     )
     parser.add_argument("--repository-url", required=True)
@@ -476,7 +486,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Collect or ingest evidence and emit one normalized findings envelope."""
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    timestamp = args.verified_at or _utc_timestamp()
+    timestamp = _normalize_verified_at(args.verified_at or _utc_timestamp())
     if args.source_json:
         source_path = Path(args.source_json)
         try:
@@ -513,3 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(rendered, end="")
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised through runpy contract
+    raise SystemExit(main())
