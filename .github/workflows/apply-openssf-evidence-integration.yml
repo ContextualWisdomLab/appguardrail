@@ -1,0 +1,198 @@
+name: Apply OpenSSF Evidence Integration
+
+on:
+  push:
+    branches: [feat/openssf-best-practices-evidence-865]
+    paths: [.github/workflows/apply-openssf-evidence-integration.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-openssf-evidence-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    if: github.actor == 'seonghobae' && github.ref == 'refs/heads/feat/openssf-best-practices-evidence-865'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/openssf-best-practices-evidence-865
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Install hash-locked test dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+
+      - name: Apply bounded reviewed integration
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path_text: str, old: str, new: str) -> None:
+              """Replace exactly one reviewed fragment or fail closed."""
+              path = Path(path_text)
+              source = path.read_text(encoding="utf-8")
+              if source.count(old) != 1:
+                  raise SystemExit(
+                      f"expected one integration marker in {path_text}: {old!r}"
+                  )
+              path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "appguardrail_core/reports.py",
+              "from appguardrail_core.findings import (\n",
+              "from appguardrail_core.openssf_report import render_openssf_evidence_section\n"
+              "from appguardrail_core.findings import (\n",
+          )
+          replace_once(
+              "appguardrail_core/reports.py",
+              "    lines.extend(_evidence_section(context.evidence, generated_at))\n"
+              "    lines.extend(\n"
+              "        [\n"
+              "            \"## Findings Summary\",\n",
+              "    lines.extend(_evidence_section(context.evidence, generated_at))\n"
+              "    lines.extend(render_openssf_evidence_section(normalized))\n"
+              "    lines.extend(\n"
+              "        [\n"
+              "            \"## Findings Summary\",\n",
+          )
+
+          cli_path = Path("scanner/cli/appguardrail.py")
+          cli = cli_path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "  appguardrail org-bundle [--owner <org>] [--bundle-dir <path>]\n"
+                  "  appguardrail hook [--codegraph]\n",
+                  "  appguardrail org-bundle [--owner <org>] [--bundle-dir <path>]\n"
+                  "  appguardrail openssf-evidence --repository-url <url> [--source-json <path>] [--out <path>]\n"
+                  "  appguardrail hook [--codegraph]\n",
+              ),
+              (
+                  "  org-bundle Generate an organization buyer evidence bundle\n"
+                  "  hook      Install a pre-commit hook to block vulnerabilities\n",
+                  "  org-bundle Generate an organization buyer evidence bundle\n"
+                  "  openssf-evidence Collect auditable OpenSSF Best Practices evidence\n"
+                  "  hook      Install a pre-commit hook to block vulnerabilities\n",
+              ),
+              (
+                  "from appguardrail_core.org_bundle import (\n",
+                  "from appguardrail_core import openssf_evidence as openssf_evidence_cli\n"
+                  "from appguardrail_core.org_bundle import (\n",
+              ),
+          )
+          for old, new in replacements:
+              if cli.count(old) != 1:
+                  raise SystemExit(f"expected one CLI integration marker: {old!r}")
+              cli = cli.replace(old, new, 1)
+
+          command_function = '''
+
+          def cmd_openssf_evidence(args) -> int:
+              """Collect or ingest OpenSSF evidence through the installed CLI."""
+              argv = ["--repository-url", args.repository_url]
+              if args.source_json:
+                  argv.extend(["--source-json", args.source_json])
+              if args.source_origin:
+                  argv.extend(["--source-origin", args.source_origin])
+              if args.verified_at:
+                  argv.extend(["--verified-at", args.verified_at])
+              if args.out:
+                  argv.extend(["--out", args.out])
+              return openssf_evidence_cli.main(argv)
+          '''
+          command_function = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in command_function.splitlines()
+          ) + "\n"
+          marker = "\ndef cmd_report("
+          if cli.count(marker) != 1:
+              raise SystemExit("expected one cmd_report marker")
+          cli = cli.replace(marker, command_function + marker, 1)
+
+          parser_block = '''
+              openssf_parser = subparsers.add_parser(
+                  "openssf-evidence",
+                  help="Collect auditable OpenSSF Best Practices evidence",
+              )
+              openssf_parser.add_argument("--repository-url", required=True)
+              openssf_parser.add_argument("--source-json")
+              openssf_parser.add_argument(
+                  "--source-origin",
+                  choices=sorted(openssf_evidence_cli.ALLOWED_ORIGINS),
+                  default=openssf_evidence_cli.CURRENT_ORIGIN,
+              )
+              openssf_parser.add_argument("--verified-at")
+              openssf_parser.add_argument("--out")
+
+          '''
+          parser_block = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in parser_block.splitlines()
+          ) + "\n"
+          parser_marker = "    report_parser = subparsers.add_parser(\n"
+          if cli.count(parser_marker) != 1:
+              raise SystemExit("expected one report parser marker")
+          cli = cli.replace(parser_marker, parser_block + parser_marker, 1)
+
+          dispatch_marker = '    elif args.command == "report":\n'
+          if cli.count(dispatch_marker) != 1:
+              raise SystemExit("expected one report dispatch marker")
+          cli = cli.replace(
+              dispatch_marker,
+              '    elif args.command == "openssf-evidence":\n'
+              '        sys.exit(cmd_openssf_evidence(args))\n'
+              + dispatch_marker,
+              1,
+          )
+          cli_path.write_text(cli, encoding="utf-8")
+
+          registry_path = Path("scripts/ci/commercial_readiness_loop.py")
+          registry = registry_path.read_text(encoding="utf-8")
+          start_marker = '    CommercialGap(\n        id="openssf-best-practices-evidence",\n'
+          next_marker = '    CommercialGap(\n        id="enterprise-retention-audit-policy",\n'
+          start = registry.find(start_marker)
+          end = registry.find(next_marker, start + 1)
+          if start == -1 or end == -1 or end <= start:
+              raise SystemExit("expected bounded OpenSSF commercial-gap block")
+          registry_path.write_text(registry[:start] + registry[end:], encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Run full and focused verification
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/openssf_evidence.py \
+            --module appguardrail_core/openssf_report.py \
+            --test tests/test_openssf_evidence.py \
+            --test tests/test_openssf_evidence_transport.py \
+            --test tests/test_openssf_evidence_cli.py \
+            --test tests/test_openssf_evidence_report.py \
+            --test tests/test_openssf_evidence_release_contract.py
+          python -m compileall -q appguardrail_core scanner scripts tests
+
+      - name: Commit verified integration
+        run: |
+          set -euo pipefail
+          git add \
+            appguardrail_core/reports.py \
+            scanner/cli/appguardrail.py \
+            scripts/ci/commercial_readiness_loop.py
+          git diff --cached --check
+          git config user.name 'appguardrail-maintainer'
+          git config user.email '8172694+seonghobae@users.noreply.github.com'
+          git commit -m 'feat(openssf): integrate evidence with reports and CLI'
+          git push origin HEAD:feat/openssf-best-practices-evidence-865
