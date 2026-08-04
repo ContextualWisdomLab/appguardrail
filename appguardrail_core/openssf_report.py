@@ -7,7 +7,11 @@ import urllib.parse
 from collections.abc import Iterable
 from typing import Any
 
-from appguardrail_core.openssf_evidence import ATTRIBUTION, CONTENT_LICENSE
+from appguardrail_core.openssf_evidence import (
+    ATTRIBUTION,
+    CONTENT_LICENSE,
+    CURRENT_ORIGIN,
+)
 
 
 _RULE_ID = "openssf-best-practices-evidence"
@@ -51,7 +55,7 @@ def _safe_project_url(value: Any) -> str:
         return ""
     if (
         parsed.scheme != "https"
-        or parsed.hostname != "www.bestpractices.dev"
+        or parsed.netloc.casefold() != "www.bestpractices.dev"
         or parsed.username is not None
         or parsed.password is not None
         or not _PROJECT_PATH_RE.fullmatch(parsed.path)
@@ -60,6 +64,34 @@ def _safe_project_url(value: Any) -> str:
     ):
         return ""
     return candidate
+
+
+def _affirmative_metadata_is_consistent(
+    finding: dict[str, Any], status: str, raw_tier: str
+) -> bool:
+    """Return whether an affirmative row has one canonical project identity."""
+    project_id = finding.get("project_id")
+    if (
+        raw_tier != status
+        or not isinstance(project_id, int)
+        or isinstance(project_id, bool)
+        or project_id <= 0
+    ):
+        return False
+    expected_url = f"{CURRENT_ORIGIN}/projects/{project_id}"
+    return _safe_project_url(finding.get("evidence_url")) == expected_url
+
+
+def _non_affirmative_metadata_is_consistent(
+    finding: dict[str, Any], raw_tier: str
+) -> bool:
+    """Return whether a non-affirmative row carries no stale badge assertion."""
+    return (
+        not raw_tier
+        and not finding.get("evidence_url")
+        and finding.get("project_id") is None
+        and finding.get("tiered_percentage") is None
+    )
 
 
 def render_openssf_evidence_section(
@@ -93,7 +125,9 @@ def render_openssf_evidence_section(
         raw_tier = str(finding.get("badge_tier") or "")
         affirmative = status in _BADGE_TIER_LABELS
         metadata_consistent = (
-            raw_tier == status if affirmative else not raw_tier
+            _affirmative_metadata_is_consistent(finding, status, raw_tier)
+            if affirmative
+            else _non_affirmative_metadata_is_consistent(finding, raw_tier)
         )
         if metadata_consistent:
             status_label = _STATUS_LABELS.get(status, "Malformed response")
@@ -121,7 +155,7 @@ def render_openssf_evidence_section(
         [
             "",
             "Unavailable means no matching public evidence was observed at verification time; it does not prove non-registration.",
-            f"Source attribution: {ATTRIBUTION} ({CONTENT_LICENSE}).",
+            f"Source attribution: {ATTRIBUTION}. License policy: {CONTENT_LICENSE}.",
             "",
         ]
     )
