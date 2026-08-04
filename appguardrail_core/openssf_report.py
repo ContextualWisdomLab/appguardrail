@@ -21,6 +21,10 @@ _STATUS_LABELS = {
     "malformed": "Malformed response",
     "permission_limited": "Permission limited",
 }
+_BADGE_TIER_LABELS = {
+    status: _STATUS_LABELS[status]
+    for status in ("in_progress", "passing", "silver", "gold")
+}
 _PROJECT_PATH_RE = re.compile(r"^/projects/[1-9][0-9]*$", re.IGNORECASE)
 
 
@@ -86,12 +90,23 @@ def render_openssf_evidence_section(
     evidence.sort(key=lambda item: _table_text(item.get("repository_url")).casefold())
     for finding in evidence:
         status = str(finding.get("evidence_status") or "malformed")
-        status_label = _STATUS_LABELS.get(status, "Malformed response")
         raw_tier = str(finding.get("badge_tier") or "")
-        tier_label = raw_tier.replace("_", " ").title() if raw_tier else "Not verified"
+        affirmative = status in _BADGE_TIER_LABELS
+        metadata_consistent = (
+            raw_tier == status if affirmative else not raw_tier
+        )
+        if metadata_consistent:
+            status_label = _STATUS_LABELS.get(status, "Malformed response")
+            tier_label = _BADGE_TIER_LABELS.get(raw_tier, "Not verified")
+            project_url = (
+                _safe_project_url(finding.get("evidence_url")) if affirmative else ""
+            )
+        else:
+            status_label = "Malformed response"
+            tier_label = "Not verified"
+            project_url = ""
         verified_at = _table_text(finding.get("verified_at") or "Not reported")
         repository = _table_text(finding.get("repository_url") or "Not reported")
-        project_url = _safe_project_url(finding.get("evidence_url"))
         link = f"[Project evidence]({project_url})" if project_url else "Not available"
         lines.append(
             "| `{repository}` | {status} | {tier} | {verified} | {link} |".format(
