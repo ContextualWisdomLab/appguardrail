@@ -90,6 +90,7 @@ def test_exact_coverage_workflow_tracks_every_core_surface() -> None:
     assert "appguardrail_core/retention_policy.py" in workflow
     assert "tests/test_audit_events.py" in workflow
     assert "tests/test_retention_policy.py" in workflow
+    assert "tests/test_retention_policy_edges.py" in workflow
     assert "tests/test_retention_audit_release_contract.py" in workflow
     assert "tests/test_module_coverage_gate_contract.py" in workflow
     assert "python -m scripts.ci.verify_module_coverage" in workflow
