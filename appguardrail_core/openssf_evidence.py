@@ -15,7 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +33,8 @@ USER_AGENT = "appguardrail-openssf-evidence/1"
 API_DOCUMENTATION_URL = (
     "https://github.com/ossf/best-practices-badge/blob/main/docs/api.md"
 )
+ATTRIBUTION = "OpenSSF Best Practices badge contributors"
+CONTENT_LICENSE = "CC-BY-3.0+"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -69,7 +71,7 @@ class OpenSSFEvidence:
 
 def _utc_timestamp() -> str:
     """Return the current UTC timestamp in stable second-precision form."""
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _normalize_repository_url(value: str) -> str:
@@ -96,10 +98,14 @@ def _normalize_source_origin(value: str) -> str:
 
 
 def _normalize_verified_at(value: str | None) -> str:
-    """Require one non-empty audit timestamp for every evidence outcome."""
+    """Require one canonical UTC audit timestamp for every evidence outcome."""
     verified_at = str(value or "").strip()
-    if not verified_at:
-        raise ValueError("verified_at must be a non-empty timestamp")
+    try:
+        datetime.strptime(verified_at, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise ValueError(
+            "verified_at must use UTC second precision: YYYY-MM-DDTHH:MM:SSZ"
+        ) from exc
     return verified_at
 
 
@@ -227,6 +233,62 @@ def parse_project_matches(
 parse_openssf_project_matches = parse_project_matches
 
 
+def _validated_evidence(evidence: OpenSSFEvidence) -> OpenSSFEvidence:
+    """Validate public dataclass construction against the parser's trust boundary."""
+    if evidence.status not in EVIDENCE_STATUSES:
+        raise ValueError("unsupported OpenSSF evidence status")
+    repository_url = _normalize_repository_url(evidence.repository_url)
+    verified_at = _normalize_verified_at(evidence.verified_at)
+    source_origin = _normalize_source_origin(evidence.source_origin)
+    tiered_percentage = evidence.tiered_percentage
+    if tiered_percentage is not None and (
+        not isinstance(tiered_percentage, int)
+        or isinstance(tiered_percentage, bool)
+        or tiered_percentage < 0
+        or tiered_percentage > 300
+    ):
+        raise ValueError("tiered percentage must be an integer from 0 through 300")
+
+    if evidence.status in BADGE_LEVELS:
+        if evidence.badge_tier != evidence.status:
+            raise ValueError("badge tier must match the affirmative evidence status")
+        if (
+            not isinstance(evidence.project_id, int)
+            or isinstance(evidence.project_id, bool)
+            or evidence.project_id <= 0
+        ):
+            raise ValueError("project id must be a positive integer")
+        expected_url = f"{CURRENT_ORIGIN}/projects/{evidence.project_id}"
+        if evidence.evidence_url != expected_url:
+            raise ValueError("evidence URL must be the canonical public project URL")
+        if evidence.reason:
+            raise ValueError("affirmative evidence must not contain a failure reason")
+    else:
+        if (
+            evidence.badge_tier
+            or evidence.evidence_url
+            or evidence.project_id is not None
+            or tiered_percentage is not None
+        ):
+            raise ValueError(
+                "non-affirmative evidence cannot carry affirmative badge metadata"
+            )
+        if not evidence.reason:
+            raise ValueError("non-affirmative evidence must include an evidence reason")
+
+    return OpenSSFEvidence(
+        status=evidence.status,
+        repository_url=repository_url,
+        verified_at=verified_at,
+        badge_tier=evidence.badge_tier,
+        evidence_url=evidence.evidence_url,
+        project_id=evidence.project_id,
+        tiered_percentage=tiered_percentage,
+        source_origin=source_origin,
+        reason=evidence.reason,
+    )
+
+
 def _status_message(evidence: OpenSSFEvidence) -> str:
     """Return conservative buyer-facing prose for one evidence state."""
     if evidence.status in BADGE_LEVELS:
@@ -278,8 +340,7 @@ def _status_remediation(evidence: OpenSSFEvidence) -> str:
 
 def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
     """Convert one evidence record into a normalized governance finding."""
-    if evidence.status not in EVIDENCE_STATUSES:
-        raise ValueError("unsupported OpenSSF evidence status")
+    evidence = _validated_evidence(evidence)
     references = [CURRENT_ORIGIN, API_DOCUMENTATION_URL]
     if evidence.evidence_url:
         references.append(evidence.evidence_url)
@@ -292,6 +353,8 @@ def evidence_to_finding(evidence: OpenSSFEvidence) -> dict[str, Any]:
         "line": 1,
         "snippet": "",
         "source": "openssf-best-practices",
+        "attribution": ATTRIBUTION,
+        "content_license": CONTENT_LICENSE,
         "category": "supply-chain",
         "confidence": "high" if evidence.status in BADGE_LEVELS else "medium",
         "context": "governance",
@@ -349,15 +412,18 @@ def _fetch_origin(
                 )
             body = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as exc:
-        if exc.code in {401, 403}:
-            status = "permission_limited"
-            reason = f"http_{exc.code}"
-        elif 300 <= exc.code < 400:
-            status = "malformed"
-            reason = "unexpected_redirect"
-        else:
-            status = "unavailable"
-            reason = f"http_{exc.code}"
+        try:
+            if exc.code in {401, 403}:
+                status = "permission_limited"
+                reason = f"http_{exc.code}"
+            elif 300 <= exc.code < 400:
+                status = "malformed"
+                reason = "unexpected_redirect"
+            else:
+                status = "unavailable"
+                reason = f"http_{exc.code}"
+        finally:
+            exc.close()
         return _non_affirmative_evidence(
             status,
             repository_url=repository_url,
