@@ -132,3 +132,29 @@ def test_receipt_creation_rejects_non_preview() -> None:
             executed_at=TIMESTAMP,
             audit_event_id="audit-event-1",
         )
+
+
+def test_receipt_deleted_counts_exclude_records_under_legal_hold() -> None:
+    """The receipt distinguishes age-eligible records from rows actually deleted."""
+    eligible = _zero_counts()
+    held = _zero_counts()
+    eligible["scan_history"] = 7
+    held["scan_history"] = 2
+    preview = build_purge_preview(
+        _policy(),
+        preview_id="purge-preview-1",
+        legal_hold_revision=4,
+        created_at=TIMESTAMP,
+        eligible_counts=eligible,
+        held_counts=held,
+    )
+
+    receipt = create_purge_receipt(
+        preview,
+        receipt_id="purge-receipt-1",
+        executed_at="2026-08-04T12:31:00Z",
+        audit_event_id="audit-event-1",
+    )
+
+    assert receipt.deleted_counts["scan_history"] == 5
+    assert receipt.held_counts["scan_history"] == 2
