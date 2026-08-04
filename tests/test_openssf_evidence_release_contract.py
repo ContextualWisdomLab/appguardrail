@@ -74,6 +74,7 @@ def test_package_metadata_matches_the_tested_python_floor() -> None:
     """Published compatibility must not claim an untested Python interpreter."""
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     lockfile = (ROOT / "uv.lock").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     tests_workflow = (ROOT / ".github" / "workflows" / "tests.yml").read_text(
         encoding="utf-8"
     )
@@ -82,6 +83,7 @@ def test_package_metadata_matches_the_tested_python_floor() -> None:
     assert '"Programming Language :: Python :: 3.9"' not in pyproject
     assert '"Programming Language :: Python :: 3.10"' in pyproject
     assert 'requires-python = ">=3.10"' in lockfile
+    assert "Requires Python 3.10 or newer." in readme
     assert "python-version: ['3.10', '3.11', '3.13']" in tests_workflow
 
 
