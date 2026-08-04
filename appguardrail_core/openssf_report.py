@@ -9,6 +9,7 @@ from typing import Any
 
 
 _RULE_ID = "openssf-best-practices-evidence"
+_FINDINGS_SUMMARY_MARKER = "## Findings Summary"
 _STATUS_LABELS = {
     "in_progress": "In progress",
     "passing": "Passing",
@@ -107,3 +108,18 @@ def render_openssf_evidence_section(
         ]
     )
     return lines
+
+
+def augment_buyer_diligence_report(
+    rendered_report: str,
+    findings: Iterable[dict[str, Any]],
+) -> str:
+    """Insert the evidence section before the existing findings summary heading."""
+    if rendered_report.count(_FINDINGS_SUMMARY_MARKER) != 1:
+        raise ValueError("buyer-diligence report must contain one findings summary")
+    section = "\n".join(render_openssf_evidence_section(findings))
+    return rendered_report.replace(
+        _FINDINGS_SUMMARY_MARKER,
+        section + _FINDINGS_SUMMARY_MARKER,
+        1,
+    )
