@@ -109,3 +109,28 @@ def test_supplied_falsy_opener_is_used_instead_of_replaced(
 
     assert result.status == "passing"
     assert opener.calls == 1
+
+
+def test_non_affirmative_evidence_requires_a_reason() -> None:
+    """Unavailable records cannot lose the explanation needed for an audit trail."""
+    with pytest.raises(ValueError, match="evidence reason"):
+        evidence.evidence_to_finding(
+            evidence.OpenSSFEvidence(
+                status="unavailable",
+                repository_url=REPOSITORY_URL,
+                verified_at=VERIFIED_AT,
+                source_origin=evidence.CURRENT_ORIGIN,
+            )
+        )
+
+
+def test_private_message_guard_rejects_unsupported_status() -> None:
+    """The defensive message helper cannot turn an unknown status into prose."""
+    with pytest.raises(ValueError, match="status"):
+        evidence._status_message(
+            evidence.OpenSSFEvidence(
+                status="future",
+                repository_url=REPOSITORY_URL,
+                verified_at=VERIFIED_AT,
+            )
+        )
