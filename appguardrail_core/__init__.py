@@ -71,7 +71,14 @@ from appguardrail_core.rules import (
 
 
 ReportContext = _reports.ReportContext
-_BASE_BUYER_DILIGENCE_RENDERER = _reports.render_buyer_diligence_report
+_BASE_RENDERER_ATTRIBUTE = "_openssf_base_buyer_diligence_renderer"
+if not hasattr(_reports, _BASE_RENDERER_ATTRIBUTE):
+    setattr(
+        _reports,
+        _BASE_RENDERER_ATTRIBUTE,
+        _reports.render_buyer_diligence_report,
+    )
+_BASE_BUYER_DILIGENCE_RENDERER = getattr(_reports, _BASE_RENDERER_ATTRIBUTE)
 
 
 def render_buyer_diligence_report(
@@ -84,9 +91,11 @@ def render_buyer_diligence_report(
     return augment_buyer_diligence_report(rendered, materialized)
 
 
-# ``reports.render_report`` resolves this module global at call time.  Installing
+# ``reports.render_report`` resolves this module global at call time. Installing
 # the wrapper at the package boundary preserves the established report module
 # while keeping the evidence vertical independently importable and testable.
+# The original renderer is retained on the reports module so package reloads do
+# not capture an earlier wrapper and recurse.
 _reports.render_buyer_diligence_report = render_buyer_diligence_report
 
 
