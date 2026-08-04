@@ -36,7 +36,9 @@ _SENSITIVE_KEY_PARTS = (
 )
 _SENSITIVE_TEXT_RE = re.compile(
     r"(?i)(?:\bbearer\b|\bauthorization\b|\bapi[ _-]?key\b|"
-    r"\bpassword\b|\bsecret\b|\btoken\b|\bagk_[A-Za-z0-9_-]+)"
+    r"\bpassword\b|\bsecret\b|\btoken\b|\bagk_[A-Za-z0-9_-]+|"
+    r"sk-(?:ant-)?[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|"
+    r"github_pat_[A-Za-z0-9_]{8,})"
 )
 
 
@@ -84,6 +86,8 @@ def _sanitize_value(value: Any, *, depth: int) -> Any:
             key = raw_key.strip()
             if not key:
                 raise ValueError("audit summary object must use non-empty string keys")
+            if key in sanitized:
+                raise ValueError("audit summary object contains a duplicate normalized key")
             sanitized[key] = (
                 "[REDACTED]"
                 if _sensitive_key(key)
@@ -134,7 +138,7 @@ class AuditEvent:
     event_hash: str
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a machine-readable copy suitable for persistence and export."""
+        """Return a re-sanitized copy suitable for persistence and export."""
         return {
             "tenant_id": self.tenant_id,
             "sequence_number": self.sequence_number,
@@ -143,7 +147,7 @@ class AuditEvent:
             "actor_id": self.actor_id,
             "request_id": self.request_id,
             "occurred_at": self.occurred_at,
-            "summary": json.loads(json.dumps(self.summary)),
+            "summary": sanitize_audit_summary(self.summary),
             "previous_event_hash": self.previous_event_hash,
             "event_hash": self.event_hash,
         }
@@ -246,8 +250,37 @@ def recompute_event_hash(event: AuditEvent) -> str:
     return _hash_payload(payload)
 
 
-def verify_audit_chain(events: Iterable[AuditEvent], *, tenant_id: int) -> None:
-    """Validate sequence, tenant isolation, predecessor links, and every event hash."""
+def verify_audit_chain(
+    events: Iterable[AuditEvent],
+    *,
+    tenant_id: int,
+    expected_event_count: int | None = None,
+    expected_head_hash: str | None = None,
+) -> None:
+    """Validate a tenant chain and optional trusted count or head checkpoints.
+
+    Internal gaps, reordering, mutation, predecessor changes, and tenant
+    substitution are detectable from the chain alone. Detecting deletion of the
+    final event requires a trusted expected count, head hash, or both from an
+    independently protected checkpoint.
+    """
+    if not isinstance(tenant_id, int) or isinstance(tenant_id, bool) or tenant_id <= 0:
+        raise ValueError("tenant_id must be a positive integer")
+    normalized_expected_count: int | None = None
+    if expected_event_count is not None:
+        if (
+            not isinstance(expected_event_count, int)
+            or isinstance(expected_event_count, bool)
+            or expected_event_count < 0
+        ):
+            raise ValueError("expected_event_count must be a non-negative integer")
+        normalized_expected_count = expected_event_count
+    normalized_expected_hash: str | None = None
+    if expected_head_hash is not None:
+        normalized_expected_hash = str(expected_head_hash or "").strip().lower()
+        if not _HASH_RE.fullmatch(normalized_expected_hash):
+            raise ValueError("expected_head_hash must be a lowercase SHA-256 hex digest")
+
     expected_previous_hash = GENESIS_EVENT_HASH
     expected_sequence = 1
     for event in events:
@@ -266,3 +299,9 @@ def verify_audit_chain(events: Iterable[AuditEvent], *, tenant_id: int) -> None:
             raise ValueError(f"audit chain invalid at sequence {expected_sequence}: {exc}") from exc
         expected_previous_hash = event.event_hash
         expected_sequence += 1
+
+    actual_count = expected_sequence - 1
+    if normalized_expected_count is not None and actual_count != normalized_expected_count:
+        raise ValueError("audit chain checkpoint event count mismatch")
+    if normalized_expected_hash is not None and expected_previous_hash != normalized_expected_hash:
+        raise ValueError("audit chain checkpoint head hash mismatch")
