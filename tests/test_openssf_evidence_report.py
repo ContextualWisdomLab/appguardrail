@@ -72,11 +72,10 @@ def test_report_renders_dedicated_openssf_evidence_table() -> None:
         "[Project evidence](https://www.bestpractices.dev/projects/42) |"
         in report
     )
-    assert (
-        "Source attribution: OpenSSF Best Practices badge contributors "
-        "(CC-BY-3.0+)."
-        in report
-    )
+    assert "Source attribution: OpenSSF Best Practices badge contributors." in report
+    assert "CDLA-Permissive-2.0" in report
+    assert "CC-BY-3.0" in report
+    assert "2024-08-23" in report
 
 
 def test_existing_report_dispatcher_uses_the_augmented_buyer_renderer() -> None:
@@ -146,6 +145,17 @@ def test_report_sorts_repositories_and_neutralizes_table_injection() -> None:
     assert "| Malformed response | Not verified |" in hostile_row
     assert "javascript:alert(1)" not in report
     assert "Project evidence" not in hostile_row
+
+
+def test_report_rejects_project_id_and_evidence_url_mismatch() -> None:
+    """A canonical-looking link cannot claim a different project identifier."""
+    finding = _finding(evidence_url="https://www.bestpractices.dev/projects/43")
+
+    report = _report([finding])
+    row = report.split("https://github.com/acme/project", 1)[1].splitlines()[0]
+
+    assert "| Malformed response | Not verified |" in row
+    assert "Project evidence" not in row
 
 
 def test_non_evidence_findings_do_not_create_evidence_rows() -> None:
