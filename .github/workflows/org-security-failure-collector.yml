@@ -158,6 +158,8 @@ jobs:
           repositories: ${{ steps.app-config.outputs.repositories }}
           permission-actions: read
           permission-checks: read
+          permission-pull-requests: read
+          permission-security-events: read
 
       - name: Create target-only issue write token
         id: write-app-token
@@ -182,3 +184,16 @@ jobs:
             --owner "$GITHUB_REPOSITORY_OWNER" \
             --target-repo "$GITHUB_REPOSITORY" \
             --lookback-hours "$LOOKBACK_HOURS"
+
+      - name: Collect Code Scanning analysis drift
+        env:
+          GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}
+          GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}
+          CODE_SCANNING_DRIFT_REPOSITORIES: ${{ steps.app-config.outputs.repositories }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.ci.collect_code_scanning_drift \
+            --owner "$GITHUB_REPOSITORY_OWNER" \
+            --target-repo "$GITHUB_REPOSITORY" \
+            --repositories "$CODE_SCANNING_DRIFT_REPOSITORIES" \
+            --max-pull-requests "50"

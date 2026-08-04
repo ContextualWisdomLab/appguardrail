@@ -1,0 +1,88 @@
+"""Contracts for the dependency-free changed-module statement coverage gate."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from scripts.ci.verify_module_coverage import (
+    CoverageTarget,
+    executable_lines,
+    parse_args,
+    verify_coverage,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_PATH = ROOT / ".github" / "workflows" / "tests.yml"
+
+
+def test_executable_lines_excludes_explicit_no_cover_lines(tmp_path: Path) -> None:
+    """The gate must measure executable statements while honoring reviewed exclusions."""
+    module_path = tmp_path / "sample_module.py"
+    module_path.write_text(
+        '"""Sample module."""\n\n'
+        "def covered(value):\n"
+        '    """Return a value."""\n'
+        "    return value\n\n"
+        "if __name__ == '__main__':  # pragma: no cover\n"
+        "    raise SystemExit(covered(1))  # pragma: no cover\n",
+        encoding="utf-8",
+    )
+
+    lines = executable_lines(module_path)
+
+    assert 5 in lines
+    assert 7 not in lines
+    assert 8 not in lines
+
+
+def test_verify_coverage_reports_missing_lines_without_rounding(
+    tmp_path: Path,
+) -> None:
+    """A single unexecuted statement must fail instead of rounding to 100%."""
+    module_path = tmp_path / "sample_module.py"
+    module_path.write_text(
+        '"""Sample module."""\n\n'
+        "def first():\n"
+        '    """Return one."""\n'
+        "    return 1\n\n"
+        "def second():\n"
+        '    """Return two."""\n'
+        "    return 2\n",
+        encoding="utf-8",
+    )
+    executable = executable_lines(module_path)
+    target = CoverageTarget(module_path.resolve(), executable, frozenset({3, 5}))
+
+    with pytest.raises(RuntimeError, match="100% statement coverage") as exc_info:
+        verify_coverage((target,))
+
+    assert "sample_module.py" in str(exc_info.value)
+    assert "7" in str(exc_info.value) or "9" in str(exc_info.value)
+
+
+def test_parse_args_requires_modules_and_tests() -> None:
+    """The CLI contract must name every measured module and focused test file."""
+    args = parse_args(
+        [
+            "--module",
+            "appguardrail_core/code_scanning.py",
+            "--test",
+            "tests/test_code_scanning_core.py",
+        ]
+    )
+
+    assert args.modules == ["appguardrail_core/code_scanning.py"]
+    assert args.tests == ["tests/test_code_scanning_core.py"]
+
+
+def test_tests_workflow_enforces_exact_100_percent_for_new_modules() -> None:
+    """Exact-head CI must run the durable statement-coverage verifier."""
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "python -m scripts.ci.verify_module_coverage" in workflow
+    assert "appguardrail_core/code_scanning.py" in workflow
+    assert "scripts/ci/collect_code_scanning_drift.py" in workflow
+    assert "100% statement coverage" in workflow
