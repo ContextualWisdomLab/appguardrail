@@ -1,0 +1,171 @@
+name: Repair Code Scanning Review Findings V2
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+    paths: [.github/workflows/repair-code-scanning-review-findings-v2.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-code-scanning-review-findings-v2
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor == 'seonghobae' && github.head_ref == 'feat/code-scanning-analysis-drift-862'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/code-scanning-analysis-drift-862
+          fetch-depth: 1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Install hash-locked tests
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Apply exact reviewed fixes
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path_text: str, old: str, new: str) -> None:
+              path = Path(path_text)
+              source = path.read_text(encoding='utf-8')
+              if source.count(old) != 1:
+                  raise SystemExit(
+                      f'expected exactly one reviewed replacement in {path_text}: {old!r}'
+                  )
+              path.write_text(source.replace(old, new), encoding='utf-8')
+
+          replace_once(
+              'CHANGELOG.d/862-code-scanning-analysis-drift.md',
+              'Added a dependency-free exact 100% statement coverage gate',
+              'Added an exact 100% statement coverage gate without coverage plugins',
+          )
+          replace_once(
+              'docs/code-scanning-analysis-drift.md',
+              'a dependency-free standard-library tracer',
+              'a standard-library tracer without coverage plugins',
+          )
+          replace_once(
+              'tests/test_code_scanning_core.py',
+              'with pytest.raises(ValueError, match="tool.name"):',
+              'with pytest.raises(ValueError, match=r"tool\\.name"):',
+          )
+          replace_once(
+              'tests/test_code_scanning_drift_collector.py',
+              'with pytest.raises(ValueError, match="api.github.com"):',
+              'with pytest.raises(ValueError, match=r"api\\.github\\.com"):',
+          )
+          replace_once(
+              'scripts/ci/collect_code_scanning_drift.py',
+              '''    }
+    return (
+        f"{MARKER_PREFIX} "
+        f"{json.dumps(payload, sort_keys=True, separators=(',', ':'))} "
+        f"{MARKER_SUFFIX}"
+    )''',
+              r'''    }
+    encoded = json.dumps(
+        payload, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+    ).replace(">", "\\u003e")
+    return (
+        f"{MARKER_PREFIX} "
+        f"{encoded} "
+        f"{MARKER_SUFFIX}"
+    )''',
+          )
+          replace_once(
+              'scripts/ci/collect_code_scanning_drift.py',
+              '''        and issue.get("title")
+        and "pull_request" not in issue''',
+              '''        and issue.get("title")
+        and isinstance(issue.get("number"), int)
+        and not isinstance(issue.get("number"), bool)
+        and issue["number"] > 0
+        and "pull_request" not in issue''',
+          )
+          replace_once(
+              'scripts/ci/collect_code_scanning_drift.py',
+              '''        issues[title] = (
+            created
+            if isinstance(created, dict)
+            else {"number": 0, "state": "open", "title": title, "body": body}
+        )
+        published += 1''',
+              '''        if (
+            isinstance(created, dict)
+            and isinstance(created.get("number"), int)
+            and not isinstance(created.get("number"), bool)
+            and created["number"] > 0
+        ):
+            issues[title] = created
+        published += 1''',
+          )
+          replace_once(
+              'scripts/ci/verify_module_coverage.py',
+              '''        total = len(target.executable)
+        covered = len(target.executable & target.executed)
+        if target.missing:''',
+              '''        total = len(target.executable)
+        covered = len(target.executable & target.executed)
+        if total == 0:
+            failures.append(f"{target.path}: no executable statement lines")
+            continue
+        if target.missing:''',
+          )
+          replace_once(
+              '.github/workflows/tests.yml',
+              '''            --test tests/test_code_scanning_page_result_issue_index.py \\
+            --test tests/test_code_scanning_remaining_coverage.py''',
+              '''            --test tests/test_code_scanning_page_result_issue_index.py \\
+            --test tests/test_code_scanning_remaining_coverage.py \\
+            --test tests/test_code_scanning_review_regressions.py''',
+          )
+          PY
+          git diff --check
+      - name: Verify full and exact coverage suites
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/code_scanning.py \
+            --module scripts/ci/collect_code_scanning_drift.py \
+            --test tests/test_code_scanning_core.py \
+            --test tests/test_code_scanning_coverage_edges.py \
+            --test tests/test_code_scanning_drift_collector.py \
+            --test tests/test_code_scanning_drift_issueops.py \
+            --test tests/test_code_scanning_drift_release_contract.py \
+            --test tests/test_code_scanning_drift_transport_edges.py \
+            --test tests/test_code_scanning_drift_workflow.py \
+            --test tests/test_code_scanning_module_entrypoint.py \
+            --test tests/test_code_scanning_page_result_issue_index.py \
+            --test tests/test_code_scanning_remaining_coverage.py \
+            --test tests/test_code_scanning_review_regressions.py
+      - name: Commit verified fixes and remove one-shot workflows
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/repair-code-scanning-review-findings.yml \
+            .github/workflows/repair-code-scanning-review-findings-v2.yml
+          git add \
+            .github/workflows/tests.yml \
+            CHANGELOG.d/862-code-scanning-analysis-drift.md \
+            docs/code-scanning-analysis-drift.md \
+            scripts/ci/collect_code_scanning_drift.py \
+            scripts/ci/verify_module_coverage.py \
+            tests/test_code_scanning_core.py \
+            tests/test_code_scanning_drift_collector.py
+          git diff --cached --check
+          git config user.name 'appguardrail-maintainer'
+          git config user.email '8172694+seonghobae@users.noreply.github.com'
+          git commit -m 'fix(code-scanning): address exact-head review findings'
+          git push origin HEAD:feat/code-scanning-analysis-drift-862
