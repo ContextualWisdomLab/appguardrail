@@ -26,14 +26,15 @@ class CoverageTarget:
 
 
 def executable_lines(path: Path) -> frozenset[int]:
-    """Return executable source lines excluding explicit reviewed no-cover lines."""
+    """Return executable source lines excluding reviewed non-line and no-cover entries."""
     resolved = path.resolve()
     source_lines = resolved.read_text(encoding="utf-8").splitlines()
     discovered = trace._find_executable_linenos(str(resolved))  # noqa: SLF001
     return frozenset(
         line_number
         for line_number in discovered
-        if 1 <= line_number <= len(source_lines)
+        if isinstance(line_number, int)
+        and 1 <= line_number <= len(source_lines)
         and "# pragma: no cover" not in source_lines[line_number - 1]
     )
 
