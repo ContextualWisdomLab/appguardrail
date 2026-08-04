@@ -30,3 +30,15 @@ jobs:
         run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
       - name: Run tests
         run: python -m pytest -q
+      - name: Verify 100% statement coverage for live drift modules
+        if: matrix.python-version == '3.13'
+        run: |
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/code_scanning.py \
+            --module scripts/ci/collect_code_scanning_drift.py \
+            --test tests/test_code_scanning_core.py \
+            --test tests/test_code_scanning_drift_collector.py \
+            --test tests/test_code_scanning_drift_issueops.py \
+            --test tests/test_code_scanning_drift_release_contract.py \
+            --test tests/test_code_scanning_drift_transport_edges.py \
+            --test tests/test_code_scanning_drift_workflow.py
