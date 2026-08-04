@@ -1,0 +1,195 @@
+"""CLI contracts for live and offline OpenSSF Best Practices evidence."""
+
+from __future__ import annotations
+
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from appguardrail_core import openssf_evidence as evidence
+from scanner.cli import appguardrail as cli
+
+
+REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
+VERIFIED_AT = "2026-08-04T09:00:00Z"
+
+
+def _source_payload() -> list[dict[str, object]]:
+    """Return one saved exact-URL search response."""
+    return [{"id": 865, "badge_level": "silver", "tiered_percentage": 200}]
+
+
+def test_module_cli_reads_offline_source_and_writes_standard_envelope(
+    tmp_path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Offline evidence must use the same normalized findings envelope as scans."""
+    source = tmp_path / "projects.json"
+    source.write_text(json.dumps(_source_payload()), encoding="utf-8")
+
+    result = evidence.main(
+        [
+            "--repository-url",
+            REPOSITORY_URL,
+            "--source-json",
+            str(source),
+            "--verified-at",
+            VERIFIED_AT,
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema"] == "appguardrail.findings.v1"
+    assert len(payload["findings"]) == 1
+    finding = payload["findings"][0]
+    assert finding["evidence_status"] == "silver"
+    assert finding["repository_url"] == REPOSITORY_URL
+    assert finding["verified_at"] == VERIFIED_AT
+
+
+def test_module_cli_can_write_legacy_source_evidence_to_file(tmp_path) -> None:
+    """Saved legacy responses remain attributable when written for later reports."""
+    source = tmp_path / "legacy.json"
+    target = tmp_path / "evidence" / "findings.json"
+    source.write_text(json.dumps(_source_payload()), encoding="utf-8")
+
+    result = evidence.main(
+        [
+            "--repository-url",
+            REPOSITORY_URL,
+            "--source-json",
+            str(source),
+            "--source-origin",
+            evidence.LEGACY_ORIGIN,
+            "--verified-at",
+            VERIFIED_AT,
+            "--out",
+            str(target),
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["findings"][0]["source_origin"] == evidence.LEGACY_ORIGIN
+    assert target.read_text(encoding="utf-8").endswith("\n")
+
+
+def test_module_cli_collects_live_evidence_when_source_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Live mode delegates to the fixed-origin collector and preserves its state."""
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_collect(repository_url: str, *, verified_at: str | None = None):
+        """Return deterministic live evidence for the command contract."""
+        calls.append((repository_url, verified_at))
+        return evidence.OpenSSFEvidence(
+            status="passing",
+            repository_url=repository_url,
+            verified_at=verified_at or VERIFIED_AT,
+            badge_tier="passing",
+            evidence_url=f"{evidence.CURRENT_ORIGIN}/projects/865",
+            project_id=865,
+            tiered_percentage=100,
+            source_origin=evidence.CURRENT_ORIGIN,
+        )
+
+    monkeypatch.setattr(evidence, "collect_openssf_evidence", fake_collect)
+
+    assert evidence.main(["--repository-url", REPOSITORY_URL, "--verified-at", VERIFIED_AT]) == 0
+    assert calls == [(REPOSITORY_URL, VERIFIED_AT)]
+    assert json.loads(capsys.readouterr().out)["findings"][0]["badge_tier"] == "passing"
+
+
+@pytest.mark.parametrize("contents", ["{", "not-json"])
+def test_module_cli_rejects_invalid_local_json(
+    tmp_path,
+    capsys: pytest.CaptureFixture[str],
+    contents: str,
+) -> None:
+    """Invalid local files are operator errors rather than fabricated evidence states."""
+    source = tmp_path / "invalid.json"
+    source.write_text(contents, encoding="utf-8")
+
+    result = evidence.main(
+        ["--repository-url", REPOSITORY_URL, "--source-json", str(source)]
+    )
+
+    assert result == 1
+    assert "invalid JSON" in capsys.readouterr().err
+
+
+def test_module_cli_reports_source_and_output_io_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Unreadable inputs and unwritable outputs return concise non-zero results."""
+    missing = tmp_path / "missing.json"
+    assert evidence.main(
+        ["--repository-url", REPOSITORY_URL, "--source-json", str(missing)]
+    ) == 1
+    assert "cannot read" in capsys.readouterr().err.lower()
+
+    source = tmp_path / "source.json"
+    source.write_text("[]", encoding="utf-8")
+
+    def fail_write(*_args: object, **_kwargs: object) -> int:
+        """Raise the file-system error used by the output-path contract."""
+        raise OSError("read-only")
+
+    monkeypatch.setattr(evidence.Path, "write_text", fail_write)
+    assert evidence.main(
+        [
+            "--repository-url",
+            REPOSITORY_URL,
+            "--source-json",
+            str(source),
+            "--out",
+            str(tmp_path / "out.json"),
+        ]
+    ) == 1
+    assert "cannot write" in capsys.readouterr().err.lower()
+
+
+def test_module_cli_requires_repository_url() -> None:
+    """The evidence identity is required in both live and offline modes."""
+    with pytest.raises(SystemExit):
+        evidence.parse_args([])
+
+
+def test_appguardrail_cli_dispatches_openssf_evidence_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The installed `appguardrail` command must expose the evidence collector."""
+    observed: list[SimpleNamespace] = []
+
+    def fake_command(args: SimpleNamespace) -> int:
+        """Record parser output and return a deterministic command status."""
+        observed.append(args)
+        return 0
+
+    monkeypatch.setattr(cli, "cmd_openssf_evidence", fake_command)
+    monkeypatch.setattr(
+        cli.sys,
+        "argv",
+        [
+            "appguardrail",
+            "openssf-evidence",
+            "--repository-url",
+            REPOSITORY_URL,
+            "--verified-at",
+            VERIFIED_AT,
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 0
+    assert observed[0].repository_url == REPOSITORY_URL
+    assert observed[0].verified_at == VERIFIED_AT
+    assert "appguardrail openssf-evidence" in cli.__doc__
