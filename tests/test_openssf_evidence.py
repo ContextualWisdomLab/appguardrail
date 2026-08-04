@@ -52,6 +52,25 @@ def test_parse_project_matches_preserves_supported_badge_level(level: str) -> No
     )
 
 
+def test_homepage_url_can_prove_the_exact_query_identity() -> None:
+    """The official URL search may match either repository or homepage identity."""
+    evidence = parse_project_matches(
+        [
+            _project(
+                "passing",
+                repo_url="https://github.com/acme/different-repository",
+                homepage_url=REPOSITORY_URL + "/",
+            )
+        ],
+        repository_url=REPOSITORY_URL,
+        verified_at=VERIFIED_AT,
+        source_origin=CURRENT_ORIGIN,
+    )
+
+    assert evidence.status == "passing"
+    assert evidence.repository_url == REPOSITORY_URL
+
+
 def test_empty_search_is_unavailable_without_claiming_non_registration() -> None:
     """An empty public search result is absence of observed evidence, not proof."""
     evidence = parse_project_matches(
@@ -81,6 +100,14 @@ def test_empty_search_is_unavailable_without_claiming_non_registration() -> None
         ([_project("gold", tiered_percentage=True)], "invalid_tiered_percentage"),
         ([_project("gold", tiered_percentage=-1)], "invalid_tiered_percentage"),
         ([_project("gold", tiered_percentage=301)], "invalid_tiered_percentage"),
+        (
+            [_project("gold", repo_url="https://github.com/acme/other")],
+            "project_url_mismatch",
+        ),
+        (
+            [_project("gold", repo_url=None, homepage_url=None)],
+            "project_url_mismatch",
+        ),
     ],
 )
 def test_malformed_or_ambiguous_evidence_fails_closed(
@@ -128,6 +155,8 @@ def test_optional_tiered_percentage_may_be_absent() -> None:
         (REPOSITORY_URL, "https://attacker.invalid", VERIFIED_AT, "source origin"),
         (REPOSITORY_URL, CURRENT_ORIGIN, "", "verified_at"),
         (REPOSITORY_URL, CURRENT_ORIGIN, "2026-08-04", "verified_at"),
+        (REPOSITORY_URL, CURRENT_ORIGIN, "2026-8-04T06:30:00Z", "verified_at"),
+        (REPOSITORY_URL, CURRENT_ORIGIN, "2026-08-04T6:30:00Z", "verified_at"),
         (
             REPOSITORY_URL,
             CURRENT_ORIGIN,
@@ -190,7 +219,9 @@ def test_evidence_to_finding_preserves_auditable_metadata(
     assert finding["context"] == "governance"
     assert finding["source"] == "openssf-best-practices"
     assert finding["attribution"] == "OpenSSF Best Practices badge contributors"
-    assert finding["content_license"] == "CC-BY-3.0+"
+    assert "CDLA-Permissive-2.0" in finding["content_license"]
+    assert "CC-BY-3.0" in finding["content_license"]
+    assert finding["content_license_policy_url"] == f"{CURRENT_ORIGIN}/en"
     assert finding["evidence_status"] == status
     assert finding["badge_tier"] == badge_tier
     assert finding["evidence_url"] == evidence.evidence_url
@@ -201,6 +232,7 @@ def test_evidence_to_finding_preserves_auditable_metadata(
     assert finding["source_origin"] == CURRENT_ORIGIN
     assert finding["evidence_reason"] == evidence.reason
     assert CURRENT_ORIGIN in finding["references"]
+    assert f"{CURRENT_ORIGIN}/en" in finding["references"]
 
     if status == "unavailable":
         assert "does not prove" in finding["message"]
