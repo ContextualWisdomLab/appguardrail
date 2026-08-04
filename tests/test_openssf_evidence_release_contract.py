@@ -69,6 +69,7 @@ def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
         "tests/test_openssf_evidence_report.py",
         "tests/test_openssf_evidence_release_contract.py",
         "tests/test_openssf_evidence_coverage_edges.py",
+        "tests/test_openssf_evidence_validation_edges.py",
     ):
         assert path in workflow
     assert "python -m scripts.ci.verify_module_coverage" in workflow
