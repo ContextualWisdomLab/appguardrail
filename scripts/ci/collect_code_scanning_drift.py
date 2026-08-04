@@ -558,3 +558,72 @@ def publish_records(
         )
         published += 1
     return published
+
+
+def parse_args(argv: list[str]):
+    """Parse bounded organization, target, and allowlist inputs for the collector."""
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--owner",
+        default=os.getenv("GITHUB_REPOSITORY_OWNER", "ContextualWisdomLab"),
+    )
+    parser.add_argument(
+        "--target-repo",
+        default=os.getenv("GITHUB_REPOSITORY", "ContextualWisdomLab/appguardrail"),
+    )
+    parser.add_argument(
+        "--repositories",
+        default=os.getenv("CODE_SCANNING_DRIFT_REPOSITORIES", ""),
+    )
+    parser.add_argument(
+        "--max-pull-requests",
+        type=int,
+        default=int(
+            os.getenv(
+                "CODE_SCANNING_DRIFT_MAX_PULL_REQUESTS",
+                str(DEFAULT_MAX_PULL_REQUESTS),
+            )
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Collect with read scope, publish with issue scope, and print bounded telemetry."""
+    import os
+    import sys
+
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    read_token = (os.getenv("GH_READ_TOKEN") or "").strip()
+    write_token = (os.getenv("GH_WRITE_TOKEN") or "").strip()
+    if not read_token or not write_token:
+        raise SystemExit("GH_READ_TOKEN and GH_WRITE_TOKEN are both required")
+    if read_token == write_token:
+        raise SystemExit("GH_READ_TOKEN and GH_WRITE_TOKEN must be distinct")
+    repositories = parse_repositories(args.owner, args.repositories)
+    target_repo = parse_repositories(args.owner, args.target_repo)[0]
+    read_client = GitHub(read_token)
+    write_client = GitHub(write_token)
+    records = collect_records(
+        read_client,
+        owner=args.owner,
+        repositories=repositories,
+        max_pull_requests=args.max_pull_requests,
+    )
+    published = publish_records(write_client, target_repo, records)
+    summary = {
+        "clean": sum(record.assessment.status == "clean" for record in records),
+        "drift": sum(record.assessment.status == "drift" for record in records),
+        "published": published,
+        "total": len(records),
+        "unknown": sum(record.assessment.status == "unknown" for record in records),
+    }
+    print(json.dumps(summary, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised through main()
+    raise SystemExit(main())
