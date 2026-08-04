@@ -8,6 +8,7 @@ import pytest
 
 from scripts.ci.verify_module_coverage import (
     CoverageTarget,
+    _execute_tests,
     executable_lines,
     parse_args,
     verify_coverage,
@@ -61,6 +62,55 @@ def test_verify_coverage_reports_missing_lines_without_rounding(
 
     assert "sample_module.py" in str(exc_info.value)
     assert "7" in str(exc_info.value) or "9" in str(exc_info.value)
+
+
+def test_execute_tests_does_not_ignore_package_initializers_by_basename(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Directory ignores must not hide every package ``__init__.py`` from coverage."""
+    observed: dict[str, object] = {}
+
+    class FakeResults:
+        """Return an empty deterministic trace-count mapping."""
+
+        counts: dict[tuple[str, int], int] = {}
+
+    class FakeTrace:
+        """Capture the tracer configuration without running nested pytest."""
+
+        def __init__(
+            self,
+            *,
+            count: bool,
+            trace: bool,
+            ignoredirs: tuple[str, ...],
+        ) -> None:
+            """Record whether the gate delegates basename filtering to ``trace``."""
+            observed.update(
+                count=count,
+                trace=trace,
+                ignoredirs=ignoredirs,
+            )
+
+        def runfunc(self, _function: object, _arguments: list[str]) -> int:
+            """Return a successful focused-test result for this configuration test."""
+            return 0
+
+        def results(self) -> FakeResults:
+            """Return the deterministic empty result object."""
+            return FakeResults()
+
+    monkeypatch.setattr(
+        "scripts.ci.verify_module_coverage.trace.Trace",
+        FakeTrace,
+    )
+
+    assert _execute_tests(["tests/placeholder.py"]) == {}
+    assert observed == {
+        "count": True,
+        "trace": False,
+        "ignoredirs": (),
+    }
 
 
 def test_parse_args_requires_modules_and_tests() -> None:
