@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 
 from appguardrail_core import openssf_evidence as evidence
-from scanner.cli import appguardrail as cli
 
 
+ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 VERIFIED_AT = "2026-08-04T09:00:00Z"
 
@@ -21,7 +21,7 @@ def _source_payload() -> list[dict[str, object]]:
 
 
 def test_module_cli_reads_offline_source_and_writes_standard_envelope(
-    tmp_path,
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Offline evidence must use the same normalized findings envelope as scans."""
@@ -49,7 +49,7 @@ def test_module_cli_reads_offline_source_and_writes_standard_envelope(
     assert finding["verified_at"] == VERIFIED_AT
 
 
-def test_module_cli_can_write_legacy_source_evidence_to_file(tmp_path) -> None:
+def test_module_cli_can_write_legacy_source_evidence_to_file(tmp_path: Path) -> None:
     """Saved legacy responses remain attributable when written for later reports."""
     source = tmp_path / "legacy.json"
     target = tmp_path / "evidence" / "findings.json"
@@ -106,7 +106,7 @@ def test_module_cli_collects_live_evidence_when_source_is_absent(
 
 @pytest.mark.parametrize("contents", ["{", "not-json"])
 def test_module_cli_rejects_invalid_local_json(
-    tmp_path,
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     contents: str,
 ) -> None:
@@ -123,7 +123,7 @@ def test_module_cli_rejects_invalid_local_json(
 
 
 def test_module_cli_reports_source_and_output_io_errors(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -161,35 +161,11 @@ def test_module_cli_requires_repository_url() -> None:
         evidence.parse_args([])
 
 
-def test_appguardrail_cli_dispatches_openssf_evidence_command(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The installed `appguardrail` command must expose the evidence collector."""
-    observed: list[SimpleNamespace] = []
+def test_package_publishes_a_modular_openssf_console_script() -> None:
+    """Standalone and MSA users receive a dedicated installed evidence command."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    def fake_command(args: SimpleNamespace) -> int:
-        """Record parser output and return a deterministic command status."""
-        observed.append(args)
-        return 0
-
-    monkeypatch.setattr(cli, "cmd_openssf_evidence", fake_command)
-    monkeypatch.setattr(
-        cli.sys,
-        "argv",
-        [
-            "appguardrail",
-            "openssf-evidence",
-            "--repository-url",
-            REPOSITORY_URL,
-            "--verified-at",
-            VERIFIED_AT,
-        ],
+    assert (
+        'appguardrail-openssf-evidence = "appguardrail_core.openssf_evidence:main"'
+        in pyproject
     )
-
-    with pytest.raises(SystemExit) as exc_info:
-        cli.main()
-
-    assert exc_info.value.code == 0
-    assert observed[0].repository_url == REPOSITORY_URL
-    assert observed[0].verified_at == VERIFIED_AT
-    assert "appguardrail openssf-evidence" in cli.__doc__
