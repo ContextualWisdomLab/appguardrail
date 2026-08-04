@@ -29,9 +29,10 @@ def test_operator_documentation_records_official_and_conservative_semantics() ->
     documentation = (ROOT / "docs" / "openssf-best-practices-evidence.md").read_text(
         encoding="utf-8"
     )
+    documentation_lines = set(documentation.splitlines())
 
     assert "https://www.bestpractices.dev/projects.json?url=" in documentation
-    assert "https://bestpractices.coreinfrastructure.org" in documentation
+    assert "https://bestpractices.coreinfrastructure.org" in documentation_lines
     assert "in_progress" in documentation
     assert "passing" in documentation
     assert "silver" in documentation
