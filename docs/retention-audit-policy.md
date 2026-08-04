@@ -13,10 +13,10 @@ This phase adds dependency-free primitives for:
 - deterministic UTC cutoffs under an injected `as_of` time;
 - purge previews bound to policy revision, legal-hold revision, cutoffs, and counts;
 - stale-preview and tampering detection;
-- non-secret purge receipts;
+- non-secret purge receipts that require a final current-revision check;
 - append-oriented, tenant-local SHA-256 audit chains;
-- canonical event hashing and chain verification; and
-- mandatory redaction of secret-bearing and raw customer-evidence fields before hashing.
+- canonical event hashing, chain verification, and optional trusted head checkpoints; and
+- mandatory redaction of secret-bearing and raw customer-evidence fields before hashing and export.
 
 This phase does **not** yet delete rows, expose an HTTP retention endpoint, migrate the control-plane database, or claim that any audit record is physically immutable. Those capabilities are bounded follow-up slices under issue #871.
 
@@ -34,7 +34,7 @@ Every duration must be an integer from 1 through 3,650 days. These bounds limit 
 
 ## Optimistic concurrency
 
-A `RetentionPolicy` has a monotonically increasing revision. An owner update supplies the revision it observed. A mismatch raises `RetentionPolicyConflict` rather than silently overwriting a newer decision. Persistence adapters must perform the same comparison in one transaction.
+A `RetentionPolicy` has a monotonically increasing revision. An owner update supplies the positive integer revision it observed. A mismatch raises `RetentionPolicyConflict` rather than silently overwriting a newer decision. Boolean values are rejected even though Python normally compares `True` equal to `1`. Persistence adapters must perform the same comparison in one transaction.
 
 Only duration fields are mutable through `update_retention_policy`. Tenant identity, current revision, and audit identity are controlled by the caller and cannot be smuggled through the change object.
 
@@ -51,7 +51,7 @@ Only duration fields are mutable through `update_retention_policy`. Tenant ident
 - eligible row counts; and
 - legal-hold exclusion counts.
 
-A persistence adapter must calculate counts without deleting data. Before execution it must call `verify_purge_preview` against the current policy and legal-hold revisions, then repeat or otherwise transactionally protect eligibility checks. If either revision changed, the preview is stale and no deletion may occur.
+A persistence adapter must calculate counts without deleting data. Before execution it must call `verify_purge_preview` against the current policy and legal-hold revisions, then repeat or otherwise transactionally protect eligibility checks. `create_purge_receipt` requires those same current revisions and refuses a receipt whose execution time precedes preview creation. If either revision changed, the preview is stale and no receipt or deletion evidence may be created.
 
 Purge execution must be idempotent. A retry of the same completed preview returns the existing receipt. A request using a stale preview must fail closed. The eventual SQLite adapter will use one atomic transaction for deletion, audit event, and receipt so a crash commits all three or none.
 
@@ -73,15 +73,15 @@ The core preview records held counts, but Phase 1 does not define the persistenc
 - a non-secret summary; and
 - the previous event hash.
 
-The first event links to a fixed all-zero genesis hash. `verify_audit_chain` detects deletion, reordering, mutation, cross-tenant substitution, broken predecessor links, and sequence gaps.
+The first event links to a fixed all-zero genesis hash. `verify_audit_chain` detects mutation, internal deletion, reordering, cross-tenant substitution, broken predecessor links, and sequence gaps. A hash chain by itself cannot prove that the final event was not truncated. When an independently protected count or chain-head digest is available, pass `expected_event_count`, `expected_head_hash`, or both so tail deletion also fails closed.
 
-A hash chain is **tamper-evident, not physically immutable**. A malicious administrator who can replace an entire database and all external checkpoints could recompute a new chain. Phase 2 will add append-only SQLite triggers, and later managed deployments should checkpoint chain heads to an independently controlled evidence store.
+A hash chain is **tamper-evident, not physically immutable**. A malicious administrator who can replace an entire database and all trusted checkpoints could recompute a new chain. Phase 2 will add append-only SQLite triggers, and later managed deployments should checkpoint chain heads to an independently controlled evidence store.
 
 ## Secret and evidence minimization
 
-Audit summaries intentionally record decisions, not customer payloads. Keys that name API keys, authorization values, credentials, passwords, tokens, secrets, webhook URLs, raw findings, snippets, or raw evidence are redacted before hashing. Secret-like text such as bearer credentials and `agk_` keys is also redacted.
+Audit summaries intentionally record decisions, not customer payloads. Keys that name API keys, authorization values, credentials, passwords, tokens, secrets, webhook URLs, raw findings, snippets, or raw evidence are redacted before hashing. Secret-like text such as bearer credentials, `agk_` keys, Anthropic/OpenAI `sk-` tokens, GitHub `ghp_` tokens, and `github_pat_` credentials is also redacted. Exports re-sanitize the event summary so post-construction mutation cannot inject plaintext credentials into a report.
 
-The core rejects floating-point values and non-string object keys so every committed event has one deterministic JSON representation. It limits nesting depth and encoded size to prevent audit logging from becoming a denial-of-service path.
+The core rejects floating-point values, duplicate keys after whitespace normalization, and non-string object keys so every committed event has one deterministic JSON representation. It limits nesting depth and encoded size to prevent audit logging from becoming a denial-of-service path.
 
 The following material must never appear in an audit summary or buyer report:
 
@@ -97,7 +97,7 @@ The following material must never appear in an audit summary or buyer report:
 | Product behavior | Standards rationale |
 |---|---|
 | Event types, actor identity, time, outcome summaries, and correlation | NIST SP 800-53 AU-2, AU-3, AU-8, and AU-12 require defined, content-rich, time-correlated audit records. |
-| Restricted audit mutation and tamper detection | NIST SP 800-53 AU-9 requires protection of audit information and tools. |
+| Restricted audit mutation, trusted checkpoints, and tamper detection | NIST SP 800-53 AU-9 requires protection of audit information and tools. |
 | Configurable audit retention | NIST SP 800-53 AU-11 and NIST SP 800-92 support organization-defined retention and log-management lifecycle practices. |
 | Data retention and disposal policy | NIST SP 800-53 SI-12 requires managing and disposing of information according to policy and requirements. |
 | Storage limitation and accountability | GDPR Article 5(1)(e) and Article 5(2). |
@@ -107,6 +107,7 @@ The following material must never appear in an audit summary or buyer report:
 ## Operational limits
 
 - SHA-256 chaining provides integrity evidence, not non-repudiation or independent timestamp authority.
+- Tail-truncation detection depends on a separately protected count or head-hash checkpoint.
 - Product defaults do not supersede legal or contractual retention requirements.
 - Phase 1 does not delete persisted data.
 - Database backups and replicas require separate expiry and legal-hold procedures.
