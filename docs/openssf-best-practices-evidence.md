@@ -85,7 +85,7 @@ python -m appguardrail_core.openssf_evidence \
   --repository-url https://github.com/ContextualWisdomLab/appguardrail
 ```
 
-The package's supported interpreter floor is Python 3.10 and the repository tests that floor directly.
+The package's supported interpreter floor is Python 3.11. The main repository test matrix exercises Python 3.11 and Python 3.13.
 
 ## Buyer-diligence reports
 
