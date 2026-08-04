@@ -42,7 +42,9 @@ def test_operator_documentation_records_official_and_conservative_semantics() ->
     assert "buyer-diligence" in documentation
     assert "OpenSSF Best Practices Badge API" in documentation
     assert "OpenSSF Best Practices badge contributors" in documentation
+    assert "CDLA-Permissive-2.0" in documentation
     assert "CC-BY-3.0" in documentation
+    assert "2024-08-23" in documentation
 
 
 def test_changelog_fragment_describes_buyer_visible_evidence() -> None:
@@ -55,6 +57,7 @@ def test_changelog_fragment_describes_buyer_visible_evidence() -> None:
     assert "buyer-diligence" in changelog
     assert "unavailable" in changelog
     assert "permission" in changelog
+    assert "CDLA-Permissive-2.0" in changelog
 
 
 def test_evidence_module_avoids_python_311_only_utc_alias() -> None:
@@ -65,6 +68,21 @@ def test_evidence_module_avoids_python_311_only_utc_alias() -> None:
 
     assert "from datetime import UTC" not in source
     assert "timezone.utc" in source
+
+
+def test_package_metadata_matches_the_tested_python_floor() -> None:
+    """Published compatibility must not claim an untested Python interpreter."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    lockfile = (ROOT / "uv.lock").read_text(encoding="utf-8")
+    tests_workflow = (ROOT / ".github" / "workflows" / "tests.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'requires-python = ">=3.10"' in pyproject
+    assert '"Programming Language :: Python :: 3.9"' not in pyproject
+    assert '"Programming Language :: Python :: 3.10"' in pyproject
+    assert 'requires-python = ">=3.10"' in lockfile
+    assert "python-version: ['3.10', '3.11', '3.13']" in tests_workflow
 
 
 def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
