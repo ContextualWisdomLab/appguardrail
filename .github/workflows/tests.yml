@@ -43,4 +43,5 @@ jobs:
             --test tests/test_code_scanning_drift_release_contract.py \
             --test tests/test_code_scanning_drift_transport_edges.py \
             --test tests/test_code_scanning_drift_workflow.py \
+            --test tests/test_code_scanning_module_entrypoint.py \
             --test tests/test_code_scanning_remaining_coverage.py
