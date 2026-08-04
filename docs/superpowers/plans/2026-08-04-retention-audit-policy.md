@@ -24,12 +24,15 @@
 **Deliverables:**
 - frozen policy, preview, receipt, and audit-event models;
 - bounded product defaults with explicit non-legal-advice wording;
-- optimistic-concurrency policy updates;
+- Boolean-safe optimistic-concurrency policy updates;
 - UTC cutoff calculations;
 - hash-bound purge previews and stale checks;
-- non-secret purge receipts;
+- non-secret purge receipts gated by current policy and legal-hold revisions;
+- receipt execution-time ordering relative to preview creation;
 - tenant-local canonical audit hash chains;
-- secret/raw-evidence redaction; and
+- optional trusted event-count and head-hash checkpoints for tail-truncation detection;
+- secret/raw-evidence and provider-token redaction at creation and export;
+- duplicate normalized-key rejection; and
 - exact 100% statement coverage for both production modules.
 
 ## Phase 2: descriptive SQLite schema migration
@@ -45,6 +48,7 @@
 - new multiword tables, indexes, and triggers for retention policies, legal holds, audit events, purge previews, and purge receipts;
 - append-only triggers on audit events;
 - tenant-scoped uniqueness and foreign keys;
+- trusted audit-chain checkpoint persistence outside the mutable event rows;
 - migration idempotency, rollback, and mixed-schema failure tests; and
 - backward-compatible data preservation.
 
@@ -60,8 +64,8 @@
 - purge preview and execute endpoints;
 - optimistic revision handling;
 - idempotent execution receipts;
-- one transaction for deletion, receipt, and audit event;
-- stale-preview rejection before deletion;
+- one transaction for final revision verification, deletion, receipt, and audit event;
+- stale-preview rejection before deletion and receipt creation;
 - request correlation and non-secret action summaries; and
 - secure handling of backups and operational caveats in documentation.
 
