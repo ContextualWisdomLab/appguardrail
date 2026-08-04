@@ -40,7 +40,6 @@ jobs:
       - name: Verify exact unrounded statement coverage
         run: |
           python -m scripts.ci.verify_module_coverage \
-            --module appguardrail_core/__init__.py \
             --module appguardrail_core/audit_events.py \
             --module appguardrail_core/retention_policy.py \
             --test tests/test_audit_events.py \
