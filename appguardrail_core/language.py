@@ -94,13 +94,12 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        if isinstance(file_path, Path):
+        if type(file_path) is not str:
             name = file_path.name
             suffix = file_path.suffix.lower()
         else:
-            file_path_posix = file_path.replace("\\", "/")
-            idx = file_path_posix.rfind("/")
-            name = file_path_posix[idx + 1 :] if idx != -1 else file_path_posix
+            idx = max(file_path.rfind("/"), file_path.rfind("\\"))
+            name = file_path[idx + 1 :] if idx != -1 else file_path
 
             dot_idx = name.rfind(".")
             suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
@@ -123,7 +122,7 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     """Infer the most helpful zero-config scan profile for beginner users."""
     files_list = list(files) if not isinstance(files, (list, set, tuple)) else files
     paths = [
-        str(file_path) if isinstance(file_path, Path) else file_path
+        str(file_path) if type(file_path) is not str else file_path
         for file_path in files_list
     ]
     languages = detect_language_axes(paths)
