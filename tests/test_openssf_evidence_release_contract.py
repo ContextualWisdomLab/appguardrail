@@ -51,6 +51,20 @@ def test_operator_documentation_records_official_and_conservative_semantics() ->
     assert "2024-08-23" in documentation
 
 
+def test_operator_documentation_cites_primary_standards_in_apa_seventh_style() -> None:
+    """The evidence design must retain auditable APA-style primary references."""
+    documentation = (ROOT / "docs" / "openssf-best-practices-evidence.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "## References (APA 7th)" in documentation
+    assert "https://doi.org/10.17487/RFC3986" in documentation
+    assert "https://doi.org/10.17487/RFC6839" in documentation
+    assert "https://doi.org/10.17487/RFC8259" in documentation
+    assert "Open Source Security Foundation. (n.d.)." in documentation
+    assert "Retrieved August 4, 2026" in documentation
+
+
 def test_changelog_fragment_describes_buyer_visible_evidence() -> None:
     """The next release must include the evidence collection and report behavior."""
     changelog = (ROOT / "CHANGELOG.d" / "865-openssf-evidence.md").read_text(
