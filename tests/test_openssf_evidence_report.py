@@ -141,12 +141,11 @@ def test_report_sorts_repositories_and_neutralizes_table_injection() -> None:
         "`https://github.com/zeta/project"
     )
     assert "project\\|&lt;script&gt;alert(1)&lt;/script&gt;" in report
-    assert "Gold\\|fake" in report
+    assert "Gold\\|fake" not in report
+    hostile_row = report.split("https://github.com/zeta/project", 1)[1].splitlines()[0]
+    assert "| Malformed response | Not verified |" in hostile_row
     assert "javascript:alert(1)" not in report
-    assert (
-        "Project evidence"
-        not in report.split("https://github.com/zeta/project", 1)[1].splitlines()[0]
-    )
+    assert "Project evidence" not in hostile_row
 
 
 def test_non_evidence_findings_do_not_create_evidence_rows() -> None:
