@@ -43,6 +43,7 @@ jobs:
       - name: Verify exact unrounded statement coverage
         run: |
           python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/__init__.py \
             --module appguardrail_core/openssf_evidence.py \
             --module appguardrail_core/openssf_report.py \
             --test tests/test_openssf_evidence.py \
