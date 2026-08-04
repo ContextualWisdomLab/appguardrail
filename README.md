@@ -38,7 +38,7 @@ AppGuardrail is a **persistent security layer for AI-assisted builders** — not
 
 ### Run the CLI
 
-Requires Python 3.10 or newer.
+Requires Python 3.11 or newer.
 
 Install from PyPI:
 
@@ -97,7 +97,6 @@ APPGUARDRAIL_TARGET_URL=https://your-authorized-test-host.example appguardrail s
 
 # If CodeGraph is installed, prepare structural context for deeper review
 appguardrail scan --codegraph .
-
 # Save normalized findings for report generation or dashboard ingestion
 appguardrail scan --findings-json reports/findings.json .
 
@@ -417,7 +416,6 @@ Fix Prompt:
 Verification:
   Request User B's project_id using User A's token → expect HTTP 403.
 ```
-
 ---
 
 ## Why AppGuardrail is Different from Traditional SAST
