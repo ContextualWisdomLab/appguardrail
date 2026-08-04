@@ -11,7 +11,7 @@
 **Action:** Always capture `e.target.selectionStart` and `e.target.selectionEnd` before the DOM is replaced, and use `el.setSelectionRange(start, end)` after the element is re-rendered to maintain a seamless typing experience.
 
 ## 2025-02-18 - Making interactive non-button elements accessible
-**Learning:** When adding interactive behavior (e.g., `onclick`) to non-interactive HTML elements like `<tr>` in frameworkless HTML files, screen readers and keyboard navigation users are entirely blocked unless explicitly handled.
+**Learning:** When adding interactive behavior (e.g. `onclick`) to non-interactive HTML elements like `<tr>` in frameworkless HTML files, screen readers and keyboard navigation users are entirely blocked unless explicitly handled.
 **Action:** Always ensure keyboard accessibility by adding `tabindex="0"`, `role="button"`, an appropriate `aria-label`, focus styles (`:focus-visible`), and a `keydown` listener to handle `Enter` and `Space` key presses.
 
 ## 2024-10-24 - Interactive Table Rows Keyboard Accessibility
@@ -55,5 +55,5 @@
 **Action:** When implementing global keyboard shortcuts, always check `document.activeElement.tagName` and ignore the shortcut if the user is currently focused on an interactive text element (`input`, `textarea`, `select`).
 
 ## 2026-08-04 - Native File Input Iteration Friction
-**Learning:** Browsers natively suppress `change` events on `<input type="file">` if the user selects the exact same file path they just uploaded. This breaks the local development iteration loop where a user modifies their code, regenerates a findings file, and tries to re-upload it without refreshing the page. Additionally, users often overlook header-based inputs when presented with a large empty state.
-**Action:** Always add `onclick="this.value=null"` to file inputs so consecutive selections of the same file trigger the change event. Furthermore, provide a clear, in-context CTA within empty states that proxies clicks to the hidden or out-of-focus primary input, improving discoverability.
+**Learning:** Browsers suppress `change` events when a file input still holds the same selected path. Clearing the value in an inline `onclick` handler fixes repetition but also discards the previous selection when the user cancels the picker and couples behavior to markup.
+**Action:** Capture the selected `File` in the input's `change` listener, clear the input value immediately afterward, and then process the captured object. Use native buttons with explicit event listeners to proxy the picker from an empty-state CTA, preserving keyboard access and CSP-compatible separation of markup and behavior.
