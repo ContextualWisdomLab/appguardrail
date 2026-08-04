@@ -118,10 +118,22 @@ def test_optional_tiered_percentage_may_be_absent() -> None:
     ("repository_url", "source_origin", "verified_at", "match"),
     [
         ("file:///tmp/repo", CURRENT_ORIGIN, VERIFIED_AT, "http or https"),
-        ("https://user:secret@example.com/repo", CURRENT_ORIGIN, VERIFIED_AT, "credentials"),
+        (
+            "https://user:secret@example.com/repo",
+            CURRENT_ORIGIN,
+            VERIFIED_AT,
+            "credentials",
+        ),
         ("https:///missing-host", CURRENT_ORIGIN, VERIFIED_AT, "host"),
         (REPOSITORY_URL, "https://attacker.invalid", VERIFIED_AT, "source origin"),
         (REPOSITORY_URL, CURRENT_ORIGIN, "", "verified_at"),
+        (REPOSITORY_URL, CURRENT_ORIGIN, "2026-08-04", "verified_at"),
+        (
+            REPOSITORY_URL,
+            CURRENT_ORIGIN,
+            "2026-13-40T25:61:61Z",
+            "verified_at",
+        ),
     ],
 )
 def test_parser_rejects_unsafe_identity_inputs(
@@ -130,7 +142,7 @@ def test_parser_rejects_unsafe_identity_inputs(
     verified_at: str,
     match: str,
 ) -> None:
-    """Evidence identity must not carry unsafe URLs, credentials, or empty timestamps."""
+    """Evidence identity must not carry unsafe URLs or invalid audit timestamps."""
     with pytest.raises(ValueError, match=match):
         parse_project_matches(
             [],
@@ -177,6 +189,8 @@ def test_evidence_to_finding_preserves_auditable_metadata(
     assert finding["category"] == "supply-chain"
     assert finding["context"] == "governance"
     assert finding["source"] == "openssf-best-practices"
+    assert finding["attribution"] == "OpenSSF Best Practices badge contributors"
+    assert finding["content_license"] == "CC-BY-3.0+"
     assert finding["evidence_status"] == status
     assert finding["badge_tier"] == badge_tier
     assert finding["evidence_url"] == evidence.evidence_url
@@ -207,5 +221,56 @@ def test_evidence_to_finding_rejects_unknown_internal_status() -> None:
                 status="unknown",
                 repository_url=REPOSITORY_URL,
                 verified_at=VERIFIED_AT,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        ({"source_origin": ""}, "source origin"),
+        ({"badge_tier": "silver"}, "badge tier"),
+        ({"project_id": None}, "project id"),
+        ({"evidence_url": "javascript:alert(1)"}, "evidence URL"),
+        ({"reason": "unexpected"}, "reason"),
+        ({"tiered_percentage": True}, "tiered percentage"),
+    ],
+)
+def test_evidence_to_finding_rejects_inconsistent_affirmative_records(
+    overrides: dict[str, object],
+    match: str,
+) -> None:
+    """Public dataclass construction cannot bypass the parser's evidence boundary."""
+    values: dict[str, object] = {
+        "status": "gold",
+        "repository_url": REPOSITORY_URL,
+        "verified_at": VERIFIED_AT,
+        "badge_tier": "gold",
+        "evidence_url": f"{CURRENT_ORIGIN}/projects/865",
+        "project_id": 865,
+        "tiered_percentage": 300,
+        "source_origin": CURRENT_ORIGIN,
+        "reason": "",
+    }
+    values.update(overrides)
+
+    with pytest.raises(ValueError, match=match):
+        evidence_to_finding(OpenSSFEvidence(**values))
+
+
+def test_evidence_to_finding_rejects_badged_non_affirmative_record() -> None:
+    """Unavailable evidence cannot carry stale affirmative badge metadata."""
+    with pytest.raises(ValueError, match="non-affirmative"):
+        evidence_to_finding(
+            OpenSSFEvidence(
+                status="unavailable",
+                repository_url=REPOSITORY_URL,
+                verified_at=VERIFIED_AT,
+                badge_tier="gold",
+                evidence_url=f"{CURRENT_ORIGIN}/projects/865",
+                project_id=865,
+                tiered_percentage=300,
+                source_origin=CURRENT_ORIGIN,
+                reason="no_matching_public_project",
             )
         )
