@@ -25,3 +25,11 @@ contract. Do not broaden it into unrelated cleanup.
 - Update user documentation and the changelog fragment required by the issue.
 - Preserve standalone use and modular MSA compatibility with ContextualWisdomLab infrastructure and naruon.
 - Record uncertainty explicitly and use current primary documentation, standards, or peer-reviewed evidence rather than unsupported claims.
+
+## Code-owner review gates — disabled (on hold)
+
+As of 2026-08-04, code-owner review requirements (`require_code_owner_reviews` in branch
+protection, `require_code_owner_review` in rulesets) are disabled across the ContextualWisdomLab
+org: there is a single maintainer (solo developer), so a code-owner approval gate can never be
+satisfied. This is ON HOLD until the org has multiple maintainers — do NOT re-enable these
+settings or add CODEOWNERS-based merge gates before then.
