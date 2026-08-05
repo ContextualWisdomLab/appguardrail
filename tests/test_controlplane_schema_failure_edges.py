@@ -65,13 +65,13 @@ def test_malformed_legacy_columns_fail_before_any_table_is_renamed() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             org_id INTEGER NOT NULL REFERENCES orgs(id),
             created_at TEXT NOT NULL,
-            repo TEXT NOT NULL,
-            commit TEXT NOT NULL,
-            total_findings INTEGER NOT NULL,
+            repo TEXT,
+            commit_sha TEXT,
+            total INTEGER NOT NULL,
             deploy_blocking INTEGER NOT NULL,
             severity_counts TEXT NOT NULL,
             new_blocking INTEGER NOT NULL DEFAULT 0,
-            findings_json TEXT NOT NULL DEFAULT '[]'
+            findings TEXT NOT NULL
         );
         CREATE TABLE keys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,8 +157,8 @@ def test_foreign_key_violation_rolls_back_complete_migration() -> None:
     connection.executescript(LEGACY_SCHEMA)
     connection.execute("PRAGMA foreign_keys = OFF")
     connection.execute(
-        "INSERT INTO scans(org_id, created_at, repo, commit, total_findings, "
-        "deploy_blocking, severity_counts, new_blocking, findings_json) "
+        "INSERT INTO scans(org_id, created_at, repo, commit_sha, total, "
+        "deploy_blocking, severity_counts, new_blocking, findings) "
         "VALUES (99, '2026-08-04T12:05:00Z', 'acme/repo', 'deadbeef', 1, 1, "
         "'{\"CRITICAL\":0,\"HIGH\":1,\"WARNING\":0,\"INFO\":0}', 1, '[]')"
     )

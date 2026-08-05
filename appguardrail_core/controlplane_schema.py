@@ -66,12 +66,12 @@ _REQUIRED_LEGACY_COLUMNS = {
             "org_id",
             "created_at",
             "repo",
-            "commit",
-            "total_findings",
+            "commit_sha",
+            "total",
             "deploy_blocking",
             "severity_counts",
             "new_blocking",
-            "findings_json",
+            "findings",
         }
     ),
     "keys": frozenset(
@@ -147,9 +147,9 @@ def inspect_controlplane_schema(
         trigger_names = frozenset(name for kind, name in objects if kind == "trigger")
         columns = {
             table_name: frozenset(
-                str(row[1])
+                str(row[0])
                 for row in connection.execute(
-                    f"PRAGMA table_info({_quoted_identifier(table_name)})"
+                    "SELECT name FROM pragma_table_info(?)", (table_name,)
                 )
             )
             for table_name in table_names
@@ -235,13 +235,13 @@ def _create_base_tables(connection: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             org_id INTEGER NOT NULL REFERENCES tenant_organizations(id),
             created_at TEXT NOT NULL,
-            repo TEXT NOT NULL,
-            commit TEXT NOT NULL,
-            total_findings INTEGER NOT NULL,
+            repo TEXT,
+            commit_sha TEXT,
+            total INTEGER NOT NULL,
             deploy_blocking INTEGER NOT NULL,
             severity_counts TEXT NOT NULL,
             new_blocking INTEGER NOT NULL DEFAULT 0,
-            findings_json TEXT NOT NULL DEFAULT '[]'
+            findings TEXT NOT NULL
         )
         """
     )
@@ -466,7 +466,7 @@ def migrate_controlplane_schema(
             "VALUES (?, ?)",
             (CURRENT_SCHEMA_VERSION, MIGRATION_NAME),
         )
-        connection.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION}")
+        connection.execute("PRAGMA user_version = 2")
         violations = tuple(connection.execute("PRAGMA foreign_key_check"))
         if violations:
             raise SchemaMigrationError("foreign key check failed")

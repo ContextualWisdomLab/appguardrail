@@ -28,13 +28,13 @@ CREATE TABLE scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id INTEGER NOT NULL REFERENCES orgs(id),
     created_at TEXT NOT NULL,
-    repo TEXT NOT NULL,
-    commit TEXT NOT NULL,
-    total_findings INTEGER NOT NULL,
+    repo TEXT,
+    commit_sha TEXT,
+    total INTEGER NOT NULL,
     deploy_blocking INTEGER NOT NULL,
     severity_counts TEXT NOT NULL,
     new_blocking INTEGER NOT NULL DEFAULT 0,
-    findings_json TEXT NOT NULL DEFAULT '[]'
+    findings TEXT NOT NULL
 );
 CREATE INDEX idx_scans_org ON scans(org_id, id DESC);
 CREATE TABLE keys (
@@ -85,8 +85,8 @@ def _legacy_connection(path: Path | str = ":memory:") -> sqlite3.Connection:
         ),
     )
     connection.execute(
-        "INSERT INTO scans(org_id, created_at, repo, commit, total_findings, "
-        "deploy_blocking, severity_counts, new_blocking, findings_json) "
+        "INSERT INTO scans(org_id, created_at, repo, commit_sha, total, "
+        "deploy_blocking, severity_counts, new_blocking, findings) "
         "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "2026-08-04T12:05:00Z",
@@ -152,8 +152,8 @@ def test_legacy_database_migrates_rows_and_foreign_keys_without_data_loss(
         "FROM tenant_organizations"
     ).fetchone()
     scan = connection.execute(
-        "SELECT id, org_id, created_at, repo, commit, total_findings, "
-        "deploy_blocking, severity_counts, new_blocking, findings_json "
+        "SELECT id, org_id, created_at, repo, commit_sha, total, "
+        "deploy_blocking, severity_counts, new_blocking, findings "
         "FROM security_scans"
     ).fetchone()
     access_key = connection.execute(
