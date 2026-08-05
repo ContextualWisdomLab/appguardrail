@@ -2,6 +2,7 @@
 
 import json
 import json as _json
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -250,10 +251,17 @@ def test_dashboard_empty_state_clear_filters():
 
 
 def test_dashboard_dialog_close_button_has_tooltip():
-    """The same dialog button must expose its label and Esc shortcut tooltip."""
+    """The dynamically rendered close button exposes its label and Esc tooltip."""
     html = dashboard_index_path().read_text(encoding="utf-8")
+    detail_markup = re.search(
+        r"d\.innerHTML\s*=\s*`(?P<markup>.*?)`;",
+        html,
+        flags=re.DOTALL,
+    )
+    assert detail_markup is not None
+
     parser = _ButtonAttributeParser()
-    parser.feed(html)
+    parser.feed(detail_markup.group("markup"))
 
     assert any(
         attributes.get("title") == "Close (Esc)"
