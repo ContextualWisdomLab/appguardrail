@@ -77,8 +77,9 @@
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls. When checking file extensions or processing path strings, Python's native string methods like `str.rfind()` and `str.replace()` are vastly more efficient.
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
 ## 2026-08-05 - File scanning path stat optimization
-**Learning:** In `scanner/cli/appguardrail.py`, computing `resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()` inside `_scan_file` causes a `stat()` call on the root `base_path` for *every* file scanned. When scanning thousands of files, this redundant file system I/O becomes a significant bottleneck, causing hundreds of milliseconds of overhead purely for resolving a constant directory path.
-**Action:** Hoist the computation of `resolved_base_path` (and its string representations) outside of the per-file scanning loop in `cmd_scan`. Pass these precomputed values down into `_scan_file` as optional arguments to completely eliminate the redundant `stat` system calls per file.
-## 2026-08-05 - File Path string operations optimization
-**Learning:** In `appguardrail_core/language.py`, iterating over large arrays of paths using `isinstance(file_path, Path)` and `file_path.replace("\\\\", "/")` incurs substantial overhead due to Python type checking internals and string allocations. When scanning thousands of files, this creates a measurable performance bottleneck in language detection.
-**Action:** Replaced `isinstance(..., Path)` with `type(...) is not str` for faster type checking. Avoided string allocations by replacing `replace("\\\\", "/")` with `max(rfind("/"), rfind("\\\\"))` to efficiently find the base name without allocating new strings.
+**Learning:** Rechecking a constant scan root for every file adds avoidable filesystem metadata calls, while standalone `_scan_file` callers still need a safe one-time fallback.
+**Action:** Compute the scan-root file classification and normalized prefix once in `cmd_scan`, pass them into `_scan_file`, and let direct callers compute the same values once per call.
+
+## 2026-08-05 - File path string operations optimization
+**Learning:** Native string basename and suffix extraction avoids temporary normalized strings, but a public `str | Path` API must continue to accept `str` subclasses.
+**Action:** Use `isinstance(file_path, str)` for the public contract and `rfind()` for slash and dot boundaries without allocating a replaced path string.
