@@ -57,7 +57,3 @@
 ## 2026-08-04 - Native File Input Iteration Friction
 **Learning:** Browsers suppress `change` events when a file input still holds the same selected path. Clearing the value in an inline `onclick` handler fixes repetition but also discards the previous selection when the user cancels the picker and couples behavior to markup.
 **Action:** Capture the selected `File` in the input's `change` listener, clear the input value immediately afterward, and then process the captured object. Use native buttons with explicit event listeners to proxy the picker from an empty-state CTA, preserving keyboard access and CSP-compatible separation of markup and behavior.
-
-## 2026-08-05 - External Link Accessibility
-**Learning:** External links (`target="_blank"`) that open new tabs are disorienting to screen reader users without explicit textual and visual cues.
-**Action:** For external links, always append a visual indicator (`↗`) and an `aria-label="... (opens in a new tab)"` to inform users of the behavior before activation.
