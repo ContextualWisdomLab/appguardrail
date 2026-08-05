@@ -68,9 +68,9 @@ The migrator applies the following fail-closed sequence:
 9. Run `PRAGMA foreign_key_check` before commit.
 10. Commit every schema change together, or roll back the complete transaction on any error.
 
-SQLite updates indexes, triggers, views, and foreign-key references during supported table renames on current SQLite versions. AppGuardrail nevertheless enables foreign keys before migration and explicitly verifies referential integrity before commit. The implementation does not use `PRAGMA writable_schema`, because bypassing schema parsing would weaken fail-closed validation. citeturn353036search0turn353036search8
+SQLite updates indexes, triggers, views, and foreign-key references during supported table renames on current SQLite versions. AppGuardrail nevertheless enables foreign keys before migration and explicitly verifies referential integrity before commit. The implementation does not use `PRAGMA writable_schema`, because bypassing schema parsing would weaken fail-closed validation (SQLite Consortium, 2026a, 2026b).
 
-Python's `sqlite3.Connection.in_transaction` is used to reject nested caller transactions. AppGuardrail controls its own `BEGIN IMMEDIATE`, `commit()`, and `rollback()` boundary explicitly. citeturn353036search6
+Python's `sqlite3.Connection.in_transaction` is used to reject nested caller transactions. AppGuardrail controls its own `BEGIN IMMEDIATE`, `commit()`, and `rollback()` boundary explicitly (Python Software Foundation, 2026).
 
 ## Idempotence and failure semantics
 
