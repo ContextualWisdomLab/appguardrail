@@ -15,7 +15,8 @@
 **Action:** Always defer expensive path computations (like converting paths to relative or string sanitization) until *after* the fast-path condition (like a regex match) triggers. This drastically cuts down on unnecessary string operations for clean files.
 ## 2024-06-20 - Regex File Scanning Optimization
 **Learning:** Python's `for line in f:` combined with running multiple regex checks per line introduces huge interpreter overhead for file scanning utilities.
-**Action:** Use `.read()` and `.finditer(content)` for the whole file, which pushes the tight iteration loops down to the C-compiled regex engine. Recover line numbers with string `.count('\n')` only when a match is found to achieve massive performance gains (~20-30% reduction in scan time on large text corpuses).
+**Action:** Use `.read()` and `.finditer(content)` for the whole file, which pushes the tight iteration loops down to the C-compiled regex engine. Recover line numbers with string `.count('
+')` only when a match is found to achieve massive performance gains (~20-30% reduction in scan time on large text corpuses).
 
 ## 2024-06-21 - Python Regex vs String Lookup Overhead
 **Learning:** In Python, a combined massive regular expression (e.g., `re.compile("...|...|...", re.IGNORECASE)`) or iterating over multiple compiled regex objects with `finditer()` is surprisingly slower on large texts than a simple substring pre-filter using `content.lower()` and `any(k in content for k in keywords)`. In `VibeSec`, `finditer` on a clean 10MB file took ~1.5s, `re.search` with a combined regex took ~2.6s, while `in` operator substring searching completed in ~0.1s (a 10x+ speedup). The C-compiled string operations bypass regular expression engine overhead completely.
@@ -41,8 +42,10 @@
 **Learning:** Inside tight loops like rule match processing, repeatedly invoking `base_path.is_dir()` and `Path(".").resolve()` is extremely expensive because they trigger synchronous `stat()` system calls on the disk.
 **Action:** Always hoist constant path resolutions (like determining the base directory) outside of loops and hot paths. Store the resolved reference once and reuse it to avoid recursive I/O overhead.
 ## 2026-07-01 - O(N*M) Line Counting Optimization
-**Learning:** In `scanner/cli/appguardrail.py`, the `_scan_file` loop calculates line numbers by calling `count_newlines("\n", 0, start_idx)` for *every* regex match. In files with many matches, this repeatedly scans the string from the beginning, resulting in O(N*M) performance (where N is file length and M is matches). This is a massive bottleneck.
-**Action:** Since `re.finditer` yields matches strictly in order, always calculate line numbers progressively using a tracking variable `current_line` and `current_pos`. Update `current_line += count_newlines("\n", current_pos, start_idx)`. This makes the line calculation strictly O(N), bringing up to a 15x speedup for files with many hits.
+**Learning:** In `scanner/cli/appguardrail.py`, the `_scan_file` loop calculates line numbers by calling `count_newlines("
+", 0, start_idx)` for *every* regex match. In files with many matches, this repeatedly scans the string from the beginning, resulting in O(N*M) performance (where N is file length and M is matches). This is a massive bottleneck.
+**Action:** Since `re.finditer` yields matches strictly in order, always calculate line numbers progressively using a tracking variable `current_line` and `current_pos`. Update `current_line += count_newlines("
+", current_pos, start_idx)`. This makes the line calculation strictly O(N), bringing up to a 15x speedup for files with many hits.
 
 ## 2026-07-02 - Remove `re.search` fast-path pre-check
 **Learning:** Python's `re.finditer` evaluates lazily by allocating a lightweight C-level `ScannerObject`. Using `re.search` as a fast-path pre-check before `re.finditer` is an anti-pattern that addresses a non-existent bottleneck and degrades performance for matched paths by evaluating the regex twice.
@@ -73,3 +76,9 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls. When checking file extensions or processing path strings, Python's native string methods like `str.rfind()` and `str.replace()` are vastly more efficient.
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
+## 2026-08-05 - File scanning path stat optimization
+**Learning:** In `scanner/cli/appguardrail.py`, computing `resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()` inside `_scan_file` causes a `stat()` call on the root `base_path` for *every* file scanned. When scanning thousands of files, this redundant file system I/O becomes a significant bottleneck, causing hundreds of milliseconds of overhead purely for resolving a constant directory path.
+**Action:** Hoist the computation of `resolved_base_path` (and its string representations) outside of the per-file scanning loop in `cmd_scan`. Pass these precomputed values down into `_scan_file` as optional arguments to completely eliminate the redundant `stat` system calls per file.
+## 2026-08-05 - File Path string operations optimization
+**Learning:** In `appguardrail_core/language.py`, iterating over large arrays of paths using `isinstance(file_path, Path)` and `file_path.replace("\\\\", "/")` incurs substantial overhead due to Python type checking internals and string allocations. When scanning thousands of files, this creates a measurable performance bottleneck in language detection.
+**Action:** Replaced `isinstance(..., Path)` with `type(...) is not str` for faster type checking. Avoided string allocations by replacing `replace("\\\\", "/")` with `max(rfind("/"), rfind("\\\\"))` to efficiently find the base name without allocating new strings.

@@ -94,13 +94,14 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        if isinstance(file_path, Path):
+        # ⚡ Bolt: Use type(file_path) instead of isinstance for faster check
+        if type(file_path) is not str:
             name = file_path.name
             suffix = file_path.suffix.lower()
         else:
-            file_path_posix = file_path.replace("\\", "/")
-            idx = file_path_posix.rfind("/")
-            name = file_path_posix[idx + 1 :] if idx != -1 else file_path_posix
+            # ⚡ Bolt: Avoid string allocations like replace('\\', '/') and use fast C-level string operations
+            idx = max(file_path.rfind("/"), file_path.rfind("\\"))
+            name = file_path[idx + 1 :] if idx != -1 else file_path
 
             dot_idx = name.rfind(".")
             suffix = name[dot_idx:].lower() if dot_idx > 0 else ""

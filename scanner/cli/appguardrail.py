@@ -1169,7 +1169,8 @@ For each issue found, provide:
 
 def _display_path(path: str | Path) -> str:
     """Return a stable, slash-separated path for CLI output and reports."""
-    return path.as_posix() if isinstance(path, Path) else path.replace("\\", "/")
+    # ⚡ Bolt: Use type(path) is not str instead of isinstance for faster check
+    return path.as_posix() if type(path) is not str else path.replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
@@ -1420,10 +1421,24 @@ def cmd_scan(args):
     else:
         files_to_scan = _collect_files(scan_path)
 
+    resolved_base_path = scan_path if scan_path.is_dir() else Path(".").resolve()
+    resolved_base_path_str = str(resolved_base_path)
+    resolved_base_path_prefix = (
+        resolved_base_path_str + os.sep
+        if not resolved_base_path_str.endswith(os.sep)
+        else resolved_base_path_str
+    )
+
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
-        file_findings = _scan_file(file_path, scan_path)
+        file_findings = _scan_file(
+            file_path,
+            scan_path,
+            resolved_base_path,
+            resolved_base_path_str,
+            resolved_base_path_prefix,
+        )
         findings.extend(file_findings)
 
     profile = detect_stack_profile(scanned_files)
@@ -1704,11 +1719,9 @@ def _push_findings(url, findings):
     )
     try:
         opener = urllib.request.build_opener(SafeRedirectHandler())
-        with (
-            opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                req, timeout=15
-            ) as resp
-        ):  # noqa: S310 - Safe URL scheme validated
+        with opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            req, timeout=15
+        ) as resp:  # noqa: S310 - Safe URL scheme validated
             body = json.loads(resp.read() or b"{}")
         drift = body.get("new_blocking")
         extra = f", {drift} newly deploy-blocking" if drift else ""
@@ -2666,20 +2679,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2746,13 +2761,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -2842,14 +2859,26 @@ def _run_codegraph_index(scan_path: Path):
     return _run_codegraph_command([codegraph, "status"], workdir, "status")
 
 
-def _scan_file(file_path: Path, base_path: Path):
+def _scan_file(
+    file_path: Path,
+    base_path: Path,
+    resolved_base_path: Path = None,
+    resolved_base_path_str: str = None,
+    resolved_base_path_prefix: str = None,
+):
     """Scan a single file and return a list of findings."""
     findings = []
 
     # ⚡ Bolt: Hoist expensive relative_to base_path resolution outside of loops.
-    # Path.is_dir() and Path.resolve() invoke stat() system calls. Doing this inside
-    # the finding iteration loop for every match was causing massive I/O overhead.
-    resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()
+    # We now compute resolved base path in the main loop to avoid stat calls entirely for each file.
+    if resolved_base_path is None:
+        resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()
+        resolved_base_path_str = str(resolved_base_path)
+        resolved_base_path_prefix = (
+            resolved_base_path_str + os.sep
+            if not resolved_base_path_str.endswith(os.sep)
+            else resolved_base_path_str
+        )
 
     # ⚡ Bolt: Optimize stat calls by using os.lstat instead of Path objects
     # Impact: Combines symlink, file type, and size checks into a single stat call
@@ -2878,12 +2907,6 @@ def _scan_file(file_path: Path, base_path: Path):
     build_finding = _build_finding
 
     # Pre-compute string values to replace slow Path.relative_to() calls
-    resolved_base_path_str = str(resolved_base_path)
-    resolved_base_path_prefix = (
-        resolved_base_path_str + os.sep
-        if not resolved_base_path_str.endswith(os.sep)
-        else resolved_base_path_str
-    )
     file_path_str_cache = str(file_path)
 
     try:
