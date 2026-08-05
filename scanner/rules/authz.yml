@@ -56,9 +56,9 @@ rules:
 
   - id: todo-skip-auth
     patterns:
-      - pattern-regex: '(?i)(?:todo|fixme|hack|temp|temporary).{0,50}(?:auth|security|permission|check|protect)'
-      - pattern-regex: '(?i)(?:skip|bypass|disable|remove).{0,30}(?:auth|authentication|authorization|security)'
-      - pattern-regex: '(?i)//\s*(?:disable|mock|fake)\s*(?:auth|security)'
+      - pattern-regex: '(?im)^\s*(?://|#|/\*+|\*)\s*(?:todo|fixme|hack|temp|temporary)\b[^\n]{0,50}\b(?:auth|security|permission|check|protect)\b'
+      - pattern-regex: '(?im)^\s*(?://|#|/\*+|\*)\s*(?:skip|bypass|disable|remove)\b[^\n]{0,30}\b(?:auth|authentication|authorization|security)\b'
+      - pattern-regex: '(?im)^\s*(?://|#|/\*+|\*)\s*(?:disable|mock|fake)\s+(?:auth|security)\b'
     message: |
       Comment suggests authentication or security check was intentionally skipped
       or deferred. This is a common pattern in AI-generated code. Review and ensure
