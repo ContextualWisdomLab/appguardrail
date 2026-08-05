@@ -21,6 +21,25 @@ result = migrate_controlplane_schema(connection)
 
 The caller owns the connection and must close it. The migration refuses to run inside an active caller transaction.
 
+## Backup rehearsal before migration
+
+Create and verify a point-in-time SQLite backup before applying the migration to a durable database. Python's `sqlite3.Connection.backup()` copies a live database through SQLite's backup API without selecting customer rows into application logs.
+
+```python
+import sqlite3
+
+source = sqlite3.connect("control-plane.db")
+target = sqlite3.connect("control-plane.pre-v2.db")
+with target:
+    source.backup(target)
+
+assert target.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+source.close()
+target.close()
+```
+
+Keep the backup outside the deployment's writable database directory, record its content hash and access controls, and rehearse restore in an isolated environment. A successful backup is not a substitute for testing the migrated application against a copy of production-shaped data.
+
 ## Canonical database objects
 
 ### Base tables
