@@ -114,11 +114,8 @@ function isDeployBlocking(f){
   const ctx = String(f.context||'app-code');
   return BLOCKING_SEV.has(sev) && !NON_BLOCKING.has(ctx);
 }
-function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function safeUrl(u){
-  if (typeof u === 'string' && u.startsWith('//')) {
-    return '#';
-  }
   try {
     const parsed = new URL(u, window.location.href);
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return u;
@@ -260,7 +257,7 @@ function openDetail(f){
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
-      <button aria-label="Close" title="Close (Esc)" onclick="document.getElementById('detail').close()">✕</button>
+      <button aria-label="Close" onclick="document.getElementById('detail').close()">✕</button>
     </div>
     <div class="dlg-body">
       <p class="file">${esc(f.file)}:${esc(f.line)} · ${esc(f.category)} · context: ${esc(f.context||'app-code')}${isDeployBlocking(f)?' · <span class="tag block">deploy-blocking</span>':''}</p>

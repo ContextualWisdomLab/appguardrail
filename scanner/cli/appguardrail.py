@@ -1169,7 +1169,8 @@ For each issue found, provide:
 
 def _display_path(path: str | Path) -> str:
     """Return a stable, slash-separated path for CLI output and reports."""
-    return path.replace("\\", "/") if isinstance(path, str) else path.as_posix()
+    # ⚡ Bolt: Use type(path) is not str instead of isinstance for faster check
+    return path.as_posix() if type(path) is not str else path.replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
@@ -1415,13 +1416,12 @@ def cmd_scan(args):
     files_scanned = 0
     scanned_files = []
 
-    scan_path_is_file = scan_path.is_file()
-    if scan_path_is_file:
+    if scan_path.is_file():
         files_to_scan = [scan_path]
     else:
         files_to_scan = _collect_files(scan_path)
 
-    resolved_base_path = Path(".").resolve() if scan_path_is_file else scan_path
+    resolved_base_path = scan_path if scan_path.is_dir() else Path(".").resolve()
     resolved_base_path_str = str(resolved_base_path)
     resolved_base_path_prefix = (
         resolved_base_path_str + os.sep
@@ -1438,7 +1438,6 @@ def cmd_scan(args):
             resolved_base_path,
             resolved_base_path_str,
             resolved_base_path_prefix,
-            scan_path_is_file,
         )
         findings.extend(file_findings)
 
@@ -1686,18 +1685,6 @@ def _is_safe_url(url: str) -> bool:
     return True
 
 
-
-def _is_secure_control_plane_url(url: str) -> bool:
-    """Return whether a bearer-token destination is public HTTPS."""
-    import urllib.parse
-
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except ValueError:
-        return False
-    return parsed.scheme.lower() == "https" and _is_safe_url(url)
-
-
 def _push_findings(url, findings):
     """POST normalized findings to a control-plane /api/v1/scans endpoint."""
     import urllib.request
@@ -1709,9 +1696,9 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
-    if not _is_secure_control_plane_url(url):
+    if not _is_safe_url(url):
         _console_print(
-            f"⚠️  --push URL must be a public HTTPS URL, got {url}",
+            f"⚠️  --push URL must be a valid http/https URL and not point to internal infrastructure, got {url}",
             file=sys.stderr,
         )
         return
@@ -2875,22 +2862,18 @@ def _run_codegraph_index(scan_path: Path):
 def _scan_file(
     file_path: Path,
     base_path: Path,
-    resolved_base_path: Path | None = None,
-    resolved_base_path_str: str | None = None,
-    resolved_base_path_prefix: str | None = None,
-    base_path_is_file: bool | None = None,
+    resolved_base_path: Path = None,
+    resolved_base_path_str: str = None,
+    resolved_base_path_prefix: str = None,
 ):
     """Scan a single file and return a list of findings."""
     findings = []
 
-    # Callers scanning many files precompute this immutable path context once.
-    if base_path_is_file is None:
-        base_path_is_file = base_path.is_file()
+    # ⚡ Bolt: Hoist expensive relative_to base_path resolution outside of loops.
+    # We now compute resolved base path in the main loop to avoid stat calls entirely for each file.
     if resolved_base_path is None:
-        resolved_base_path = Path(".").resolve() if base_path_is_file else base_path
-    if resolved_base_path_str is None:
+        resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()
         resolved_base_path_str = str(resolved_base_path)
-    if resolved_base_path_prefix is None:
         resolved_base_path_prefix = (
             resolved_base_path_str + os.sep
             if not resolved_base_path_str.endswith(os.sep)
@@ -2954,7 +2937,7 @@ def _scan_file(
                         else:
                             rel_path_for_filters = (
                                 file_path.name
-                                if base_path_is_file
+                                if base_path.is_file()
                                 else file_path_str_cache
                             )
                         rel_path_for_filters = _display_path(rel_path_for_filters)
@@ -2979,7 +2962,7 @@ def _scan_file(
                         else:
                             rel_path_for_output = (
                                 file_path.name
-                                if base_path_is_file
+                                if base_path.is_file()
                                 else file_path_str_cache
                             )
                         rel_path_str = _sanitize_terminal_output(

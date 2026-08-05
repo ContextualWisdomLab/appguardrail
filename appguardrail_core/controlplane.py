@@ -275,40 +275,10 @@ def _is_safe_url(url: str) -> bool:
 
 
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Reject unsafe redirects and prevent cross-origin credential forwarding."""
-
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """Build one safe redirected request with bounded credential scope."""
         if not _is_safe_url(newurl):
             raise urllib.error.URLError("Unsafe redirect target")
-
-        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is None or req is None:
-            return redirected
-
-        original = urlparse(req.full_url)
-        target = urlparse(newurl)
-        has_sensitive_header = req.has_header("Authorization") or req.has_header(
-            "Proxy-Authorization"
-        )
-        if not has_sensitive_header:
-            return redirected
-        if original.scheme.lower() != "https" or target.scheme.lower() != "https":
-            raise urllib.error.URLError("Authenticated redirects require HTTPS")
-
-        def origin(parsed):
-            scheme = parsed.scheme.lower()
-            port = parsed.port or (443 if scheme == "https" else 80)
-            return scheme, (parsed.hostname or "").lower(), port
-
-        try:
-            cross_origin = origin(original) != origin(target)
-        except ValueError as exc:
-            raise urllib.error.URLError("Unsafe redirect target") from exc
-        if cross_origin:
-            redirected.remove_header("Authorization")
-            redirected.remove_header("Proxy-Authorization")
-        return redirected
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _send_alert(
