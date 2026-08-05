@@ -126,7 +126,7 @@ function safeUrl(u){
   return '#';
 }
 
-let ALL = [];
+let ALL = null;
 let filterSev = '', query = '';
 let lastFocus = null;
 
@@ -138,13 +138,26 @@ function render(){
     : null;
   const app = document.getElementById('app');
   const liveSummary = document.getElementById('findings-summary');
-  if(!ALL.length){
+  if(!ALL){
     if (liveSummary) liveSummary.textContent = '';
     app.innerHTML = `<div class="empty">
       <h1>No findings loaded</h1>
       <p>Generate a report-safe findings file, then load it above (or place it next to this page).</p>
       <p><code>appguardrail scan --findings-json reports/findings.json .</code></p>
       <p id="findings-upload-help" class="drop">Serve the repo (<code>python3 -m http.server</code>) and open <code>/dashboard/</code>, or drag a <code>findings.json</code> onto this window.</p>
+      <p><button type="button" id="browse-findings" class="primary-action" aria-describedby="findings-upload-help">Browse findings.json</button></p>
+    </div>`;
+    const browseFindings = document.getElementById('browse-findings');
+    const fileInput = document.getElementById('file');
+    browseFindings.addEventListener('click', () => fileInput.click());
+    return;
+  }
+  if(ALL && ALL.length === 0){
+    if (liveSummary) liveSummary.textContent = 'Clean Scan - 0 findings';
+    app.innerHTML = `<div class="empty">
+      <h1>🎉 Clean Scan</h1>
+      <p>No findings were detected in this report.</p>
+      <p id="findings-upload-help" class="drop">Load a different <code>findings.json</code> file to review other reports.</p>
       <p><button type="button" id="browse-findings" class="primary-action" aria-describedby="findings-upload-help">Browse findings.json</button></p>
     </div>`;
     const browseFindings = document.getElementById('browse-findings');

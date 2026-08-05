@@ -57,3 +57,7 @@
 ## 2026-08-04 - Native File Input Iteration Friction
 **Learning:** Browsers suppress `change` events when a file input still holds the same selected path. Clearing the value in an inline `onclick` handler fixes repetition but also discards the previous selection when the user cancels the picker and couples behavior to markup.
 **Action:** Capture the selected `File` in the input's `change` listener, clear the input value immediately afterward, and then process the captured object. Use native buttons with explicit event listeners to proxy the picker from an empty-state CTA, preserving keyboard access and CSP-compatible separation of markup and behavior.
+
+## 2024-11-20 - Differentiating Empty States for Loaded vs Unloaded Data
+**Learning:** Users can mistake a successful load of an empty report (0 findings) for a failure to load data if both states share the same "No data" UI.
+**Action:** Always create distinct empty states: one for "Waiting for data" and another celebratory state for "Data loaded successfully, but it's empty (Clean Scan)".
