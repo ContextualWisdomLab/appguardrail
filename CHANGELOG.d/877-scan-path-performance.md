@@ -1,4 +1,5 @@
 ### Changed
 
-- Reduced repeated scan-root path classification and relative-path allocation in large repository scans while preserving `str` subclass compatibility.
-- Restricted bearer-authenticated control-plane uploads and redirects to HTTPS and removed sensitive headers on cross-origin redirects.
+- Reduced repeated scan-root file classification and relative-path allocation in large repository scans while retaining a one-time fallback for standalone `_scan_file` callers.
+- Preserved the public `str | Path` contract, including `str` subclasses, while using allocation-light basename and suffix parsing in language detection.
+- Restricted bearer-authenticated control-plane uploads and redirects to public HTTPS, rejected transport downgrades, and removed sensitive authorization headers from cross-origin redirects.
