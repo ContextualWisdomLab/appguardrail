@@ -88,10 +88,11 @@ The migrator applies the following fail-closed sequence:
 10. Run `PRAGMA foreign_key_check` before commit.
 11. Commit every schema change together, or roll back the complete transaction on any error.
 
+The post-lock inspection is the authoritative schema snapshot. A process that waited while another process completed the same migration observes version two after acquiring its own reservation, validates the complete canonical schema, rolls back its read-only transaction, and returns `changed=False` instead of attempting duplicate DDL.
+
 SQLite updates indexes, triggers, views, and foreign-key references during supported table renames on current SQLite versions. AppGuardrail nevertheless enables foreign keys before migration and explicitly verifies referential integrity before commit. The implementation does not use `PRAGMA writable_schema`, because bypassing schema parsing would weaken fail-closed validation (SQLite Consortium, 2026a, 2026b).
 
 Python's `sqlite3.Connection.in_transaction` is used to reject nested caller transactions. AppGuardrail controls its own `BEGIN IMMEDIATE`, `commit()`, and `rollback()` boundary explicitly (Python Software Foundation, 2026).
-
 
 Audit events reference `tenant_organizations` with `ON DELETE RESTRICT` and remain protected by update/delete triggers. Tenant deletion and ordinary retention purges therefore cannot erase audit evidence. A future privileged audit-expiration mechanism must define a separately reviewed authorization, checkpoint, receipt, and chain-resealing contract before it can delete any audit row.
 
