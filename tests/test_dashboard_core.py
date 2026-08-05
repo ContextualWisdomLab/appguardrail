@@ -6,12 +6,27 @@ import threading
 import urllib.error
 import urllib.request
 from contextlib import closing
+from html.parser import HTMLParser
 
 import pytest
 
 from scanner.cli.appguardrail import (dashboard_index_path,
                                       dashboard_tokens_path,
                                       make_dashboard_server, render_tokens_css)
+
+
+class _ButtonAttributeParser(HTMLParser):
+    """Collect attributes from every dashboard button element."""
+
+    def __init__(self):
+        """Initialize an empty button-attribute collection."""
+        super().__init__()
+        self.buttons = []
+
+    def handle_starttag(self, tag, attrs):
+        """Record one button's attributes while ignoring other elements."""
+        if tag == "button":
+            self.buttons.append(dict(attrs))
 
 
 def _serve(server):
@@ -223,6 +238,7 @@ def test_server_404s_missing_findings(tmp_path):
         server.shutdown()
         server.server_close()
 
+
 def test_dashboard_empty_state_clear_filters():
     """Empty state CTA must expose Clear filters control that resets state."""
     html = dashboard_index_path().read_text(encoding="utf-8")
@@ -234,8 +250,13 @@ def test_dashboard_empty_state_clear_filters():
 
 
 def test_dashboard_dialog_close_button_has_tooltip():
-    """Dialog close button must have a title tooltip for discoverability."""
+    """The same dialog button must expose its label and Esc shortcut tooltip."""
     html = dashboard_index_path().read_text(encoding="utf-8")
+    parser = _ButtonAttributeParser()
+    parser.feed(html)
 
-    assert "title=\"Close (Esc)\"" in html
-    assert "aria-label=\"Close\"" in html
+    assert any(
+        attributes.get("title") == "Close (Esc)"
+        and attributes.get("aria-label") == "Close"
+        for attributes in parser.buttons
+    )
