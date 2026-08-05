@@ -57,3 +57,7 @@
 ## 2026-08-04 - Native File Input Iteration Friction
 **Learning:** Browsers suppress `change` events when a file input still holds the same selected path. Clearing the value in an inline `onclick` handler fixes repetition but also discards the previous selection when the user cancels the picker and couples behavior to markup.
 **Action:** Capture the selected `File` in the input's `change` listener, clear the input value immediately afterward, and then process the captured object. Use native buttons with explicit event listeners to proxy the picker from an empty-state CTA, preserving keyboard access and CSP-compatible separation of markup and behavior.
+
+## 2026-08-05 - File Input UX and External Link Accessibility
+**Learning:** Native file inputs have poor iteration friction, redundant visual text ("No file chosen"), and are difficult to style cleanly. External links (`target="_blank"`) that open new tabs are disorienting to screen reader users without explicit textual and visual cues.
+**Action:** Replace native file inputs with styled proxy `<button>` elements that trigger hidden file inputs. For external links, always append a visual indicator (`↗`) and an `aria-label="... (opens in a new tab)"` to inform users of the behavior before activation.
