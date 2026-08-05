@@ -175,10 +175,49 @@ def test_foreign_key_violation_rolls_back_complete_migration() -> None:
 
 def test_non_connection_and_closed_connection_are_rejected_cleanly() -> None:
     """Public migration boundaries reject unsupported or unusable connection objects."""
-    with pytest.raises(ValueError, match="sqlite3.Connection"):
+    with pytest.raises(ValueError, match=r"sqlite3\.Connection"):
         migrate_controlplane_schema(object())
 
     connection = _connection()
     connection.close()
     with pytest.raises(SchemaMigrationError, match="closed connection"):
         migrate_controlplane_schema(connection)
+
+
+
+class ConcurrentCompletionConnection(sqlite3.Connection):
+    """Simulate another process completing migration before this writer locks."""
+
+    completed_competing_migration = False
+
+    def execute(self, sql: str, parameters=(), /):  # type: ignore[override]
+        """Install version two immediately before the first write reservation."""
+        if sql == "BEGIN IMMEDIATE" and not self.completed_competing_migration:
+            from appguardrail_core import controlplane_schema as schema
+
+            schema._create_base_tables(self)
+            schema._create_governance_objects(self)
+            super().execute(
+                "INSERT INTO schema_migrations(schema_version, migration_name) "
+                "VALUES (?, ?)",
+                (schema.CURRENT_SCHEMA_VERSION, schema.MIGRATION_NAME),
+            )
+            super().execute("PRAGMA user_version = 2")
+            self.commit()
+            self.completed_competing_migration = True
+        return super().execute(sql, parameters)
+
+
+def test_post_lock_schema_snapshot_handles_concurrent_completion() -> None:
+    """A competing successful migrator turns this invocation into an idempotent no-op."""
+    connection = sqlite3.connect(
+        ":memory:", factory=ConcurrentCompletionConnection
+    )
+
+    result = migrate_controlplane_schema(connection)
+
+    assert result.changed is False
+    assert result.previous_version == CURRENT_SCHEMA_VERSION
+    assert result.current_version == CURRENT_SCHEMA_VERSION
+    assert connection.in_transaction is False
+    assert inspect_controlplane_schema(connection).user_version == CURRENT_SCHEMA_VERSION

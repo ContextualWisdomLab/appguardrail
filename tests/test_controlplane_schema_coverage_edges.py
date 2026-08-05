@@ -50,7 +50,7 @@ class TransactionStateFailureConnection(sqlite3.Connection):
 
 def test_non_connection_is_rejected() -> None:
     """Public entry points reject objects that cannot provide SQLite semantics."""
-    with pytest.raises(ValueError, match="sqlite3.Connection"):
+    with pytest.raises(ValueError, match=r"sqlite3\.Connection"):
         schema.inspect_controlplane_schema(object())  # type: ignore[arg-type]
 
 

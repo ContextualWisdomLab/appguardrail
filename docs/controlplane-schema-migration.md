@@ -81,15 +81,19 @@ The migrator applies the following fail-closed sequence:
 3. Reject future schema versions, partial legacy schemas, partial canonical schemas, and mixed legacy/canonical states.
 4. Enable and verify per-connection foreign-key enforcement before the migration transaction.
 5. Acquire a write reservation with `BEGIN IMMEDIATE`.
-6. Rename validated legacy tables or create the canonical base schema for a fresh database.
-7. Create governance tables, indexes, and append-only audit triggers.
-8. Record the migration and set `PRAGMA user_version = 2`.
-9. Run `PRAGMA foreign_key_check` before commit.
-10. Commit every schema change together, or roll back the complete transaction on any error.
+6. Reinspect and classify the schema while holding the write reservation so concurrent migrators become an idempotent no-op.
+7. Rename validated legacy tables or create the canonical base schema for a fresh database.
+8. Create governance tables, indexes, and append-only audit triggers.
+9. Record the migration and set `PRAGMA user_version = 2`.
+10. Run `PRAGMA foreign_key_check` before commit.
+11. Commit every schema change together, or roll back the complete transaction on any error.
 
 SQLite updates indexes, triggers, views, and foreign-key references during supported table renames on current SQLite versions. AppGuardrail nevertheless enables foreign keys before migration and explicitly verifies referential integrity before commit. The implementation does not use `PRAGMA writable_schema`, because bypassing schema parsing would weaken fail-closed validation (SQLite Consortium, 2026a, 2026b).
 
 Python's `sqlite3.Connection.in_transaction` is used to reject nested caller transactions. AppGuardrail controls its own `BEGIN IMMEDIATE`, `commit()`, and `rollback()` boundary explicitly (Python Software Foundation, 2026).
+
+
+Audit events reference `tenant_organizations` with `ON DELETE RESTRICT` and remain protected by update/delete triggers. Tenant deletion and ordinary retention purges therefore cannot erase audit evidence. A future privileged audit-expiration mechanism must define a separately reviewed authorization, checkpoint, receipt, and chain-resealing contract before it can delete any audit row.
 
 ## Idempotence and failure semantics
 

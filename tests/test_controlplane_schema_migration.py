@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+
+import pytest
 from pathlib import Path
 
 from appguardrail_core.controlplane_schema import (
@@ -272,3 +274,41 @@ def test_new_audit_events_are_append_only_at_the_database_boundary() -> None:
             raise AssertionError("append-only audit trigger did not reject mutation")
 
     assert connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0] == 1
+
+
+
+def test_tenant_delete_is_restricted_when_audit_evidence_exists() -> None:
+    """Tenant deletion cannot cascade through retained append-only audit evidence."""
+    connection = _connection()
+    migrate_controlplane_schema(connection)
+    connection.execute(
+        "INSERT INTO tenant_organizations(name, api_key_hash, created_at) "
+        "VALUES ('Acme', 'hash', '2026-08-04T12:00:00Z')"
+    )
+    connection.execute(
+        "INSERT INTO audit_events(audit_event_id, tenant_id, sequence_number, "
+        "event_type, actor_id, request_id, occurred_at, summary_json, "
+        "previous_event_hash, event_hash) VALUES (?, 1, 1, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "audit-event-retained",
+            "retention.policy.updated",
+            "owner-key-7",
+            "request-retained",
+            "2026-08-04T12:10:00Z",
+            '{"policy_revision":1}',
+            "0" * 64,
+            "2" * 64,
+        ),
+    )
+    connection.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY constraint failed"):
+        connection.execute("DELETE FROM tenant_organizations WHERE id = 1")
+
+    assert connection.execute(
+        "SELECT COUNT(*) FROM tenant_organizations WHERE id = 1"
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT COUNT(*) FROM audit_events WHERE audit_event_id = ?",
+        ("audit-event-retained",),
+    ).fetchone()[0] == 1

@@ -317,7 +317,7 @@ def _create_governance_objects(connection: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS audit_events (
             audit_event_id TEXT PRIMARY KEY,
             tenant_id INTEGER NOT NULL
-                REFERENCES tenant_organizations(id) ON DELETE CASCADE,
+                REFERENCES tenant_organizations(id) ON DELETE RESTRICT,
             sequence_number INTEGER NOT NULL CHECK(sequence_number > 0),
             event_type TEXT NOT NULL,
             actor_id TEXT NOT NULL,
@@ -438,24 +438,26 @@ def migrate_controlplane_schema(
     if active_transaction:
         raise SchemaMigrationError("cannot migrate inside an active transaction")
 
-    initial = inspect_controlplane_schema(connection)
-    schema_kind = _validate_preconditions(initial)
     _enable_foreign_keys(connection)
 
-    if initial.user_version == CURRENT_SCHEMA_VERSION:
-        current = inspect_controlplane_schema(connection)
-        _validate_current_schema(current)
-        return SchemaMigrationResult(
-            previous_version=CURRENT_SCHEMA_VERSION,
-            current_version=CURRENT_SCHEMA_VERSION,
-            changed=False,
-            migrated_legacy_schema=False,
-        )
-
     transaction_started = False
+    locked: SchemaInspection | None = None
+    schema_kind = ""
     try:
         connection.execute("BEGIN IMMEDIATE")
         transaction_started = True
+        locked = inspect_controlplane_schema(connection)
+        schema_kind = _validate_preconditions(locked)
+        if locked.user_version == CURRENT_SCHEMA_VERSION:
+            _validate_current_schema(locked)
+            connection.rollback()
+            transaction_started = False
+            return SchemaMigrationResult(
+                previous_version=CURRENT_SCHEMA_VERSION,
+                current_version=CURRENT_SCHEMA_VERSION,
+                changed=False,
+                migrated_legacy_schema=False,
+            )
         if schema_kind == "legacy":
             _rename_legacy_tables(connection)
         elif schema_kind == "fresh":
@@ -471,19 +473,19 @@ def migrate_controlplane_schema(
         if violations:
             raise SchemaMigrationError("foreign key check failed")
         connection.commit()
+        transaction_started = False
+        return SchemaMigrationResult(
+            previous_version=locked.user_version,
+            current_version=CURRENT_SCHEMA_VERSION,
+            changed=True,
+            migrated_legacy_schema=schema_kind == "legacy",
+        )
     except Exception as exc:
         if transaction_started and connection.in_transaction:
             connection.rollback()
         if isinstance(exc, SchemaMigrationError):
             raise
         raise SchemaMigrationError("control-plane schema migration failed") from exc
-
-    return SchemaMigrationResult(
-        previous_version=initial.user_version,
-        current_version=CURRENT_SCHEMA_VERSION,
-        changed=True,
-        migrated_legacy_schema=schema_kind == "legacy",
-    )
 
 
 __all__ = [

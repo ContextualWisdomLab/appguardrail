@@ -5,3 +5,4 @@
 - Added retention policy, legal hold, purge preview, purge receipt, audit event, and audit checkpoint persistence objects with append-only audit triggers.
 - Added fail-closed validation for future, partial, mixed, malformed, orphaned, and active-transaction databases, plus explicit foreign-key verification before commit.
 - Added an operator migration runbook and documented the separate application-integration phase required before production startup invokes the migration.
+- Serialized schema classification under `BEGIN IMMEDIATE` and changed audit-event tenant deletion to `RESTRICT` so concurrent migrators are idempotent and ordinary tenant deletion cannot erase append-only audit evidence.
