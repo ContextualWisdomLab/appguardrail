@@ -1,0 +1,78 @@
+name: Apply dashboard pluralization once
+
+on:
+  push:
+    branches:
+      - palette/ux-dynamic-pluralization-6516463635886999396
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: palette/ux-dynamic-pluralization-6516463635886999396
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Apply bounded dashboard changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dashboard = Path("scanner/dashboard/index.html")
+          text = dashboard.read_text(encoding="utf-8")
+          replacements = {
+              '<span class="meta" id="src">no findings loaded</span>':
+                  '<span class="meta" id="src" role="status" aria-live="polite" aria-atomic="true">no findings loaded</span>',
+              """  const findingsText = filtered.length === ALL.length
+              ? `${ALL.length} findings`
+              : `${filtered.length} of ${ALL.length} findings`;""":
+                  """  const findingsText = filtered.length === ALL.length
+              ? `${ALL.length} finding${ALL.length === 1 ? '' : 's'}`
+              : `${filtered.length} of ${ALL.length} finding${ALL.length === 1 ? '' : 's'}`;""",
+              "document.getElementById('src').textContent = `${srcLabel} · ${findings.length} findings${data.schema?` · ${data.schema}`:''}`;":
+                  "document.getElementById('src').textContent = `${srcLabel} · ${findings.length} finding${findings.length === 1 ? '' : 's'}${data.schema?` · ${data.schema}`:''}`;",
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one dashboard contract match, found {count}: {old[:80]!r}")
+              text = text.replace(old, new, 1)
+          dashboard.write_text(text, encoding="utf-8")
+
+          learning = Path(".jules/palette.md")
+          note = """
+
+          ## 2026-08-04 - Dynamic Pluralization and ARIA Status
+          **Learning:** Dynamic statistical counts need grammatically correct singular and plural forms, and status changes must be announced as one atomic update to assistive technologies.
+          **Action:** Derive `finding` versus `findings` from the total count and mark the receiving status element with `role=\"status\"`, `aria-live=\"polite\"`, and `aria-atomic=\"true\"`.
+          """.rstrip() + "\n"
+          learning_text = learning.read_text(encoding="utf-8").rstrip() + "\n"
+          if "## 2026-08-04 - Dynamic Pluralization and ARIA Status" not in learning_text:
+              learning_text += note
+          learning.write_text(learning_text, encoding="utf-8")
+          PY
+      - name: Install hash-locked tests
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Verify dashboard and complete suite
+        run: |
+          python -m pytest -q tests/test_dashboard_core.py
+          python -m pytest -q
+          python -m compileall -q appguardrail_core scanner scripts tests
+          git diff --check
+      - name: Commit verified changes and remove one-shot workflow
+        run: |
+          rm .github/workflows/apply-dashboard-pluralization-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scanner/dashboard/index.html .jules/palette.md .github/workflows/apply-dashboard-pluralization-once.yml
+          git commit -m "fix(dashboard): announce grammatical finding counts"
+          git push origin HEAD:palette/ux-dynamic-pluralization-6516463635886999396
