@@ -57,3 +57,8 @@
 ## 2026-08-04 - Native File Input Iteration Friction
 **Learning:** Browsers suppress `change` events when a file input still holds the same selected path. Clearing the value in an inline `onclick` handler fixes repetition but also discards the previous selection when the user cancels the picker and couples behavior to markup.
 **Action:** Capture the selected `File` in the input's `change` listener, clear the input value immediately afterward, and then process the captured object. Use native buttons with explicit event listeners to proxy the picker from an empty-state CTA, preserving keyboard access and CSP-compatible separation of markup and behavior.
+
+
+## 2026-08-04 - Dynamic Pluralization and ARIA Status
+**Learning:** Dynamic statistical counts need grammatically correct singular and plural forms, and status changes must be announced as one atomic update to assistive technologies.
+**Action:** Derive `finding` versus `findings` from the total count and mark the receiving status element with `role="status"`, `aria-live="polite"`, and `aria-atomic="true"`.
