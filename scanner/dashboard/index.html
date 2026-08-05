@@ -91,7 +91,7 @@
 <header>
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
-  <span class="meta" id="src">no findings loaded</span>
+  <span class="meta" id="src" role="status" aria-live="polite" aria-atomic="true">no findings loaded</span>
   <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -176,8 +176,8 @@ function render(){
     .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
     .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
   const findingsText = filtered.length === ALL.length
-    ? `${ALL.length} findings`
-    : `${filtered.length} of ${ALL.length} findings`;
+    ? `${ALL.length} ${ALL.length === 1 ? 'finding' : 'findings'}`
+    : `${filtered.length} of ${ALL.length} ${ALL.length === 1 ? 'finding' : 'findings'}`;
   const gateText = `${blocking} deploy-blocking (gate ${blocking?'active':'clear'})`;
   const summaryText = `${findingsText} · ${gateText}`;
 
@@ -290,7 +290,7 @@ function load(data, srcLabel){
   let findings = Array.isArray(data) ? data : (data && Array.isArray(data.findings) ? data.findings : null);
   if(!findings){ alert('Not an AppGuardrail findings file (expected {"findings":[...]} or an array).'); return; }
   ALL = findings;
-  document.getElementById('src').textContent = `${srcLabel} · ${findings.length} findings${data.schema?` · ${data.schema}`:''}`;
+  document.getElementById('src').textContent = `${srcLabel} · ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}${data.schema?` · ${data.schema}`:''}`;
   render();
 }
 

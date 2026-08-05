@@ -57,3 +57,7 @@
 ## 2026-08-04 - Native File Input Iteration Friction
 **Learning:** Browsers suppress `change` events when a file input still holds the same selected path. Clearing the value in an inline `onclick` handler fixes repetition but also discards the previous selection when the user cancels the picker and couples behavior to markup.
 **Action:** Capture the selected `File` in the input's `change` listener, clear the input value immediately afterward, and then process the captured object. Use native buttons with explicit event listeners to proxy the picker from an empty-state CTA, preserving keyboard access and CSP-compatible separation of markup and behavior.
+
+## 2024-05-28 - Dynamic Pluralization and Live Regions
+**Learning:** Hardcoded plural suffixes (e.g. "0 findings", "1 findings") look unpolished and degrade the UX. Furthermore, when dynamically updating these strings in the DOM, assistive technologies won't announce the changes unless the element explicitly uses ARIA live region attributes.
+**Action:** Always use dynamic pluralization (e.g. `count === 1 ? 'finding' : 'findings'`) in UI strings. Additionally, ensure the element receiving these status updates has `role="status"`, `aria-live="polite"`, and `aria-atomic="true"` so screen readers correctly announce the updated information.
