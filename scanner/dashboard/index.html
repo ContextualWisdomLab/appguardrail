@@ -92,8 +92,7 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <button type="button" aria-label="Upload findings file" onclick="document.getElementById('file').click()" style="margin-left:12px">Choose File</button>
-  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="display:none" onclick="this.value=null">
+  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app"></main>
@@ -258,7 +257,7 @@ function openDetail(f){
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
-      <button aria-label="Close" title="Close dialog" onclick="document.getElementById('detail').close()">✕</button>
+      <button aria-label="Close" onclick="document.getElementById('detail').close()">✕</button>
     </div>
     <div class="dlg-body">
       <p class="file">${esc(f.file)}:${esc(f.line)} · ${esc(f.category)} · context: ${esc(f.context||'app-code')}${isDeployBlocking(f)?' · <span class="tag block">deploy-blocking</span>':''}</p>
