@@ -23,6 +23,50 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Remove unreachable generated coverage guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/ci/repair_retention_review_once.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        connection.commit()
+                  transaction_started = False
+              except Exception as exc:
+                  if transaction_started and connection.in_transaction:
+                      connection.rollback()
+                  if isinstance(exc, SchemaMigrationError):
+                      raise
+                  raise SchemaMigrationError("control-plane schema migration failed") from exc
+
+              if locked is None:  # pragma: no cover - guarded by the transaction flow above
+                  raise SchemaMigrationError("schema inspection did not complete")
+              return SchemaMigrationResult(
+                  previous_version=locked.user_version,
+                  current_version=CURRENT_SCHEMA_VERSION,
+                  changed=True,
+                  migrated_legacy_schema=schema_kind == "legacy",
+              )
+          '''.replace("              ", "")
+          new = '''        connection.commit()
+                  transaction_started = False
+                  return SchemaMigrationResult(
+                      previous_version=locked.user_version,
+                      current_version=CURRENT_SCHEMA_VERSION,
+                      changed=True,
+                      migrated_legacy_schema=schema_kind == "legacy",
+                  )
+              except Exception as exc:
+                  if transaction_started and connection.in_transaction:
+                      connection.rollback()
+                  if isinstance(exc, SchemaMigrationError):
+                      raise
+                  raise SchemaMigrationError("control-plane schema migration failed") from exc
+          '''.replace("              ", "")
+          if text.count(old) != 1:
+              raise SystemExit("generated migration coverage contract changed")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
       - name: Apply bounded review fixes
         run: python scripts/ci/repair_retention_review_once.py
       - name: Install hash-locked test dependencies
