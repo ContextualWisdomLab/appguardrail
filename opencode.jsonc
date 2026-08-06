@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+  "small_model": "nvidia/meta/llama-3.3-70b-instruct",
+  "enabled_providers": [
+    "nvidia"
+  ],
+  "share": "disabled",
+  "lsp": false,
+  "mcp": {},
+  "permission": {
+    "edit": "deny",
+    "bash": "deny",
+    "read": "allow",
+    "grep": "allow",
+    "glob": "allow",
+    "list": "allow",
+    "task": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "lsp": "deny",
+    "external_directory": "deny"
+  },
+  "agent": {
+    "commercial-builder": {
+      "description": "Implement one registry-authorized AppGuardrail commercial-readiness gap and open one protected develop pull request.",
+      "mode": "primary",
+      "steps": 40,
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "read": "allow",
+        "grep": "allow",
+        "glob": "allow",
+        "list": "allow",
+        "task": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "lsp": "deny",
+        "external_directory": "deny"
+      }
+    }
+  }
+}
