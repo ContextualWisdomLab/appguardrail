@@ -268,3 +268,12 @@ def test_dashboard_dialog_close_button_has_tooltip():
         and attributes.get("aria-label") == "Close"
         for attributes in parser.buttons
     )
+
+
+def test_dashboard_search_escape_clears_input():
+    """Search input must expose an Escape keybind to quickly clear filters."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert "document.getElementById('q').addEventListener('keydown'" in html
+    assert "e.key === 'Escape'" in html
+    assert "query = '';" in html
+    assert "render();" in html
