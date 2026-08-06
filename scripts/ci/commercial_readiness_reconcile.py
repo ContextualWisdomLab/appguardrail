@@ -38,9 +38,7 @@ def reconcile_handoff(
         issue = active.get(gap.id)
         if issue is None:
             continue
-        issue_number = int(issue.get("number") or 0)
-        if issue_number <= 0:
-            raise RuntimeError("active commercial gap has no positive issue number")
+        issue_number = int(issue["number"])
         return loop.LoopResult("wait-gap", gap.id, issue_number)
 
     return loop.LoopResult("noop", None, None)
