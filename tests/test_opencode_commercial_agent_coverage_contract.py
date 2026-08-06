@@ -21,6 +21,7 @@ def test_coverage_workflow_tracks_every_changed_agent_surface() -> None:
         "tests/test_commercial_readiness_loop.py",
         "tests/test_commercial_readiness_loop_handoff.py",
         "tests/test_commercial_readiness_reconcile.py",
+        "tests/test_commercial_readiness_coverage_edges.py",
         "tests/test_opencode_commercial_agent_trust_boundary.py",
         "tests/test_opencode_commercial_agent_coverage_contract.py",
         "docs/opencode-commercial-readiness-agent.md",
@@ -45,6 +46,7 @@ def test_coverage_workflow_runs_focused_tests_and_both_modules() -> None:
         "tests/test_commercial_readiness_loop.py",
         "tests/test_commercial_readiness_loop_handoff.py",
         "tests/test_commercial_readiness_reconcile.py",
+        "tests/test_commercial_readiness_coverage_edges.py",
         "tests/test_opencode_commercial_agent_trust_boundary.py",
         "tests/test_opencode_commercial_agent_coverage_contract.py",
     ):
