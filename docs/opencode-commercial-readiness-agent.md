@@ -56,7 +56,11 @@ flowchart TD
     K --> L[Protected merge by a separate path]
 ```
 
-The workflow has a single-flight concurrency group and does not cancel an in-progress pass. The job timeout is 55 minutes, which keeps each hourly execution bounded while allowing substantial test and documentation work. Central OpenCode review may independently take longer; review waiting does not grant the builder permission to merge or alter protection rules.
+The workflow has one non-cancelling concurrency group, so a later hourly event cannot terminate an active commercial slice. The job timeout is **170 minutes**. This permits a two-hour implementation plus checkout, dependency setup, tests, documentation, and pull-request publication while remaining well below GitHub's six-hour hosted-runner execution ceiling and the workflow-syntax maximum of 360 minutes.
+
+Because the schedule fires hourly, one 170-minute pass may span more than one later cron event. Those later events remain serialized by the same concurrency group rather than creating parallel implementation branches. If a run reaches the reviewed timeout without producing a pull request, GitHub cancels the job, the coordination issue remains open, and a later pass can reselect it only after the active run has ended and the PR queue is still empty. The job-scoped `GITHUB_TOKEN` remains valid only for the job lifetime and is not persisted by checkout.
+
+Independent CodeRabbit, OpenCode review, security, and merge workflows may continue after the builder opens its pull request. Review waiting does not grant the builder permission to merge, change credentials, or weaken repository protection.
 
 ## Engineering contract
 
@@ -87,7 +91,8 @@ The workflow fails closed when any of the following occurs:
 - the trusted contract is empty or cannot be hashed;
 - `NVIDIA_NIM_API_KEY` is missing;
 - OpenCode cannot use the selected NVIDIA model;
-- the agent cannot produce a tested, reviewable PR.
+- the agent cannot produce a tested, reviewable PR; or
+- the 170-minute execution budget expires.
 
 The compatibility reconciliation command is read-only. It can report the PR-first or active-gap state after an interrupted pass, but it never adds labels, edits issues, changes credentials, or dispatches another agent. The next hourly run can safely reselect the same validated issue because the workflow creates at most one open product slice and the open-PR gate prevents parallel implementation branches.
 
@@ -101,10 +106,11 @@ Before merge, the current head must prove:
 2. both scheduler modules have exact 100% statement coverage;
 3. production docstrings remain complete;
 4. workflow syntax and immutable action pins are valid;
-5. no `COPILOT_GITHUB_TOKEN` or Jules handoff remains;
-6. security, SAST, and repository tests pass on the same head;
-7. all review threads are resolved;
-8. a reviewer other than the last pusher approves the same head.
+5. the job timeout remains between 120 and 180 minutes;
+6. no `COPILOT_GITHUB_TOKEN` or Jules handoff remains;
+7. security, SAST, and repository tests pass on the same head;
+8. all review threads are resolved; and
+9. a reviewer other than the last pusher approves the same head.
 
 A release is not implied by merging the scheduler. Version promotion and `CHANGELOG.md` release sections require a separately validated product release candidate.
 
@@ -125,5 +131,9 @@ GitHub. (2026b). *Events that trigger workflows*. GitHub Docs. https://docs.gith
 GitHub. (2026c). *Security hardening for GitHub Actions*. GitHub Docs. https://docs.github.com/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions
 
 GitHub. (2026d). *Using concurrency*. GitHub Docs. https://docs.github.com/actions/using-jobs/using-concurrency
+
+GitHub. (2026e). *Workflow syntax for GitHub Actions*. GitHub Docs. https://docs.github.com/actions/reference/workflows-and-actions/workflow-syntax
+
+GitHub. (2026f). *Actions limits*. GitHub Docs. https://docs.github.com/actions/reference/limits
 
 NVIDIA. (2026). *NVIDIA NIM APIs*. NVIDIA API documentation. https://docs.api.nvidia.com/nim/
