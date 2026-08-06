@@ -61,3 +61,7 @@
 ## 2026-08-06 - Dashboard status semantics
 **Learning:** A loaded report with zero findings is a successful security outcome, not the same state as missing input. Announcing the same update through multiple live regions can also create duplicate screen-reader output.
 **Action:** Keep one pre-existing polite, atomic status region; separate unloaded and clean-report states with an explicit loaded sentinel; and centralize English finding-count grammar in one formatter.
+
+## 2026-08-06 - Proxying Native File Inputs
+**Learning:** Native `<input type="file">` elements are notoriously difficult to style consistently across browsers and look out-of-place in polished header navigation bars. However, completely replacing them can break accessibility or violate CSP if done incorrectly.
+**Action:** Always replace visually unappealing native file inputs with a styled proxy `<button>` (using existing design system tokens like `class="primary-action"` or inline styles based on `--surface` and `--border`) and hide the actual input using `.sr-only` and `tabindex="-1"`. Connect the button to the input securely using a JavaScript `.addEventListener('click', ...)` to trigger `.click()` on the input.
