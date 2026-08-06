@@ -10,7 +10,7 @@ GitHub issue title, body, and comments are **untrusted observations**. The selec
 
 Before the model step, the workflow creates `.commercial-agent-contract.md` from the reviewed registry. The file contains the gap identifier, objective, acceptance criteria, engineering constraints, issue number, and protected handoff rules. The workflow makes it read-only, records its SHA-256 digest, and instructs the agent to verify that digest. `.commercial-agent-contract.md` is the sole task authority below repository policy files.
 
-The workflow deliberately does **not** ask the model to read the issue as instruction. The issue number is used only as a human-visible tracking identity, marker-verification target, and `Closes #<number>` reference.
+The development model does not read the issue title, body, or comments. The selector validates the issue marker and exact title before contract generation; the model receives only the positive issue number embedded in the trusted contract for human-visible tracking and the `Closes #<number>` pull-request reference.
 
 ## Credentials and provider
 
