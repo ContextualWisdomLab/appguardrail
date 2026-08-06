@@ -117,7 +117,7 @@ function isDeployBlocking(f){
 function formatFindingCount(count){
   return `${count} ${count === 1 ? 'finding' : 'findings'}`;
 }
-function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;','`':'&#96;'}[c]));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));}
 function safeUrl(u){
   if (typeof u === 'string' && u.startsWith('//')) {
     return '#';
