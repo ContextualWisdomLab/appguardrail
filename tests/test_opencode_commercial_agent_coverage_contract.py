@@ -24,6 +24,7 @@ def test_coverage_workflow_tracks_every_changed_agent_surface() -> None:
         "tests/test_commercial_readiness_coverage_edges.py",
         "tests/test_opencode_commercial_agent_trust_boundary.py",
         "tests/test_opencode_commercial_agent_coverage_contract.py",
+        "docs/commercial-readiness-loop.md",
         "docs/opencode-commercial-readiness-agent.md",
         "docs/superpowers/plans/2026-08-06-opencode-commercial-readiness-agent.md",
         "CHANGELOG.d/872-opencode-commercial-agent.md",
