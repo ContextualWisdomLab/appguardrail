@@ -1,71 +1,42 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "nvidia-nim/nvidia/llama-3.3-nemotron-super-49b-v1.5",
-  "small_model": "nvidia-nim/meta/llama-3.3-70b-instruct",
+  "model": "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+  "small_model": "nvidia/meta/llama-3.3-70b-instruct",
   "enabled_providers": [
-    "nvidia-nim"
+    "nvidia"
   ],
   "share": "disabled",
   "lsp": false,
   "mcp": {},
   "permission": {
-    "edit": "deny",
-    "bash": "deny",
+    "*": "deny",
     "read": "allow",
     "grep": "allow",
     "glob": "allow",
-    "list": "allow",
-    "task": "deny",
-    "webfetch": "deny",
-    "websearch": "deny",
-    "lsp": "deny",
-    "external_directory": "deny"
+    "list": "allow"
   },
   "agent": {
     "commercial-builder": {
-      "description": "Implement one reviewed AppGuardrail commercial-readiness issue and open one protected develop pull request.",
+      "description": "Implement one reviewed AppGuardrail commercial-readiness specification and open one protected develop pull request.",
       "mode": "primary",
-      "steps": 40,
+      "steps": 80,
       "permission": {
+        "*": "deny",
         "edit": "allow",
         "bash": "allow",
         "read": "allow",
         "grep": "allow",
         "glob": "allow",
         "list": "allow",
+        "todowrite": "allow",
+        "skill": "allow",
+        "doom_loop": "allow",
         "task": "deny",
+        "question": "deny",
         "webfetch": "deny",
         "websearch": "deny",
         "lsp": "deny",
         "external_directory": "deny"
-      }
-    }
-  },
-  "provider": {
-    "nvidia-nim": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "NVIDIA NIM",
-      "options": {
-        "baseURL": "https://integrate.api.nvidia.com/v1",
-        "apiKey": "{env:NVIDIA_API_KEY}"
-      },
-      "models": {
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
-          "name": "NVIDIA Llama 3.3 Nemotron Super 49B v1.5",
-          "tool_call": true,
-          "limit": {
-            "context": 131072,
-            "output": 8192
-          }
-        },
-        "meta/llama-3.3-70b-instruct": {
-          "name": "Meta Llama 3.3 70B Instruct (NIM)",
-          "tool_call": true,
-          "limit": {
-            "context": 131072,
-            "output": 8192
-          }
-        }
       }
     }
   }
