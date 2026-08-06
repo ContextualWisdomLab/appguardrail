@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 DOCUMENTATION_PATH = ROOT / "docs" / "opencode-commercial-readiness-agent.md"
+LOOP_DOCUMENTATION_PATH = ROOT / "docs" / "commercial-readiness-loop.md"
 CHANGELOG_PATH = ROOT / "CHANGELOG.d" / "872-opencode-commercial-agent.md"
 PLAN_PATH = (
     ROOT
@@ -85,6 +86,21 @@ def test_operator_documentation_records_agent_trust_and_recovery() -> None:
     assert all(item in documentation for item in required)
     assert "COPILOT_GITHUB_TOKEN" in documentation
     assert "must never be configured" in documentation
+
+
+def test_legacy_loop_documentation_matches_opencode_only_handoff() -> None:
+    """No operator document may revive the removed mutable Jules-label path."""
+    documentation = LOOP_DOCUMENTATION_PATH.read_text(encoding="utf-8")
+    lowered = documentation.lower()
+
+    assert "jules" not in lowered
+    assert "opencode" in lowered
+    assert "nvidia_nim_api_key" in lowered
+    assert "read-only reconciliation" in lowered
+    assert "issue title, body, and comments" in lowered
+    assert ".commercial-agent-contract.md" in documentation
+    assert "exactly one" in lowered
+    assert "must not merge" in lowered
 
 
 def test_changelog_fragment_records_jules_replacement_and_secret_boundary() -> None:
