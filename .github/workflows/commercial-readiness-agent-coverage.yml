@@ -9,6 +9,7 @@ on:
       - "tests/test_commercial_readiness_loop.py"
       - "tests/test_commercial_readiness_loop_handoff.py"
       - "tests/test_commercial_readiness_reconcile.py"
+      - "tests/test_commercial_readiness_coverage_edges.py"
       - "tests/test_opencode_commercial_agent_trust_boundary.py"
       - "tests/test_opencode_commercial_agent_coverage_contract.py"
       - "docs/opencode-commercial-readiness-agent.md"
@@ -25,6 +26,7 @@ on:
       - "tests/test_commercial_readiness_loop.py"
       - "tests/test_commercial_readiness_loop_handoff.py"
       - "tests/test_commercial_readiness_reconcile.py"
+      - "tests/test_commercial_readiness_coverage_edges.py"
       - "tests/test_opencode_commercial_agent_trust_boundary.py"
       - "tests/test_opencode_commercial_agent_coverage_contract.py"
       - "docs/opencode-commercial-readiness-agent.md"
@@ -62,6 +64,7 @@ jobs:
             tests/test_commercial_readiness_loop.py \
             tests/test_commercial_readiness_loop_handoff.py \
             tests/test_commercial_readiness_reconcile.py \
+            tests/test_commercial_readiness_coverage_edges.py \
             tests/test_opencode_commercial_agent_trust_boundary.py \
             tests/test_opencode_commercial_agent_coverage_contract.py
       - name: Verify exact unrounded statement coverage
@@ -72,5 +75,6 @@ jobs:
             --test tests/test_commercial_readiness_loop.py \
             --test tests/test_commercial_readiness_loop_handoff.py \
             --test tests/test_commercial_readiness_reconcile.py \
+            --test tests/test_commercial_readiness_coverage_edges.py \
             --test tests/test_opencode_commercial_agent_trust_boundary.py \
             --test tests/test_opencode_commercial_agent_coverage_contract.py
