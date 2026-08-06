@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import urllib.error
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -62,13 +64,11 @@ class FakeClient:
             self.next_issue_number += 1
             self.issues.append(issue)
             return issue
-        if method == "POST" and path.endswith("/labels") and "/issues/" in path:
-            return {"labels": data["labels"]}
         raise AssertionError(f"unexpected mutation: {method} {path}")
 
 
 def _gap_issue(module, gap_index, *, state="open", number=41):
-    """Build an issue carrying one exact commercial-gap marker."""
+    """Build an issue carrying one exact reviewed registry identity."""
     gap = module.COMMERCIAL_GAPS[gap_index]
     return {
         "number": number,
@@ -78,25 +78,31 @@ def _gap_issue(module, gap_index, *, state="open", number=41):
     }
 
 
-def test_hourly_workflow_is_default_branch_only_and_least_privilege() -> None:
-    """The scheduler must run hourly without exposing a PR-controlled write token."""
-    assert WORKFLOW_PATH.exists(), "hourly commercial-readiness workflow is missing"
+def test_hourly_workflow_is_default_branch_only_and_secret_bounded() -> None:
+    """The scheduler may write only from reviewed default-branch source."""
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    lowered = workflow.lower()
 
     assert 'cron: "17 * * * *"' in workflow
     assert "pull_request:" not in workflow
     assert "pull_request_target:" not in workflow
     assert "workflow_dispatch:" in workflow
-    assert "contents: read" in workflow
+    assert "contents: write" in workflow
     assert "issues: write" in workflow
-    assert "pull-requests: read" in workflow
+    assert "pull-requests: write" in workflow
     assert "persist-credentials: false" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "python3 -m scripts.ci.commercial_readiness_loop" in workflow
-    assert "secrets." not in workflow
+    assert workflow.count("secrets.NVIDIA_NIM_API_KEY") == 2
+    assert "NVIDIA_API_KEY" in workflow
+    assert "anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a" in workflow
+    assert "jules" not in lowered
+    assert "copilot" not in lowered
+    assert "PR_REVIEW_MERGE_TOKEN" not in workflow
+    assert "OPENCODE_APPROVE_TOKEN" not in workflow
 
 
-def test_open_pr_queue_blocks_new_jules_dispatch() -> None:
+def test_open_pr_queue_blocks_new_opencode_dispatch() -> None:
     """A live PR must be reviewed and merged before another product gap starts."""
     module = _load_module()
     client = FakeClient(pulls=[{"number": 853}, {"number": 855}])
@@ -108,8 +114,8 @@ def test_open_pr_queue_blocks_new_jules_dispatch() -> None:
     assert not [call for call in client.calls if call[:2] == ("request", "POST")]
 
 
-def test_no_open_pr_dispatches_first_unfinished_gap_to_jules() -> None:
-    """The first unfinished buyer-visible gap must become one Jules work item."""
+def test_no_open_pr_dispatches_first_unfinished_gap_for_opencode() -> None:
+    """The first unfinished buyer-visible gap becomes one OpenCode work item."""
     module = _load_module()
     client = FakeClient()
 
@@ -119,7 +125,10 @@ def test_no_open_pr_dispatches_first_unfinished_gap_to_jules() -> None:
     assert result.gap_id == module.COMMERCIAL_GAPS[0].id
     assert result.issue_number == 901
     created = next(
-        call for call in client.calls if call[:3] == (
+        call
+        for call in client.calls
+        if call[:3]
+        == (
             "request",
             "POST",
             "/repos/ContextualWisdomLab/appguardrail/issues",
@@ -127,16 +136,12 @@ def test_no_open_pr_dispatches_first_unfinished_gap_to_jules() -> None:
     )
     assert module.gap_marker(result.gap_id) in created[3]["body"]
     assert created[3]["labels"] == [module.COMMERCIAL_LABEL]
-    assert (
-        "request",
-        "POST",
-        "/repos/ContextualWisdomLab/appguardrail/issues/901/labels",
-        {"labels": [module.JULES_LABEL]},
-    ) in client.calls
+    assert "OpenCode Agent" in created[3]["body"]
+    assert not any("/issues/901/labels" in call[2] for call in client.calls if len(call) > 2)
 
 
 def test_open_gap_prevents_duplicate_dispatch() -> None:
-    """An unfinished Jules issue must remain the sole active development slice."""
+    """An unfinished reviewed issue remains the sole active development slice."""
     module = _load_module()
     active = _gap_issue(module, 0)
     client = FakeClient(issues=[active])
@@ -149,8 +154,48 @@ def test_open_gap_prevents_duplicate_dispatch() -> None:
     assert not [call for call in client.calls if call[:2] == ("request", "POST")]
 
 
+def test_unmarked_commercial_issue_is_ignored() -> None:
+    """Human issues without a registry marker cannot become model targets."""
+    module = _load_module()
+    client = FakeClient(
+        issues=[{"number": 12, "state": "open", "title": "notes", "body": "none"}]
+    )
+
+    result = module.run_loop(client, "ContextualWisdomLab/appguardrail", dry_run=True)
+
+    assert result.action == "dispatch-gap"
+    assert result.gap_id == module.COMMERCIAL_GAPS[0].id
+
+
+def test_unknown_marker_fails_closed() -> None:
+    """A syntactically valid but unreviewed identity cannot be silently skipped."""
+    module = _load_module()
+    client = FakeClient(
+        issues=[
+            {
+                "number": 12,
+                "state": "open",
+                "title": "attacker task",
+                "body": "<!-- appguardrail-commercial-gap: attacker-task -->",
+            }
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="unknown reviewed gap"):
+        module.run_loop(client, "ContextualWisdomLab/appguardrail")
+
+
+def test_active_gap_requires_positive_issue_number() -> None:
+    """Malformed issue payloads cannot cross into the secret-bearing workflow."""
+    module = _load_module()
+    client = FakeClient(issues=[_gap_issue(module, 0, number=0)])
+
+    with pytest.raises(RuntimeError, match="positive issue number"):
+        module.run_loop(client, "ContextualWisdomLab/appguardrail")
+
+
 def test_closed_gap_advances_by_priority_not_issue_number() -> None:
-    """A completed gap must advance to the next declared buyer-value priority."""
+    """A completed gap advances to the next declared buyer-value priority."""
     module = _load_module()
     completed = _gap_issue(module, 0, state="closed", number=999)
     client = FakeClient(issues=[completed])
@@ -162,7 +207,7 @@ def test_closed_gap_advances_by_priority_not_issue_number() -> None:
 
 
 def test_all_declared_gaps_complete_without_spawning_placeholder_work() -> None:
-    """The loop must stop cleanly when its reviewed backlog has been exhausted."""
+    """The loop stops cleanly when its reviewed backlog has been exhausted."""
     module = _load_module()
     issues = [
         _gap_issue(module, index, state="closed", number=100 + index)
@@ -177,20 +222,24 @@ def test_all_declared_gaps_complete_without_spawning_placeholder_work() -> None:
     assert not [call for call in client.calls if call[:2] == ("request", "POST")]
 
 
-def test_gap_marker_rejects_unknown_or_embedded_identity() -> None:
-    """Only a reviewed exact gap id may influence autonomous dispatch state."""
+def test_gap_marker_and_registry_lookup_reject_invalid_identity() -> None:
+    """Only a reviewed exact lower-kebab identity can enter trusted selection."""
     module = _load_module()
+    known = module.COMMERCIAL_GAPS[0].id
 
-    assert module.parse_gap_marker(module.gap_marker(module.COMMERCIAL_GAPS[0].id)) == (
-        module.COMMERCIAL_GAPS[0].id
-    )
+    assert module.parse_gap_marker(module.gap_marker(known)) == known
+    assert module.parse_gap_marker(module.gap_marker(known) + "\n" + module.gap_marker(known)) is None
     assert module.parse_gap_marker("prefix " + module.gap_marker("unknown-gap")) is None
     assert module.parse_gap_marker("<!-- appguardrail-commercial-gap: unknown-gap -->") is None
     assert module.parse_gap_marker(None) is None
+    with pytest.raises(ValueError, match="lower-kebab-case"):
+        module.gap_marker("Not Valid")
+    with pytest.raises(ValueError, match="unknown reviewed commercial gap"):
+        module._gap_by_id("unknown-gap")
 
 
-def test_gap_issue_contract_requires_tdd_checks_changelog_and_modularity() -> None:
-    """Every autonomous task must carry the repository's commercial quality gates."""
+def test_gap_issue_contract_requires_opencode_tdd_evidence_and_modularity() -> None:
+    """Every autonomous task carries the repository's commercial quality gates."""
     module = _load_module()
     gap = module.COMMERCIAL_GAPS[0]
 
@@ -198,16 +247,28 @@ def test_gap_issue_contract_requires_tdd_checks_changelog_and_modularity() -> No
 
     assert gap.objective in body
     assert all(item in body for item in gap.acceptance)
+    assert "OpenCode Agent" in body
+    assert "NVIDIA_NIM_API_KEY" in body
     assert "test first" in body.lower()
     assert "100%" in body
-    assert "CHANGELOG.md" in body
+    assert "CHANGELOG.d" in body
     assert "develop" in body
     assert "MSA" in body
+    assert "APA 7th" in body
+    assert "must not merge" in body.lower()
     assert module.gap_marker(gap.id) in body
 
 
+def test_render_agent_contract_rejects_nonpositive_issue_number() -> None:
+    """A tracking identifier must be valid before trusted contract generation."""
+    module = _load_module()
+
+    with pytest.raises(ValueError, match="positive integer"):
+        module.render_agent_contract(module.COMMERCIAL_GAPS[0], issue_number=0)
+
+
 def test_dry_run_reports_dispatch_without_mutating_github() -> None:
-    """Dry-run validation must exercise selection without writing labels or issues."""
+    """Dry-run validation exercises selection without writing labels or issues."""
     module = _load_module()
     client = FakeClient()
 
@@ -222,8 +283,8 @@ def test_dry_run_reports_dispatch_without_mutating_github() -> None:
     assert not [call for call in client.calls if call[:2] == ("request", "POST")]
 
 
-def test_github_client_pins_origin_and_rejects_redirects(monkeypatch) -> None:
-    """The hourly write credential must never follow a caller-selected origin."""
+def test_github_client_pins_origin_rejects_redirects_and_paginates(monkeypatch) -> None:
+    """The hourly write credential remains on GitHub and list pagination is bounded."""
     module = _load_module()
     observed = {}
 
@@ -260,9 +321,37 @@ def test_github_client_pins_origin_and_rejects_redirects(monkeypatch) -> None:
     with pytest.raises(ValueError, match="path must start"):
         client.request("GET", "https://attacker.invalid/")
 
+    chunks = [[{"id": index} for index in range(100)], [{"id": 100}]]
+    monkeypatch.setattr(client, "request", lambda *_args, **_kwargs: chunks.pop(0))
+    assert len(client.pages("/items")) == 101
+
+
+def test_github_client_reports_http_error_and_rejects_nonlist_page(monkeypatch) -> None:
+    """Bounded API failures retain status context without ambiguous continuation."""
+    module = _load_module()
+
+    class FailingOpener:
+        def open(self, *_args, **_kwargs):
+            raise urllib.error.HTTPError(
+                "https://api.github.com/fail",
+                503,
+                "unavailable",
+                {},
+                BytesIO(b"temporary"),
+            )
+
+    monkeypatch.setattr(module.urllib.request, "build_opener", lambda *_: FailingOpener())
+    client = module.GitHub("token")
+    with pytest.raises(RuntimeError, match="503 temporary"):
+        client.request("GET", "/fail")
+
+    monkeypatch.setattr(client, "request", lambda *_args, **_kwargs: {"not": "a list"})
+    with pytest.raises(RuntimeError, match="non-list"):
+        client.pages("/items")
+
 
 def test_cli_main_requires_token_and_emits_machine_result(monkeypatch, capsys) -> None:
-    """The workflow entry point must fail closed and expose a stable JSON result."""
+    """The selector entry point fails closed and exposes a stable JSON result."""
     module = _load_module()
 
     monkeypatch.delenv("GH_TOKEN", raising=False)
@@ -292,8 +381,30 @@ def test_cli_main_requires_token_and_emits_machine_result(monkeypatch, capsys) -
     }
 
 
+def test_cli_renders_contract_without_github_token(monkeypatch, capsys) -> None:
+    """Trusted registry rendering occurs before any model or GitHub credential use."""
+    module = _load_module()
+    gap = module.COMMERCIAL_GAPS[0]
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+
+    assert module.main(
+        ["--render-agent-contract", gap.id, "--issue-number", "901"]
+    ) == 0
+    output = capsys.readouterr().out
+    assert "# Trusted Commercial Builder Contract" in output
+    assert gap.title in output
+    assert "Issue #901" in output
+
+    with pytest.raises(SystemExit, match="--issue-number must be positive"):
+        module.main(["--render-agent-contract", gap.id])
+    with pytest.raises(ValueError, match="unknown reviewed commercial gap"):
+        module.main(
+            ["--render-agent-contract", "unknown-gap", "--issue-number", "901"]
+        )
+
+
 def test_parse_args_uses_repository_environment(monkeypatch) -> None:
-    """Scheduled runs must use the exact repository identity supplied by GitHub."""
+    """Scheduled runs use the exact repository identity supplied by GitHub."""
     module = _load_module()
     monkeypatch.setenv("GITHUB_REPOSITORY", "ContextualWisdomLab/appguardrail")
 
@@ -302,4 +413,6 @@ def test_parse_args_uses_repository_environment(monkeypatch) -> None:
     assert args == SimpleNamespace(
         repository="ContextualWisdomLab/appguardrail",
         dry_run=True,
+        render_agent_contract=None,
+        issue_number=None,
     )

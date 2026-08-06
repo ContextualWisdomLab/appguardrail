@@ -1,9 +1,8 @@
-"""Regression tests for interrupted commercial-readiness issue handoffs."""
+"""Regression tests for interrupted commercial-readiness issue selection."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,7 +12,7 @@ from scripts.ci import commercial_readiness_reconcile as reconcile
 
 
 class FakeClient:
-    """Minimal GitHub client double for recovery behavior."""
+    """Minimal GitHub client double for read-only recovery behavior."""
 
     def __init__(
         self,
@@ -46,86 +45,43 @@ class FakeClient:
         data: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Record one mutation request and return an empty JSON object."""
+        """Fail if the compatibility validator attempts any mutation."""
         del params
         self.requests.append((method, path, data))
-        return {}
+        raise AssertionError(f"unexpected mutation: {method} {path}")
 
 
-def _active_issue(*, labels: list[Any], number: int = 321) -> dict[str, Any]:
+def _active_issue(*, number: int = 321) -> dict[str, Any]:
     """Build one active issue for the first reviewed commercial gap."""
     gap = loop.COMMERCIAL_GAPS[0]
     return {
         "number": number,
         "state": "open",
+        "title": gap.title,
         "body": loop.gap_marker(gap.id),
-        "labels": labels,
+        "labels": [loop.COMMERCIAL_LABEL],
     }
 
 
-def test_label_names_accepts_supported_shapes_and_ignores_noise() -> None:
-    """Only nonempty string labels from supported GitHub shapes are retained."""
-    assert reconcile._label_names(
-        {
-            "labels": [
-                "",
-                loop.COMMERCIAL_LABEL,
-                7,
-                {},
-                {"name": 9},
-                {"name": loop.JULES_LABEL},
-            ]
-        }
-    ) == frozenset({loop.COMMERCIAL_LABEL, loop.JULES_LABEL})
-    assert reconcile._label_names({"labels": None}) == frozenset()
-
-
-def test_reconcile_repairs_missing_jules_label() -> None:
-    """A partial create-then-label failure is repaired on the next pass."""
-    client = FakeClient(issues=[_active_issue(labels=[loop.COMMERCIAL_LABEL])])
+def test_reconcile_reports_active_issue_without_mutation() -> None:
+    """An interrupted run resumes from the same validated issue identity."""
+    client = FakeClient(issues=[_active_issue()])
 
     result = reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
 
     assert result == loop.LoopResult(
-        "repair-gap",
+        "wait-gap",
         loop.COMMERCIAL_GAPS[0].id,
         321,
     )
-    assert client.requests == [
-        (
-            "POST",
-            "/repos/ContextualWisdomLab/appguardrail/labels",
-            {
-                "name": loop.JULES_LABEL,
-                "color": "1D76DB",
-                "description": "Dispatch this reviewed issue to the Jules coding agent.",
-            },
-        ),
-        (
-            "POST",
-            "/repos/ContextualWisdomLab/appguardrail/issues/321/labels",
-            {"labels": [loop.JULES_LABEL]},
-        ),
-    ]
-
-
-def test_reconcile_accepts_github_label_objects_without_mutation() -> None:
-    """Normal GitHub label objects are recognized as an intact handoff."""
-    client = FakeClient(
-        issues=[_active_issue(labels=[{"name": loop.JULES_LABEL}])]
-    )
-
-    result = reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
-
-    assert result.action == "wait-gap"
     assert client.requests == []
 
 
 def test_reconcile_preserves_pr_first_policy() -> None:
-    """No issue handoff is repaired while any pull request remains open."""
+    """No active issue is selected while any pull request remains open."""
     client = FakeClient(
         pulls=[{"number": 99}],
-        issues=[_active_issue(labels=[])],
+        issues=[_active_issue()],
     )
 
     result = reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
@@ -134,9 +90,9 @@ def test_reconcile_preserves_pr_first_policy() -> None:
     assert client.requests == []
 
 
-def test_reconcile_dry_run_reports_without_mutation() -> None:
-    """Dry-run mode exposes the pending repair without changing GitHub state."""
-    client = FakeClient(issues=[_active_issue(labels=[])])
+def test_reconcile_dry_run_matches_read_only_result() -> None:
+    """Dry-run and normal validation are identical because no mutation exists."""
+    client = FakeClient(issues=[_active_issue()])
 
     result = reconcile.reconcile_handoff(
         client,
@@ -144,16 +100,29 @@ def test_reconcile_dry_run_reports_without_mutation() -> None:
         dry_run=True,
     )
 
-    assert result.action == "repair-gap"
+    assert result.action == "wait-gap"
+    assert result.issue_number == 321
     assert client.requests == []
 
 
 def test_reconcile_rejects_active_issue_without_positive_number() -> None:
-    """Malformed active issue payloads cannot be used as mutation targets."""
-    client = FakeClient(issues=[_active_issue(labels=[], number=0)])
+    """Malformed active issue payloads cannot become agent targets."""
+    client = FakeClient(issues=[_active_issue(number=0)])
 
     with pytest.raises(RuntimeError, match="positive issue number"):
         reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
+
+
+def test_reconcile_rejects_mismatched_registry_identity() -> None:
+    """Read-only recovery keeps the same title-and-marker trust boundary."""
+    issue = _active_issue()
+    issue["title"] = "untrusted replacement"
+    client = FakeClient(issues=[issue])
+
+    with pytest.raises(RuntimeError, match="title does not match reviewed registry"):
+        reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
+
+    assert client.requests == []
 
 
 def test_reconcile_returns_noop_without_active_gap() -> None:
@@ -163,6 +132,7 @@ def test_reconcile_returns_noop_without_active_gap() -> None:
     result = reconcile.reconcile_handoff(client, "ContextualWisdomLab/appguardrail")
 
     assert result == loop.LoopResult("noop", None, None)
+    assert client.requests == []
 
 
 def test_parse_args_supports_explicit_and_environment_repository(
@@ -182,7 +152,7 @@ def test_parse_args_supports_explicit_and_environment_repository(
 
 
 def test_main_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The recovery CLI fails closed before GitHub access without a token."""
+    """The compatibility CLI fails closed before GitHub access without a token."""
     monkeypatch.delenv("GH_TOKEN", raising=False)
 
     with pytest.raises(SystemExit, match="GH_TOKEN is required"):
@@ -193,7 +163,7 @@ def test_main_prints_machine_readable_result(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The recovery CLI emits a deterministic JSON decision contract."""
+    """The compatibility CLI emits a deterministic JSON decision contract."""
     client = FakeClient()
     monkeypatch.setenv("GH_TOKEN", "workflow-token")
     monkeypatch.setattr(loop, "GitHub", lambda token: client)
@@ -208,13 +178,3 @@ def test_main_prints_machine_readable_result(
         "issue_number": None,
         "pull_requests": [],
     }
-
-
-def test_workflow_runs_recovery_even_after_primary_step_failure() -> None:
-    """The reviewed workflow retains a fail-closed always-run recovery step."""
-    workflow = Path(".github/workflows/commercial-readiness-loop.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "if: always()" in workflow
-    assert "scripts.ci.commercial_readiness_reconcile" in workflow
