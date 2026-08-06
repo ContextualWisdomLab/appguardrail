@@ -65,6 +65,17 @@ def test_dashboard_centralizes_finding_count_pluralization() -> None:
     assert html.count("? 'finding' : 'findings'") == 1
 
 
+def test_dashboard_escapes_double_quotes_with_complete_html_entity() -> None:
+    """Attribute-sensitive quote escaping retains the entity terminator."""
+    html = _dashboard_html()
+
+    expected_mapping = (
+        "{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"
+        "\"'\":'&#39;','`':'&#96;'}"
+    )
+    assert expected_mapping in html
+
+
 def test_dashboard_distinguishes_unloaded_and_clean_scan_states() -> None:
     """A successfully loaded zero-finding report is not shown as missing data."""
     html = _dashboard_html()
