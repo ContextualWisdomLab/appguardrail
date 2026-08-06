@@ -86,6 +86,8 @@ def test_operator_documentation_records_agent_trust_and_recovery() -> None:
     assert all(item in documentation for item in required)
     assert "COPILOT_GITHUB_TOKEN" in documentation
     assert "must never be configured" in documentation
+    assert "does not read the issue" in documentation
+    assert "marker-verification target" not in documentation
 
 
 def test_legacy_loop_documentation_matches_opencode_only_handoff() -> None:
