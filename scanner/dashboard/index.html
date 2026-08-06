@@ -114,7 +114,10 @@ function isDeployBlocking(f){
   const ctx = String(f.context||'app-code');
   return BLOCKING_SEV.has(sev) && !NON_BLOCKING.has(ctx);
 }
-function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));}
+function formatFindingCount(count){
+  return `${count} ${count === 1 ? 'finding' : 'findings'}`;
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;','`':'&#96;'}[c]));}
 function safeUrl(u){
   if (typeof u === 'string' && u.startsWith('//')) {
     return '#';
@@ -126,7 +129,7 @@ function safeUrl(u){
   return '#';
 }
 
-let ALL = [];
+let ALL = null;
 let filterSev = '', query = '';
 let lastFocus = null;
 
@@ -138,13 +141,26 @@ function render(){
     : null;
   const app = document.getElementById('app');
   const liveSummary = document.getElementById('findings-summary');
-  if(!ALL.length){
+  if(!ALL){
     if (liveSummary) liveSummary.textContent = '';
     app.innerHTML = `<div class="empty">
       <h1>No findings loaded</h1>
       <p>Generate a report-safe findings file, then load it above (or place it next to this page).</p>
       <p><code>appguardrail scan --findings-json reports/findings.json .</code></p>
       <p id="findings-upload-help" class="drop">Serve the repo (<code>python3 -m http.server</code>) and open <code>/dashboard/</code>, or drag a <code>findings.json</code> onto this window.</p>
+      <p><button type="button" id="browse-findings" class="primary-action" aria-describedby="findings-upload-help">Browse findings.json</button></p>
+    </div>`;
+    const browseFindings = document.getElementById('browse-findings');
+    const fileInput = document.getElementById('file');
+    browseFindings.addEventListener('click', () => fileInput.click());
+    return;
+  }
+  if(ALL.length === 0){
+    if (liveSummary) liveSummary.textContent = 'Clean scan · 0 findings · deploy gate clear';
+    app.innerHTML = `<div class="empty">
+      <h1>Clean scan</h1>
+      <p>No findings were detected in this report. The deploy gate is clear.</p>
+      <p id="findings-upload-help" class="drop">Load a different <code>findings.json</code> file to review another report.</p>
       <p><button type="button" id="browse-findings" class="primary-action" aria-describedby="findings-upload-help">Browse findings.json</button></p>
     </div>`;
     const browseFindings = document.getElementById('browse-findings');
@@ -175,9 +191,10 @@ function render(){
     .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
     .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
     .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+  const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
-    ? `${ALL.length} findings`
-    : `${filtered.length} of ${ALL.length} findings`;
+    ? allFindingsText
+    : `${filtered.length} of ${allFindingsText}`;
   const gateText = `${blocking} deploy-blocking (gate ${blocking?'active':'clear'})`;
   const summaryText = `${findingsText} · ${gateText}`;
 
@@ -290,7 +307,7 @@ function load(data, srcLabel){
   let findings = Array.isArray(data) ? data : (data && Array.isArray(data.findings) ? data.findings : null);
   if(!findings){ alert('Not an AppGuardrail findings file (expected {"findings":[...]} or an array).'); return; }
   ALL = findings;
-  document.getElementById('src').textContent = `${srcLabel} · ${findings.length} findings${data.schema?` · ${data.schema}`:''}`;
+  document.getElementById('src').textContent = `${srcLabel} · ${formatFindingCount(findings.length)}${data.schema?` · ${data.schema}`:''}`;
   render();
 }
 
