@@ -61,3 +61,7 @@
 ## 2026-08-06 - Dashboard status semantics
 **Learning:** A loaded report with zero findings is a successful security outcome, not the same state as missing input. Announcing the same update through multiple live regions can also create duplicate screen-reader output.
 **Action:** Keep one pre-existing polite, atomic status region; separate unloaded and clean-report states with an explicit loaded sentinel; and centralize English finding-count grammar in one formatter.
+
+## 2025-02-18 - Search Input Escape Key
+**Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
+**Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.

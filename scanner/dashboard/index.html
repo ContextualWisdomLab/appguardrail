@@ -244,6 +244,14 @@ function render(){
     query = e.target.value.toLowerCase();
     render();
   });
+  document.getElementById('q').addEventListener('keydown', e=>{
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.target.value = '';
+      query = '';
+      render();
+    }
+  });
   document.getElementById('sev').addEventListener('change', e=>{filterSev=e.target.value;render();});
   app.querySelectorAll('tbody tr[data-i]').forEach(tr=>{
     const open = () => openDetail(ALL[+tr.dataset.i]);
