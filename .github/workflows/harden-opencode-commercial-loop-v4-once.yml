@@ -1,0 +1,68 @@
+name: Harden OpenCode commercial loop v4 once
+
+on:
+  push:
+    branches:
+      - ci/opencode-commercial-loop-872
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opencode-commercial-hardening-once
+  cancel-in-progress: false
+
+jobs:
+  harden-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact hardening commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Apply split-job scheduler hardening
+        run: python scripts/ci/harden_opencode_commercial_loop_v4_once.py
+      - name: Install hash-locked test dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Verify focused trust-boundary contracts
+        run: |
+          python -m pytest -q \
+            tests/test_render_commercial_gap_contract.py \
+            tests/test_opencode_commercial_agent_contract.py \
+            tests/test_commercial_readiness_loop.py \
+            tests/test_commercial_readiness_loop_handoff.py \
+            tests/test_commercial_readiness_reconcile.py
+          python -m scripts.ci.verify_module_coverage \
+            --module scripts/ci/render_commercial_gap_contract.py \
+            --test tests/test_render_commercial_gap_contract.py
+          python -m pytest -q
+          python -m compileall -q appguardrail_core scanner scripts tests
+          python -m json.tool opencode.jsonc >/dev/null
+          ! git grep -n "nvidia-nim" -- \
+            .github/workflows/commercial-readiness-loop.yml \
+            opencode.jsonc \
+            tests/test_opencode_commercial_agent_contract.py \
+            docs/commercial-readiness-opencode.md
+          git diff --check
+      - name: Commit verified hardening and remove all one-shot files
+        run: |
+          rm -f .github/workflows/harden-opencode-commercial-loop-once.yml
+          rm -f .github/workflows/harden-opencode-commercial-loop-v2-once.yml
+          rm -f .github/workflows/harden-opencode-commercial-loop-v3-once.yml
+          rm -f .github/workflows/harden-opencode-commercial-loop-v4-once.yml
+          rm -f scripts/ci/harden_opencode_commercial_loop_once.py
+          rm -f scripts/ci/harden_opencode_commercial_loop_v2_once.py
+          rm -f scripts/ci/harden_opencode_commercial_loop_v3_once.py
+          rm -f scripts/ci/harden_opencode_commercial_loop_v4_once.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "ci(agent): isolate and seal hourly NVIDIA OpenCode"
+          git push origin HEAD:ci/opencode-commercial-loop-872
