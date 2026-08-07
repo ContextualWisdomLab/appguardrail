@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 
@@ -197,6 +198,20 @@ def _patch_validation_fixture() -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _stage_direct_fixes() -> None:
+    """Retain fixes made outside the legacy workflow's explicit staging list."""
+    subprocess.run(
+        [
+            "git",
+            "add",
+            "appguardrail_core/pinned_https.py",
+            "tests/test_pinned_https_validation_edges.py",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+
+
 def main() -> int:
     """Apply every reviewed integration patch without broad repository mutation."""
     _patch_transport_port()
@@ -204,6 +219,7 @@ def main() -> int:
     _patch_core_exports()
     _patch_existing_ssrf_contract()
     _patch_validation_fixture()
+    _stage_direct_fixes()
     return 0
 
 
