@@ -65,7 +65,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             appguardrail_core/__init__.py \
+            appguardrail_core/pinned_https.py \
             scanner/cli/appguardrail.py \
+            tests/test_pinned_https_validation_edges.py \
             tests/test_ssrf_protection.py \
             .github/workflows/apply-pinned-https-integration-once.yml \
             scripts/ci/apply_pinned_https_integration_once.py
