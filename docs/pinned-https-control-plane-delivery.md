@@ -75,6 +75,12 @@ A failed delivery does not turn a completed local scan into a failed scan. The C
 
 Rollback consists of reverting the integration commit. The existing unauthenticated webhook path and local scanner remain independently operational. Do not restore preflight-only bearer delivery as a fallback.
 
+## Response receipt validation
+
+A successful HTTP status does not make the response body trusted. The CLI accepts a delivery receipt only when the body is a JSON object containing a positive, non-Boolean integer scan identifier. The optional `new_blocking` field must be a nonnegative, non-Boolean integer. Strings, terminal control sequences, negative values, Boolean values, nested objects, and malformed JSON are rejected without copying their contents into terminal output.
+
+The base control-plane URL is also treated as untrusted configuration. It must be public HTTPS and must not contain user information, a query string, or a fragment. Rejected values are not echoed because they may contain credentials or attacker-controlled terminal sequences. Endpoint construction appends `/api/v1/scans` to the validated base path through structured URI composition rather than string concatenation across an ambiguous query or fragment boundary.
+
 ## Verification
 
 The dedicated coverage workflow runs deterministic tests for:
@@ -89,6 +95,7 @@ The dedicated coverage workflow runs deterministic tests for:
 - case-insensitive credential removal;
 - unsupported redirects and redirect loops;
 - malformed headers, URLs, bounds, JSON, and response sizes;
+- ambiguous base URLs and forged response receipts;
 - scanner CLI payload and non-secret error behavior; and
 - public package exports, workflow permissions, documentation, and changelog evidence.
 
