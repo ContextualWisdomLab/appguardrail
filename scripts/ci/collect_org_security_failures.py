@@ -453,7 +453,7 @@ def publish_findings(
             print(
                 "::warning::Org security collector reached its bounded issue "
                 f"update limit ({MAX_ISSUE_UPDATES_PER_RUN}); deferred {deferred} "
-                "finding(s) to later scheduled loops."
+                f"finding{'s' if deferred != 1 else ''} to later scheduled loops."
             )
             break
         if publish_one(client, target_repo, finding, dry_run, issues, labels_seen):
