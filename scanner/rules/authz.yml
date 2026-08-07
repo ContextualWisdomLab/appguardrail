@@ -1,47 +1,41 @@
 rules:
-  - id: api-route-missing-auth-check
+  - id: missing-api-auth
     patterns:
-      - pattern: |
-          export async function GET($REQ, $CTX) {
-            $DB.$METHOD(...)
+      - pattern-either:
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+              }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            $SESSION = await $AUTH(...)
+            ...
           }
-      - pattern: |
-          export async function POST($REQ, $CTX) {
-            $DB.$METHOD(...)
-          }
-      - pattern: |
-          export async function PUT($REQ, $CTX) {
-            $DB.$METHOD(...)
-          }
-      - pattern: |
-          export async function DELETE($REQ, $CTX) {
-            $DB.$METHOD(...)
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            $SESSION = await $AUTH(...)
+            ...
           }
     message: |
-      API route handler accesses the database without an apparent authentication check.
-      Ensure every data-accessing route calls getServerSession(), auth(), or
-      supabase.auth.getUser() and returns 401 if the user is not authenticated.
-    severity: HIGH
+      API route may be missing authentication. Every API route that accesses
+      user data must verify the session before processing the request.
+    severity: CRITICAL
     languages: [typescript, javascript]
     paths:
       include:
-        - "**/app/api/**/*.ts"
-        - "**/pages/api/**/*.ts"
+        - "**/api/**"
+        - "**/routes/**"
+      exclude:
+        - "**/api/public/**"
+        - "**/api/webhooks/**"
 
-  - id: db-query-without-user-filter
-    patterns:
-      - pattern: |
-          $DB.findMany({ where: { ... } })
-      - pattern: |
-          $DB.findAll(...)
-    message: |
-      Database query may be returning records for all users. Ensure the query
-      filters by the authenticated user's ID (e.g., { where: { userId: session.user.id } })
-      to prevent cross-user data exposure.
-    severity: WARNING
-    languages: [typescript, javascript]
-
-  - id: req-body-user-id-trust
+  - id: trusting-client-user-id
     patterns:
       - pattern: |
           $DB.$METHOD({ where: { userId: $REQ.body.userId } })
@@ -56,9 +50,11 @@ rules:
 
   - id: todo-skip-auth
     patterns:
-      - pattern-regex: '(?i)(?:todo|fixme|hack|temp|temporary).{0,50}(?:auth|security|permission|check|protect)'
-      - pattern-regex: '(?i)(?:skip|bypass|disable|remove).{0,30}(?:auth|authentication|authorization|security)'
-      - pattern-regex: '(?i)//\s*(?:disable|mock|fake)\s*(?:auth|security)'
+      - pattern-regex: '(?im)^[ \t]*(?://|#)[ \t]*(?:todo|fixme|hack|temp|temporary)\b[^\r\n]{0,50}\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b'
+      - pattern-regex: '(?im)^[ \t]*(?://|#)[ \t]*(?:skip|bypass|disable|remove)\b[^\r\n]{0,30}\b(?:auth|authentication|authorization|security)\b'
+      - pattern-regex: '(?im)^[ \t]*//[ \t]*(?:disable|mock|fake)[ \t]+(?:auth|security)\b'
+      - pattern-regex: '(?is)/\*(?:(?!\*/).){0,500}?\b(?:todo|fixme|hack|temp|temporary)\b(?:(?!\*/).){0,50}?\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b(?:(?!\*/).){0,500}?\*/'
+      - pattern-regex: '(?is)/\*(?:(?!\*/).){0,500}?\b(?:skip|bypass|disable|remove)\b(?:(?!\*/).){0,30}?\b(?:auth|authentication|authorization|security)\b(?:(?!\*/).){0,500}?\*/'
     message: |
       Comment suggests authentication or security check was intentionally skipped
       or deferred. This is a common pattern in AI-generated code. Review and ensure
@@ -81,5 +77,6 @@ rules:
       exclude:
         - "**/*.test.*"
         - "**/*.spec.*"
-        - "**/tests/**"
         - "**/__tests__/**"
+        - "**/test/**"
+        - "**/tests/**"
