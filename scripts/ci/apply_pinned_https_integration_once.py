@@ -209,6 +209,7 @@ def _stage_direct_fixes() -> None:
         ],
         cwd=ROOT,
         check=True,
+        timeout=30,
     )
 
 
