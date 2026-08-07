@@ -52,7 +52,7 @@ def _push_findings(url, findings):
         or bool(parsed.fragment)
     ):
         _console_print(
-            "⚠️  --push requires a public HTTPS URL without credentials, "
+            "⚠️  --push URL must be a public HTTPS URL without credentials, "
             "query, or fragment; skipping push.",
             file=sys.stderr,
         )
@@ -80,7 +80,7 @@ def _push_findings(url, findings):
         )
     except DestinationValidationError:
         _console_print(
-            "⚠️  --push requires a public HTTPS URL without credentials, "
+            "⚠️  --push URL must be a public HTTPS URL without credentials, "
             "query, or fragment; skipping push.",
             file=sys.stderr,
         )
