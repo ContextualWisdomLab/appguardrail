@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+import ssl
 from collections.abc import Callable
 from typing import Any
 
@@ -197,6 +198,8 @@ class _TLSContext:
     """Record the original hostname passed to TLS verification and SNI."""
 
     def __init__(self) -> None:
+        self.verify_mode = ssl.CERT_REQUIRED
+        self.check_hostname = True
         self.server_hostnames: list[str] = []
 
     def wrap_socket(self, raw_socket: _RawSocket, *, server_hostname: str):
