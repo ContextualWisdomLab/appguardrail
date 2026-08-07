@@ -59,6 +59,11 @@ if __package__ in (None, ""):
 
 from appguardrail_core.config import load_config
 from appguardrail_core.controlplane import SafeRedirectHandler
+from appguardrail_core.pinned_https import (
+    DestinationValidationError,
+    PinnedHTTPSFailure,
+    post_json_pinned_https,
+)
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
 from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
@@ -1671,8 +1676,8 @@ def _is_safe_url(url: str) -> bool:
 
 
 def _push_findings(url, findings):
-    """POST normalized findings to a control-plane /api/v1/scans endpoint."""
-    import urllib.request
+    """POST normalized findings through DNS-pinned public HTTPS."""
+    import urllib.parse
 
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
@@ -1681,48 +1686,102 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
-    if not _is_safe_url(url):
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        hostname = parsed.hostname
+        parsed.port
+    except (TypeError, ValueError):
+        parsed = None
+        hostname = None
+    if (
+        parsed is None
+        or parsed.scheme.lower() != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
+    ):
         _console_print(
-            f"⚠️  --push URL must be a valid http/https URL and not point to internal infrastructure, got {url}",
+            "⚠️  --push URL must be a public HTTPS URL without credentials, "
+            "query, or fragment; skipping push.",
             file=sys.stderr,
         )
         return
+
+    base_path = parsed.path.rstrip("/")
+    endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
+    endpoint = urllib.parse.urlunsplit(
+        ("https", parsed.netloc, endpoint_path, "", "")
+    )
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
         "commit": os.environ.get("GITHUB_SHA"),
     }
-    endpoint = url.rstrip("/") + "/api/v1/scans"
-    req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-    )
     try:
-        opener = urllib.request.build_opener(SafeRedirectHandler())
-        with (
-            opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                req, timeout=15
-            ) as resp
-        ):  # noqa: S310 - Safe URL scheme validated
-            body = json.loads(resp.read() or b"{}")
-        drift = body.get("new_blocking")
-        extra = f", {drift} newly deploy-blocking" if drift else ""
-        _console_print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
-    except urllib.error.HTTPError as exc:
+        response = post_json_pinned_https(
+            endpoint,
+            payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            timeout=15,
+        )
+    except DestinationValidationError:
         _console_print(
-            f"⚠️  Control-plane push failed ({exc.code}); scan still completed.",
+            "⚠️  --push URL must be a public HTTPS URL without credentials, "
+            "query, or fragment; skipping push.",
             file=sys.stderr,
         )
-    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return
+    except PinnedHTTPSFailure:
         _console_print(
-            f"⚠️  Control-plane push failed ({exc}); scan still completed.",
+            "⚠️  Control-plane push failed; scan still completed.",
             file=sys.stderr,
         )
+        return
+
+    if not 200 <= response.status < 300:
+        _console_print(
+            f"⚠️  Control-plane push failed ({response.status}); scan still completed.",
+            file=sys.stderr,
+        )
+        return
+    try:
+        body = json.loads(response.body or b"{}")
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError):
+        _console_print(
+            "⚠️  Control-plane push returned an invalid response; scan still completed.",
+            file=sys.stderr,
+        )
+        return
+    if not isinstance(body, dict):
+        _console_print(
+            "⚠️  Control-plane push returned an invalid response; scan still completed.",
+            file=sys.stderr,
+        )
+        return
+
+    scan_id = body.get("id")
+    new_blocking = body.get("new_blocking", 0)
+    if (
+        not isinstance(scan_id, int)
+        or isinstance(scan_id, bool)
+        or scan_id <= 0
+        or not isinstance(new_blocking, int)
+        or isinstance(new_blocking, bool)
+        or new_blocking < 0
+    ):
+        _console_print(
+            "⚠️  Control-plane push returned an invalid response; scan still completed.",
+            file=sys.stderr,
+        )
+        return
+
+    extra = f", {new_blocking} newly deploy-blocking" if new_blocking else ""
+    _console_print(f"📡 Pushed scan #{scan_id} to control plane{extra}.")
 
 
 def _write_sarif(findings, output_path: Path):
