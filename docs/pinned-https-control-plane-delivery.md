@@ -34,7 +34,7 @@ flowchart LR
 
 The implementation uses the following contract:
 
-1. Parse an absolute HTTPS URL and reject credentials, fragments, invalid ports, ASCII control characters, and zone-scoped IPv6 identities.
+1. Parse an absolute HTTPS URL and reject credentials, fragments, invalid ports—including an explicit port `0`—ASCII control characters, and zone-scoped IPv6 identities before DNS is consulted.
 2. Resolve the normalized hostname once with TCP-only `getaddrinfo` parameters.
 3. Reject the complete answer set when any returned address is private, loopback, link-local, multicast, unspecified, reserved, non-global, IPv4-mapped IPv6, or zone-scoped.
 4. Connect only to the immutable socket addresses captured by that resolver call.
