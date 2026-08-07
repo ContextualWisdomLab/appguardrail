@@ -45,6 +45,7 @@ def test_pinned_https_workflow_enforces_exact_read_only_coverage() -> None:
         "test_pinned_https_redirects.py",
         "test_pinned_https_cli_integration.py",
         "test_pinned_https_validation_edges.py",
+        "test_pinned_https_coverage_edges.py",
         "test_pinned_https_release_contract.py",
     ):
         assert test_name in workflow
