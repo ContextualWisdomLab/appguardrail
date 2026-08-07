@@ -227,7 +227,8 @@ def resolve_public_https_destination(
         raise DestinationValidationError("HTTPS destination must include a hostname")
     hostname = _canonical_hostname(parts.hostname)
     try:
-        port = parts.port or 443
+        parsed_port = parts.port
+        port = 443 if parsed_port is None else parsed_port
     except ValueError as exc:
         raise DestinationValidationError("HTTPS destination port is invalid") from exc
     if isinstance(port, bool) or not 1 <= port <= 65535:

@@ -73,7 +73,7 @@ def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
     _push_findings("http://127.0.0.1/", [])
     captured = capsys.readouterr()
     assert (
-        "URL must be a valid http/https URL and not point to internal infrastructure"
+        "URL must be a public HTTPS URL"
         in captured.err
     )
 

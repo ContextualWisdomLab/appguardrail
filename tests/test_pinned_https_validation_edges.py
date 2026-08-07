@@ -349,7 +349,7 @@ def test_transport_adds_json_defaults_and_accepts_exact_response_boundary() -> N
     assert connection.closed
 
 
-@pytest.mark.parametrize("failure", [OSError("socket"), http.client.HTTPException("HTTP")])
+@pytest.mark.parametrize("failure", [OSError("socket"), http.client.HTTPException("protocol-private-detail")])
 def test_transport_wraps_connection_failures_without_details(failure: BaseException) -> None:
     """Socket and protocol errors become one bounded transport category."""
     connection = _Connection(_SimpleResponse(200), {}, failure=failure)
