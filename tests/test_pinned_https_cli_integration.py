@@ -85,8 +85,9 @@ def test_push_findings_sends_normalized_payload_through_pinned_transport(
     assert payload["repo"] == "ContextualWisdomLab/appguardrail"
     assert payload["commit"] == "a" * 40
     assert len(payload["findings"]) == 1
-    assert "Pushed scan #41" in capsys.readouterr().out
-    assert "2 newly deploy-blocking" in capsys.readouterr().out if False else True
+    captured = capsys.readouterr()
+    assert "Pushed scan #41" in captured.out
+    assert "2 newly deploy-blocking" in captured.out
 
 
 def test_push_findings_reports_non_success_without_copying_response_body(
