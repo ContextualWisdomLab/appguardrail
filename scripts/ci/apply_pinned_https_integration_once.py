@@ -17,6 +17,20 @@ def _replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def _patch_transport_port() -> None:
+    """Preserve an explicitly invalid zero port instead of treating it as omitted."""
+    path = ROOT / "appguardrail_core" / "pinned_https.py"
+    text = path.read_text(encoding="utf-8")
+    text = _replace_once(
+        text,
+        "        port = parts.port or 443\n",
+        "        parsed_port = parts.port\n"
+        "        port = 443 if parsed_port is None else parsed_port\n",
+        "explicit zero port validation",
+    )
+    path.write_text(text, encoding="utf-8")
+
+
 def _patch_scanner() -> None:
     """Route bearer-authenticated scan uploads through the pinned HTTPS module."""
     path = ROOT / "scanner" / "cli" / "appguardrail.py"
@@ -170,11 +184,26 @@ def _patch_existing_ssrf_contract() -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _patch_validation_fixture() -> None:
+    """Use a private protocol detail that cannot collide with the word HTTPS."""
+    path = ROOT / "tests" / "test_pinned_https_validation_edges.py"
+    text = path.read_text(encoding="utf-8")
+    text = _replace_once(
+        text,
+        'http.client.HTTPException("HTTP")',
+        'http.client.HTTPException("protocol-private-detail")',
+        "bounded protocol error fixture",
+    )
+    path.write_text(text, encoding="utf-8")
+
+
 def main() -> int:
     """Apply every reviewed integration patch without broad repository mutation."""
+    _patch_transport_port()
     _patch_scanner()
     _patch_core_exports()
     _patch_existing_ssrf_contract()
+    _patch_validation_fixture()
     return 0
 
 
