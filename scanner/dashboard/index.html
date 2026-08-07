@@ -72,6 +72,11 @@
   .sec.fix{border-left-color:var(--primary)} .sec.fix h3{color:var(--primary)}
   .sec.verify{border-left-color:#1E874B} .sec.verify h3{color:#1E874B}
   .sec.meta{border-left-color:var(--muted)} .sec.meta h3{color:var(--muted)}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .sec-head h3{margin:0}
+  .copy-btn{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:background 0.2s, color 0.2s}
+  .copy-btn:hover{background:var(--bg);color:var(--text)}
+  .copy-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px}
   .kv{color:var(--muted);font-size:12px}
   .empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:40px;text-align:center;color:var(--muted)}
@@ -273,6 +278,25 @@ function render(){
   }
 }
 
+async function copyTxt(btn) {
+  try {
+    const text = btn.closest('.sec').querySelector('pre').textContent;
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = 'var(--primary)';
+    btn.style.borderColor = 'var(--primary)';
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 2000);
+  } catch (err) {
+    btn.textContent = 'Error';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  }
+}
+
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
@@ -290,8 +314,8 @@ function openDetail(f){
     <div class="dlg-body">
       <p class="file">${esc(f.file)}:${esc(f.line)} · ${esc(f.category)} · context: ${esc(f.context||'app-code')}${isDeployBlocking(f)?' · <span class="tag block">deploy-blocking</span>':''}</p>
       <div class="sec problem"><h3>Problem</h3><div>${esc(f.message)}</div></div>
-      <div class="sec fix"><h3>Fix Prompt</h3><pre>${esc(f.remediation)}</pre></div>
-      <div class="sec verify"><h3>Verification</h3><pre>${esc(f.verification)}</pre></div>
+      <div class="sec fix"><div class="sec-head"><h3>Fix Prompt</h3><button type="button" class="copy-btn" aria-label="Copy Fix Prompt" onclick="copyTxt(this)">Copy</button></div><pre>${esc(f.remediation)}</pre></div>
+      <div class="sec verify"><div class="sec-head"><h3>Verification</h3><button type="button" class="copy-btn" aria-label="Copy Verification" onclick="copyTxt(this)">Copy</button></div><pre>${esc(f.verification)}</pre></div>
       ${f.snippet?`<div class="sec meta"><h3>Evidence</h3><pre>${esc(f.snippet)}</pre></div>`:''}
       ${(owasp||cwe||refs)?`<div class="sec meta"><h3>References</h3>
         ${owasp?`<div class="kv">OWASP: ${esc(owasp)}</div>`:''}

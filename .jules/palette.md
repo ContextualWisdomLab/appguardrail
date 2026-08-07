@@ -65,3 +65,11 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-05-20 - Add Copy to Clipboard Buttons for AI Prompts
+**Learning:** Security reports often contain remediation and verification text specifically meant to be copied and pasted into AI coding tools. Without an explicit copy affordance, users must manually select text, which is tedious, especially for multi-line preformatted blocks.
+**Action:** When displaying prompt-like text blocks (e.g. 'Fix Prompt', 'Verification'), provide a dedicated 'Copy' button with an ARIA label and visual feedback ('Copied!') upon success.
+
+## 2024-05-20 - XSS in Inline JS Handlers
+**Learning:** Injecting user-controlled data directly into inline JavaScript handlers (e.g., `onclick="copyTxt(this, \`${esc(f.remediation)}\`)"`) causes syntax errors and XSS vulnerabilities if the data contains backticks, even if standard HTML escaping is used.
+**Action:** Avoid passing dynamic text via inline string literals. Instead, use DOM traversal (e.g., `btn.closest('.sec').querySelector('pre').textContent`) to retrieve data safely from the DOM.

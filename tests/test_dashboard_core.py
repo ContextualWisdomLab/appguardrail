@@ -270,6 +270,29 @@ def test_dashboard_dialog_close_button_has_tooltip():
     )
 
 
+def test_dashboard_dialog_copy_buttons_present():
+    """Dialog must expose Copy buttons for Fix Prompt and Verification sections."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    detail_markup = re.search(
+        r"d\.innerHTML\s*=\s*`(?P<markup>.*?)`;",
+        html,
+        flags=re.DOTALL,
+    )
+    assert detail_markup is not None
+
+    parser = _ButtonAttributeParser()
+    parser.feed(detail_markup.group("markup"))
+
+    assert any(
+        attributes.get("aria-label") == "Copy Fix Prompt"
+        for attributes in parser.buttons
+    )
+    assert any(
+        attributes.get("aria-label") == "Copy Verification"
+        for attributes in parser.buttons
+    )
+
+
 def test_dashboard_search_escape_clears_input():
     """Search input must expose an Escape keybind to quickly clear filters."""
     html = dashboard_index_path().read_text(encoding="utf-8")
