@@ -36,6 +36,7 @@ jobs:
             tests/test_pinned_https_redirects.py \
             tests/test_pinned_https_cli_integration.py \
             tests/test_pinned_https_validation_edges.py \
+            tests/test_pinned_https_coverage_edges.py \
             tests/test_pinned_https_release_contract.py \
             tests/test_ssrf_protection.py
 
@@ -47,4 +48,5 @@ jobs:
             --test tests/test_pinned_https_redirects.py \
             --test tests/test_pinned_https_cli_integration.py \
             --test tests/test_pinned_https_validation_edges.py \
+            --test tests/test_pinned_https_coverage_edges.py \
             --test tests/test_pinned_https_release_contract.py
