@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -164,3 +165,16 @@ def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
     assert "contents: write" in workflow
     assert "issues: write" in workflow
     assert "pull-requests: write" in workflow
+
+
+def test_workflow_allows_two_hours_but_keeps_a_bounded_job_budget() -> None:
+    """Long commercial slices receive two hours without approaching runner limits."""
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    timeout_match = re.search(
+        r"(?m)^\s{4}timeout-minutes:\s*(?P<minutes>[1-9][0-9]*)\s*$",
+        workflow,
+    )
+
+    assert timeout_match is not None
+    timeout_minutes = int(timeout_match.group("minutes"))
+    assert 120 <= timeout_minutes <= 180

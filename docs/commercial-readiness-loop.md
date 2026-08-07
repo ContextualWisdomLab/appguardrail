@@ -14,9 +14,11 @@ The workflow renders `.commercial-agent-contract.md` from the reviewed default-b
 
 OpenCode uses `NVIDIA_NIM_API_KEY` through the provider variable `NVIDIA_API_KEY`. The development agent must create exactly one pull request targeting `develop`. It must not merge, approve, tag, publish, release, change branch protection, or alter the independent review-agent credential path.
 
+The non-cancelling single-flight job has a 170-minute execution budget. This allows a two-hour implementation plus setup and verification while remaining below GitHub's hosted-runner and workflow-syntax limits. Hourly cron events that arrive during an active pass are serialized by the same concurrency group; they do not create parallel product slices or cancel the current agent.
+
 ## Failure recovery
 
-Issue selection and model execution remain separate bounded steps. A transient provider, test, or GitHub failure can leave the validated coordination issue open without creating a pull request. The next hourly pass may select the same issue only when the pull-request queue remains empty.
+Issue selection and model execution remain separate bounded steps. A transient provider, test, GitHub failure, or timeout can leave the validated coordination issue open without creating a pull request. The next eligible hourly pass may select the same issue only after the prior run has ended and the pull-request queue remains empty.
 
 The compatibility reconciliation command is **read-only reconciliation**. It:
 
@@ -47,5 +49,7 @@ A completed implementation must remove its finished registry entry only through 
 ## Verification and merge boundary
 
 Before the implementation pull request can merge, the same head must pass focused and full tests, exact unrounded 100% statement coverage for changed production modules, complete docstring checks, SAST, security scans, and independent current-head review. The builder must not merge its own pull request. Auto-merge or an explicit SHA-bound merge may act only after repository protection rules are satisfied.
+
+The scheduler contract additionally verifies that the timeout remains between 120 and 180 minutes, preserving enough time for a central two-hour OpenCode slice without approaching GitHub's six-hour hosted-runner ceiling.
 
 The full credential, recovery, rollback, architecture, and APA 7th source record is maintained in [`opencode-commercial-readiness-agent.md`](opencode-commercial-readiness-agent.md).
