@@ -27,3 +27,15 @@ def test_file_input_resets_only_after_a_selection_change() -> None:
     assert "const selectedFile = fileInput.files?.[0];" in html
     assert "fileInput.value = '';" in html
     assert 'onclick="this.value=null"' not in html
+
+def test_header_proxy_button_uses_accessible_event_listener_and_hides_native_input() -> None:
+    """The header upload proxy must be a native button using an event listener,
+    and the original file input must be visually hidden and removed from sequential focus.
+    """
+    html = _dashboard_html()
+
+    assert '<button type="button" id="file-btn">Upload File</button>' in html
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html
+    assert "const fileBtn = document.getElementById('file-btn');" in html
+    assert "fileBtn.addEventListener('click', () => fileInput.click());" in html
+    assert 'onclick=' not in '<button type="button" id="file-btn">'
