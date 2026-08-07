@@ -73,3 +73,7 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls. When checking file extensions or processing path strings, Python's native string methods like `str.rfind()` and `str.replace()` are vastly more efficient.
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
+
+## 2024-08-07 - Single Loop for Multiple Derived Collections
+**Learning:** In Python, when deriving multiple collections (like `owasp` and `cwe` tuples in `build_rule_metadata`) from the same data structure, using multiple separate generator expressions creates unnecessary O(N*K) iteration overhead where N is the length of the data and K is the number of derived collections.
+**Action:** Replace multiple generator expressions with a single explicit `for` loop that iterates over the data once, conditionally appends to intermediate lists, and finally converts them to the desired collection type. This reduces iteration overhead to O(N) and significantly improves performance in hot paths.
