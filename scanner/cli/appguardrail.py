@@ -1688,21 +1688,37 @@ def _push_findings(url, findings):
         return
     try:
         parsed = urllib.parse.urlsplit(url)
-    except ValueError:
+        hostname = parsed.hostname
+        parsed.port
+    except (TypeError, ValueError):
         parsed = None
-    if parsed is None or parsed.scheme.lower() != "https" or not parsed.hostname:
+        hostname = None
+    if (
+        parsed is None
+        or parsed.scheme.lower() != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
+    ):
         _console_print(
-            f"⚠️  --push URL must be a public HTTPS URL, got {url}",
+            "⚠️  --push URL must be a public HTTPS URL without credentials, "
+            "query, or fragment; skipping push.",
             file=sys.stderr,
         )
         return
 
+    base_path = parsed.path.rstrip("/")
+    endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
+    endpoint = urllib.parse.urlunsplit(
+        ("https", parsed.netloc, endpoint_path, "", "")
+    )
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
         "commit": os.environ.get("GITHUB_SHA"),
     }
-    endpoint = url.rstrip("/") + "/api/v1/scans"
     try:
         response = post_json_pinned_https(
             endpoint,
@@ -1715,7 +1731,8 @@ def _push_findings(url, findings):
         )
     except DestinationValidationError:
         _console_print(
-            f"⚠️  --push URL must be a public HTTPS URL, got {url}",
+            "⚠️  --push URL must be a public HTTPS URL without credentials, "
+            "query, or fragment; skipping push.",
             file=sys.stderr,
         )
         return
@@ -1734,7 +1751,7 @@ def _push_findings(url, findings):
         return
     try:
         body = json.loads(response.body or b"{}")
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError):
         _console_print(
             "⚠️  Control-plane push returned an invalid response; scan still completed.",
             file=sys.stderr,
@@ -1746,9 +1763,25 @@ def _push_findings(url, findings):
             file=sys.stderr,
         )
         return
-    drift = body.get("new_blocking")
-    extra = f", {drift} newly deploy-blocking" if drift else ""
-    _console_print(f"📡 Pushed scan #{body.get('id')} to control plane{extra}.")
+
+    scan_id = body.get("id")
+    new_blocking = body.get("new_blocking", 0)
+    if (
+        not isinstance(scan_id, int)
+        or isinstance(scan_id, bool)
+        or scan_id <= 0
+        or not isinstance(new_blocking, int)
+        or isinstance(new_blocking, bool)
+        or new_blocking < 0
+    ):
+        _console_print(
+            "⚠️  Control-plane push returned an invalid response; scan still completed.",
+            file=sys.stderr,
+        )
+        return
+
+    extra = f", {new_blocking} newly deploy-blocking" if new_blocking else ""
+    _console_print(f"📡 Pushed scan #{scan_id} to control plane{extra}.")
 
 
 def _write_sarif(findings, output_path: Path):
