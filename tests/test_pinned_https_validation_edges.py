@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import socket
+import ssl
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -153,9 +154,11 @@ class _Socket:
 
 
 class _Context:
-    """Return or reject a fixture TLS socket."""
+    """Return or reject a fixture TLS socket across supported Python versions."""
 
     def __init__(self, *, failure: OSError | None = None) -> None:
+        self.verify_mode = ssl.CERT_REQUIRED
+        self.check_hostname = True
         self.failure = failure
 
     def wrap_socket(self, raw_socket: _Socket, *, server_hostname: str) -> _Socket:
