@@ -1,9 +1,9 @@
 name: Harden pinned HTTPS CLI once
 
 on:
-  push:
-    branches:
-      - security/pinned-control-plane-892
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -14,7 +14,11 @@ concurrency:
 
 jobs:
   harden-verify-and-remove:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.repository == 'ContextualWisdomLab/appguardrail' &&
+      github.actor == 'seonghobae' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'security/pinned-control-plane-892'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -23,8 +27,9 @@ jobs:
       - name: Checkout exact feature head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: security/pinned-control-plane-892
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
