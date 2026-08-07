@@ -10,11 +10,22 @@ from appguardrail_core.pinned_https import PinnedHTTPSFailure, PinnedHTTPSRespon
 from scanner.cli import appguardrail as cli
 
 
-def test_push_findings_requires_public_https_before_transport(
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://api.example.com",
+        "https://user:secret@api.example.com/root",
+        "https://api.example.com/root?token=secret-query",
+        "https://api.example.com/root#secret-fragment",
+        "https://[broken",
+    ],
+)
+def test_push_findings_requires_unambiguous_public_https_before_transport(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    url: str,
 ) -> None:
-    """A cleartext control-plane URL is rejected before a credential can be sent."""
+    """Unsafe base identities are rejected without echoing attacker-controlled text."""
     monkeypatch.setenv("APPGUARDRAIL_API_KEY", "credential-value")
     monkeypatch.setattr(
         cli,
@@ -22,9 +33,12 @@ def test_push_findings_requires_public_https_before_transport(
         lambda *_args, **_kwargs: pytest.fail("transport must not run"),
     )
 
-    cli._push_findings("http://api.example.com", [])
+    cli._push_findings(url, [])
 
-    assert "public HTTPS URL" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "public HTTPS URL" in captured.err
+    assert url not in captured.err
+    assert "secret" not in captured.err
 
 
 def test_push_findings_sends_normalized_payload_through_pinned_transport(
@@ -143,3 +157,41 @@ def test_push_findings_bounds_transport_and_response_parse_failures(
     cli._push_findings("https://api.example.com", [])
     second = capsys.readouterr()
     assert "invalid response" in second.err.lower()
+
+
+@pytest.mark.parametrize(
+    "receipt",
+    [
+        {"id": "\x1b[31mforged", "new_blocking": 0},
+        {"id": 0, "new_blocking": 0},
+        {"id": True, "new_blocking": 0},
+        {"id": 41, "new_blocking": "\x1b[31mforged"},
+        {"id": 41, "new_blocking": -1},
+        {"id": 41, "new_blocking": True},
+    ],
+)
+def test_push_findings_rejects_untrusted_receipt_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    receipt: dict[str, object],
+) -> None:
+    """Untrusted response fields cannot become terminal output or forged receipts."""
+    monkeypatch.setenv("APPGUARDRAIL_API_KEY", "credential-value")
+    monkeypatch.setattr(
+        cli,
+        "post_json_pinned_https",
+        lambda *_args, **_kwargs: PinnedHTTPSResponse(
+            status=201,
+            reason="Created",
+            headers=(),
+            body=json.dumps(receipt).encode("utf-8"),
+        ),
+    )
+
+    cli._push_findings("https://api.example.com", [])
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid response" in captured.err.lower()
+    assert "forged" not in captured.err
+    assert "\x1b" not in captured.err
