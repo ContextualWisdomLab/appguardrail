@@ -75,5 +75,5 @@
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
 
 ## 2024-08-07 - Single Loop for Multiple Derived Collections
-**Learning:** In Python, when deriving multiple collections (like `owasp` and `cwe` tuples in `build_rule_metadata`) from the same data structure, using multiple separate generator expressions creates unnecessary O(N*K) iteration overhead where N is the length of the data and K is the number of derived collections.
-**Action:** Replace multiple generator expressions with a single explicit `for` loop that iterates over the data once, conditionally appends to intermediate lists, and finally converts them to the desired collection type. This reduces iteration overhead to O(N) and significantly improves performance in hot paths.
+**Learning:** In `build_rule_metadata`, the fixed `owasp` and `cwe` derived collections previously traversed the same `references` sequence separately, for about 2N element visits. Combining them into one loop keeps the same O(N) asymptotic complexity while reducing traversal work from 2N to N as a constant-factor optimization.
+**Action:** Combine per-collection iteration into one traversal when multiple derived collections share the same source data. Measure the hot path before making material performance claims; do not describe this fixed two-collection change as an O(N*K) to O(N) asymptotic improvement.
