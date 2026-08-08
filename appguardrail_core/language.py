@@ -94,13 +94,12 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        if isinstance(file_path, Path):
+        if type(file_path) is not str:
             name = file_path.name
             suffix = file_path.suffix.lower()
         else:
-            file_path_posix = file_path.replace("\\", "/")
-            idx = file_path_posix.rfind("/")
-            name = file_path_posix[idx + 1 :] if idx != -1 else file_path_posix
+            idx = max(file_path.rfind("/"), file_path.rfind("\\"))
+            name = file_path[idx + 1 :] if idx != -1 else file_path
 
             dot_idx = name.rfind(".")
             suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
@@ -205,11 +204,15 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
 def _detect_framework_markers(paths: list[str]) -> set[str]:
     markers: set[str] = set()
     for path in paths:
-        posix_path = path.replace("\\", "/")
-        idx = posix_path.rfind("/")
-        name = posix_path[idx + 1 :] if idx != -1 else posix_path
-        lowered_path = posix_path.lower()
-        if "templates/" in lowered_path or "/views/" in lowered_path:
+        idx = max(path.rfind("/"), path.rfind("\\"))
+        name = path[idx + 1 :] if idx != -1 else path
+        lowered_path = path.lower()
+        if (
+            "templates/" in lowered_path
+            or "templates\\" in lowered_path
+            or "/views/" in lowered_path
+            or "\\views\\" in lowered_path
+        ):
             markers.add("templates")
         if name not in MANIFEST_NAMES:
             continue
@@ -223,12 +226,11 @@ def _detect_framework_markers(paths: list[str]) -> set[str]:
 def _detect_signals(paths: list[str], frameworks: set[str]) -> set[str]:
     signals = set(frameworks)
     for path in paths:
-        posix_path = path.replace("\\", "/")
-        idx = posix_path.rfind("/")
-        name = posix_path[idx + 1 :] if idx != -1 else posix_path
+        idx = max(path.rfind("/"), path.rfind("\\"))
+        name = path[idx + 1 :] if idx != -1 else path
         if name in MANIFEST_NAMES:
             signals.add(name)
-        parts = posix_path.split("/")
+        parts = path.replace("\\", "/").split("/")
         for part in parts:
             if part.lower() in WEB_SIGNAL_DIRS:
                 signals.add(part.lower())

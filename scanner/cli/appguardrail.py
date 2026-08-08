@@ -1174,7 +1174,7 @@ For each issue found, provide:
 
 def _display_path(path: str | Path) -> str:
     """Return a stable, slash-separated path for CLI output and reports."""
-    return path.as_posix() if isinstance(path, Path) else path.replace("\\", "/")
+    return path.as_posix() if type(path) is not str else path.replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
