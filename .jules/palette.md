@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2026-08-08 - Focus Management and Non-Interactive Chart Accessibility
+**Learning:** Adding keyboard accessibility and explicit roles (`role="img"`) to visual chart elements (like `.bar` in trends) makes them accessible to screen readers, providing context without clutter. Furthermore, detail views popping up in the same flow must actively manage focus by saving `document.activeElement` before expanding and explicitly returning focus to it upon closing (e.g. via Escape key).
+**Action:** When implementing expandable detail sections and interactive charts, ensure focus is explicitly restored to the triggering element when closed, and use `tabindex="0"`, `role="img"`, and `aria-label` to surface data in visualizations.
