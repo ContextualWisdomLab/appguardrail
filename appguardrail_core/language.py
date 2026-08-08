@@ -94,7 +94,7 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     """Return language axes found in a scan target without requiring user flags."""
     languages: set[str] = set()
     for file_path in files:
-        if type(file_path) is not str:
+        if not isinstance(file_path, str):
             name = file_path.name
             suffix = file_path.suffix.lower()
         else:
@@ -201,17 +201,27 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
     )
 
 
+def _iter_lower_path_components(path: str) -> Iterable[str]:
+    """Yield lowercase non-empty path components for either slash convention."""
+    start = 0
+    for index, character in enumerate(path):
+        if character not in "/\\":
+            continue
+        if index > start:
+            yield path[start:index].lower()
+        start = index + 1
+    if start < len(path):
+        yield path[start:].lower()
+
+
 def _detect_framework_markers(paths: list[str]) -> set[str]:
     markers: set[str] = set()
     for path in paths:
         idx = max(path.rfind("/"), path.rfind("\\"))
         name = path[idx + 1 :] if idx != -1 else path
-        lowered_path = path.lower()
-        if (
-            "templates/" in lowered_path
-            or "templates\\" in lowered_path
-            or "/views/" in lowered_path
-            or "\\views\\" in lowered_path
+        if any(
+            component in {"templates", "views"}
+            for component in _iter_lower_path_components(path)
         ):
             markers.add("templates")
         if name not in MANIFEST_NAMES:
@@ -230,10 +240,9 @@ def _detect_signals(paths: list[str], frameworks: set[str]) -> set[str]:
         name = path[idx + 1 :] if idx != -1 else path
         if name in MANIFEST_NAMES:
             signals.add(name)
-        parts = path.replace("\\", "/").split("/")
-        for part in parts:
-            if part.lower() in WEB_SIGNAL_DIRS:
-                signals.add(part.lower())
+        for component in _iter_lower_path_components(path):
+            if component in WEB_SIGNAL_DIRS:
+                signals.add(component)
     return signals
 
 
@@ -271,8 +280,7 @@ def _is_web_reachable(
     ):
         return True
     for path in paths:
-        parts = path.replace("\\", "/").split("/")
-        for part in parts:
-            if part.lower() in WEB_SIGNAL_DIRS:
+        for component in _iter_lower_path_components(path):
+            if component in WEB_SIGNAL_DIRS:
                 return True
     return False
