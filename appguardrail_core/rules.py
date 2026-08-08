@@ -114,14 +114,21 @@ def build_rule_metadata(
         extract_public_references(message),
         CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
     )
+    owasp_list, cwe_list = [], []
+    for ref in references:
+        if ref.startswith("OWASP "):
+            owasp_list.append(ref)
+        if ref.startswith("CWE-"):
+            cwe_list.append(ref)
+
     return RuleMetadata(
         rule_id=rule_id,
         severity=severity,
         category=category,
         source=source,
         references=references,
-        owasp=tuple(ref for ref in references if ref.startswith("OWASP ")),
-        cwe=tuple(ref for ref in references if ref.startswith("CWE-")),
+        owasp=tuple(owasp_list),
+        cwe=tuple(cwe_list),
         samm_practice=SAMM_BY_CATEGORY.get(category, "Verification / Security Testing"),
         remediation=REMEDIATION_BY_CATEGORY.get(
             category,

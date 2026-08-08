@@ -73,3 +73,7 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls. When checking file extensions or processing path strings, Python's native string methods like `str.rfind()` and `str.replace()` are vastly more efficient.
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
+
+## 2024-11-20 - Optimize multiple tuple generation from a single collection
+**Learning:** In Python, when deriving multiple collections (like tuples) from the same source list or generator, using multiple separate generator expressions (e.g., `tuple(x for x in data if ...)`) forces the interpreter to iterate over the source data multiple times. This introduces significant overhead, especially in loops.
+**Action:** Replace multiple generator expressions with a single explicit `for` loop that iterates over the data once, conditionally appending to intermediate lists, and then converting those lists to tuples at the end. This reduces the time complexity from O(K * N) to O(N) where K is the number of collections being derived.
