@@ -10,7 +10,7 @@ A maintainer may also invoke `workflow_dispatch`, but the write-capable job runs
 
 The selected issue is a human coordination record, not model instruction authority. Its title must exactly match the reviewed registry entry, its body must contain exactly one known hidden marker, and its issue number must be a positive integer. Unknown, duplicate, or mismatched identities fail closed before the model credential is exposed.
 
-The workflow renders `.commercial-agent-contract.md` from the reviewed default-branch registry, makes it read-only, and records its SHA-256 digest. GitHub issue title, body, and comments are untrusted observations. OpenCode receives only the registry-derived contract as task authority below repository policy files.
+The workflow renders `.commercial-agent-contract.md` from the reviewed default-branch registry, appends the reviewed `commercial_remediation_contract.md` policy, makes the combined file read-only, and records its SHA-256 digest. GitHub issue title, body, and comments are untrusted observations. OpenCode receives only the hashed registry-and-remediation contract as task authority below repository policy files.
 
 OpenCode uses `NVIDIA_NIM_API_KEY` through the provider variable `NVIDIA_API_KEY`. The development agent must create exactly one pull request targeting `develop`. It must not merge, approve, tag, publish, release, change branch protection, or alter the independent review-agent credential path.
 
@@ -29,6 +29,18 @@ The compatibility reconciliation command is **read-only reconciliation**. It:
 - fails closed when the active issue identity is malformed or ambiguous.
 
 This prevents an interrupted pass from creating duplicate implementation work while preserving a deterministic operator-visible recovery state.
+
+## RCA and feasibility gate
+
+The reviewed remediation appendix requires the builder to investigate a failure before changing code. It must refresh the exact head, base, review, Check, workflow, permission, dependency, and external-service evidence; reproduce the smallest relevant failure when possible; classify the causal layer; compare bounded candidate actions; and choose the smallest reversible action that addresses the demonstrated cause.
+
+The feasibility preflight checks the required permission, required secret name, executable or API, environment, time and compute budget, branch protection, independent review, writer lease, predecessor state, objective success condition, rollback, and customer or security impact. A capability that was not observed cannot be assumed or manufactured. Identical retries are prohibited unless evidence or operating conditions have changed, and transient retries use bounded backoff.
+
+This is an **instruction-level control** backed by repository contract tests and a hashed read-only prompt artifact. The scheduler **cannot prove external feasibility by prompt alone**: providers, permissions, quotas, hardware, network paths, and GitHub services can change after dispatch. Actual feasibility therefore remains conditional on current repository and workflow evidence, focused reproduction, exact-head verification, and protected GitHub results. The agent must report uncertainty rather than convert missing evidence into a success claim.
+
+When there is no feasible action in the current scope, the builder records the exact blocker, the evidence required to clear it, and the next reevaluation condition. It then continues independent non-conflicting work within the same reviewed gap when such work exists, without racing another writer, weakening a gate, or inventing a credential. After three unsuccessful causal attempts, it must question the architecture instead of stacking another speculative patch.
+
+Every generated implementation pull request must preserve concise `Root-cause analysis`, `Feasibility evidence`, `Selected action and rollback`, and `Verification` sections. These sections make the chosen response reviewable, but they do not replace tests, required Checks, branch protection, or independent review.
 
 ## Trust boundaries
 
@@ -53,3 +65,11 @@ Before the implementation pull request can merge, the same head must pass focuse
 The scheduler contract additionally verifies that the timeout remains between 120 and 180 minutes, preserving enough time for a central two-hour OpenCode slice without approaching GitHub's six-hour hosted-runner ceiling.
 
 The full credential, recovery, rollback, architecture, and APA 7th source record is maintained in [`opencode-commercial-readiness-agent.md`](opencode-commercial-readiness-agent.md).
+
+## References
+
+GitHub. (2026). *Control the concurrency of workflows and jobs*. GitHub Docs. https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
+
+Google. (n.d.). *Postmortem culture: Learning from failure*. Site Reliability Engineering Workbook. https://sre.google/workbook/postmortem-culture/
+
+Nelson, A., Rekhi, S., Scarfone, K., & Souppaya, M. (2025). *Incident response recommendations and considerations for cybersecurity risk management: A CSF 2.0 community profile* (NIST Special Publication 800-61 Rev. 3). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-61r3
