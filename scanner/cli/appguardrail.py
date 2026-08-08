@@ -431,7 +431,7 @@ SCAN_RULES = [
         "id": "dangerous-eval",
         "pattern": re.compile(r"\beval\s*\(", re.MULTILINE),
         "severity": "CRITICAL",
-        "message": "Use of eval detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
+        "message": "Use of eval() detected. This is a critical risk for arbitrary code execution and injection attacks. [OWASP A03:2021 - Injection]",
         "extensions": [".js", ".jsx", ".ts", ".tsx", ".py"],
     },
     {
@@ -1174,7 +1174,7 @@ For each issue found, provide:
 
 def _display_path(path: str | Path) -> str:
     """Return a stable, slash-separated path for CLI output and reports."""
-    return path.as_posix() if type(path) is not str else path.replace("\\", "/")
+    return path.as_posix() if isinstance(path, Path) else path.replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
