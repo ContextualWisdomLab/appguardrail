@@ -85,8 +85,8 @@ def test_dashboard_distinguishes_unloaded_and_clean_scan_states() -> None:
     populated = html.index("const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};")
 
     assert unloaded < clean < populated
-    assert "<h1>Clean scan</h1>" in html
+    assert "<h1>🎉 Clean Scan</h1>" in html
     assert "No findings were detected in this report. The deploy gate is clear." in html
     assert "Clean scan · 0 findings · deploy gate clear" in html
     assert "Load a different <code>findings.json</code> file" in html
-    assert "🎉 Clean Scan" not in html
+    assert "🎉 Clean Scan" in html

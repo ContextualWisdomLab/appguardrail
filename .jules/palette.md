@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-05-25 - Celebratory Clean Scan State
+**Learning:** Users can mistake a "zero findings" empty state for a "failed to load" empty state if they look too similar.
+**Action:** Provide a distinct celebratory state (e.g., "🎉 Clean Scan") for successful outcomes to provide clear, positive feedback.

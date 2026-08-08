@@ -158,7 +158,7 @@ function render(){
   if(ALL.length === 0){
     if (liveSummary) liveSummary.textContent = 'Clean scan · 0 findings · deploy gate clear';
     app.innerHTML = `<div class="empty">
-      <h1>Clean scan</h1>
+      <h1>🎉 Clean Scan</h1>
       <p>No findings were detected in this report. The deploy gate is clear.</p>
       <p id="findings-upload-help" class="drop">Load a different <code>findings.json</code> file to review another report.</p>
       <p><button type="button" id="browse-findings" class="primary-action" aria-describedby="findings-upload-help">Browse findings.json</button></p>
