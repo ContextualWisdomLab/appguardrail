@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2026-08-09 - Native File Input Header Redundancy
+**Learning:** Native `<input type="file">` elements in headers look visually inconsistent across browsers and display the selected file name redundantly when the application already displays the active file in a custom text element.
+**Action:** Visually hide the primary native input using a screen-reader-only class (`.sr-only`) and trigger it via a native proxy `<button>` in the header, eliminating redundant UI text while preserving accessibility.
