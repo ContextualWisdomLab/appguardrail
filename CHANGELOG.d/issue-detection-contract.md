@@ -14,3 +14,6 @@
   distinguish protected-main behavior, the active PR, accepted targets, and
   planned work, add an incident runbook, and are enforced by a machine-readable
   documentation fitness gate.
+- Reconciled AGENTS/CLAUDE contributor guidance, methodology capability states,
+  the historical commercialization plan's metadata-only collector boundary,
+  and the public HTTPS control-plane push example.

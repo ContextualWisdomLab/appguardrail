@@ -170,6 +170,11 @@ Default coverage:
 
 ### Language-Agnostic CI Failure Logs
 
+Status note (2026-08-09): this section records target architecture. The current
+fleet collector is metadata-only and does not fetch or publish raw/compressed
+job logs. Log classification is a bounded RCA hint, not direct detector
+efficacy; source-bound probes and independent oracles remain required.
+
 Detection inputs:
 
 - GitHub Actions run/job logs from Strix, OpenCode, AppGuardrail, Trivy, CodeQL,

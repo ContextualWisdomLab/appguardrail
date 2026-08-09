@@ -119,12 +119,26 @@ AI-coded apps change frequently — AI tools add features rapidly. Every commit 
 
 AppGuardrail Monitor tracks:
 
-| Trigger | What AppGuardrail checks |
-|---|---|
-| New commit | Security-relevant diff analysis |
-| New API route | Auth + ownership check presence |
-| Env change | Secret exposure check |
-| Supabase/Firebase rule change | Permissiveness regression |
-| New dependency | Known CVEs + typosquatting check |
-| Deploy | Public endpoints, headers, exposed files |
-| Payment feature added | Webhook, price integrity, auth checks |
+| Trigger | Current behavior | State |
+|---|---|---|
+| New commit | Runs the repository scan; semantic security-diff analysis is not implemented | `PARTIAL`; diff analysis `PLANNED` |
+| New API route | Pattern-based auth/ownership signals | `PARTIAL` |
+| Env change | Native secret exposure rules | `IMPLEMENTED` |
+| Supabase/Firebase rule change | Packaged permissiveness patterns | `IMPLEMENTED` |
+| New dependency | Optional Trivy/dependency evidence; native typosquatting detection absent | `PARTIAL`; typosquatting `PLANNED` |
+| Deploy | Optional explicitly authorized ZAP target; no automatic deployed-endpoint inventory | `PARTIAL`; endpoint inventory `PLANNED` |
+| Payment feature added | Pattern-based webhook/auth/price-integrity review | `PARTIAL` |
+
+## Issue-derived requirements
+
+A GitHub issue is a retained requirement, not proof of a finding. The current
+active-PR registry and classifiers account for inventory and bounded evidence;
+they do not yet directly detect every historical issue cause. A collector is
+not a detector, and an external signed outcome establishes only its declared
+provenance boundary.
+
+Direct efficacy requires a source-bound probe, atomic cause and obligation,
+independent vulnerable/fixed/near-miss/unknown corpus, mutation-sensitive
+production test, typed outcome, and protected-main operational replay. Current
+measurements and missing boundaries are authoritative in
+`docs/issue-detection-traceability.json`.

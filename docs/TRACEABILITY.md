@@ -51,7 +51,7 @@ implementation, and evidence status.
 | API/schema contracts | `PARTIAL` across README/narrow docs | indexed by Architecture/TRD, issue envelope `ACTIVE_PR` |
 | Traceability | `MISSING` canonical | `PRESENT_CURRENT`, `ACTIVE_PR`; efficacy remains 0/417 |
 | Machine-readable documentation status | `MISSING` | current manifest and validator, `ACTIVE_PR` |
-| AGENTS/CLAUDE/README/CHANGELOG | AGENTS stale, CLAUDE generic, README/CHANGELOG present | README/CHANGELOG linked; AGENTS/CLAUDE unchanged and require separate reconciliation |
+| AGENTS/CLAUDE/README/CHANGELOG | AGENTS stale, CLAUDE generic, README/CHANGELOG present | collector boundary, source-bound efficacy, status promotion, canonical links, and honest changelog reconciled, `ACTIVE_PR` |
 | APA-7 references | `PARTIAL` | current primary standards in TRD, `ACTIVE_PR` |
 
 ## Evidence ownership

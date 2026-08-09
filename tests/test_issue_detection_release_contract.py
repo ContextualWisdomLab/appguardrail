@@ -120,6 +120,13 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertIn("tests/test_issue_detection_release_contract.py", workflow)
         self.assertIn('"docs/issue-detection-traceability.json"', workflow)
         self.assertIn('"docs/adr/**"', workflow)
+        self.assertIn('"AGENTS.md"', workflow)
+        self.assertIn('"CLAUDE.md"', workflow)
+        self.assertIn('"docs/methodology.md"', workflow)
+        self.assertIn(
+            '"docs/product/2026-07-02-2b-krw-sale-readiness-plan.md"',
+            workflow,
+        )
         self.assertNotIn("pull_request_target:", workflow)
 
     def test_live_audit_workflow_is_paginated_and_read_only(self) -> None:
@@ -247,6 +254,25 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertIn("`PARTIAL`", traceability)
         self.assertNotIn("statement and branch coverage: exact 100%", strategy)
         self.assertNotIn("appguardrail scan --push http://", readme)
+
+    def test_contributor_and_methodology_docs_preserve_detection_boundary(self) -> None:
+        """Repository instructions cannot regress to collector-as-detector claims."""
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        methodology = (ROOT / "docs" / "methodology.md").read_text(
+            encoding="utf-8"
+        )
+        sale_plan = (
+            ROOT / "docs" / "product" / "2026-07-02-2b-krw-sale-readiness-plan.md"
+        ).read_text(encoding="utf-8")
+
+        for document in (agents, claude):
+            self.assertIn("collector is not a detector", document)
+            self.assertIn("source-bound", document)
+            self.assertIn("ACTIVE_PR", document)
+        self.assertNotIn("`jules`", agents)
+        self.assertIn("PLANNED", methodology)
+        self.assertIn("metadata-only", sale_plan)
 
 
 if __name__ == "__main__":

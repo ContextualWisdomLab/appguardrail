@@ -16,15 +16,45 @@ If CodeGraph is available, use it for call graph, blast radius, and ownership-fl
 
 ## Commercial-readiness tasks
 
-When an issue carrying the `commercial-readiness` and `jules` labels starts a
-task, the reviewed issue body is the authoritative product scope and acceptance
-contract. Do not broaden it into unrelated cleanup.
+When a reviewed `commercial-readiness` issue or an OpenCode-scheduled task
+starts, its reviewed issue body is the authoritative product scope and acceptance
+contract. Do not depend on the retired jules label or broaden the task into
+unrelated cleanup.
 
 - Write the failing regression test first and preserve 100% docstring and code coverage for changed behavior.
 - Target `develop`, include `Closes #<issue number>` in the pull request body, and never bypass required checks, reviews, branch protection, or the central merge policy.
 - Update user documentation and the changelog fragment required by the issue.
 - Preserve standalone use and modular MSA compatibility with ContextualWisdomLab infrastructure and naruon.
 - Record uncertainty explicitly and use current primary documentation, standards, or peer-reviewed evidence rather than unsupported claims.
+
+## Issue-derived detection contract
+
+- A collector is not a detector. Issue numbers, titles, labels, workflow
+  conclusions, log regexes, generic family fixtures, and signed opaque outcomes
+  are routing or observation evidence only.
+- Retain every open and closed issue, but distinguish inventory accounting from
+  source-bound direct detector efficacy. Never convert blocked/expired evidence
+  to clean, excluded, waived, or not applicable.
+- Preserve every atomic cause and typed outcome: finding, clean, effective or
+  blocked control, dependency failure, reporting failure, and unknown.
+- A direct claim requires issue→cause→obligation→trusted probe/acquirer→typed
+  outcome→independent oracle→test/evidence traceability. Production registry
+  fixtures cannot provide their own oracle.
+- Status is evidence-bearing: `ACTIVE_PR` is not
+  `IMPLEMENTED_ON_PROTECTED_MAIN`. Promote only after exact-head review/checks,
+  merge, and a protected-`develop` operational run.
+- Update `docs/issue-detection-traceability.json`, canonical documentation, and
+  the documentation fitness test whenever counts, authority, status, or
+  diagrams change.
+
+Run focused validation with:
+
+```bash
+python -m pytest -q \
+  tests/test_issue_detection.py \
+  tests/test_issue_detection_documentation.py \
+  tests/test_issue_detection_release_contract.py
+```
 
 ## Code-owner review gates — disabled (on hold)
 
