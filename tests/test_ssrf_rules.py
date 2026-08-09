@@ -76,10 +76,15 @@ def test_scan_file_emits_stored_ssrf_finding(tmp_path):
     matches = _scan_rule_findings(tmp_path, _vulnerable_source())
 
     assert len(matches) == 1
-    assert matches[0]["severity"] == "HIGH"
-    assert matches[0]["source"] == "appguardrail-rule"
-    assert matches[0]["file"] == "webhook.py"
-    assert matches[0]["line"] == 2
+    finding = matches[0]
+    assert finding["severity"] == "HIGH"
+    assert finding["source"] == "appguardrail-rule"
+    assert finding["file"] == "webhook.py"
+    assert finding["line"] == 2
+    assert finding["category"] == "ssrf"
+    assert finding["cwe"] == ("CWE-918 - Server-Side Request Forgery",)
+    assert finding["owasp"] == ("OWASP A10:2021 - Server-Side Request Forgery",)
+    assert "destination" in finding["remediation"].lower()
 
 
 def test_scan_file_emits_stored_ssrf_finding_for_variable_flow(tmp_path):
