@@ -4,9 +4,11 @@
   417 registered claim rows, 20 unique claim semantics, and 17 callable
   classifier families. Closed evidence fields and positive, negative, and
   unknown executions fail closed on unsupported, extra, or missing evidence.
-  Provenance-bound workflow observations authenticate producer/run/head/digest
-  identity, while inventory and requirement-digest reconciliation remains
-  read-only. Per-issue cause binding is missing and direct detector efficacy remains 0/417;
+  Version-two provenance-bound workflow observations authenticate
+  producer/repository/run/head/source-artifact/payload identity; the version-one
+  reader remains legacy classifier evidence. Inventory and requirement-digest
+  reconciliation remains read-only. Per-issue cause binding is missing and
+  direct detector efficacy remains 0/417;
   neither registry counts nor signed opaque outcomes are completion evidence.
 - Added a canonical PRD, TRD, root architecture, status-bearing ADR, UML views,
   conceptual evidence model, threat model, test strategy, operability runbook,
