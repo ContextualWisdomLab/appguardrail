@@ -127,3 +127,8 @@
 **Vulnerability:** The `/api/v1/webhook` endpoint accepted arbitrary URLs for the drift alert webhook without any server-side request forgery (SSRF) validation before saving them to the database.
 **Learning:** Even if a URL is validated prior to use (e.g., in `_send_alert`), accepting and storing arbitrary URLs without validation introduces a Stored SSRF vulnerability vector and violates the principle of failing fast and securely on untrusted input.
 **Prevention:** Always apply security validation functions (like `_is_safe_url`) immediately at the boundary/endpoint level prior to performing database insertion or mutation.
+
+## 2024-05-24 - [Uncaught Exception in _is_safe_url]
+**Vulnerability:** The `_is_safe_url` function relied on `urllib.parse.urlparse`, which assumes string inputs. Passing non-string inputs (like integers or booleans) caused an `AttributeError` exception, potentially leading to denial of service or 500 errors in JSON APIs expecting fail-closed validation.
+**Learning:** Security validation functions must handle malformed data types (not just malformed strings) gracefully without raising framework exceptions.
+**Prevention:** Explicitly validate input types (e.g., `isinstance(url, str)`) before passing them to parsing libraries that make type assumptions.
