@@ -246,7 +246,8 @@ def test_dashboard_empty_state_clear_filters():
 
     assert "No findings match the filter" in html
     assert "aria-label=\"Clear filters\"" in html
-    assert "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\"" in html
+    assert "id=\"clear-filters-btn\"" in html
+    assert ".addEventListener('click'" in html
     assert "Clear filters</button>" in html
 
 

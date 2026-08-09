@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2026-08-07 - Refactoring inline handlers to Event Listeners for CSP Compliance
+**Learning:** Hard-coded `onclick` attributes in plain HTML UI viewers (like `scanner/dashboard/index.html`) break Content Security Policy (CSP) guidelines because they execute inline scripts. Relying on them creates vulnerabilities and prevents deployment in strict security contexts. Additionally, missing `<button>` styling can make file inputs look jarring.
+**Action:** Always avoid `onclick` handlers in HTML. Extract interactivity to a `<script>` block and bind behaviors using `addEventListener`. For unstylable elements like `<input type="file">`, visually hide them with `class="sr-only" tabindex="-1" aria-hidden="true"` and use a styled proxy `<button>` with an `addEventListener` that triggers the hidden input's click event.
