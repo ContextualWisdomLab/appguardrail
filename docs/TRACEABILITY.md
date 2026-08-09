@@ -29,7 +29,7 @@ implementation, and evidence status.
 | Preserve mixed causes (#815 class). | PRD PR-07; TRD TR-06; ADR-0003 | generic log classifier only | synthetic multi-cause test; actual log format not replayed | `PARTIAL` |
 | Distinguish aborted zero display + dependency outage (#813 class). | PRD PR-07 | generic log classifier only | current synthetic fixture is not authoritative clean evidence | `MISSING` direct replay |
 | Classify expected dispatch rejection (#763 class). | PRD PR-07 | generic log classifier only | shell-source echo can false-positive; event/config detector absent | `MISSING` direct detector |
-| External evidence has bounded payload provenance. | TRD TR-05; ADR-0002 | `WorkflowResultVerifier` | HMAC/digest/producer/run/head tamper tests | `ACTIVE_PR` classifier only |
+| External evidence has bounded payload provenance. | TRD TR-05; ADR-0002 | `WorkflowResultVerifier` | v2 HMAC/digest/producer/repository/run/head/source-artifact tamper tests; v1 retained as legacy classifier input | `ACTIVE_PR` classifier only |
 | Stored and time-of-use SSRF are blocked. | PRD PR-05 | control plane + `pinned_https.py` | URL type, DNS/IP, redirect and delivery tests | `IMPLEMENTED_ON_PROTECTED_MAIN` plus active PR #910 hardening |
 | Tenant data is isolated. | PRD PR-04; TRD TR-07 | authenticated control-plane queries | role and cross-tenant API tests | `IMPLEMENTED_ON_PROTECTED_MAIN` |
 | Retention and audit evidence are bounded. | PRD PR-04/08; ADR-0005 | v2 schema/migration primitives | schema tests; purge/control-plane/API integration and live proof absent | `PARTIAL` |
