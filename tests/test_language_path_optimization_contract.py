@@ -1,8 +1,6 @@
 """Regression tests for string-based language-profile path handling."""
 
-import ast
 import inspect
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -18,11 +16,6 @@ from scanner.cli.appguardrail import _display_path
 
 class StringPath(str):
     """String path subtype used to preserve the public ``str`` input contract."""
-
-
-def _function_tree(function: object) -> ast.AST:
-    """Return a dedented AST for a source-backed function contract."""
-    return ast.parse(textwrap.dedent(inspect.getsource(function)))
 
 
 @pytest.mark.parametrize(
@@ -56,22 +49,18 @@ def test_string_subclass_uses_string_display_path_branch() -> None:
     assert _display_path(StringPath(r"src\main.py")) == "src/main.py"
 
 
-def test_display_path_avoids_replace_and_local_reassignment() -> None:
-    """CLI path formatting must not regress to replace-based hot-loop rebuilding."""
-    tree = _function_tree(_display_path)
-    attribute_calls = {
-        node.func.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    reassignments = tuple(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr))
-    )
+def test_display_path_avoids_allocating_when_normalization_is_unnecessary() -> None:
+    """An already normalized plain string must retain its exact object identity."""
+    path = "src/packages/appguardrail/module.py"
 
-    assert "replace" not in attribute_calls
-    assert reassignments == ()
+    assert _display_path(path) is path
+
+
+def test_display_path_normalizes_every_windows_separator() -> None:
+    """Formatting still allocates the required slash-normalized Windows result."""
+    assert _display_path(r"src\packages\appguardrail\module.py") == (
+        "src/packages/appguardrail/module.py"
+    )
 
 
 @pytest.mark.parametrize(
