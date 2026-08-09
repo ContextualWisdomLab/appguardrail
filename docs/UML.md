@@ -38,13 +38,13 @@ sequenceDiagram
     participant Detector as Actual executable detector
     participant Evidence as Closed/authenticated evidence
 
-    Inventory->>Registry: retained issue/claim identities
+    Inventory->>Registry: retained repository + issue + claim identities
     Registry->>Registry: map each to detector family/obligation
     Registry->>Adapter: detector obligation
     Evidence->>Adapter: evidence only; no expected answer
     Adapter->>Detector: execute real detector
     Detector-->>Adapter: finding / clean / inconclusive
-    Adapter-->>Registry: obligation result + evidence digest
+    Adapter-->>Registry: obligation result + authenticated evidence digest
 ```
 
 The registry cannot create `PASS` by declaring an issue `implemented` or by embedding the expected finding in fixture metadata.
@@ -69,7 +69,7 @@ stateDiagram-v2
     still_failing --> finding
 ```
 
-## Control-plane scan ingestion sequence
+## Control-plane scan ingestion and webhook sequence
 
 ```mermaid
 sequenceDiagram
@@ -88,10 +88,19 @@ sequenceDiagram
     DB-->>Drift: previous/current blocker evidence
     Drift-->>API: drift result
     opt new blockers + safe configured webhook
-        API->>Webhook: bounded notification
+        API->>API: validate current destination policy
+        API->>Webhook: one best-effort POST (at-most-once current contract)
+        alt transport success
+            Webhook-->>API: delivery success
+        else destination/transport failure
+            Webhook-->>API: bounded failure
+            Note over API,Webhook: no automatic retry in protected current path
+        end
     end
     API-->>CI: scan identity/outcome without secrets
 ```
+
+A future retry-capable notifier must add one stable persisted `delivery_id`, receiver-side deduplication, per-attempt destination/redirect revalidation, and capped retry/backoff before this diagram may show a retry loop.
 
 ## Detection maturity state
 
@@ -100,14 +109,16 @@ stateDiagram-v2
     [*] --> historical_issue
     historical_issue --> detector_obligation: claim is technically detectable
     historical_issue --> external_or_nondetectable: explicit rationale
-    detector_obligation --> tests_red: positive/negative/inconclusive evidence
-    tests_red --> executable_detector
+    detector_obligation --> tests_verified: positive/negative/inconclusive contract suite passes
+    detector_obligation --> tests_failed: detector/evidence contract fails
+    tests_failed --> detector_obligation: implementation or evidence repaired
+    tests_verified --> executable_detector
     executable_detector --> exact_head_verified
     exact_head_verified --> protected_branch_detector
     protected_branch_detector --> monitored_regression
 ```
 
-PR/issue text alone does not move a claim to `protected_branch_detector`.
+`tests_verified` means the required positive, negative, and inconclusive-evidence expectations completed and passed. A RED regression is a development step before implementation, not a maturity state that can promote a detector to executable capability. PR/issue text alone does not move a claim to `protected_branch_detector`.
 
 ## Deployment view
 
@@ -155,4 +166,4 @@ A finding can trigger guidance but does not grant mutation authority. A clean re
 
 ## Maintenance rule
 
-When a new scanner, persistent service, detection-obligation class, outbound executor, fix authority, or tenant boundary changes, update these diagrams with PRD/TRD/Architecture/ERD/Threat/Test/Operability/ADR/Traceability in the same reviewed change.
+When a new scanner, persistent service, detection-obligation class, outbound executor, fix authority, tenant boundary, evidence-authentication contract, or webhook delivery semantic changes, update these diagrams with PRD/TRD/Architecture/ERD/Threat/Test/Operability/ADR/Traceability in the same reviewed change.
