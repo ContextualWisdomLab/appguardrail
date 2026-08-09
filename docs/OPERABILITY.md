@@ -51,7 +51,9 @@ Preserve scan/audit state, restore SQLite/managed database from verified backup 
 
 ### Webhook
 
-On destination-policy failure, do not send. On transport failure, retain bounded non-secret delivery evidence and retry under a capped backoff policy only if the destination remains valid.
+On destination-policy failure, do not send. The current generic unauthenticated webhook path is **at-most-once per local scan event**: after destination validation it makes one best-effort POST and does not automatically retry a transport failure. Record only bounded non-secret delivery evidence; do not create an implicit retry loop that can duplicate receiver-side effects.
+
+If retries are introduced later, they require a versioned delivery contract before enablement: a stable `delivery_id` persisted across attempts, receiver-side deduplication on that identifier, destination and redirect revalidation for every attempt, bounded response/error evidence, capped retry count/backoff, and explicit terminal failure state. Without those controls, retries remain prohibited rather than “best effort.”
 
 ## Stored SSRF operation
 
