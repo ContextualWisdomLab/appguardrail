@@ -123,6 +123,7 @@ _COVERAGE_BLOCK_RE = re.compile(
 _TIMEOUT_RE = re.compile(r"\btimed?\s*out\b|timeouterror", re.IGNORECASE)
 _SHA_RE = re.compile(r"[0-9a-f]{40}", re.IGNORECASE)
 _DIGEST_RE = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
+_REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
 _IDENTIFIER_RE = re.compile(r"[A-Za-z0-9_.-]{1,128}")
 _IMPLEMENTATION_REF_RE = re.compile(
     r"(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.py:[A-Za-z_][A-Za-z0-9_]*"
@@ -1051,7 +1052,15 @@ def _evidence_hash(evidence: WorkflowEvidence, detector_id: str) -> str:
             )
             .strip()
             .casefold(),
+            "repository": _text_or_empty(structured_result.get("repository", ""))
+            .strip()
+            .casefold(),
             "run_id": _text_or_empty(evidence.run_id).strip(),
+            "source_artifact_sha256": _text_or_empty(
+                structured_result.get("source_artifact_sha256", "")
+            )
+            .strip()
+            .casefold(),
             "workflow": _text_or_empty(evidence.workflow_name).strip().casefold(),
         },
         sort_keys=True,
@@ -1091,14 +1100,16 @@ def _workflow_result_attestation_message(
     envelope: Mapping[str, Any],
 ) -> bytes | None:
     """Canonicalize the bounded result metadata authenticated by a producer."""
-    fields = (
+    fields = [
         "schema",
         "producer",
         "run_id",
         "head_sha",
         "evidence_ref",
         "payload_sha256",
-    )
+    ]
+    if envelope.get("schema") == "appguardrail.workflow-result-envelope.v2":
+        fields.extend(("repository", "source_artifact_sha256"))
     if not all(isinstance(envelope.get(key), str) for key in fields):
         return None
     attested = {key: envelope[key] for key in fields}
@@ -1125,14 +1136,22 @@ def _structured_result_is_bound(
         "payload_sha256",
         "attestation",
     }
+    schema = envelope.get("schema")
+    if schema == "appguardrail.workflow-result-envelope.v2":
+        required |= {"repository", "source_artifact_sha256"}
+    elif schema != "appguardrail.workflow-result-envelope.v1":
+        return False
     if set(envelope) != required | {"payload"}:
         return False
     if not all(
         isinstance(envelope.get(key), str) and envelope[key] for key in required
     ):
         return False
-    if envelope["schema"] != "appguardrail.workflow-result-envelope.v1":
-        return False
+    if schema == "appguardrail.workflow-result-envelope.v2":
+        if not _REPOSITORY_RE.fullmatch(envelope["repository"]):
+            return False
+        if not _DIGEST_RE.fullmatch(envelope["source_artifact_sha256"]):
+            return False
     payload = envelope.get("payload")
     if not isinstance(payload, Mapping):
         return False
