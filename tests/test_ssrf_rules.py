@@ -47,6 +47,33 @@ def _ignored_validation_result_source():
     )
 
 
+def _non_enforcing_guard_source():
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    target = (body or {}).get("url")',
+            "    if not _is_safe_url(target):",
+            '        log.warning("unsafe webhook url")',
+            f"    {sink}(conn, org, target)",
+            "",
+        ]
+    )
+
+
+def _positive_guard_source():
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    target = (body or {}).get("url")',
+            "    if _is_safe_url(target):",
+            f"        {sink}(conn, org, target)",
+            "",
+        ]
+    )
+
+
 def _safe_source():
     sink = "set_" + "webhook"
     return "\n".join(
@@ -89,7 +116,15 @@ def test_packaged_rule_does_not_treat_ignored_validator_result_as_safe():
     assert _rule()["pattern"].search(_ignored_validation_result_source())
 
 
-def test_packaged_rule_ignores_guarded_url_persistence():
+def test_packaged_rule_matches_non_enforcing_validation_guard():
+    assert _rule()["pattern"].search(_non_enforcing_guard_source())
+
+
+def test_packaged_rule_ignores_positive_guarded_persistence():
+    assert not _rule()["pattern"].search(_positive_guard_source())
+
+
+def test_packaged_rule_ignores_fail_closed_guarded_persistence():
     assert not _rule()["pattern"].search(_safe_source())
 
 
@@ -117,6 +152,13 @@ def test_scan_file_emits_stored_ssrf_finding_for_variable_flow(tmp_path):
 
 def test_scan_file_emits_finding_when_validator_result_is_ignored(tmp_path):
     matches = _scan_rule_findings(tmp_path, _ignored_validation_result_source())
+
+    assert len(matches) == 1
+    assert matches[0]["line"] == 2
+
+
+def test_scan_file_emits_finding_for_non_enforcing_guard(tmp_path):
+    matches = _scan_rule_findings(tmp_path, _non_enforcing_guard_source())
 
     assert len(matches) == 1
     assert matches[0]["line"] == 2
