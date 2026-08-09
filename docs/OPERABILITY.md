@@ -55,6 +55,8 @@ On destination-policy failure, do not send. The current generic unauthenticated 
 
 If retries are introduced later, they require a versioned delivery contract before enablement: a stable `delivery_id` persisted across attempts, receiver-side deduplication on that identifier, destination and redirect revalidation for every attempt, bounded response/error evidence, capped retry count/backoff, and explicit terminal failure state. Without those controls, retries remain prohibited rather than “best effort.”
 
+For both the current one-shot send and any future retry, every send attempt and redirect hop must resolve and evaluate all destination addresses under the current policy. The connector rejects every private, loopback, link-local, metadata, unspecified, multicast, or reserved address and uses connection-time address pinning (or an equivalently strong connector) to prevent DNS rebinding between validation and connect. It retains the original hostname for TLS SNI and certificate verification, bounds redirects, and verifies that the connected peer address is one of the approved addresses before sending request bytes. Contract tests must exercise rebinding, mixed public/private answers, redirects to denied ranges, and peer-address mismatch; a stored `valid` flag or prior DNS result is never authorization for a later connection.
+
 ## Stored SSRF operation
 
 Webhook destination validation must be revisited when DNS resolution/redirect conditions can change between storage and execution. A stored `valid` flag alone is not permanent authorization to access an arbitrary resolved network endpoint.
