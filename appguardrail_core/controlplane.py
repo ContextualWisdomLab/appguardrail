@@ -631,8 +631,11 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 body = self._body()
                 if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
-                set_webhook(conn, org, (body or {}).get("url"))
-                return self._json(200, {"webhook_url": (body or {}).get("url")})
+                webhook_url = (body or {}).get("url")
+                if webhook_url and not _is_safe_url(webhook_url):
+                    return self._json(400, {"error": "unsafe webhook url"})
+                set_webhook(conn, org, webhook_url)
+                return self._json(200, {"webhook_url": webhook_url})
 
             if path == "/api/v1/keys":
                 if not has_role(role, "owner"):

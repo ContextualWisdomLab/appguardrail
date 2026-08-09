@@ -231,6 +231,15 @@ def test_api_set_webhook(server):
     assert status == 200 and body["webhook_url"] == "http://hook.example/y"
 
 
+def test_api_set_webhook_unsafe_url(server):
+    base, key = server
+    with pytest.raises(urllib.error.HTTPError) as e:
+        _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://127.0.0.1/"})
+    assert e.value.code == 400
+    body = json.loads(e.value.read())
+    assert body["error"] == "unsafe webhook url"
+
+
 def test_roles_and_key_scoping():
     conn = connect(":memory:")
     oid, owner_key = create_org(conn, "Acme")

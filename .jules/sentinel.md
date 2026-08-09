@@ -122,3 +122,8 @@
 **Vulnerability:** DOM XSS via unescaped `severity` string interpolated into `innerHTML` in `scanner/dashboard/index.html`.
 **Learning:** Even enum-like or seemingly safe meta-fields like `severity` can contain malicious payloads if sourced from user input (findings file) and directly injected into innerHTML.
 **Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from `findings.json`, regardless of expected schema types.
+
+## 2024-05-24 - [SSRF in Webhook Endpoint]
+**Vulnerability:** The `/api/v1/webhook` endpoint accepted arbitrary URLs for the drift alert webhook without any server-side request forgery (SSRF) validation before saving them to the database.
+**Learning:** Even if a URL is validated prior to use (e.g., in `_send_alert`), accepting and storing arbitrary URLs without validation introduces a Stored SSRF vulnerability vector and violates the principle of failing fast and securely on untrusted input.
+**Prevention:** Always apply security validation functions (like `_is_safe_url`) immediately at the boundary/endpoint level prior to performing database insertion or mutation.
