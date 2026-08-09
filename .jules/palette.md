@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-05-25 - Skip to Content Accessibility
+**Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header elements on every page load or state reset.
+**Action:** Always provide a visually hidden (but focusable) "Skip to content" link as the first interactive element on the page, pointing to a main content container with `tabindex="-1"` to correctly receive programmatic focus.

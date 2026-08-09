@@ -82,12 +82,15 @@
   body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   a{color:var(--primary)}
+  .skip-link{position:absolute;top:-40px;left:0;background:var(--primary);color:#fff;padding:8px 16px;z-index:100;font-weight:700;border-radius:0 0 8px 0;transition:top 0.2s}
+  .skip-link:focus{top:0;outline:2px solid var(--primary);outline-offset:2px}
 </style>
 <!-- Canonical design tokens (scanner/dashboard/tokens.json) served at /tokens.css;
      loaded last so served values override the inline fallback above. -->
 <link rel="stylesheet" href="tokens.css">
 </head>
 <body>
+<a href="#app" class="skip-link">Skip to content</a>
 <header>
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
@@ -95,7 +98,7 @@
   <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
-<main id="app"></main>
+<main id="app" tabindex="-1"></main>
 
 <dialog id="detail" aria-labelledby="dlg-title"></dialog>
 
