@@ -43,6 +43,12 @@ registered_detector_families = issue_detection.registered_detector_families
 
 
 ATTESTATION_SECRET = b"appguardrail-test-attestation-key-v1"
+SOURCE_REPOSITORY = "ContextualWisdomLab/appguardrail"
+SOURCE_ARTIFACT_SHA256 = "b" * 64
+WORKFLOW_SOURCE_IDENTITY = {
+    "repository": SOURCE_REPOSITORY,
+    "source_artifact_sha256": SOURCE_ARTIFACT_SHA256,
+}
 
 
 def workflow_result_verifier():
@@ -65,9 +71,11 @@ def resign_workflow_result_envelope(envelope: dict[str, object]) -> None:
         for key in (
             "schema",
             "producer",
+            "repository",
             "run_id",
             "head_sha",
             "evidence_ref",
+            "source_artifact_sha256",
             "payload_sha256",
         )
     }
@@ -105,11 +113,13 @@ def workflow_result_envelope(
     elif outcome == "operational_failure":
         payload["cause_class"] = cause_class
     envelope = {
-        "schema": "appguardrail.workflow-result-envelope.v1",
+        "schema": "appguardrail.workflow-result-envelope.v2",
         "producer": producer,
+        "repository": SOURCE_REPOSITORY,
         "run_id": run_id,
         "head_sha": head_sha,
         "evidence_ref": f"artifact://{producer}/result.json",
+        "source_artifact_sha256": SOURCE_ARTIFACT_SHA256,
         "payload": payload,
         "payload_sha256": "",
     }
@@ -346,6 +356,21 @@ class WorkflowCauseDetectionTests(unittest.TestCase):
         self.assertFalse(verifier.verify({}))
         self.assertFalse(verifier.verify({"attestation": "0" * 64}))
 
+    def test_attestation_binds_repository_and_source_artifact_identity(self) -> None:
+        """Repository or source-artifact substitution invalidates the envelope."""
+        verifier = workflow_result_verifier()
+        valid = workflow_result_envelope("clean")
+
+        self.assertTrue(verifier.verify(valid))
+        for field, replacement in (
+            ("repository", "ContextualWisdomLab/another-repository"),
+            ("source_artifact_sha256", "c" * 64),
+        ):
+            forged = json.loads(json.dumps(valid))
+            forged[field] = replacement
+            with self.subTest(field=field):
+                self.assertFalse(verifier.verify(forged))
+
     def test_unbound_structured_result_fails_closed(self) -> None:
         """A mismatched run/head result cannot satisfy or confirm a security gate."""
         evidence = WorkflowEvidence(
@@ -471,6 +496,8 @@ class WorkflowCauseDetectionTests(unittest.TestCase):
             ("payload_sha256", "not-a-digest"),
             ("producer", "unrelated-producer"),
             ("producer", "s"),
+            ("repository", "not-a-repository"),
+            ("source_artifact_sha256", "not-a-digest"),
         ):
             result = json.loads(json.dumps(base))
             if value is None:
