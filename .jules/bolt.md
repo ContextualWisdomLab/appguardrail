@@ -75,5 +75,5 @@
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
 
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
-**Learning:** In Python, when deriving multiple collections (like tuples) from the same source list or generator, using multiple separate generator expressions (e.g., `tuple(x for x in data if ...)`) forces the interpreter to iterate over the source data multiple times. This introduces significant overhead, especially in loops.
-**Action:** Replace multiple generator expressions with a single explicit `for` loop that iterates over the data once, conditionally appending to intermediate lists, and then converting those lists to tuples at the end. This reduces the time complexity from O(K * N) to O(N) where K is the number of collections being derived.
+**Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
+**Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
