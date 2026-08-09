@@ -22,13 +22,26 @@ def _vulnerable_source():
     )
 
 
-def _unvalidated_variable_source():
+def _unvalidated_variable_source(variable="webhook_url"):
     sink = "set_" + "webhook"
     return "\n".join(
         [
             "def update_webhook(conn, org, body):",
-            '    webhook_url = (body or {}).get("url")',
-            f"    {sink}(conn, org, webhook_url)",
+            f'    {variable} = (body or {{}}).get("url")',
+            f"    {sink}(conn, org, {variable})",
+            "",
+        ]
+    )
+
+
+def _ignored_validation_result_source():
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    target = (body or {}).get("url")',
+            "    _is_safe_url(target)",
+            f"    {sink}(conn, org, target)",
             "",
         ]
     )
@@ -68,7 +81,15 @@ def test_packaged_rule_matches_unvalidated_variable_persistence():
     assert _rule()["pattern"].search(_unvalidated_variable_source())
 
 
-def test_packaged_rule_ignores_validated_url_persistence():
+def test_packaged_rule_does_not_depend_on_url_variable_name():
+    assert _rule()["pattern"].search(_unvalidated_variable_source("target"))
+
+
+def test_packaged_rule_does_not_treat_ignored_validator_result_as_safe():
+    assert _rule()["pattern"].search(_ignored_validation_result_source())
+
+
+def test_packaged_rule_ignores_guarded_url_persistence():
     assert not _rule()["pattern"].search(_safe_source())
 
 
@@ -89,6 +110,13 @@ def test_scan_file_emits_stored_ssrf_finding(tmp_path):
 
 def test_scan_file_emits_stored_ssrf_finding_for_variable_flow(tmp_path):
     matches = _scan_rule_findings(tmp_path, _unvalidated_variable_source())
+
+    assert len(matches) == 1
+    assert matches[0]["line"] == 2
+
+
+def test_scan_file_emits_finding_when_validator_result_is_ignored(tmp_path):
+    matches = _scan_rule_findings(tmp_path, _ignored_validation_result_source())
 
     assert len(matches) == 1
     assert matches[0]["line"] == 2
