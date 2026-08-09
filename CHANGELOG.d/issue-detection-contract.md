@@ -9,3 +9,8 @@
   workflow-result classification authenticated by an externally provisioned
   HMAC capability, recomputed payload and issue-requirement digests, an
   installed audit CLI, and read-only exact-coverage and live-inventory workflows.
+- Added a canonical PRD, TRD, root architecture, status-bearing ADR, UML views,
+  conceptual evidence model, threat model, test strategy, operability runbook,
+  and requirement-to-code/test/evidence traceability matrix. These documents
+  distinguish protected-main behavior, the active PR, accepted targets, and
+  planned work and are enforced by a release-contract test.

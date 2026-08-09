@@ -164,6 +164,48 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertTrue(changelog.startswith("### Added\n"))
         self.assertIn("all 414", changelog)
 
+    def test_canonical_documentation_graph_is_discoverable_and_state_bearing(self) -> None:
+        """The issue-complete contract is reconstructable without chat history."""
+        required_documents = {
+            "ARCHITECTURE.md": ("## System context", "## Documentation map"),
+            "docs/product/PRD.md": ("## Product requirements", "## Delivery status"),
+            "docs/engineering/TRD.md": ("## Technical requirements", "## Acceptance evidence"),
+            "docs/architecture/UML.md": ("## Component diagram", "## Sequence diagram"),
+            "docs/architecture/EVIDENCE_MODEL.md": ("## Conceptual ERD", "## Persistence boundary"),
+            "docs/adr/README.md": ("## Decision index", "ADR-0001"),
+            "docs/adr/ADR-0001-issue-complete-detection-contract.md": (
+                "Status: Accepted",
+                "## Consequences",
+            ),
+            "docs/THREAT_MODEL.md": ("## Trust boundaries", "## Abuse cases"),
+            "docs/TEST_STRATEGY.md": ("## Detection-efficacy matrix", "## Mutation sensitivity"),
+            "docs/OPERABILITY.md": ("## Service-level objectives", "## Recovery"),
+            "docs/TRACEABILITY.md": ("## Requirements matrix", "## Status vocabulary"),
+        }
+
+        for relative_path, required_phrases in required_documents.items():
+            document_path = ROOT / relative_path
+            self.assertTrue(document_path.is_file(), relative_path)
+            document = document_path.read_text(encoding="utf-8")
+            for phrase in required_phrases:
+                self.assertIn(phrase, document, relative_path)
+
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        traceability = (ROOT / "docs" / "TRACEABILITY.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("docs/product/PRD.md", architecture)
+        self.assertIn("docs/engineering/TRD.md", architecture)
+        self.assertIn("ARCHITECTURE.md", readme)
+        for state_name in (
+            "IMPLEMENTED_ON_PROTECTED_MAIN",
+            "ACTIVE_PR",
+            "ACCEPTED_TARGET_ARCHITECTURE",
+            "PLANNED",
+        ):
+            self.assertIn(state_name, traceability)
+
 
 if __name__ == "__main__":
     unittest.main()

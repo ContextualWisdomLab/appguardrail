@@ -53,6 +53,12 @@ Agent. See [Release Automation](docs/release-automation.md).
 For the productization roadmap, see the
 [2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
 
+The canonical product and technical documentation starts at
+[ARCHITECTURE.md](ARCHITECTURE.md), which links the PRD, TRD, ADRs, UML,
+conceptual evidence model, security, testing, operations, and traceability
+records. Documented status labels distinguish protected-main behavior from
+active PR and target architecture.
+
 Maintainers can review the exhaustive issue-to-detector policy and live audit
 procedure in the [issue-derived detection contract](docs/issue-detection-contract.md).
 It binds all 17 detector families to closed evidence fields and machine-readable

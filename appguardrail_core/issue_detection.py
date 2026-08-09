@@ -38,25 +38,6 @@ _FAMILY_BY_JOB = {
     "codeql merge preview (python)": "codeql-analysis-gate-diagnostics",
     "appguardrail-scan": "native-appguardrail-gate-diagnostics",
 }
-_DETECTOR_FAMILY_IDS = (
-    "authenticated-egress-destination-and-redirect-safety",
-    "codeql-analysis-gate-diagnostics",
-    "coverage-evidence-control",
-    "github-code-scanning-analysis-drift",
-    "native-appguardrail-gate-diagnostics",
-    "noema-review-gate-diagnostics",
-    "opencode-review-gate-diagnostics",
-    "openssf-best-practices-evidence",
-    "pr-evidence-publication-health",
-    "product-security-audit-controls",
-    "pull-request-metadata-policy",
-    "scanner-path-contract-and-performance",
-    "scheduled-agent-workflow-governance",
-    "scheduled-builder-runtime-contract",
-    "strix-security-gate-diagnostics",
-    "tenant-retention-and-audit-posture",
-    "trivy-filesystem-gate-diagnostics",
-)
 _PRODUCERS_BY_FAMILY = {
     "codeql-analysis-gate-diagnostics": {"codeql"},
     "coverage-evidence-control": {"coverage-evidence"},
@@ -516,7 +497,6 @@ def _retention_adapter(
     valid = _schema_matches(evidence, contract) and evidence.get("complete") is True
     policy_days = evidence.get("policy_days")
     observed_age_days = evidence.get("observed_age_days")
-    audit_chain_valid = evidence.get("audit_chain_valid")
     boolean_fields = (
         "policy_present",
         "cross_tenant_isolation",

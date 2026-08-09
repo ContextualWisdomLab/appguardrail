@@ -1,5 +1,9 @@
 # Issue-derived detection contract
 
+Implementation status: `ACTIVE_PR` #911. See the canonical
+[architecture](../ARCHITECTURE.md), [ADR](adr/ADR-0001-issue-complete-detection-contract.md),
+[test strategy](TEST_STRATEGY.md), and [traceability matrix](TRACEABILITY.md).
+
 Every GitHub issue in `ContextualWisdomLab/appguardrail` is a retained
 AppGuardrail detection requirement. Closed issues and repeated workflow events
 remain in scope because they preserve regression targets.
