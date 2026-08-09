@@ -1,12 +1,15 @@
 """Regression tests for string-based language-profile path handling."""
 
+import ast
 import inspect
+import textwrap
 from pathlib import Path
 
 import pytest
 
 from appguardrail_core.language import (
     _detect_signals,
+    _iter_lower_path_components,
     detect_language_axes,
     detect_stack_profile,
 )
@@ -15,6 +18,11 @@ from scanner.cli.appguardrail import _display_path
 
 class StringPath(str):
     """String path subtype used to preserve the public ``str`` input contract."""
+
+
+def _function_tree(function: object) -> ast.AST:
+    """Return a dedented AST for a source-backed function contract."""
+    return ast.parse(textwrap.dedent(inspect.getsource(function)))
 
 
 @pytest.mark.parametrize(
@@ -48,6 +56,24 @@ def test_string_subclass_uses_string_display_path_branch() -> None:
     assert _display_path(StringPath(r"src\main.py")) == "src/main.py"
 
 
+def test_display_path_avoids_replace_and_local_reassignment() -> None:
+    """CLI path formatting must not regress to replace-based hot-loop rebuilding."""
+    tree = _function_tree(_display_path)
+    attribute_calls = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    reassignments = tuple(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr))
+    )
+
+    assert "replace" not in attribute_calls
+    assert reassignments == ()
+
+
 @pytest.mark.parametrize(
     ("path_text", "expects_template_marker"),
     [
@@ -67,11 +93,12 @@ def test_template_and_view_markers_use_exact_path_components(
 
 
 def test_signal_detection_avoids_replace_split_hot_loop_allocations() -> None:
-    """Signal extraction must not rebuild and split every path in the scan loop."""
-    source = inspect.getsource(_detect_signals)
+    """Signal extraction and its helper must avoid replace/split path rebuilding."""
+    for function in (_detect_signals, _iter_lower_path_components):
+        source = inspect.getsource(function)
 
-    assert ".replace(" not in source
-    assert ".split(" not in source
+        assert ".replace(" not in source
+        assert ".split(" not in source
 
 
 def test_generator_input_is_materialized_once_for_profile_detection(tmp_path: Path) -> None:
