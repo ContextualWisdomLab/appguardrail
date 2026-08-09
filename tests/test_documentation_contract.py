@@ -103,10 +103,34 @@ def test_evidence_provenance_is_not_hidden_in_free_form_metadata() -> None:
         "signature_status_code",
         "signature_algorithm_code",
         "signature_value",
+        "attestation_type_code",
+        "attestation_issuer",
+        "attestation_reference",
     ):
         assert field in erd, f"missing explicit evidence provenance field {field}"
     assert "bounded_metadata_json` is supplementary metadata" in erd
     assert "evidence_untrusted" in erd
+
+
+def test_evidence_digest_serialization_is_deterministic_and_linked() -> None:
+    """Bind producer and verifier digests to one byte-level evidence contract."""
+
+    erd = _read("docs/ERD.md")
+    lowered = erd.lower()
+    for phrase in (
+        "RFC 8785",
+        "UTF-8",
+        "Unicode NFC",
+        "omitted and explicit `null` are distinct",
+        "non-finite numbers are rejected",
+        "bounded_metadata_json",
+        "SHA-256",
+        "signed_payload_digest excludes",
+        "evidence_digest",
+        "finding_digest",
+        "producer and verifier",
+    ):
+        assert phrase.lower() in lowered
 
 
 def test_webhook_retry_semantics_match_current_one_shot_implementation() -> None:
@@ -121,6 +145,16 @@ def test_webhook_retry_semantics_match_current_one_shot_implementation() -> None
     assert "stable `delivery_id`" in operability
     assert "receiver-side deduplication" in operability
     assert "no automatic retry" in uml
+    erd_lowered = erd.lower()
+    operability_lowered = operability.lower()
+    for phrase in (
+        "every send attempt and redirect hop",
+        "connection-time address pinning",
+        "private, loopback, link-local, metadata, unspecified, multicast, or reserved",
+        "connected peer address",
+    ):
+        assert phrase.lower() in erd_lowered
+        assert phrase.lower() in operability_lowered
 
 
 def test_detector_maturity_requires_verified_tests() -> None:
@@ -131,6 +165,7 @@ def test_detector_maturity_requires_verified_tests() -> None:
     assert "tests_verified --> executable_detector" in uml
     assert "detector_obligation --> tests_failed" in uml
     assert "tests_red --> executable_detector" not in uml
+    assert "tests_failed --> executable_detector" not in uml
 
 
 def test_adr_index_contains_governing_detector_decisions() -> None:
