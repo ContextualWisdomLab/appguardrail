@@ -1,6 +1,7 @@
 include README.md
 include LICENSE
 include CHANGELOG.md
+recursive-include appguardrail_core *.json
 recursive-include scanner/rules *.yml
 recursive-include scanner/dashboard *.html
 recursive-include scanner/dashboard *.json

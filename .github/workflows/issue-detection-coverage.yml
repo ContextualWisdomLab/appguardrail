@@ -1,0 +1,67 @@
+name: Issue Detection Coverage
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - "appguardrail_core/issue_detection.py"
+      - "appguardrail_core/issue_detection_registry.json"
+      - "appguardrail_core/__init__.py"
+      - "tests/test_issue_detection.py"
+      - "tests/test_issue_detection_release_contract.py"
+      - "tests/fixtures/appguardrail_issue_numbers_2026-08-09.json"
+      - "docs/issue-detection-contract.md"
+      - "CHANGELOG.d/issue-detection-contract.md"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - ".github/workflows/issue-detection-coverage.yml"
+      - ".github/workflows/issue-detection-registry-audit.yml"
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "appguardrail_core/issue_detection.py"
+      - "appguardrail_core/issue_detection_registry.json"
+      - "appguardrail_core/__init__.py"
+      - "tests/test_issue_detection.py"
+      - "tests/test_issue_detection_release_contract.py"
+      - "tests/fixtures/appguardrail_issue_numbers_2026-08-09.json"
+      - "docs/issue-detection-contract.md"
+      - "CHANGELOG.d/issue-detection-contract.md"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - ".github/workflows/issue-detection-coverage.yml"
+      - ".github/workflows/issue-detection-registry-audit.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-detection-coverage-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-issue-detection-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install hash-locked test dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Run issue-detection contracts
+        run: |
+          python -m pytest -q \
+            tests/test_issue_detection.py \
+            tests/test_issue_detection_release_contract.py
+      - name: Verify exact unrounded statement coverage
+        run: |
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/issue_detection.py \
+            --test tests/test_issue_detection.py \
+            --test tests/test_issue_detection_release_contract.py

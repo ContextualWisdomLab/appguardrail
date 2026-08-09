@@ -1,0 +1,47 @@
+name: Issue Detection Registry Audit
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed]
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "appguardrail_core/issue_detection.py"
+      - "appguardrail_core/issue_detection_registry.json"
+      - "tests/fixtures/appguardrail_issue_numbers_2026-08-09.json"
+      - ".github/workflows/issue-detection-registry-audit.yml"
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: issue-detection-registry-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit-live-issues:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Fetch every open and closed issue page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate --slurp "/repos/${GITHUB_REPOSITORY}/issues?state=all&per_page=100" \
+            > "${RUNNER_TEMP}/appguardrail-issues.json"
+      - name: Require exact issue-to-detector coverage
+        run: |
+          python -m appguardrail_core.issue_detection audit-registry \
+            --issues-file "${RUNNER_TEMP}/appguardrail-issues.json"

@@ -53,6 +53,12 @@ Agent. See [Release Automation](docs/release-automation.md).
 For the productization roadmap, see the
 [2B KRW sale readiness plan](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md).
 
+Maintainers can review the exhaustive issue-to-detector policy and live audit
+procedure in the [issue-derived detection contract](docs/issue-detection-contract.md).
+It binds all 17 detector families to closed evidence fields and machine-readable
+obligations with positive, negative, and unknown executions; unsupported, extra,
+or missing evidence remains fail-closed and unknown.
+
 ### Initialize security rules in your project
 
 ```bash

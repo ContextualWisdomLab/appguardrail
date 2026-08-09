@@ -42,6 +42,7 @@ Changelog = "https://github.com/ContextualWisdomLab/appguardrail/blob/develop/CH
 [project.scripts]
 appguardrail = "scanner.cli.appguardrail:main"
 appguardrail-openssf-evidence = "appguardrail_core.openssf_evidence:main"
+appguardrail-issue-detection = "appguardrail_core.issue_detection:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "scanner.cli.appguardrail.__version__" }
@@ -52,6 +53,7 @@ include = ["scanner*", "appguardrail_core*"]
 namespaces = false
 
 [tool.setuptools.package-data]
+"appguardrail_core" = ["issue_detection_registry.json"]
 "scanner.rules" = ["*.yml"]
 "scanner" = ["dashboard/*.html", "dashboard/*.json"]
 
