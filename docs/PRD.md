@@ -58,7 +58,7 @@ The product goal is not merely to prevent one defect after a review. Security de
 
 ### PRD-FR-001 Detector engine
 
-AppGuardrail SHALL support built-in deterministic detector families with stable rule identity, severity, evidence location, remediation, verification guidance, and machine-readable output. Structural patterns that cannot be represented safely by the lightweight matcher remain external-engine or planned until a real structural engine exists; rule fixtures alone are not detection.
+AppGuardrail SHALL support built-in deterministic detector families with stable rule identity, severity, evidence location, remediation, verification guidance, and machine-readable output. A structural `pattern:` fixture is not built-in execution: structural patterns that cannot be represented safely by the lightweight matcher remain external-engine or planned until a real structural engine exists; rule fixtures alone are not detection.
 
 ### PRD-FR-002 Issue-to-detection contract
 
