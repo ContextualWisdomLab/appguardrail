@@ -10,6 +10,8 @@ import pytest
 
 from appguardrail_core.controlplane import connect, create_org, make_control_plane_server
 
+_BASELINE_URL = "http://hook.example/existing"
+
 
 def _serve(server):
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -17,7 +19,7 @@ def _serve(server):
 
 @pytest.fixture()
 def webhook_server(tmp_path):
-    """Serve an isolated control plane and return its URL plus owner API key."""
+    """Serve an isolated control plane and expose its URL, owner key, and DB."""
     db = str(tmp_path / "webhook-validation.db")
     conn = connect(db)
     _org_id, key = create_org(conn, "Webhook validation")
@@ -25,7 +27,7 @@ def webhook_server(tmp_path):
     server = make_control_plane_server("127.0.0.1", 0, db)
     _serve(server)
     port = server.server_address[1]
-    yield f"http://127.0.0.1:{port}", key
+    yield f"http://127.0.0.1:{port}", key, db
     server.shutdown()
     server.server_close()
 
@@ -45,30 +47,52 @@ def _post(base, key, body):
         return response.status, json.loads(response.read())
 
 
+def _stored_webhook(db):
+    conn = connect(db)
+    try:
+        row = conn.execute("SELECT webhook_url FROM orgs LIMIT 1").fetchone()
+        return row["webhook_url"]
+    finally:
+        conn.close()
+
+
+def _seed_existing_webhook(base, key, db):
+    status, payload = _post(base, key, {"url": _BASELINE_URL})
+    assert status == 200
+    assert payload == {"webhook_url": _BASELINE_URL}
+    assert _stored_webhook(db) == _BASELINE_URL
+
+
 @pytest.mark.parametrize("body", [[], "url", 7, True])
 def test_webhook_rejects_non_object_json_bodies(webhook_server, body):
-    """Webhook mutation requires a JSON object rather than arbitrary JSON."""
-    base, key = webhook_server
+    """Non-object JSON is rejected without replacing an existing webhook."""
+    base, key, db = webhook_server
+    _seed_existing_webhook(base, key, db)
     with pytest.raises(urllib.error.HTTPError) as error:
         _post(base, key, body)
     assert error.value.code == 400
     assert json.loads(error.value.read()) == {"error": "invalid JSON body"}
+    assert _stored_webhook(db) == _BASELINE_URL
 
 
 @pytest.mark.parametrize("url", [7, True, [], {}])
 def test_webhook_rejects_non_string_url_values(webhook_server, url):
-    """Truthy and falsy non-string URL values fail before persistence."""
-    base, key = webhook_server
+    """Non-string URL values fail before persistence and preserve prior state."""
+    base, key, db = webhook_server
+    _seed_existing_webhook(base, key, db)
     with pytest.raises(urllib.error.HTTPError) as error:
         _post(base, key, {"url": url})
     assert error.value.code == 400
     assert json.loads(error.value.read()) == {"error": "unsafe webhook url"}
+    assert _stored_webhook(db) == _BASELINE_URL
 
 
 @pytest.mark.parametrize("url", [None, ""])
 def test_webhook_preserves_explicit_clear_values(webhook_server, url):
     """Null and empty-string inputs remain supported as webhook clear requests."""
-    base, key = webhook_server
+    base, key, db = webhook_server
+    _seed_existing_webhook(base, key, db)
     status, payload = _post(base, key, {"url": url})
     assert status == 200
     assert payload == {"webhook_url": url}
+    assert _stored_webhook(db) is None
