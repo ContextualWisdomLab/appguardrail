@@ -18,10 +18,21 @@ REQUIRED_DOCUMENTS = (
     "docs/OPERABILITY.md",
     "docs/TRACEABILITY.md",
     "docs/adr/README.md",
+    "SECURITY.md",
+    "docs/release-automation.md",
+    "docs/product/2026-07-02-2b-krw-sale-readiness-plan.md",
     "README.md",
     "AGENTS.md",
     "CLAUDE.md",
     "CHANGELOG.md",
+)
+GOVERNING_ADRS = (
+    "0001-executable-detector-truth.md",
+    "0002-prevention-versus-detection.md",
+    "0003-external-engine-provenance.md",
+    "0004-tenant-network-boundaries.md",
+    "0005-remediation-authority.md",
+    "0006-automation-authority.md",
 )
 
 
@@ -39,11 +50,13 @@ def test_canonical_detection_documents_exist() -> None:
 
 
 def test_documentation_map_links_cross_cutting_contracts() -> None:
-    """Require the documentation map to link every major cross-cutting record."""
+    """Require the documentation map to link every canonical mapped record."""
 
     documentation = _read("DOCUMENTATION.md")
-    for path in REQUIRED_DOCUMENTS[1:11]:
-        assert path in documentation, f"documentation map does not link {path}"
+    for path in REQUIRED_DOCUMENTS[1:]:
+        assert f"]({path})" in documentation, (
+            f"documentation map does not contain an actual Markdown link to {path}"
+        )
 
 
 def test_active_pr_detection_claims_are_not_promoted_to_main() -> None:
@@ -66,16 +79,65 @@ def test_structural_rule_fixture_is_not_claimed_as_lightweight_execution() -> No
     assert "not automatically executable in full" in architecture
 
 
+def test_issue_claim_identity_is_repository_scoped_and_stable() -> None:
+    """Keep future issue obligations collision-safe across GitHub repositories."""
+
+    erd = _read("docs/ERD.md")
+    assert "(repository_full_name, issue_number, claim_identifier)" in erd
+    assert "canonical_claim_key" in erd
+    assert "generated deterministically" in erd
+    assert "same issue number/key must produce a different composite identity" in erd
+    assert "stable regeneration" in erd
+
+
+def test_evidence_provenance_is_not_hidden_in_free_form_metadata() -> None:
+    """Require explicit producer, digest, version, and authentication fields."""
+
+    erd = _read("docs/ERD.md")
+    for field in (
+        "engine_version",
+        "source_kind_code",
+        "producer_capability_code",
+        "producer_identity",
+        "signed_payload_digest",
+        "signature_status_code",
+        "signature_algorithm_code",
+        "signature_value",
+    ):
+        assert field in erd, f"missing explicit evidence provenance field {field}"
+    assert "bounded_metadata_json` is supplementary metadata" in erd
+    assert "evidence_untrusted" in erd
+
+
+def test_webhook_retry_semantics_match_current_one_shot_implementation() -> None:
+    """Prevent docs from inventing unsafe retry behavior without idempotency."""
+
+    erd = _read("docs/ERD.md")
+    operability = _read("docs/OPERABILITY.md")
+    uml = _read("docs/UML.md")
+    for document in (erd, operability, uml):
+        assert "at-most-once" in document
+    assert "does not automatically retry" in operability
+    assert "stable `delivery_id`" in operability
+    assert "receiver-side deduplication" in operability
+    assert "no automatic retry" in uml
+
+
+def test_detector_maturity_requires_verified_tests() -> None:
+    """Keep a failing RED test from being represented as an executable detector."""
+
+    uml = _read("docs/UML.md")
+    assert "detector_obligation --> tests_verified" in uml
+    assert "tests_verified --> executable_detector" in uml
+    assert "detector_obligation --> tests_failed" in uml
+    assert "tests_red --> executable_detector" not in uml
+
+
 def test_adr_index_contains_governing_detector_decisions() -> None:
-    """Keep the detector/security architecture decisions indexed."""
+    """Keep the detector/security architecture decisions present and indexed."""
 
     index = _read("docs/adr/README.md")
-    for adr in (
-        "0001-executable-detector-truth.md",
-        "0002-prevention-versus-detection.md",
-        "0003-external-engine-provenance.md",
-        "0004-tenant-network-boundaries.md",
-        "0005-remediation-authority.md",
-        "0006-automation-authority.md",
-    ):
-        assert adr in index, f"ADR index is missing {adr}"
+    for adr in GOVERNING_ADRS:
+        adr_path = ROOT / "docs" / "adr" / adr
+        assert adr_path.is_file(), f"ADR file is missing: {adr}"
+        assert f"]({adr})" in index, f"ADR index does not link {adr}"
