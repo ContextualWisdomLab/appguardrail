@@ -1,7 +1,7 @@
 rules:
   - id: python-stored-ssrf-webhook-url
     patterns:
-      - pattern-regex: '(?is)(?:\bset_webhook\s*\(\s*[^,\n]+,\s*[^,\n]+,\s*(?:\([^\)\n]*\)|[A-Za-z_][A-Za-z0-9_]*)\.get\s*\(\s*["\x27]url["\x27]\s*\)|\b(?P<webhook_url_var>[A-Za-z_][A-Za-z0-9_]*url[A-Za-z0-9_]*)\s*=\s*(?:\([^\)\n]*\)|[A-Za-z_][A-Za-z0-9_]*)\.get\s*\(\s*["\x27]url["\x27]\s*\)(?:(?!_is_safe_url\s*\(\s*(?P=webhook_url_var)\s*\)).){0,800}?\bset_webhook\s*\(\s*[^,\n]+,\s*[^,\n]+,\s*(?P=webhook_url_var)\s*\))'
+      - pattern-regex: '(?is)(?:\bset_webhook\s*\(\s*[^,\n]+,\s*[^,\n]+,\s*(?:\([^\)\n]*\)|[A-Za-z_][A-Za-z0-9_]*)\.get\s*\(\s*["\x27]url["\x27]\s*\)|\b(?P<webhook_url_var>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:\([^\)\n]*\)|[A-Za-z_][A-Za-z0-9_]*)\.get\s*\(\s*["\x27]url["\x27]\s*\)(?!(?:(?!\bset_webhook\b).){0,800}\bif\b(?:(?!:).){0,600}_is_safe_url\s*\(\s*(?P=webhook_url_var)\s*\)(?:(?!:).){0,100}:)(?:(?!\bset_webhook\b).){0,800}?\bset_webhook\s*\(\s*[^,\n]+,\s*[^,\n]+,\s*(?P=webhook_url_var)\s*\))'
     message: |
       A webhook URL is persisted directly from request data without an explicit
       validation boundary. Validate the URL with a fail-closed SSRF policy before
