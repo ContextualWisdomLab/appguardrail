@@ -255,7 +255,15 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
 
         for document in (architecture, prd, trd, traceability):
             self.assertIn("0/417", document)
-        self.assertIn("repository/source-artifact identity is not bound", trd)
+        self.assertIn("v2 HMAC", trd)
+        self.assertIn(
+            "binds source repository and source-artifact SHA-256 identity",
+            trd,
+        )
+        self.assertIn(
+            "legacy v1 reader remains\nclassifier-only and does not bind those fields",
+            trd,
+        )
         self.assertIn("legacy runtime schema", evidence_model.lower())
         self.assertIn("canonical v2 migration schema", evidence_model.lower())
         self.assertIn("Retention and audit evidence are bounded", traceability)
