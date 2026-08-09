@@ -98,6 +98,8 @@ The current generic webhook implementation is **at-most-once per local scan even
 
 A future retrying webhook design must be a reviewed contract change that adds a stable `delivery_id`, persists delivery-attempt state, requires receiver-side deduplication on that identifier, revalidates the destination at every attempt/redirect, and caps retry/backoff. Until that exists, transport failure is retained as bounded evidence and is not retried automatically by the current webhook path.
 
+Destination validation is also a connection-time control, including for the current one-shot sender. Every send attempt and redirect hop must resolve and evaluate the destination under the current network policy, reject every private, loopback, link-local, metadata, unspecified, multicast, or reserved address, and use connection-time address pinning (or an equivalently strong connector) so the socket cannot re-resolve to an unapproved address after validation. TLS still uses the original hostname for SNI and certificate verification, the redirect limit remains bounded, and the connected peer address must be one of the approved addresses before request bytes are sent. A stored validation result or earlier DNS answer is never reusable authorization.
+
 ## Detection obligation model — PR #911 active target
 
 ```mermaid
@@ -165,6 +167,9 @@ erDiagram
       string signature_status_code
       string signature_algorithm_code
       string signature_value
+      string attestation_type_code
+      string attestation_issuer
+      string attestation_reference
       string conclusion_code
       string evidence_digest
     }
@@ -182,7 +187,19 @@ The documentation/registry contract tests must cover stable regeneration and cro
 
 ### Workflow evidence authentication contract
 
-`WORKFLOW_EVIDENCE` does not become trusted merely because a run is green. Its producer identity/capability, source class, exact workflow/run/head identity, engine/workflow version, canonical signed payload digest, signature/attestation status, algorithm, and signature value are explicit evidence fields. The signed digest covers the immutable evidence envelope including repository, workflow/job, exact head, run/attempt, producer capability, conclusion, and referenced detector-evidence digest. Verification must reject a digest mismatch, wrong repository/head/run identity, unauthorized producer capability, unsupported algorithm, invalid signature, or missing required attestation as `evidence_untrusted`.
+`WORKFLOW_EVIDENCE` does not become trusted merely because a run is green. Its producer identity/capability, source class, exact workflow/run/head identity, engine/workflow version, canonical signed payload digest, signature/attestation status, algorithm, and signature value are explicit evidence fields. `attestation_type_code` identifies the required attestation contract, `attestation_issuer` is the authorized issuer or key identifier, and `attestation_reference` is an optional immutable transparency-log or provider reference. For `detached_signature`, `signature_value` is the attestation value and `signature_algorithm_code` selects its verifier; the issuer must be authorized for `producer_capability_code`. Workflow/imported evidence requires all applicable attestation fields and a valid signature. A local same-process detector may instead use the closed `not_applicable_local` type/status only when no external trust claim is made.
+
+Verification must reject a digest mismatch, wrong repository/head/run identity, unauthorized producer capability or issuer, unsupported attestation/signature algorithm, invalid signature, missing required attestation, or mutable reference as `evidence_untrusted`.
+
+### Canonical evidence serialization and digest linkage
+
+Producer and verifier implementations use the same byte contract; a phrase such as “canonical digest” is not sufficient:
+
+1. Schema validation runs first. Text values are converted to Unicode NFC. Object members are then serialized as RFC 8785 JSON Canonicalization Scheme (JCS) bytes in UTF-8, including JCS property ordering, escaping, and number formatting. Non-finite numbers are rejected. Omitted and explicit `null` are distinct: required fields cannot be omitted, optional absent fields are omitted, and `null` is serialized only where the versioned schema explicitly permits it.
+2. `bounded_metadata_json` is parsed as bounded I-JSON, recursively normalized by the same rules, and embedded as a JSON value; its source whitespace or member order is never hashed as an opaque string. Duplicate member names, invalid Unicode, out-of-range numbers, and schema-unknown security fields fail closed.
+3. Every digest is lowercase hexadecimal SHA-256 over the resulting canonical bytes with no prefix, delimiter, or platform newline. Contract fixtures publish both canonical UTF-8 bytes and the expected digest so independent producer and verifier implementations must match on member-order, omitted-versus-null, numeric, Unicode NFC, and nested-metadata edge cases.
+
+Digest coverage is versioned and non-circular. `signed_payload_digest` covers the canonical `WORKFLOW_EVIDENCE` envelope fields `repository_full_name`, `workflow_name`, `job_name`, `head_sha`, `run_id`, `run_attempt`, `producer_identity`, `producer_capability_code`, `source_kind_code`, `engine_version`, `conclusion_code`, `evidence_digest`, `attestation_type_code`, and `attestation_issuer`; signed_payload_digest excludes itself plus `signature_status_code`, `signature_algorithm_code`, `signature_value`, and `attestation_reference`. `evidence_digest` covers the immutable `DETECTOR_EVIDENCE_CASE` identity, obligation, evidence type, provenance status, and ordered referenced-artifact digests. `finding_digest` covers the canonical `OBLIGATION_RESULT` identity/result/rule plus the normalized finding envelope and its `evidence_case_id` and `evidence_digest`. The workflow envelope links to a finding only when its `evidence_digest` exactly equals the referenced evidence case and the result's `finding_digest` verifies from that same case; mismatches remain `evidence_untrusted`.
 
 ## Identity and tenancy invariants
 
