@@ -6,12 +6,14 @@ _RULE_ID = "python-stored-ssrf-webhook-url"
 
 
 def _rule():
+    """Return the single packaged stored-SSRF rule under test."""
     matches = [rule for rule in SCAN_RULES if rule["id"] == _RULE_ID]
     assert len(matches) == 1, f"expected one loaded rule for {_RULE_ID}"
     return matches[0]
 
 
 def _vulnerable_source():
+    """Build the original direct request-to-persistence vulnerability."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -23,6 +25,7 @@ def _vulnerable_source():
 
 
 def _unvalidated_variable_source(variable="webhook_url"):
+    """Build an unvalidated local-variable flow into webhook persistence."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -35,6 +38,7 @@ def _unvalidated_variable_source(variable="webhook_url"):
 
 
 def _ignored_validation_result_source():
+    """Build a flow that calls the validator but discards its result."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -48,6 +52,7 @@ def _ignored_validation_result_source():
 
 
 def _non_enforcing_guard_source():
+    """Build a guard that logs invalid input without blocking persistence."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -62,6 +67,7 @@ def _non_enforcing_guard_source():
 
 
 def _non_enforcing_guard_with_unrelated_return_source():
+    """Build a non-enforcing guard followed by an unrelated early return."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -78,6 +84,7 @@ def _non_enforcing_guard_with_unrelated_return_source():
 
 
 def _positive_guard_source():
+    """Build a safe flow whose persistence sink is inside a positive guard."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -91,6 +98,7 @@ def _positive_guard_source():
 
 
 def _safe_source():
+    """Build a safe flow that raises before persisting invalid input."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -105,6 +113,7 @@ def _safe_source():
 
 
 def _production_guard_source():
+    """Build the multiline fail-closed guard used by the control plane."""
     sink = "set_" + "webhook"
     return "\n".join(
         [
@@ -122,6 +131,7 @@ def _production_guard_source():
 
 
 def _scan_rule_findings(tmp_path, source):
+    """Run the real file scanner and return only stored-SSRF findings."""
     source_file = tmp_path / "webhook.py"
     source_file.write_text(source, encoding="utf-8")
     return [
@@ -132,46 +142,56 @@ def _scan_rule_findings(tmp_path, source):
 
 
 def test_packaged_rule_matches_direct_request_url_persistence():
+    """Detect direct request URL persistence with HIGH severity."""
     rule = _rule()
     assert rule["severity"] == "HIGH"
     assert rule["pattern"].search(_vulnerable_source())
 
 
 def test_packaged_rule_matches_unvalidated_variable_persistence():
+    """Detect source-to-sink persistence through a local variable."""
     assert _rule()["pattern"].search(_unvalidated_variable_source())
 
 
 def test_packaged_rule_does_not_depend_on_url_variable_name():
+    """Detect the flow even when the variable name omits the word URL."""
     assert _rule()["pattern"].search(_unvalidated_variable_source("target"))
 
 
 def test_packaged_rule_does_not_treat_ignored_validator_result_as_safe():
+    """Detect a validator call whose boolean result is discarded."""
     assert _rule()["pattern"].search(_ignored_validation_result_source())
 
 
 def test_packaged_rule_matches_non_enforcing_validation_guard():
+    """Detect a validation branch that logs but does not terminate."""
     assert _rule()["pattern"].search(_non_enforcing_guard_source())
 
 
 def test_packaged_rule_matches_non_enforcing_guard_with_unrelated_return():
+    """Ignore unrelated returns when deciding whether validation enforces."""
     assert _rule()["pattern"].search(
         _non_enforcing_guard_with_unrelated_return_source()
     )
 
 
 def test_packaged_rule_ignores_positive_guarded_persistence():
+    """Do not flag a sink that is reachable only after positive validation."""
     assert not _rule()["pattern"].search(_positive_guard_source())
 
 
 def test_packaged_rule_ignores_fail_closed_guarded_persistence():
+    """Do not flag a flow that raises on invalid input before persistence."""
     assert not _rule()["pattern"].search(_safe_source())
 
 
 def test_packaged_rule_ignores_production_fail_closed_guard():
+    """Do not self-flag the control plane's multiline rejection guard."""
     assert not _rule()["pattern"].search(_production_guard_source())
 
 
 def test_scan_file_emits_stored_ssrf_finding(tmp_path):
+    """Emit a normalized SSRF finding through the production file scanner."""
     matches = _scan_rule_findings(tmp_path, _vulnerable_source())
 
     assert len(matches) == 1
@@ -187,6 +207,7 @@ def test_scan_file_emits_stored_ssrf_finding(tmp_path):
 
 
 def test_scan_file_emits_stored_ssrf_finding_for_variable_flow(tmp_path):
+    """Emit a finding for an unvalidated local-variable persistence flow."""
     matches = _scan_rule_findings(tmp_path, _unvalidated_variable_source())
 
     assert len(matches) == 1
@@ -194,6 +215,7 @@ def test_scan_file_emits_stored_ssrf_finding_for_variable_flow(tmp_path):
 
 
 def test_scan_file_emits_finding_when_validator_result_is_ignored(tmp_path):
+    """Emit a finding when code ignores the validator's return value."""
     matches = _scan_rule_findings(tmp_path, _ignored_validation_result_source())
 
     assert len(matches) == 1
@@ -201,6 +223,7 @@ def test_scan_file_emits_finding_when_validator_result_is_ignored(tmp_path):
 
 
 def test_scan_file_emits_finding_for_non_enforcing_guard(tmp_path):
+    """Emit a finding when an invalid branch fails to stop persistence."""
     matches = _scan_rule_findings(tmp_path, _non_enforcing_guard_source())
 
     assert len(matches) == 1
@@ -208,4 +231,5 @@ def test_scan_file_emits_finding_for_non_enforcing_guard(tmp_path):
 
 
 def test_scan_file_does_not_flag_validated_path(tmp_path):
+    """Suppress the finding for a verified fail-closed persistence path."""
     assert not _scan_rule_findings(tmp_path, _safe_source())
