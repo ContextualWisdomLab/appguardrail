@@ -1,4 +1,4 @@
-name: Issue Detection Registry Audit
+name: Issue Inventory Registry Audit
 
 on:
   issues:
@@ -41,7 +41,7 @@ jobs:
         run: |
           gh api --paginate --slurp "/repos/${GITHUB_REPOSITORY}/issues?state=all&per_page=100" \
             > "${RUNNER_TEMP}/appguardrail-issues.json"
-      - name: Require exact issue-to-detector coverage
+      - name: Require exact issue inventory and requirement digest reconciliation
         run: |
           python -m appguardrail_core.issue_detection audit-registry \
             --issues-file "${RUNNER_TEMP}/appguardrail-issues.json"

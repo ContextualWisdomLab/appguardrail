@@ -16,7 +16,9 @@ These are engineering targets, not historical performance claims:
 - Evidence integrity: 100% of accepted structured results bind schema,
   producer, run, head, source, digest, and attestation.
 - Inventory reconciliation: every issue lifecycle event and scheduled audit
-  either reconciles exactly or fails visibly; no exclusions.
+  either reconciles exactly or fails visibly; no inventory exclusions.
+- Direct detector efficacy: 417/417 target; current active-PR evidence is 0/417.
+- Per-issue cause binding: 414/414 target; current active-PR evidence is 0/414.
 - Tenant boundary: zero tolerated cross-tenant read or mutation.
 
 ## Signals
@@ -81,3 +83,11 @@ idempotent notifications. Never broaden private-address access as a remedy.
 manifests, exact-head Actions, SBOM/provenance artifacts, and migration records
 form the release evidence set. Release is blocked until rollback and protected
 main verification are both observable.
+
+## Work-conserving execution queue
+
+One blocked source log, provider, review, or branch blocks only that lane. Move
+to another cause binding, collector, independent corpus, detector, test,
+documentation repair, or protected-main probe. Current priority is the
+machine-readable queue in `docs/TRACEABILITY.md`; inventory registration and a
+documentation commit are intermediate states, not run completion.

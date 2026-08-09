@@ -4,7 +4,8 @@ Status: Accepted
 
 Date: 2026-08-09
 
-Implementation: `ACTIVE_PR` #911; not on protected `develop` until merged.
+Implementation: inventory/classifier foundation `ACTIVE_PR` #911; per-issue
+cause binding and direct detector efficacy `MISSING`.
 
 ## Context
 
@@ -61,6 +62,13 @@ Negative: the registry is large; new issues cannot pass CI until requirements
 and executable coverage are reconciled; external source producers must add a
 trusted structured adapter before they can prove clean/finding states.
 
+Current implementation debt: 417 registered rows collapse to 20 unique
+family/claim semantics; formal cause binding is 0/414 and independently
+validated direct-detector efficacy is 0/417. Generic family fixtures and signed
+opaque outcomes therefore remain classifier evidence, not acceptance evidence.
+The active envelope also lacks repository/source-artifact identity, and the two
+runtime result taxonomies are not unified.
+
 ## Security and privacy consequences
 
 Raw logs and keys stay outside the registry. Bounded provenance and hashes are
@@ -82,8 +90,14 @@ head. Rollback is a single PR revert because there is no data migration.
 - Callable adapter resolution for every family and claim.
 - Mutation-sensitive positive, negative, malformed, missing, extra-field,
   provenance-tamper, and multi-cause tests.
-- Exact statement/branch coverage and public docstring gates.
+- Exact statement coverage and public docstring gates; exact branch coverage
+  remains required but is not implemented by the PR workflow.
 - Exact-head CI, security review, packaging, and protected-main live audit.
+
+None of the acceptance bullets is satisfied merely by the 414/417 registry
+counts. The decision is accepted architecture; implementation completion stays
+missing until the machine-readable traceability record reaches the same
+production and protected-main boundaries.
 
 ## Supersession
 

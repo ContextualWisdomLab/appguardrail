@@ -59,11 +59,15 @@ conceptual evidence model, security, testing, operations, and traceability
 records. Documented status labels distinguish protected-main behavior from
 active PR and target architecture.
 
-Maintainers can review the exhaustive issue-to-detector policy and live audit
-procedure in the [issue-derived detection contract](docs/issue-detection-contract.md).
-It binds all 17 detector families to closed evidence fields and machine-readable
-obligations with positive, negative, and unknown executions; unsupported, extra,
-or missing evidence remains fail-closed and unknown.
+Maintainers can review the issue-derived detection **active-PR baseline** and
+inventory audit in the
+[issue-derived detection contract](docs/issue-detection-contract.md). Its 17
+classifier families use closed evidence fields and positive, negative, and
+unknown executions; unsupported, extra, or missing evidence remains fail-closed
+and unknown. Registry coverage is inventory accounting, not proof that every
+issue's actual cause is directly detected. The current counts and delivery
+states are machine-checked in
+[`issue-detection-traceability.json`](docs/issue-detection-traceability.json).
 
 ### Initialize security rules in your project
 
@@ -208,7 +212,8 @@ curl -X POST http://localhost:8788/api/v1/scans \
 curl http://localhost:8788/api/v1/scans -H "Authorization: Bearer $APPGUARDRAIL_API_KEY"
 ```
 
-Push scans from CI with `appguardrail scan --push http://your-control-plane .`
+Push scans from CI with
+`appguardrail scan --push https://control-plane.example .`
 (key from `APPGUARDRAIL_API_KEY`). The control plane computes **drift** — the
 number of deploy-blocking findings newly introduced since the repo's previous
 scan. Open the **org console** at `http://localhost:8788/` — a single static page that

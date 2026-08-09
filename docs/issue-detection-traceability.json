@@ -1,0 +1,81 @@
+{
+  "schema": "appguardrail.issue-detection-documentation.v1",
+  "repository": "ContextualWisdomLab/appguardrail",
+  "assessment_date": "2026-08-09",
+  "protected_main_sha": "0d07baae44a40edfcaec5e42c7fb9351510ca9f0",
+  "pull_request": 911,
+  "registry_path": "appguardrail_core/issue_detection_registry.json",
+  "inventory": {
+    "issue_count": 414,
+    "claim_count": 417,
+    "detector_family_count": 17,
+    "unique_claim_semantics_count": 20,
+    "cause_bound_issue_count": 0,
+    "direct_detector_efficacy_validated_claim_count": 0,
+    "protected_main_operational_issue_count": 0
+  },
+  "capability_states": {
+    "inventory_coverage": "active_pr",
+    "family_adapter_coverage": "active_pr",
+    "per_issue_cause_binding": "missing",
+    "source_result_instrumentation": "partial",
+    "protected_main_operational_proof": "missing"
+  },
+  "artifacts": [
+    {
+      "role": "architecture",
+      "path": "ARCHITECTURE.md",
+      "state": "current"
+    },
+    {
+      "role": "prd",
+      "path": "docs/product/PRD.md",
+      "state": "current"
+    },
+    {
+      "role": "trd",
+      "path": "docs/engineering/TRD.md",
+      "state": "current"
+    },
+    {
+      "role": "adr_index",
+      "path": "docs/adr/README.md",
+      "state": "current"
+    },
+    {
+      "role": "uml",
+      "path": "docs/architecture/UML.md",
+      "state": "current"
+    },
+    {
+      "role": "erd",
+      "path": "docs/architecture/EVIDENCE_MODEL.md",
+      "state": "current"
+    },
+    {
+      "role": "threat_model",
+      "path": "docs/THREAT_MODEL.md",
+      "state": "current"
+    },
+    {
+      "role": "test_strategy",
+      "path": "docs/TEST_STRATEGY.md",
+      "state": "current"
+    },
+    {
+      "role": "operability",
+      "path": "docs/OPERABILITY.md",
+      "state": "current"
+    },
+    {
+      "role": "incident_runbook",
+      "path": "docs/INCIDENT_RUNBOOK.md",
+      "state": "current"
+    },
+    {
+      "role": "traceability",
+      "path": "docs/TRACEABILITY.md",
+      "state": "current"
+    }
+  ]
+}

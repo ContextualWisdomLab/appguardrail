@@ -3,6 +3,13 @@
 Tests establish behavior and detector efficacy; file presence, registry counts,
 and opaque third-party pass/fail statuses are supporting evidence only.
 
+## Current baseline
+
+PR #911's 417 registry rows reuse 20 unique family/claim semantics and synthetic
+family fixtures. The focused suite proves schema closure and classifier branch
+behavior, not independent issue-specific detector efficacy. Current direct
+efficacy is therefore 0/417 and per-issue cause binding is 0/414.
+
 ## Test layers
 
 1. Unit tests exercise normalizers, rules, adapters, auth/role checks, evidence
@@ -28,13 +35,27 @@ Every issue claim must execute its callable production adapter through:
 | Missing required evidence | `unknown`, gate unsatisfied. |
 | Malformed or wrong-typed evidence | `unknown`, no exception/fail-open. |
 | Extra authoritative field | `unknown` under the closed schema. |
-| Wrong producer/run/head/source/digest/HMAC | Provenance failure, gate unsatisfied. |
+| Wrong producer/run/head/digest/HMAC | Provenance failure, gate unsatisfied; repository/source-artifact binding remains a missing target. |
 | Multiple independent causes | All assessments preserved; no last-write or priority collapse. |
 | Provider/runner/reporting failure | Operational state, never invented source finding. |
 
 Fixtures must resemble source-system payloads and cross the narrowest real
 production boundary. A fixture cannot contain the answer-bearing outcome that
 the adapter is supposed to compute.
+
+## Historical issue reconciliation
+
+For each issue, preserve source repository/run/job/head, human-reviewed atomic
+cause, observable, collector trust boundary, detector version, independent
+vulnerable/fixed/near-miss/partial corpus, expected reason code, and mutation
+proof. The corpus must live outside the production registry so the system under
+test cannot provide its own oracle.
+
+The #815 replay must use the actual redacted OpenCode and publication formats;
+the #813 replay must keep an aborted `Vulnerabilities 0` unknown after a 429;
+and #763 must distinguish a runtime authorization annotation from an echoed
+shell command. These representative cases do not substitute for the other 411
+issues.
 
 ## Mutation sensitivity
 
@@ -46,8 +67,9 @@ tests cannot earn efficacy credit.
 
 ## Coverage and documentation
 
-- Owned production statement and branch coverage: exact 100%, without rounded
-  percentages or blanket exclusions.
+- Owned production statement coverage: exact 100%, without rounded percentages
+  or blanket exclusions. PR #911 has no exact branch-coverage gate; branch
+  completeness remains required future evidence.
 - Public functions/classes/modules: beginner-readable docstrings; `__main__`
   process guards may use explicit no-cover annotations.
 - Changed behavior: RED → minimal GREEN → full regression proof.
@@ -67,3 +89,5 @@ Release requires full CI/security/coverage/docstring/package/SBOM/provenance
 evidence, zero valid unresolved critical/high finding, approved migrations and
 rollback, accessible UI evidence, exact integrated protected head, independent
 review where policy requires it, and protected-main operational verification.
+The 414/417 inventory count, 100% classifier statement coverage, or a signed
+external outcome cannot satisfy the direct-efficacy gate.

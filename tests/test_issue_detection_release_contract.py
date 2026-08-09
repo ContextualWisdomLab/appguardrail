@@ -114,8 +114,12 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         )
         self.assertIn("--require-hashes -r requirements-test.txt", workflow)
         self.assertIn("--module appguardrail_core/issue_detection.py", workflow)
+        self.assertIn("--module appguardrail_core/issue_detection_docs.py", workflow)
         self.assertIn("tests/test_issue_detection.py", workflow)
+        self.assertIn("tests/test_issue_detection_documentation.py", workflow)
         self.assertIn("tests/test_issue_detection_release_contract.py", workflow)
+        self.assertIn('"docs/issue-detection-traceability.json"', workflow)
+        self.assertIn('"docs/adr/**"', workflow)
         self.assertNotIn("pull_request_target:", workflow)
 
     def test_live_audit_workflow_is_paginated_and_read_only(self) -> None:
@@ -137,12 +141,17 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertIn("gh api --paginate --slurp", workflow)
         self.assertIn("state=all&per_page=100", workflow)
         self.assertIn("audit-registry", workflow)
+        self.assertIn(
+            "Require exact issue inventory and requirement digest reconciliation",
+            workflow,
+        )
+        self.assertNotIn("Require exact issue-to-detector coverage", workflow)
         self.assertNotIn("contents: write", workflow)
         self.assertNotIn("issues: write", workflow)
         self.assertNotIn("secrets.", workflow)
 
-    def test_docs_and_changelog_record_fail_closed_contract(self) -> None:
-        """Maintainers can map new issues without confusing failures with findings."""
+    def test_docs_and_changelog_record_status_aware_fail_closed_contract(self) -> None:
+        """Release prose cannot promote inventory accounting to detector efficacy."""
         documentation = (ROOT / "docs" / "issue-detection-contract.md").read_text(
             encoding="utf-8"
         )
@@ -153,7 +162,7 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
 
         for phrase in (
             "414",
-            "17 detector families",
+            "17 classifier families",
             "positive, negative, and unknown",
             "gate_satisfied",
             "does not prove a vulnerability",
@@ -161,8 +170,12 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, documentation)
         self.assertIn("issue-detection-contract.md", readme)
+        self.assertIn("active-PR baseline", readme)
+        self.assertIn("issue-detection-traceability.json", readme)
         self.assertTrue(changelog.startswith("### Added\n"))
-        self.assertIn("all 414", changelog)
+        self.assertIn("414 issue identities", changelog)
+        self.assertIn("direct detector efficacy remains 0/417", changelog)
+        self.assertNotIn("all 414", changelog)
 
     def test_canonical_documentation_graph_is_discoverable_and_state_bearing(self) -> None:
         """The issue-complete contract is reconstructable without chat history."""
@@ -180,6 +193,7 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
             "docs/THREAT_MODEL.md": ("## Trust boundaries", "## Abuse cases"),
             "docs/TEST_STRATEGY.md": ("## Detection-efficacy matrix", "## Mutation sensitivity"),
             "docs/OPERABILITY.md": ("## Service-level objectives", "## Recovery"),
+            "docs/INCIDENT_RUNBOOK.md": ("## 1. Contain", "## 5. Close"),
             "docs/TRACEABILITY.md": ("## Requirements matrix", "## Status vocabulary"),
         }
 
@@ -205,6 +219,34 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
             "PLANNED",
         ):
             self.assertIn(state_name, traceability)
+
+    def test_canonical_docs_do_not_promote_missing_capabilities(self) -> None:
+        """Known implementation gaps remain explicit and machine-regressed."""
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        prd = (ROOT / "docs" / "product" / "PRD.md").read_text(encoding="utf-8")
+        trd = (ROOT / "docs" / "engineering" / "TRD.md").read_text(
+            encoding="utf-8"
+        )
+        evidence_model = (
+            ROOT / "docs" / "architecture" / "EVIDENCE_MODEL.md"
+        ).read_text(encoding="utf-8")
+        traceability = (ROOT / "docs" / "TRACEABILITY.md").read_text(
+            encoding="utf-8"
+        )
+        strategy = (ROOT / "docs" / "TEST_STRATEGY.md").read_text(
+            encoding="utf-8"
+        )
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        for document in (architecture, prd, trd, traceability):
+            self.assertIn("0/417", document)
+        self.assertIn("repository/source-artifact identity is not bound", trd)
+        self.assertIn("legacy runtime schema", evidence_model.lower())
+        self.assertIn("canonical v2 migration schema", evidence_model.lower())
+        self.assertIn("Retention and audit evidence are bounded", traceability)
+        self.assertIn("`PARTIAL`", traceability)
+        self.assertNotIn("statement and branch coverage: exact 100%", strategy)
+        self.assertNotIn("appguardrail scan --push http://", readme)
 
 
 if __name__ == "__main__":

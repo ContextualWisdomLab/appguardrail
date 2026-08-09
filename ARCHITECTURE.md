@@ -1,11 +1,18 @@
 # AppGuardrail architecture
 
 This document is the discoverable entry point for AppGuardrail's as-built and
-target architecture. Status is explicit: the issue-complete detection contract
-is `ACTIVE_PR` until merged into the protected `develop` branch; existing CLI,
-scanner, control-plane, reporting, and SQLite behavior is
+target architecture. Status is explicit: PR #911's issue inventory and
+evidence-classification foundation is `ACTIVE_PR`; issue-complete direct
+detection is still `MISSING`. Existing CLI, scanner, control-plane, reporting,
+and SQLite behavior is
 `IMPLEMENTED_ON_PROTECTED_MAIN` at base commit
 `0d07baae44a40edfcaec5e42c7fb9351510ca9f0`.
+
+The active PR registers 414 issue identities and 417 rows, but those rows
+collapse to 20 unique family/claim semantics. Formal per-issue cause binding is
+0/414, independently validated direct detector efficacy is 0/417, and
+protected-main operational proof is 0/414. Registry presence and classifier
+branch coverage are not detector efficacy.
 
 ## System context
 
@@ -24,15 +31,16 @@ SARIF, JSON, HTTP, or GitHub workflow contracts; no consumer reads the
 control-plane database directly.
 
 ```mermaid
-flowchart LR
+flowchart TD
   Builder[Developer or CI] --> CLI[AppGuardrail CLI]
   CLI --> Rules[Native rules and external-engine adapters]
   Rules --> Findings[Normalized findings]
   Findings --> SARIF[SARIF 2.1.0]
   Findings --> Reports[Human and buyer reports]
   Findings --> API[Tenant-scoped control-plane API]
-  GitHub[GitHub issues and workflow evidence] --> Detect[Issue-derived detectors]
-  Detect --> Outcomes[Finding / clean / control effective / dependency failure / reporting failure / unknown]
+  GitHub[GitHub issues and workflow evidence] --> Detect[Evidence classifiers - ACTIVE_PR]
+  Detect --> Direct[Cause-bound direct detectors - MISSING]
+  Direct --> Outcomes[Finding / clean / control effective / dependency failure / reporting failure / unknown]
   Outcomes --> Reports
   API --> SQLite[(SQLite control-plane store)]
   API --> Console[Static accessible console]
@@ -51,18 +59,23 @@ flowchart LR
   current SQLite repository boundary; `controlplane_schema.py` owns migrations.
 - `pinned_https.py` owns SSRF-resistant, redirect-revalidated HTTPS delivery.
 - `issue_detection.py` and `issue_detection_registry.json` own the `ACTIVE_PR`
-  no-exclusion issue-to-detector contract.
+  inventory, closed classifier schemas, and bounded workflow-observation model.
+  They do not yet bind each issue to a source collector, direct detector, and
+  independent oracle.
 - GitHub workflows are orchestration only. A collector or a failed Check is
   evidence input, never detector efficacy by itself.
 
 ## Authority and data flow
 
-The authoritative source identity for a finding is the scanner/rule/tool plus
-its version, rule identifier, location, fingerprint, and exact source revision.
-The authoritative source identity for workflow evidence additionally includes
-repository, producer, run identifier, head SHA, evidence reference, digest, and
-attestation. Issue title, labels, prose, and issue number select requirements;
-they cannot assert a runtime outcome.
+The target authoritative source identity for a finding is the
+scanner/rule/tool plus its version, rule identifier, location, fingerprint, and
+exact source revision. The target workflow identity additionally includes
+repository, producer, run/job/attempt, event, head, source-artifact identity,
+evidence reference, digest, and attestation. The active-PR envelope binds only
+producer, run, head, evidence reference, and payload digest; repository and
+source-artifact identity are not bound. It is therefore an external observation,
+not direct detector authority. Issue title, labels, prose, and issue number
+select requirements; they cannot assert a runtime outcome.
 
 Results are fail-closed. Missing, malformed, extra, stale, or unauthenticated
 evidence yields `unknown` with an unsatisfied gate. A correctly rejected
@@ -91,14 +104,18 @@ documented separately and must not be mistaken for persisted tables.
 - Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
 - Test strategy: [`docs/TEST_STRATEGY.md`](docs/TEST_STRATEGY.md)
 - Operability and recovery: [`docs/OPERABILITY.md`](docs/OPERABILITY.md)
+- Incident response: [`docs/INCIDENT_RUNBOOK.md`](docs/INCIDENT_RUNBOOK.md)
 - Requirement-to-evidence traceability: [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md)
+- Machine-readable delivery state: [`docs/issue-detection-traceability.json`](docs/issue-detection-traceability.json)
 - Contributor constraints: [`AGENTS.md`](AGENTS.md) and [`CLAUDE.md`](CLAUDE.md)
 - Release history: [`CHANGELOG.md`](CHANGELOG.md) and `CHANGELOG.d/`
 
 ## Quality attributes
 
 Security, tenant isolation, evidence provenance, deterministic local operation,
-100% owned production statement/branch coverage, accessible interaction,
-bounded resource use, rollback, and standalone/MSA interoperability are release
-properties. CSAP and SOC 2 are design targets; this repository does not claim
-certification.
+exact owned statement coverage, accessible interaction, bounded resource use,
+rollback, and standalone/MSA interoperability are current release properties.
+Exact branch coverage remains a target without a PR #911 gate. The documentation
+fitness gate prevents active-PR inventory counts
+from being promoted to protected-main efficacy. CSAP and SOC 2 are design
+targets; this repository does not claim certification.

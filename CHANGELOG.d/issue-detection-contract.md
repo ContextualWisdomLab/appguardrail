@@ -1,16 +1,16 @@
 ### Added
 
-- Added an executable no-exclusions contract for all 414 retained AppGuardrail
-  issues and 417 independent claims, with 17 callable detector families,
-  closed evidence-field and required-evidence-field contracts, and
-  machine-readable `obligations[]` proven by positive, negative, and unknown
-  executions of each full condition. Unsupported, extra, or missing evidence
-  is unknown and fail-closed. The contract also includes provenance-bound
-  workflow-result classification authenticated by an externally provisioned
-  HMAC capability, recomputed payload and issue-requirement digests, an
-  installed audit CLI, and read-only exact-coverage and live-inventory workflows.
+- Added an active-PR evidence-classification foundation for 414 issue identities,
+  417 registered claim rows, 20 unique claim semantics, and 17 callable
+  classifier families. Closed evidence fields and positive, negative, and
+  unknown executions fail closed on unsupported, extra, or missing evidence.
+  Provenance-bound workflow observations authenticate producer/run/head/digest
+  identity, while inventory and requirement-digest reconciliation remains
+  read-only. Per-issue cause binding is missing and direct detector efficacy remains 0/417;
+  neither registry counts nor signed opaque outcomes are completion evidence.
 - Added a canonical PRD, TRD, root architecture, status-bearing ADR, UML views,
   conceptual evidence model, threat model, test strategy, operability runbook,
   and requirement-to-code/test/evidence traceability matrix. These documents
   distinguish protected-main behavior, the active PR, accepted targets, and
-  planned work and are enforced by a release-contract test.
+  planned work, add an incident runbook, and are enforced by a machine-readable
+  documentation fitness gate.

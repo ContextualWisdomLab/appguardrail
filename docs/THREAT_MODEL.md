@@ -41,6 +41,9 @@ it is not a certification claim.
 | TM-10 | Dependency or model provider outage is treated as clean. | Complete authoritative evidence required for clean. | `dependency_failure` or `unknown`. |
 | TM-11 | Secret or PII is destroyed by blanket masking or leaked in logs. | Purpose-bound authorization, selective disclosure, bounded retention, secret-safe summaries, controlled export. | Audit event and gate block where applicable. |
 | TM-12 | Compromised dependency/action alters evidence. | Zero production dependencies, hash-locked tests, immutable action pins, SBOM/provenance. | Release blocked. |
+| TM-13 | A signed opaque outcome is promoted to native detector efficacy. | Separate provenance-bearing observation from independently recomputed finding/clean/control authority. | Classifier-only; gate unsatisfied for direct efficacy. |
+| TM-14 | Echoed shell source matches a log keyword for a branch that never ran. | Parse structured runtime annotations and exclude command-source echoes; retain log regex only as an RCA hint. | `unknown` until authoritative evidence exists. |
+| TM-15 | Documentation promotes 414 registry rows to shipped detection. | Machine-readable counts/status and protected-main proof prerequisite. | Documentation fitness gate fails. |
 
 ## Privacy model
 
@@ -59,6 +62,9 @@ reports; and providers/regions must be selected by deployment policy.
 - SQLite is suitable for the current optional single-process service, not
   declared horizontally scalable production persistence.
 - GitHub availability is required for live inventory audit, but not local scan.
+- The active-PR shared HMAC model authenticates a bounded payload but does not
+  prove the referenced artifact or isolate every producer key; direct detector
+  authority remains missing.
 
 ## Review triggers
 

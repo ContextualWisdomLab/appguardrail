@@ -50,17 +50,26 @@ unless a deterministic production contract validates it.
 ## Delivery status
 
 - `IMPLEMENTED_ON_PROTECTED_MAIN`: CLI/rule scanning, normalized findings,
-  SARIF, reports, SBOM, SQLite control plane, tenant roles, audit/retention,
-  console, and pinned HTTPS primitives.
-- `ACTIVE_PR`: complete issue-derived registry, signed workflow-result evidence,
-  lifecycle audit, canonical architecture pack, and efficacy contracts.
-- `ACCEPTED_TARGET_ARCHITECTURE`: producer-side adapters emit authenticated,
-  structured evidence envelopes at every external gate.
+  SARIF, reports, SBOM, SQLite control plane, tenant roles, console, and pinned
+  HTTPS primitives.
+- `ACTIVE_PR`: 414-issue inventory, 417 registered classifier rows, signed
+  workflow-observation envelope, lifecycle inventory audit, canonical
+  architecture pack, and documentation fitness gate.
+- `PARTIAL`: source-result instrumentation, distinct outcome modeling, and
+  retention/audit schema primitives without complete purge/control-plane/API
+  integration and operational proof.
+- `MISSING`: per-issue cause binding (0/414), independently validated direct
+  detector efficacy (0/417), and protected-main operational proof (0/414).
+- `ACCEPTED_TARGET_ARCHITECTURE`: each claim binds a trusted collector, native
+  detector, independent vulnerable/fixed/near-miss oracle, mutation proof, and
+  live exact-head replay.
 - `PLANNED`: managed-store implementation and horizontally scaled control plane.
 
 ## Success measures
 
-The release gate requires zero excluded issues, zero unsupported clean results,
-100% owned production coverage/docstrings, mutation-sensitive detector tests,
-no critical/high unresolved finding, exact-head CI evidence, and rollback proof.
-Operational measures are defined in `docs/OPERABILITY.md`.
+The issue-complete release gate requires 414/414 source causes reconciled,
+417/417 direct detector claims independently validated, zero unsupported clean
+results, mutation-sensitive black-box tests, exact-head CI, protected-main live
+evidence, and rollback proof. Registry counts, signed opaque outcomes, and
+statement coverage cannot substitute for those measures. Operational measures
+are defined in `docs/OPERABILITY.md`.

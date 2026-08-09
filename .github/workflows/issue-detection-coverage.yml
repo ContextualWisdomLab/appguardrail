@@ -5,12 +5,25 @@ on:
     branches: [develop, main]
     paths:
       - "appguardrail_core/issue_detection.py"
+      - "appguardrail_core/issue_detection_docs.py"
       - "appguardrail_core/issue_detection_registry.json"
       - "appguardrail_core/__init__.py"
       - "tests/test_issue_detection.py"
+      - "tests/test_issue_detection_documentation.py"
       - "tests/test_issue_detection_release_contract.py"
       - "tests/fixtures/appguardrail_issue_numbers_2026-08-09.json"
       - "docs/issue-detection-contract.md"
+      - "docs/issue-detection-traceability.json"
+      - "docs/product/PRD.md"
+      - "docs/engineering/TRD.md"
+      - "docs/architecture/**"
+      - "docs/THREAT_MODEL.md"
+      - "docs/TEST_STRATEGY.md"
+      - "docs/OPERABILITY.md"
+      - "docs/INCIDENT_RUNBOOK.md"
+      - "docs/TRACEABILITY.md"
+      - "docs/adr/**"
+      - "ARCHITECTURE.md"
       - "CHANGELOG.d/issue-detection-contract.md"
       - "pyproject.toml"
       - "MANIFEST.in"
@@ -20,12 +33,25 @@ on:
     branches: [develop, main]
     paths:
       - "appguardrail_core/issue_detection.py"
+      - "appguardrail_core/issue_detection_docs.py"
       - "appguardrail_core/issue_detection_registry.json"
       - "appguardrail_core/__init__.py"
       - "tests/test_issue_detection.py"
+      - "tests/test_issue_detection_documentation.py"
       - "tests/test_issue_detection_release_contract.py"
       - "tests/fixtures/appguardrail_issue_numbers_2026-08-09.json"
       - "docs/issue-detection-contract.md"
+      - "docs/issue-detection-traceability.json"
+      - "docs/product/PRD.md"
+      - "docs/engineering/TRD.md"
+      - "docs/architecture/**"
+      - "docs/THREAT_MODEL.md"
+      - "docs/TEST_STRATEGY.md"
+      - "docs/OPERABILITY.md"
+      - "docs/INCIDENT_RUNBOOK.md"
+      - "docs/TRACEABILITY.md"
+      - "docs/adr/**"
+      - "ARCHITECTURE.md"
       - "CHANGELOG.d/issue-detection-contract.md"
       - "pyproject.toml"
       - "MANIFEST.in"
@@ -58,6 +84,7 @@ jobs:
         run: |
           python -m pytest -q \
             tests/test_issue_detection.py \
+            tests/test_issue_detection_documentation.py \
             tests/test_issue_detection_release_contract.py
       - name: Verify exact unrounded statement coverage
         run: |
@@ -65,3 +92,6 @@ jobs:
             --module appguardrail_core/issue_detection.py \
             --test tests/test_issue_detection.py \
             --test tests/test_issue_detection_release_contract.py
+          python -m scripts.ci.verify_module_coverage \
+            --module appguardrail_core/issue_detection_docs.py \
+            --test tests/test_issue_detection_documentation.py

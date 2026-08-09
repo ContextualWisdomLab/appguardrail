@@ -1,7 +1,8 @@
 # AppGuardrail UML views
 
-The diagrams are architecture-as-code. Solid components exist on protected
-`develop`; components marked `ACTIVE_PR` are introduced by PR #911.
+The diagrams are architecture-as-code. Components are labeled
+`IMPLEMENTED`, `ACTIVE_PR`, or `MISSING`; target sequences do not claim a
+current call path.
 
 ## Component diagram
 
@@ -17,8 +18,10 @@ flowchart TB
     Store[(SQLite store)]
     Delivery[DNS-pinned HTTPS delivery]
     Registry[Issue registry - ACTIVE_PR]
-    Detector[Production detector adapters - ACTIVE_PR]
-    Audit[Inventory and efficacy audits - ACTIVE_PR]
+    Classifier[Evidence classifiers - ACTIVE_PR]
+    Detector[Cause-bound direct detectors - MISSING]
+    Audit[Inventory audit - ACTIVE_PR]
+    Efficacy[Live efficacy audit - MISSING]
   end
   CLI --> Native
   CLI --> External
@@ -28,16 +31,17 @@ flowchart TB
   Normalize --> Control
   Control --> Store
   Control --> Delivery
-  Registry --> Detector
+  Registry --> Classifier
+  Classifier --> Detector
   Detector --> Output
   Audit --> Registry
-  Audit --> Detector
+  Efficacy --> Detector
 ```
 
 ## Package diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   scanner_cli[scanner.cli] --> scanner_rules[scanner.rules]
   scanner_cli --> findings[appguardrail_core.findings]
   findings --> sarif[appguardrail_core.sarif]
@@ -50,6 +54,10 @@ flowchart LR
 ```
 
 ## Sequence diagram
+
+This is the accepted target sequence. PR #911 stops at generic classifier
+execution because claim-specific collectors, direct detectors, and independent
+oracles are not yet bound.
 
 ```mermaid
 sequenceDiagram
@@ -90,7 +98,7 @@ stateDiagram-v2
 ## Deployment diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Workstation_or_CI[Workstation or CI runner]
     Wheel[AppGuardrail wheel]
     Project[Target repository]
