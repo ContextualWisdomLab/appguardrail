@@ -42,6 +42,9 @@ def test_single_file_context_uses_working_directory_and_filename_fallback(
     assert context.base_path_is_file
     assert context.relative_candidate(target) == "standalone.py"
 
+    outside_target = tmp_path.parent / "outside.py"
+    assert context.relative_candidate(outside_target) == "outside.py"
+
 
 def test_context_is_immutable_and_rejects_invalid_builder_inputs(tmp_path: Path) -> None:
     """Callers cannot mutate cached identity or smuggle a non-Boolean classification."""
@@ -85,6 +88,15 @@ def test_context_handles_separator_boundaries_without_prefix_collision(tmp_path:
     colliding_sibling = tmp_path / "repository" / "file.py"
 
     assert context.relative_candidate(colliding_sibling) == str(colliding_sibling)
+
+
+def test_filesystem_root_keeps_its_existing_separator() -> None:
+    """A root path never gains a duplicate platform separator in its cached prefix."""
+    root = Path(os.path.abspath(os.sep))
+
+    context = build_scan_path_context(root, base_path_is_file=False)
+
+    assert context.resolved_base_path_prefix == str(root)
 
 
 def test_public_record_accepts_cross_platform_cached_strings() -> None:
