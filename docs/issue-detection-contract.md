@@ -97,11 +97,14 @@ control event rather than a product vulnerability.
 
 Free-form logs can produce bounded operational diagnoses, but cannot confirm a
 finding or a successful control. The active-PR
-`appguardrail.workflow-result-envelope.v1` verifies an HMAC-SHA-256 over a
-family-specific producer, workflow run, head commit, evidence reference, and
-payload digest. That proves only that the bounded upstream observation was not
-altered under the shared capability; it does not verify the underlying artifact
-or establish AppGuardrail direct detection. Raw logs, keys, and matched secrets
+`appguardrail.workflow-result-envelope.v2` verifies an HMAC-SHA-256 over a
+family-specific producer, source repository, workflow run, head commit,
+evidence reference, source-artifact SHA-256 identity, and payload digest.
+Changing either source-identity field invalidates the attestation. The v1 reader
+remains for legacy classifier fixtures but lacks those two identities and earns
+no source-bound efficacy credit. Neither version verifies the referenced
+artifact's contents or establishes AppGuardrail direct detection. Raw logs,
+keys, and matched secrets
 are never serialized in the output; the evidence hash contains only bounded
 classification identity. Direct finding/clean/control authority remains
 missing until source-specific detectors and independent oracles are present.
@@ -136,7 +139,9 @@ appguardrail-issue-detection classify-workflow \
 provisioned by the trusted gate runner, not supplied by the result producer.
 AppGuardrail authenticates the envelope metadata in constant time, recomputes
 the payload digest, and then checks the run, head, and exact producer mapping.
-Missing, weak, malformed, or mismatched key material keeps the gate unsatisfied.
+For v2 it also validates the `owner/repository` shape and exact 64-hex
+source-artifact digest before accepting the envelope. Missing, weak, malformed,
+or mismatched key material keeps the gate unsatisfied.
 
 Audit a complete, paginated GitHub issues response:
 
