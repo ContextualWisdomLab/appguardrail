@@ -14,6 +14,7 @@ _BASELINE_URL = "http://hook.example/existing"
 
 
 def _serve(server):
+    """Start the isolated control-plane server on a daemon thread."""
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
@@ -33,6 +34,7 @@ def webhook_server(tmp_path):
 
 
 def _post(base, key, body):
+    """POST one JSON value to the webhook configuration endpoint."""
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(
         f"{base}/api/v1/webhook",
@@ -48,6 +50,7 @@ def _post(base, key, body):
 
 
 def _stored_webhook(db):
+    """Read the currently persisted webhook URL from the isolated database."""
     conn = connect(db)
     try:
         row = conn.execute("SELECT webhook_url FROM orgs LIMIT 1").fetchone()
@@ -57,6 +60,7 @@ def _stored_webhook(db):
 
 
 def _seed_existing_webhook(base, key, db):
+    """Persist and verify a safe baseline URL before rejection tests."""
     status, payload = _post(base, key, {"url": _BASELINE_URL})
     assert status == 200
     assert payload == {"webhook_url": _BASELINE_URL}
