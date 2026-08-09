@@ -123,8 +123,8 @@ AppGuardrail Monitor tracks:
 |---|---|---|
 | New commit | Runs the repository scan; semantic security-diff analysis is not implemented | `PARTIAL`; diff analysis `PLANNED` |
 | New API route | Pattern-based auth/ownership signals | `PARTIAL` |
-| Env change | Native secret exposure rules | `IMPLEMENTED` |
-| Supabase/Firebase rule change | Packaged permissiveness patterns | `IMPLEMENTED` |
+| Env change | Native secret exposure rules | `IMPLEMENTED_ON_PROTECTED_MAIN` |
+| Supabase/Firebase rule change | Packaged permissiveness patterns | `IMPLEMENTED_ON_PROTECTED_MAIN` |
 | New dependency | Optional Trivy/dependency evidence; native typosquatting detection absent | `PARTIAL`; typosquatting `PLANNED` |
 | Deploy | Optional explicitly authorized ZAP target; no automatic deployed-endpoint inventory | `PARTIAL`; endpoint inventory `PLANNED` |
 | Payment feature added | Pattern-based webhook/auth/price-integrity review | `PARTIAL` |

@@ -1,9 +1,12 @@
 {
-  "schema": "appguardrail.issue-detection-documentation.v1",
+  "schema": "appguardrail.issue-detection-documentation.v2",
   "repository": "ContextualWisdomLab/appguardrail",
   "assessment_date": "2026-08-09",
   "protected_main_sha": "0d07baae44a40edfcaec5e42c7fb9351510ca9f0",
   "pull_request": 911,
+  "documentation_delivery_state": "active_pr",
+  "validator_scope": "topology_count_declared_status_guard",
+  "manual_semantic_review_required": true,
   "registry_path": "appguardrail_core/issue_detection_registry.json",
   "inventory": {
     "issue_count": 414,
@@ -18,6 +21,7 @@
     "inventory_coverage": "active_pr",
     "family_adapter_coverage": "active_pr",
     "per_issue_cause_binding": "missing",
+    "direct_detector_efficacy": "missing",
     "source_result_instrumentation": "partial",
     "protected_main_operational_proof": "missing"
   },
@@ -25,57 +29,99 @@
     {
       "role": "architecture",
       "path": "ARCHITECTURE.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "prd",
       "path": "docs/product/PRD.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "trd",
       "path": "docs/engineering/TRD.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "adr_index",
       "path": "docs/adr/README.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "uml",
       "path": "docs/architecture/UML.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "erd",
       "path": "docs/architecture/EVIDENCE_MODEL.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "threat_model",
       "path": "docs/THREAT_MODEL.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "test_strategy",
       "path": "docs/TEST_STRATEGY.md",
-      "state": "current"
+      "state": "current_in_active_pr"
     },
     {
       "role": "operability",
       "path": "docs/OPERABILITY.md",
-      "state": "current"
+      "state": "partial_in_active_pr"
     },
     {
       "role": "incident_runbook",
       "path": "docs/INCIDENT_RUNBOOK.md",
-      "state": "current"
+      "state": "partial_in_active_pr"
     },
     {
       "role": "traceability",
       "path": "docs/TRACEABILITY.md",
-      "state": "current"
+      "state": "current_in_active_pr"
+    }
+  ],
+  "supporting_artifacts": [
+    {
+      "path": "README.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "SECURITY.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "AGENTS.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "CLAUDE.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "CHANGELOG.d/issue-detection-contract.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "docs/methodology.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": "docs/product/2026-07-02-2b-krw-sale-readiness-plan.md",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": ".github/workflows/issue-detection-coverage.yml",
+      "state": "current_in_active_pr"
+    },
+    {
+      "path": ".github/workflows/issue-detection-registry-audit.yml",
+      "state": "current_in_active_pr"
     }
   ]
 }

@@ -1,107 +1,70 @@
-# ADR-0001: Issue-complete executable detection contract
+# ADR-0001: No-exclusion issue inventory and collector boundary
 
 Status: Accepted
 
 Date: 2026-08-09
 
-Implementation: inventory/classifier foundation `ACTIVE_PR` #911; per-issue
-cause binding and direct detector efficacy `MISSING`.
+Implementation: inventory/classifier foundation `ACTIVE_PR` #911; direct
+issue-level efficacy remains `MISSING`.
 
 ## Context
 
-AppGuardrail historically created or retained issues from security workflow
-failures. The collector preserved trusted GitHub metadata, but failure metadata
-alone could not distinguish a real source finding, a clean scan followed by a
-provider outage, an effective authorization block, result publication failure,
-or inconclusive evidence. Treating issue presence or workflow conclusion as
-detector efficacy would be circular.
-
-The product requirement is stronger: every open or closed AppGuardrail issue,
-including manual, automated, product, governance, dependency, infrastructure,
-control-block, false-positive, and mixed-cause issues, remains a condition that
-AppGuardrail software must directly detect and classify.
+AppGuardrail historically retained issues created from security workflow
+failures. The collector preserved bounded GitHub metadata, but that metadata
+could not distinguish a source finding from a provider outage, effective
+authorization control, reporting failure, or inconclusive evidence. Excluding
+closed, duplicate, operational, or hard-to-instrument issues would hide product
+requirements instead of resolving them.
 
 ## Decision
 
-Adopt a no-exclusion issue→claim→detector-family contract with:
+Adopt a no-exclusion inventory contract:
 
-- a complete paginated inventory and normalized requirement digest;
-- one or more independently executable claims per issue;
-- closed evidence and required-evidence schemas;
-- an exact callable production adapter per detector family;
-- obligation-level positive, negative, and unknown executions;
-- structured provenance binding exact producer, repository, run, head, source,
-  evidence reference, digest, and externally provisioned HMAC capability; and
-- separate finding, clean, control-effective, dependency-failure,
-  reporting-failure, and unknown semantics.
+- every open and closed AppGuardrail issue remains a retained requirement;
+- issue number plus normalized title/body digest detects inventory drift;
+- each distinct underlying cause must eventually have an explicit claim;
+- collectors, issue prose, labels, workflow conclusions, regexes, and opaque
+  upstream outcomes are observations, not direct detectors; and
+- blocked evidence remains visible and non-passing rather than becoming clean,
+  waived, suppressed, or not applicable without reviewed product-boundary
+  evidence.
 
-Collectors, labels, issue prose, issue-number registries, substring matching,
-and another scanner's opaque pass/fail cannot satisfy the contract. They may
-route evidence to a production adapter.
+Independent decisions govern the implementation boundaries:
+
+- [ADR-0002](ADR-0002-evidence-authority-and-attestation.md): source authority
+  and attestation;
+- [ADR-0003](ADR-0003-typed-outcomes-and-gate-aggregation.md): typed outcomes
+  and gate aggregation; and
+- [ADR-0004](ADR-0004-independent-oracles-and-mutation-proof.md): independent
+  oracle and direct-efficacy proof.
 
 ## Alternatives
 
-1. Keep the Actions failure collector only: rejected because it detects a
+1. Keep the Actions failure collector only: rejected because it observes a
    failed conclusion, not the underlying condition.
-2. Register every issue number with a status fixture: rejected as circular and
-   mutation-insensitive.
-3. Exclude clean, external, duplicate, or effective-control issues: rejected
-   because it narrows the explicit product requirement.
-4. One bespoke detector per repeated observation: rejected because identical
-   evidence conditions should share reviewed production behavior while
-   retaining separate issue claims.
+2. Register every issue with a generic family fixture: useful for inventory,
+   rejected as direct-efficacy evidence because it is circular.
+3. Exclude clean, external, duplicate, closed, or effective-control issues:
+   rejected because it narrows the explicit product requirement.
 
 ## Consequences
 
-Positive: inventory drift fails closed; multiple causes remain visible;
-detector efficacy is testable; operators cannot accidentally report a provider
-failure as a vulnerability; source systems can integrate through a stable
-envelope.
-
-Negative: the registry is large; new issues cannot pass CI until requirements
-and executable coverage are reconciled; external source producers must add a
-trusted structured adapter before they can prove clean/finding states.
-
-Current implementation debt: 417 registered rows collapse to 20 unique
-family/claim semantics; formal cause binding is 0/414 and independently
-validated direct-detector efficacy is 0/417. Generic family fixtures and signed
-opaque outcomes therefore remain classifier evidence, not acceptance evidence.
-The active envelope also lacks repository/source-artifact identity, and the two
-runtime result taxonomies are not unified.
-
-## Security and privacy consequences
-
-Raw logs and keys stay outside the registry. Bounded provenance and hashes are
-retained. HMAC is a producer/run binding capability, not an identity system;
-key distribution and rotation remain deployment responsibilities. Unknown
-evidence blocks the gate and is not converted to a finding.
-
-## Failure and recovery
-
-If the live audit fails, do not edit the inventory to exclude the issue. Fetch
-the exact changed requirement, update claim/detector/test/docs together, and
-rerun. If a producer envelope fails verification, preserve it as unknown,
-rotate or repair the producer capability, and reissue evidence for the exact
-head. Rollback is a single PR revert because there is no data migration.
+Inventory drift fails closed and no issue silently disappears. The registry is
+large, and new/edited issues require atomic claim/test/docs reconciliation.
+Inventory completeness does not imply detector completeness: PR #911 has 414
+issue identities and 417 rows but only 20 unique family/claim semantics, 0/414
+cause-bound issues, 0/417 independently validated direct claims, and 0/414
+protected-main operational proofs.
 
 ## Acceptance
 
-- Complete live inventory equality and requirement-digest equality.
-- Callable adapter resolution for every family and claim.
-- Mutation-sensitive positive, negative, malformed, missing, extra-field,
-  provenance-tamper, and multi-cause tests.
-- Exact statement coverage and public docstring gates; exact branch coverage
-  remains required but is not implemented by the PR workflow.
-- Exact-head CI, security review, packaging, and protected-main live audit.
+- Complete paginated open-and-closed inventory equality.
+- Exact normalized requirement-digest equality.
+- No exclusion/waiver field in the registry contract.
+- Separate declared measurements for inventory, cause binding, direct efficacy,
+  and protected-main proof.
+- Exact-head CI plus a post-merge protected-main audit before any shipped claim.
 
-None of the acceptance bullets is satisfied merely by the 414/417 registry
-counts. The decision is accepted architecture; implementation completion stays
-missing until the machine-readable traceability record reaches the same
-production and protected-main boundaries.
-
-## Supersession
-
-A successor ADR is required to change no-exclusion scope, outcome authority,
-provenance binding, adapter execution semantics, or persistence. Expanding a
-family without changing these authorities may update this record and its
-traceability row.
+This ADR accepts the requirement boundary; it does not claim that source
+acquisition, direct detectors, independent oracles, or protected-main efficacy
+are implemented.

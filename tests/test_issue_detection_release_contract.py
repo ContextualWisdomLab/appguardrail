@@ -104,6 +104,9 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
 
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertIn("persist-credentials: false", workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
+        self.assertIn("Require exact event head", workflow)
+        self.assertIn("EXPECTED_HEAD_SHA", workflow)
         self.assertIn(
             "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
             workflow,
@@ -115,6 +118,9 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertIn("--require-hashes -r requirements-test.txt", workflow)
         self.assertIn("--module appguardrail_core/issue_detection.py", workflow)
         self.assertIn("--module appguardrail_core/issue_detection_docs.py", workflow)
+        self.assertIn("name: Issue Classifier and Documentation Contracts", workflow)
+        self.assertIn('"requirements-test.txt"', workflow)
+        self.assertIn('"scripts/ci/verify_module_coverage.py"', workflow)
         self.assertIn("tests/test_issue_detection.py", workflow)
         self.assertIn("tests/test_issue_detection_documentation.py", workflow)
         self.assertIn("tests/test_issue_detection_release_contract.py", workflow)
@@ -145,6 +151,8 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertIn("schedule:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("contents: read\n  issues: read", workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
+        self.assertIn("Require exact event head", workflow)
         self.assertIn("gh api --paginate --slurp", workflow)
         self.assertIn("state=all&per_page=100", workflow)
         self.assertIn("audit-registry", workflow)
@@ -255,6 +263,42 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         self.assertNotIn("statement and branch coverage: exact 100%", strategy)
         self.assertNotIn("appguardrail scan --push http://", readme)
 
+    def test_threat_operations_and_erd_match_as_built_boundaries(self) -> None:
+        """Canonical controls and data cardinalities must match executable reality."""
+        threat_model = (ROOT / "docs" / "THREAT_MODEL.md").read_text(
+            encoding="utf-8"
+        )
+        operability = (ROOT / "docs" / "OPERABILITY.md").read_text(
+            encoding="utf-8"
+        )
+        evidence_model = (
+            ROOT / "docs" / "architecture" / "EVIDENCE_MODEL.md"
+        ).read_text(encoding="utf-8")
+        evidence_words = " ".join(evidence_model.split())
+
+        self.assertIn("repository/source-artifact binding is `MISSING`", threat_model)
+        self.assertIn("independent per-cause aggregation is `MISSING`", threat_model)
+        self.assertNotIn(
+            "exact producer/run/head/source and digest binding",
+            threat_model,
+        )
+        self.assertIn("## Ownership and escalation", operability)
+        self.assertIn("## Operator commands", operability)
+        self.assertIn("## Recovery-objective status", operability)
+        self.assertIn("does not bind repository or source-artifact identity", operability)
+        self.assertIn(
+            "composite `(detector_family_id, obligation_id)`",
+            evidence_words,
+        )
+        self.assertIn(
+            "composite foreign key `(issue_number, claim_id)`",
+            evidence_words,
+        )
+        self.assertIn(
+            "PURGE_PREVIEWS ||--o{ PURGE_RECEIPTS : authorizes",
+            evidence_model,
+        )
+
     def test_contributor_and_methodology_docs_preserve_detection_boundary(self) -> None:
         """Repository instructions cannot regress to collector-as-detector claims."""
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
@@ -265,14 +309,87 @@ class IssueDetectionReleaseContractTests(unittest.TestCase):
         sale_plan = (
             ROOT / "docs" / "product" / "2026-07-02-2b-krw-sale-readiness-plan.md"
         ).read_text(encoding="utf-8")
+        agents_words = " ".join(agents.split())
 
         for document in (agents, claude):
             self.assertIn("collector is not a detector", document)
             self.assertIn("source-bound", document)
             self.assertIn("ACTIVE_PR", document)
         self.assertNotIn("`jules`", agents)
+        self.assertNotIn(
+            "unless the finding is in docs, tests, examples, or scanner fixtures",
+            agents,
+        )
+        self.assertIn("File location never suppresses a finding", agents_words)
+        self.assertIn("human-approved scope and acceptance source", agents_words)
+        self.assertIn("not executable evidence", agents_words)
+        self.assertIn("exact 100% statement coverage", agents_words)
+        self.assertIn("When the target stack uses", claude)
         self.assertIn("PLANNED", methodology)
+        self.assertNotIn("| `IMPLEMENTED` |", methodology)
+        self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", methodology)
         self.assertIn("metadata-only", sale_plan)
+
+    def test_architecture_decisions_are_atomic_indexed_and_status_bearing(self) -> None:
+        """Independent authority, outcome, oracle, and persistence choices remain reviewable."""
+        adr_root = ROOT / "docs" / "adr"
+        index = (adr_root / "README.md").read_text(encoding="utf-8")
+        expected = {
+            "ADR-0001-issue-complete-detection-contract.md": "no-exclusion",
+            "ADR-0002-evidence-authority-and-attestation.md": "source authority",
+            "ADR-0003-typed-outcomes-and-gate-aggregation.md": "typed outcomes",
+            "ADR-0004-independent-oracles-and-mutation-proof.md": "independent oracle",
+            "ADR-0005-control-plane-persistence-migration-boundary.md": (
+                "legacy and canonical-v2 persistence"
+            ),
+        }
+
+        for filename, decision_phrase in expected.items():
+            document = (adr_root / filename).read_text(encoding="utf-8")
+            adr_id = filename[:8]
+            self.assertIn(f"[{adr_id}]({filename})", index)
+            self.assertIn("Status: Accepted", document)
+            self.assertIn("Implementation:", document)
+            self.assertIn(decision_phrase, document.lower())
+        umbrella = (adr_root / next(iter(expected))).read_text(encoding="utf-8")
+        self.assertIn("ADR-0002", umbrella)
+        self.assertIn("ADR-0003", umbrella)
+        self.assertIn("ADR-0004", umbrella)
+
+    def test_changelog_and_primary_references_disclose_documentation_limits(self) -> None:
+        """Release notes and citations cannot imply retired or unavailable operations."""
+        root_changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        retired = (
+            ROOT / "CHANGELOG.d" / "856-commercial-readiness-loop.md"
+        ).read_text(encoding="utf-8")
+        migration = (
+            ROOT / "CHANGELOG.d" / "871-retention-schema-migration.md"
+        ).read_text(encoding="utf-8")
+        issue_fragment = (
+            ROOT / "CHANGELOG.d" / "issue-detection-contract.md"
+        ).read_text(encoding="utf-8")
+        incident = (ROOT / "docs" / "INCIDENT_RUNBOOK.md").read_text(
+            encoding="utf-8"
+        )
+        trd = (ROOT / "docs" / "engineering" / "TRD.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("CHANGELOG.d", root_changelog)
+        self.assertIn("unreleased source of truth", root_changelog.lower())
+        self.assertIn("Superseded by", retired)
+        self.assertIn("OpenCode", retired)
+        self.assertIn("migration rehearsal guide", migration)
+        self.assertIn("not a production backup/restore runbook", migration)
+        self.assertIn("topology/count/declared-status guard", issue_fragment)
+        self.assertNotIn("documentation fitness gate", issue_fragment)
+        self.assertIn(
+            "https://csrc.nist.gov/pubs/sp/800/61/r3/final",
+            incident,
+        )
+        self.assertIn("## References", incident)
+        self.assertIn("GitHub. (n.d.)", trd)
+        self.assertIn("Retrieved August 9, 2026", trd)
 
 
 if __name__ == "__main__":

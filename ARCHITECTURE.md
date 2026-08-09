@@ -115,7 +115,8 @@ documented separately and must not be mistaken for persisted tables.
 Security, tenant isolation, evidence provenance, deterministic local operation,
 exact owned statement coverage, accessible interaction, bounded resource use,
 rollback, and standalone/MSA interoperability are current release properties.
-Exact branch coverage remains a target without a PR #911 gate. The documentation
-fitness gate prevents active-PR inventory counts
-from being promoted to protected-main efficacy. CSAP and SOC 2 are design
-targets; this repository does not claim certification.
+Exact branch coverage remains a target without a PR #911 gate. The active-PR
+documentation guard checks declared topology, registry counts, delivery-state
+tokens, ADR indexing, and local links; it does not prove semantic truth, remote
+branch ancestry, detector efficacy, or protected-main operation. CSAP and SOC 2
+are design targets; this repository does not claim certification.

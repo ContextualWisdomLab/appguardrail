@@ -73,8 +73,11 @@ tests cannot earn efficacy credit.
 - Public functions/classes/modules: beginner-readable docstrings; `__main__`
   process guards may use explicit no-cover annotations.
 - Changed behavior: RED → minimal GREEN → full regression proof.
-- Documentation graph: required files, links, ADR status/index, diagram
-  sections, status vocabulary, and implementation ownership are checked.
+- Documentation guard: required unique paths, local links, ADR status/index,
+  diagram declarations, manifest metadata, registry counts, and declared-state
+  invariants are checked. It does not establish prose truth, standards
+  currency, remote ancestry, or detector efficacy; those require independent
+  review and operational evidence.
 
 ## Workflow evidence
 

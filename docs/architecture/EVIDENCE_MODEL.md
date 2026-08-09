@@ -54,8 +54,8 @@ erDiagram
     boolean no_exclusions
   }
   DETECTION_OBLIGATION {
+    string detector_family_id PK, FK
     string obligation_id PK
-    string detector_family_id FK
     string condition
     string required_evidence_fields
   }
@@ -122,6 +122,13 @@ erDiagram
 claim IDs. The target key is therefore the composite `(issue_number, claim_id)`
 until a globally unique `cause_id` is introduced.
 
+`obligation_id` also repeats across families: the registry has 140 obligation
+rows but only 104 distinct bare IDs. Its target key is the composite
+`(detector_family_id, obligation_id)`, which is unique for all 140 rows.
+`ORACLE_FIXTURE` and `DETECTION_ASSESSMENT` use the composite foreign key
+`(issue_number, claim_id)` to `DETECTION_CLAIM`; neither column is a valid
+standalone claim reference.
+
 ## Protected-main legacy physical ERD
 
 `appguardrail_core.controlplane.connect()` currently creates and uses this
@@ -175,7 +182,7 @@ erDiagram
   TENANT_ORGANIZATIONS ||--o{ AUDIT_CHAIN_CHECKPOINTS : checkpoints
   TENANT_ORGANIZATIONS ||--o{ PURGE_PREVIEWS : previews
   TENANT_ORGANIZATIONS ||--o{ PURGE_RECEIPTS : receipts
-  PURGE_PREVIEWS ||--o| PURGE_RECEIPTS : authorizes
+  PURGE_PREVIEWS ||--o{ PURGE_RECEIPTS : authorizes
 
   TENANT_ORGANIZATIONS {
     int id PK
@@ -233,6 +240,11 @@ erDiagram
     string receipt_hash UK
   }
 ```
+
+The current DDL does not declare `purge_receipts.preview_id` unique, so one
+preview can reference zero or many receipts. If the product chooses a strict
+one-preview/one-receipt idempotency invariant, that requires a schema migration
+and tests; the ERD must not claim it before the constraint exists.
 
 ## Persistence boundary
 

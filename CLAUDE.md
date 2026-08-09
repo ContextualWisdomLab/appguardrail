@@ -1,17 +1,20 @@
 ## AppGuardrail Security Guardrails
 
-Apply the following security rules to all code you generate:
+Apply the repository-wide rules below to all code you generate: authenticate
+protected handlers, authorize resource ownership server-side, keep secrets out
+of client output, validate untrusted input, bound file/network work, restrict
+CORS, and use 401 for unauthenticated and 403 for unauthorized requests.
 
-1. **Authentication**: Check authentication as the first operation in every API handler.
-2. **Authorization**: Verify resource ownership (owner_id === session.user.id) server-side.
-3. **Secrets**: Never use NEXT_PUBLIC_ prefix on secret keys or service role keys.
-4. **Input validation**: Validate all inputs with Zod or equivalent before processing.
-5. **Stripe**: Always verify webhook signatures before processing payment events.
-6. **Supabase**: Use getUser() (not getSession()) server-side; RLS on all tables.
-7. **Files**: Validate type, size, and generate server-side filenames for uploads.
-8. **CORS**: Restrict to known origins on authenticated endpoints.
+When the target stack uses the named technology, apply its narrower rule:
 
-Return 401 for unauthenticated requests, 403 for ownership violations.
+1. **Next.js/browser bundles**: Never use `NEXT_PUBLIC_` for secret or service-role keys.
+2. **TypeScript input**: Use Zod or an equivalent server-side schema validator.
+3. **Stripe**: Verify webhook signatures before processing payment events.
+4. **Supabase**: Use server-validated user identity (for example `getUser()`, not a client session assertion) and enable reviewed RLS policies.
+
+AppGuardrail itself is Python 3.11+ and dependency-light. Do not introduce a
+JavaScript, Zod, Next.js, or Supabase dependency merely to satisfy an example
+for a different stack.
 
 See https://github.com/ContextualWisdomLab/appguardrail for full rules and checklists.
 

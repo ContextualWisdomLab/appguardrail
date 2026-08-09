@@ -118,5 +118,6 @@ controls for information systems and organizations* (NIST SP 800-53, Release
 OASIS Open. (2020). *Static analysis results interchange format (SARIF)
 version 2.1.0*. https://docs.oasis-open.org/sarif/sarif/v2.1.0/
 
-GitHub. (2026). *REST API endpoints for issues* (API version 2022-11-28).
+GitHub. (n.d.). *REST API endpoints for issues* (API version 2022-11-28).
+Retrieved August 9, 2026, from
 https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28

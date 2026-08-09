@@ -12,8 +12,13 @@
   conceptual evidence model, threat model, test strategy, operability runbook,
   and requirement-to-code/test/evidence traceability matrix. These documents
   distinguish protected-main behavior, the active PR, accepted targets, and
-  planned work, add an incident runbook, and are enforced by a machine-readable
-  documentation fitness gate.
+  planned work, add an incident runbook, and are checked by a machine-readable
+  topology/count/declared-status guard. Semantic correctness, remote branch
+  ancestry, source authority, and operational proof still require independent
+  review and exact-head/protected-main evidence.
 - Reconciled AGENTS/CLAUDE contributor guidance, methodology capability states,
   the historical commercialization plan's metadata-only collector boundary,
   and the public HTTPS control-plane push example.
+- Corrected threat-control delivery states, evidence-model composite keys,
+  purge preview/receipt cardinality, operator ownership/recovery gaps, ADR
+  boundaries, superseded release notes, and primary-reference metadata.

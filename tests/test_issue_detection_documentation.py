@@ -1,4 +1,4 @@
-"""Behavioral tests for the issue-detection documentation fitness gate."""
+"""Behavioral tests for the documentation topology/count/status guard."""
 
 from __future__ import annotations
 
@@ -44,11 +44,24 @@ def _copy_contract_tree(destination: Path) -> Path:
         target = destination / artifact["path"]
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(source.read_bytes())
+    for artifact in payload["supporting_artifacts"]:
+        source = ROOT / artifact["path"]
+        target = destination / artifact["path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+    for source in ROOT.rglob("*.md"):
+        target = destination / source.relative_to(ROOT)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+    for source in ROOT.iterdir():
+        if source.is_file():
+            target = destination / source.name
+            target.write_bytes(source.read_bytes())
     return target_manifest
 
 
 class DocumentationContractTests(unittest.TestCase):
-    """Prove documentation status is complete, linked, and never overstated."""
+    """Prove declared documentation topology, counts, and states fail closed."""
 
     def test_repository_manifest_resolves_current_artifacts_and_diagrams(self) -> None:
         """A maintainer receives one validated, status-aware documentation graph."""
@@ -58,6 +71,10 @@ class DocumentationContractTests(unittest.TestCase):
         )
 
         self.assertEqual(audit.artifact_count, 11)
+        self.assertEqual(audit.supporting_artifact_count, 10)
+        self.assertEqual(audit.adr_count, 5)
+        self.assertEqual(audit.documentation_delivery_state, "active_pr")
+        self.assertGreater(audit.local_link_count, 0)
         self.assertEqual(audit.issue_count, 414)
         self.assertEqual(audit.claim_count, 417)
         self.assertEqual(audit.detector_family_count, 17)
@@ -68,6 +85,7 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertEqual(
             audit.capability_states,
             {
+                "direct_detector_efficacy": "missing",
                 "family_adapter_coverage": "active_pr",
                 "inventory_coverage": "active_pr",
                 "per_issue_cause_binding": "missing",
@@ -104,10 +122,7 @@ class DocumentationContractTests(unittest.TestCase):
             )
             manifest.write_text(json.dumps(payload), encoding="utf-8")
 
-            with self.assertRaisesRegex(
-                ValueError,
-                "protected-main operational proof",
-            ):
+            with self.assertRaisesRegex(ValueError, "requires complete count"):
                 issue_detection_docs.audit_issue_detection_documentation(root, manifest)
 
     def test_inventory_counts_must_match_the_executable_registry(self) -> None:
@@ -187,6 +202,170 @@ class DocumentationContractTests(unittest.TestCase):
                 ValueError,
                 "unable to read documentation artifact",
             ):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_heading_and_root_or_self_anchor_links_are_validated(self) -> None:
+        """Root-relative, same-file, duplicate-heading, and anchor paths are executable."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.md"
+            target = root / "target.md"
+            source.write_text(
+                "# Local Heading\n\n[root](/target.md#section-one) "
+                "[self](#local-heading)\n",
+                encoding="utf-8",
+            )
+            target.write_text(
+                "# Section *One*\n\n# Section One\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                issue_detection_docs._heading_anchors(target.read_text(encoding="utf-8")),
+                {"section-one", "section-one-1"},
+            )
+            self.assertEqual(
+                issue_detection_docs._validate_local_links(
+                    root,
+                    source,
+                    source.read_text(encoding="utf-8"),
+                ),
+                2,
+            )
+
+    def test_invalid_iso_date_reports_bounded_metadata_error(self) -> None:
+        """A superficially date-like but impossible assessment date fails closed."""
+        payload = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        payload["assessment_date"] = "2026-02-31"
+
+        with self.assertRaisesRegex(ValueError, "assessment_date must be an ISO date"):
+            issue_detection_docs._validate_manifest_metadata(payload)
+
+    def test_complete_count_requires_shipped_state(self) -> None:
+        """A full self-declared count cannot remain partial or active-PR state."""
+        with self.assertRaisesRegex(ValueError, "complete count requires shipped state"):
+            issue_detection_docs._validate_completion_state(
+                "test capability",
+                "partial",
+                3,
+                3,
+            )
+
+    def test_direct_efficacy_shipped_state_requires_shipped_cause_binding(self) -> None:
+        """Direct efficacy cannot be promoted above its per-issue cause identity."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["capability_states"]["direct_detector_efficacy"] = (
+                "implemented_on_protected_main"
+            )
+            payload["capability_states"]["per_issue_cause_binding"] = "partial"
+            payload["inventory"]["direct_detector_efficacy_validated_claim_count"] = (
+                payload["inventory"]["claim_count"]
+            )
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "requires shipped per-issue cause binding",
+            ):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_partial_direct_efficacy_requires_nonmissing_cause_binding(self) -> None:
+        """Even one validated claim needs at least one explicit issue/cause boundary."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["capability_states"]["direct_detector_efficacy"] = "partial"
+            payload["inventory"]["direct_detector_efficacy_validated_claim_count"] = 1
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "requires non-missing cause binding",
+            ):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_duplicate_artifact_path_fails_closed(self) -> None:
+        """Two required roles cannot point at one token-bearing document."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["artifacts"][1]["path"] = payload["artifacts"][0]["path"]
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "duplicate declared artifact path"):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_artifact_delivery_states_are_role_specific(self) -> None:
+        """Current design docs cannot hide behind partial, and runbooks cannot overclaim current."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["artifacts"][0]["state"] = "partial_in_active_pr"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "unexpected artifact delivery state"):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_broken_local_link_fails_closed(self) -> None:
+        """A canonical document cannot retain a missing repository-relative target."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            architecture = root / "ARCHITECTURE.md"
+            architecture.write_text(
+                architecture.read_text(encoding="utf-8")
+                + "\n[missing](docs/not-present.md)\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "broken local documentation link"):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_orphan_adr_fails_closed(self) -> None:
+        """Every status-bearing ADR detail must be discoverable from the index."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            orphan = root / "docs" / "adr" / "ADR-9999-orphan.md"
+            orphan.write_text(
+                "# ADR-9999: Orphan\n\nStatus: Accepted\n\nDate: 2026-08-09\n\n"
+                "Implementation: missing\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "incomplete or contains an orphan"):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_supporting_artifact_set_is_exact(self) -> None:
+        """Contributor, release, methodology, and workflow contracts cannot disappear."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["supporting_artifacts"].pop()
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "supporting artifact set is incomplete"):
+                issue_detection_docs.audit_issue_detection_documentation(root, manifest)
+
+    def test_required_requirement_and_reference_tokens_cannot_disappear(self) -> None:
+        """Stable PR/TR IDs and primary-reference identifiers remain machine-visible."""
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_contract_tree(root)
+            trd = root / "docs" / "engineering" / "TRD.md"
+            trd.write_text(
+                trd.read_text(encoding="utf-8").replace("TR-10", "TR-X", 1),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "missing TRD ID: TR-10"):
                 issue_detection_docs.audit_issue_detection_documentation(root, manifest)
 
 

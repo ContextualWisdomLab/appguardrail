@@ -54,7 +54,7 @@ unless a deterministic production contract validates it.
   HTTPS primitives.
 - `ACTIVE_PR`: 414-issue inventory, 417 registered classifier rows, signed
   workflow-observation envelope, lifecycle inventory audit, canonical
-  architecture pack, and documentation fitness gate.
+  architecture pack, and documentation topology/count/declared-status guard.
 - `PARTIAL`: source-result instrumentation, distinct outcome modeling, and
   retention/audit schema primitives without complete purge/control-plane/API
   integration and operational proof.

@@ -21,6 +21,10 @@ These are engineering targets, not historical performance claims:
 - Per-issue cause binding: 414/414 target; current active-PR evidence is 0/414.
 - Tenant boundary: zero tolerated cross-tenant read or mutation.
 
+The active-PR envelope does not meet the evidence-integrity target: it binds
+producer, run, head, evidence reference, payload digest, and HMAC, but not the
+repository or source artifact.
+
 ## Signals
 
 Operators should record bounded counts and identifiers for request outcome,
@@ -28,6 +32,59 @@ scan duration/files/findings, drift blockers, migration version, purge preview
 and receipt, audit-chain verification, detector family/outcome, provenance
 failure class, inventory mismatch, outbound delivery class, and dependency
 availability. Never log raw keys, raw authorized logs, or matched secrets.
+
+## Ownership and escalation
+
+No named on-call roster or managed alert route is stored in this repository.
+That operational binding is a managed-service GA prerequisite, not an implied
+property of the package.
+
+| Surface | Primary owner role | Escalation path |
+|---|---|---|
+| Package, registry, canonical docs, and repository CI | AppGuardrail maintainer for the exact changed paths | Block the PR/release and use its exact-head Actions and review thread. Security-sensitive material follows `SECURITY.md`, never a public issue. |
+| Optional deployed control plane and SQLite data | The organization that deploys the service | Its deployment runbook and incident commander; this repository cannot name or page that external owner. |
+| Source evidence producer, workflow, or external engine | The owning repository/service maintainer | Mark only that evidence lane unknown/dependency-failed and keep the AppGuardrail direct-efficacy gate blocked. |
+| Release signing, package publication, and provenance | Repository release maintainer with environment approval | Stop publication, revoke/rotate affected credentials, and open a private security advisory when compromise is possible. |
+
+Alert sources implemented in the repository are GitHub Actions status, the
+scheduled/lifecycle issue inventory audit, explicit CLI exit status, and the
+control-plane health endpoint. Pager delivery, datastore-ready alerting,
+managed SLO burn alerts, and source-producer alert routing are `PLANNED` and
+must not be represented as operational. Any inventory mismatch, invalid
+provenance, cross-tenant access, audit-chain break, or release-attestation
+failure is a zero-tolerance release blocker rather than a sampled warning.
+
+## Operator commands
+
+Run commands from a clean checkout of the exact candidate SHA. The supported
+repository checks are:
+
+```bash
+python -m pytest -q
+python -m scripts.ci.verify_module_coverage \
+  --module appguardrail_core/issue_detection.py \
+  --test tests/test_issue_detection.py \
+  --test tests/test_issue_detection_release_contract.py
+python -m scripts.ci.verify_module_coverage \
+  --module appguardrail_core/issue_detection_docs.py \
+  --test tests/test_issue_detection_documentation.py
+```
+
+The live inventory command requires an authorized GitHub CLI session and a
+bounded temporary file; it is read-only:
+
+```bash
+appguardrail_issues_file="$(mktemp)"
+gh api --paginate --slurp \
+  "/repos/ContextualWisdomLab/appguardrail/issues?state=all&per_page=100" \
+  > "${appguardrail_issues_file}"
+python -m appguardrail_core.issue_detection audit-registry \
+  --issues-file "${appguardrail_issues_file}"
+```
+
+There is no supported source-acquisition/live-efficacy command yet. The
+`classify-workflow` command classifies already-authorized caller input and is
+not a substitute for one.
 
 ## Runbook
 
@@ -44,8 +101,10 @@ availability. Never log raw keys, raw authorized logs, or matched secrets.
 ### Unknown or failed provenance
 
 1. Preserve the result as unknown and keep the gate blocked.
-2. Verify envelope schema, exact producer, repository/run/head/source identity,
-   payload digest, evidence reference, key strength, and HMAC.
+2. Verify only the fields the active envelope actually binds: schema, producer,
+   run, head, payload digest, evidence reference, key strength, and HMAC. It
+   does not bind repository or source-artifact identity; preserve those checks
+   as `MISSING` and do not promote the evidence to direct efficacy.
 3. If capability exposure is suspected, rotate it at the source producer and
    invalidate affected evidence.
 4. Reissue evidence for the unchanged exact source head; never copy predecessor
@@ -76,6 +135,20 @@ idempotent notifications. Never broaden private-address access as a remedy.
   audit verification; forward-fix is preferred once production writes exist.
 - Credential recovery: rotate API/HMAC/release credentials, revoke old
   capability, and regenerate exact-head evidence.
+
+## Recovery-objective status
+
+| Surface | RTO/RPO status | Evidence required before promotion |
+|---|---|---|
+| Local CLI and packaged rules | No service RTO/RPO: reinstall the exact signed package/commit; project source remains owner-controlled. | Package installation and exact-source scan probe. |
+| Registry and canonical documentation | Git is the recovery source; restore one reviewed atomic code/registry/test/docs commit. No runtime RPO is claimed. | Revert rehearsal plus exact-head and protected-main audits. |
+| Optional control plane and SQLite | Approved production RTO/RPO is not defined; backup automation, restore command, and rehearsal are `MISSING` managed-service blockers. | Deployment-specific ADR/runbook, encrypted backup evidence, isolated restore, schema/audit/tenant checks, and measured recovery time/data loss. |
+| External evidence and HMAC capability | Source-owner recovery objectives are outside this repository and currently unbound. | Producer-specific rotation/reissue procedure and source-bound replay proof. |
+
+The 99.9% availability line above is a design target, not an approved recovery
+commitment. A managed-service release is blocked until accountable owners,
+alert routes, RTO/RPO, backup/restore automation, and rehearsal evidence are
+bound to the deployed environment.
 
 ## Release and rollback evidence
 

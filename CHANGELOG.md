@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+`CHANGELOG.d/` is the unreleased source of truth. Each active change keeps one
+reviewed fragment there. At release, maintainers reconcile and aggregate those
+fragments into this section, preserve supersession notes, then remove only the
+fragments included in the tagged release.
+
 ### 사용자 경험 (UX)
 - 검색창 포커스 전체 키보드 단축키(`/`) 추가 — 단축키가 `<input>`, `<textarea>`, `<select>` 및 `isContentEditable` 요소 외부에서만 작동하도록 제한하여 입력 간섭을 방지하고, 접근성을 위한 힌트 속성(`title`, `aria-keyshortcuts`)을 추가했습니다.
 - 대시보드 검색창 커서 유지 — 검색어 중간에서 텍스트를 수정할 때마다 커서가 검색어의 맨 끝으로 점프하는 불편함을 수정했습니다. 이제 입력창의 커서 위치(`selectionStart`/`selectionEnd`)가 동적 렌더링 이후에도 원래 위치에 정확히 유지되어 자연스러운 타이핑 경험을 제공합니다.
