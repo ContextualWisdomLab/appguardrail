@@ -32,11 +32,12 @@ inspect every underlying target condition. Formal cause binding is 0/414 and
 validated direct detector efficacy is 0/417.
 
 The live workflow compares issue numbers and normalized title/body digests. It
-does not execute a production detector against each source run. The HMAC
-envelope gives bounded payload provenance under a shared capability, but
-repository/source-artifact identity is not bound. It does not verify the
-referenced underlying artifact or make an opaque outcome a native AppGuardrail
-finding.
+does not execute a production detector against each source run. The v2 HMAC
+envelope binds source repository and source-artifact SHA-256 identity alongside
+producer/run/head/reference/payload identity. The legacy v1 reader remains
+classifier-only and does not bind those fields. Neither schema independently
+acquires or verifies the referenced artifact or makes an opaque outcome a
+native AppGuardrail finding.
 
 ## Required next increments
 
@@ -74,8 +75,9 @@ production adapter—not fixture labels or issue text—computes the result.
   SBOM, packaged registry JSON.
 - HTTP: authenticated `/api/v1` scan, history, key, webhook, and health paths.
 - Workflow: read-only issue inventory audit and exact focused coverage.
-- External producer: `appguardrail.workflow-result-envelope.v1` containing an
-  `appguardrail.workflow-result.v1` payload.
+- External producer: source-bound `appguardrail.workflow-result-envelope.v2`
+  containing an `appguardrail.workflow-result.v1` payload; v1 envelopes are
+  accepted only as legacy classifier evidence.
 
 Schema changes require versioned readers, negative compatibility fixtures,
 migration/rollback notes, and a new ADR when authority or trust changes.
