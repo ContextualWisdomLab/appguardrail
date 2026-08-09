@@ -61,6 +61,22 @@ def _non_enforcing_guard_source():
     )
 
 
+def _non_enforcing_guard_with_unrelated_return_source():
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body, disabled):",
+            '    target = (body or {}).get("url")',
+            "    if not _is_safe_url(target):",
+            '        log.warning("unsafe webhook url")',
+            "    if disabled:",
+            "        return",
+            f"    {sink}(conn, org, target)",
+            "",
+        ]
+    )
+
+
 def _positive_guard_source():
     sink = "set_" + "webhook"
     return "\n".join(
@@ -82,6 +98,23 @@ def _safe_source():
             '    webhook_url = (body or {}).get("url")',
             "    if webhook_url and not _is_safe_url(webhook_url):",
             "        raise ValueError(\"unsafe webhook url\")",
+            f"    {sink}(conn, org, webhook_url)",
+            "",
+        ]
+    )
+
+
+def _production_guard_source():
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    webhook_url = body.get("url")',
+            '    if webhook_url not in (None, "") and (',
+            "        not isinstance(webhook_url, str)",
+            "        or not _is_safe_url(webhook_url)",
+            "    ):",
+            '        return {"error": "unsafe webhook url"}',
             f"    {sink}(conn, org, webhook_url)",
             "",
         ]
@@ -120,12 +153,22 @@ def test_packaged_rule_matches_non_enforcing_validation_guard():
     assert _rule()["pattern"].search(_non_enforcing_guard_source())
 
 
+def test_packaged_rule_matches_non_enforcing_guard_with_unrelated_return():
+    assert _rule()["pattern"].search(
+        _non_enforcing_guard_with_unrelated_return_source()
+    )
+
+
 def test_packaged_rule_ignores_positive_guarded_persistence():
     assert not _rule()["pattern"].search(_positive_guard_source())
 
 
 def test_packaged_rule_ignores_fail_closed_guarded_persistence():
     assert not _rule()["pattern"].search(_safe_source())
+
+
+def test_packaged_rule_ignores_production_fail_closed_guard():
+    assert not _rule()["pattern"].search(_production_guard_source())
 
 
 def test_scan_file_emits_stored_ssrf_finding(tmp_path):
