@@ -122,3 +122,7 @@
 **Vulnerability:** DOM XSS via unescaped `severity` string interpolated into `innerHTML` in `scanner/dashboard/index.html`.
 **Learning:** Even enum-like or seemingly safe meta-fields like `severity` can contain malicious payloads if sourced from user input (findings file) and directly injected into innerHTML.
 **Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from `findings.json`, regardless of expected schema types.
+## 2026-08-05 - Missing Type Validation for URL Parsers
+**Vulnerability:** Core URL validation functions like `_is_safe_url` used `urllib.parse.urlparse` without first ensuring the input was a string. Passing boolean, integer, or `None` types triggered an unhandled `AttributeError`, resulting in a brittle application or API 500 errors instead of securely failing closed.
+**Learning:** Functions that act as security boundaries must explicitly validate input types, particularly when passing those inputs to stdlib parser functions that assume specific types and throw non-standard errors (like `AttributeError` instead of `ValueError`).
+**Prevention:** Always verify input types with `isinstance(url, str)` at the beginning of validation functions before passing them to parsing logic.

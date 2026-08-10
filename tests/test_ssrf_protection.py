@@ -65,6 +65,14 @@ def test_is_safe_url_reserved_and_not_global_ips():
     assert not _is_safe_url("http://0.0.0.0/")
 
 
+def test_is_safe_url_non_string_inputs():
+    assert not _is_safe_url(True)
+    assert not _is_safe_url(False)
+    assert not _is_safe_url(123)
+    assert not _is_safe_url(None)
+    assert not _is_safe_url(["http://google.com"])
+
+
 def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
     from scanner.cli.appguardrail import _push_findings
 

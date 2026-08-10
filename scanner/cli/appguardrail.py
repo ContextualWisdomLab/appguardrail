@@ -1622,6 +1622,9 @@ def _is_safe_url(url: str) -> bool:
     import socket
     import urllib.parse
 
+    if not isinstance(url, str):
+        return False
+
     try:
         parsed = urllib.parse.urlparse(
             url
