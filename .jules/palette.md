@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2026-08-10 - Dashboard File Input Consistency and Accessibility
+**Learning:** Native `<input type="file">` elements have inconsistent appearances across browsers, and exposing them directly can break the UI consistency of a dashboard header. Additionally, inline script handlers like `onclick` on dynamically generated buttons break Content Security Policy (CSP) best practices and limit clean DOM event management.
+**Action:** When providing file upload capabilities in custom UI headers, visibly hide the native `<input type="file">` using `.sr-only` (accessible hiding) and proxy clicks to it using a standard `<button>`. Attach the event listener via `addEventListener` in the main script rather than inline `onclick`.
