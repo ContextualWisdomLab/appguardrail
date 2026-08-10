@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-05-19 - Non-interactive Chart Element Accessibility
+**Learning:** Non-interactive visual chart elements (like CSS-based `.bar` divs) are completely invisible to screen readers and keyboard users who cannot hover to see tooltip content.
+**Action:** Explicitly add `role="img"`, `tabindex="0"`, and `aria-label` to these visual elements to ensure they are discoverable and readable by assistive technologies.
