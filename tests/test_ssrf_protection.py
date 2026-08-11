@@ -4,6 +4,7 @@ import urllib.request
 import pytest
 
 from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
+from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
 def test_is_safe_url_public_domains():
@@ -65,12 +66,18 @@ def test_is_safe_url_reserved_and_not_global_ips():
     assert not _is_safe_url("http://0.0.0.0/")
 
 
-def test_is_safe_url_invalid_types():
-    assert not _is_safe_url(123)
-    assert not _is_safe_url(True)
-    assert not _is_safe_url(None)
-    assert not _is_safe_url([])
-    assert not _is_safe_url({})
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+@pytest.mark.parametrize(
+    "value",
+    [123, True, None, [], {}],
+    ids=["integer", "boolean", "none", "list", "mapping"],
+)
+def test_is_safe_url_invalid_types(validator, value):
+    assert not validator(value)
 
 
 def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
