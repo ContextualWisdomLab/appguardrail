@@ -50,8 +50,7 @@ rules:
 
   - id: todo-skip-auth
     patterns:
-      - pattern-regex: '(?im)^[ \t]*(?://|#)[ \t]*(?:(?:todo|fixme|hack|temp|temporary)\b[^\r\n]{0,50}\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b|(?:skip|bypass|disable|remove)\b[^\r\n]{0,30}\b(?:auth|authentication|authorization|security)\b|(?:mock|fake)[ \t]+(?:auth|security)\b)'
-      - pattern-regex: '(?is)/\*(?:(?!\*/).){0,500}?(?:(?:todo|fixme|hack|temp|temporary)\b(?:(?!\*/).){0,50}?\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b|(?:skip|bypass|disable|remove)\b(?:(?!\*/).){0,30}?\b(?:auth|authentication|authorization|security)\b|(?:mock|fake)[ \t]+(?:auth|security)\b)(?:(?!\*/).){0,500}?\*/'
+      - pattern-regex: '(?ims)(?:/\*(?:(?!\*/).){0,500}?(?:(?:todo|fixme|hack|temp|temporary)\b(?:(?!\*/).){0,50}?\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b|(?:skip|bypass|disable|remove)\b(?:(?!\*/).){0,30}?\b(?:auth|authentication|authorization|security)\b|(?:mock|fake)[ \t]+(?:auth|security)\b)(?:(?!\*/).){0,500}?\*/|^[ \t]*(?://|#)[ \t]*(?:(?:todo|fixme|hack|temp|temporary)\b[^\r\n]{0,50}\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b|(?:skip|bypass|disable|remove)\b[^\r\n]{0,30}\b(?:auth|authentication|authorization|security)\b|(?:mock|fake)[ \t]+(?:auth|security)\b))'
     message: |
       Comment suggests authentication or security check was intentionally skipped
       or deferred. This is a common pattern in AI-generated code. Review and ensure
