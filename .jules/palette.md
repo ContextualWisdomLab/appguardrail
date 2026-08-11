@@ -64,4 +64,6 @@
 
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
-**Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+## 2026-08-06 - Interactive Dashboard Cards for Quick Filtering
+**Learning:** Making metric cards (like severity counts) interactive significantly reduces friction compared to using dropdown filters. It's a common dashboard pattern that users intuitively try to click, and explicitly adding `role="button"`, `tabindex="0"`, and `aria-pressed` makes it accessible.
+**Action:** When displaying aggregate metrics in a dashboard that correspond to list filters, always consider making the metric cards themselves act as toggle buttons for those filters.
