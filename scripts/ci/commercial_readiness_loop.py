@@ -14,7 +14,6 @@ from dataclasses import asdict, dataclass
 from types import SimpleNamespace
 from typing import Any
 
-
 API = "https://api.github.com"
 USER_AGENT = "appguardrail-commercial-readiness-loop"
 COMMERCIAL_LABEL = "commercial-readiness"
@@ -143,7 +142,9 @@ class GitHub:
             page_params = dict(params or {}, per_page=100, page=page)
             chunk = self.request("GET", path, params=page_params) or []
             if not isinstance(chunk, list):
-                raise RuntimeError(f"GitHub list endpoint returned non-list data: {path}")
+                raise RuntimeError(
+                    f"GitHub list endpoint returned non-list data: {path}"
+                )
             items.extend(chunk)
             if len(chunk) < 100:
                 return items
@@ -190,11 +191,15 @@ def _validated_gap_issue(issue: dict[str, Any]) -> str | None:
     if not identifiers:
         return None
     if len(identifiers) != 1:
-        raise RuntimeError("commercial issue must contain exactly one reviewed gap marker")
+        raise RuntimeError(
+            "commercial issue must contain exactly one reviewed gap marker"
+        )
     try:
         gap = _gap_by_id(identifiers[0])
     except ValueError as exc:
-        raise RuntimeError("commercial issue references an unknown reviewed gap") from exc
+        raise RuntimeError(
+            "commercial issue references an unknown reviewed gap"
+        ) from exc
     if issue.get("title") != gap.title:
         raise RuntimeError("commercial issue title does not match reviewed registry")
     return gap.id
@@ -237,7 +242,9 @@ def render_agent_contract(gap: CommercialGap, *, issue_number: int) -> str:
     """Render the sole model-authoritative contract from reviewed registry data."""
     if issue_number <= 0:
         raise ValueError("issue number must be a positive integer")
-    acceptance = "\n".join(f"{index}. {item}" for index, item in enumerate(gap.acceptance, 1))
+    acceptance = "\n".join(
+        f"{index}. {item}" for index, item in enumerate(gap.acceptance, 1)
+    )
     return f"""# Trusted Commercial Builder Contract
 
 This file was generated locally from the reviewed default-branch `COMMERCIAL_GAPS` registry before any model credential was exposed.
@@ -424,7 +431,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(os.sys.argv[1:] if argv is None else argv)
     if args.render_agent_contract is not None:
         if args.issue_number is None or args.issue_number <= 0:
-            raise SystemExit("--issue-number must be positive when rendering a contract")
+            raise SystemExit(
+                "--issue-number must be positive when rendering a contract"
+            )
         gap = _gap_by_id(args.render_agent_contract)
         print(render_agent_contract(gap, issue_number=args.issue_number), end="")
         return 0

@@ -57,7 +57,9 @@ def _record(
     """Return one bounded PR record with configurable assessment evidence."""
     assessment = DriftAssessment(
         status=status,
-        missing=(_identity(),) if missing is None and status == "drift" else (missing or ()),
+        missing=(
+            (_identity(),) if missing is None and status == "drift" else (missing or ())
+        ),
         errored=errored,
         reason=reason,
     )
@@ -100,7 +102,9 @@ def test_marker_round_trip_sorts_normalized_identity_evidence() -> None:
 def test_issue_title_is_stable_per_exact_pull_request_head() -> None:
     """Different heads must never be collapsed into one live-state issue."""
     first = drift_issue_title(_record())
-    second = drift_issue_title(_record(head_sha="dddddddddddddddddddddddddddddddddddddddd"))
+    second = drift_issue_title(
+        _record(head_sha="dddddddddddddddddddddddddddddddddddddddd")
+    )
 
     assert first == "[code-scanning-drift] ContextualWisdomLab/demo#42@bbbbbbbbbbbb"
     assert first != second
@@ -215,11 +219,14 @@ def test_publish_skips_repeat_evidence_for_the_same_exact_head() -> None:
     record = _record()
     client = FakeClient([_existing(record)])
 
-    assert publish_records(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        (record,),
-    ) == 0
+    assert (
+        publish_records(
+            client,
+            "ContextualWisdomLab/appguardrail",
+            (record,),
+        )
+        == 0
+    )
     assert not [call for call in client.calls if call[:2] == ("request", "PATCH")]
     assert not [call for call in client.calls if str(call[2]).endswith("/comments")]
 
@@ -235,11 +242,14 @@ def test_publish_updates_changed_evidence_but_reuses_the_exact_head_issue() -> N
     )
     client = FakeClient([_existing(original)])
 
-    assert publish_records(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        (changed,),
-    ) == 1
+    assert (
+        publish_records(
+            client,
+            "ContextualWisdomLab/appguardrail",
+            (changed,),
+        )
+        == 1
+    )
     patches = [call for call in client.calls if call[:2] == ("request", "PATCH")]
     comments = [call for call in client.calls if str(call[2]).endswith("/comments")]
     assert len(patches) == 1
@@ -255,11 +265,14 @@ def test_publish_reopens_only_the_matching_exact_head_issue() -> None:
     new = _record(head_sha="dddddddddddddddddddddddddddddddddddddddd")
     client = FakeClient([_existing(old, state="closed")])
 
-    assert publish_records(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        (old, new),
-    ) == 1
+    assert (
+        publish_records(
+            client,
+            "ContextualWisdomLab/appguardrail",
+            (old, new),
+        )
+        == 1
+    )
     assert any(
         call[:2] == ("request", "POST")
         and call[2] == "/repos/ContextualWisdomLab/appguardrail/issues"

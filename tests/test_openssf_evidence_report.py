@@ -8,7 +8,6 @@ from appguardrail_core.reports import (
     render_report,
 )
 
-
 GENERATED_AT = "2026-08-04T08:00:00Z"
 
 
@@ -74,8 +73,7 @@ def test_report_renders_dedicated_openssf_evidence_table() -> None:
     assert (
         "| `https://github.com/acme/project` | Gold | Gold | "
         "2026-08-04T08:00:00Z | "
-        "[Project evidence](https://www.bestpractices.dev/projects/42) |"
-        in report
+        "[Project evidence](https://www.bestpractices.dev/projects/42) |" in report
     )
     assert "Source attribution: OpenSSF Best Practices badge contributors." in report
     assert "CDLA-Permissive-2.0" in report
@@ -107,13 +105,16 @@ def test_report_distinguishes_non_affirmative_evidence_states() -> None:
     )
 
     assert "| `https://github.com/acme/a` | Unavailable | Not verified |" in report
-    assert "| `https://github.com/acme/b` | Malformed response | Not verified |" in report
-    assert "| `https://github.com/acme/c` | Permission limited | Not verified |" in report
+    assert (
+        "| `https://github.com/acme/b` | Malformed response | Not verified |" in report
+    )
+    assert (
+        "| `https://github.com/acme/c` | Permission limited | Not verified |" in report
+    )
     assert "| `https://github.com/acme/d` | In progress | In progress |" in report
     assert (
         "Unavailable means no matching public evidence was observed at "
-        "verification time; it does not prove non-registration."
-        in report
+        "verification time; it does not prove non-registration." in report
     )
 
 

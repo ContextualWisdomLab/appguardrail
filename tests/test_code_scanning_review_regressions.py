@@ -94,16 +94,19 @@ def test_bodyless_create_response_is_not_cached_as_issue_zero() -> None:
     changed = _record((_identity("trivy"), _identity("codeql")))
     client = IssueClient()
 
-    assert drift.publish_records(
-        client,
-        "ContextualWisdomLab/appguardrail",
-        (first, changed),
-    ) == 2
+    assert (
+        drift.publish_records(
+            client,
+            "ContextualWisdomLab/appguardrail",
+            (first, changed),
+        )
+        == 2
+    )
     assert not any("/issues/0" in str(call) for call in client.calls)
-    assert sum(
-        call[0] == "POST" and call[1].endswith("/issues")
-        for call in client.calls
-    ) == 2
+    assert (
+        sum(call[0] == "POST" and call[1].endswith("/issues") for call in client.calls)
+        == 2
+    )
 
 
 def test_coverage_gate_rejects_target_without_executable_statements() -> None:

@@ -13,7 +13,6 @@ from appguardrail_core.openssf_evidence import (
     CURRENT_ORIGIN,
 )
 
-
 _RULE_ID = "openssf-best-practices-evidence"
 _FINDINGS_SUMMARY_MARKER = "## Findings Summary"
 _STATUS_LABELS = {
@@ -99,9 +98,7 @@ def render_openssf_evidence_section(
 ) -> list[str]:
     """Render a stable evidence table without turning absence into a badge claim."""
     evidence = [
-        finding
-        for finding in findings
-        if str(finding.get("rule_id") or "") == _RULE_ID
+        finding for finding in findings if str(finding.get("rule_id") or "") == _RULE_ID
     ]
     lines = ["## OpenSSF Best Practices Evidence", ""]
     if not evidence:

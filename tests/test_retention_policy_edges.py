@@ -16,7 +16,6 @@ from appguardrail_core.retention_policy import (
     verify_purge_preview,
 )
 
-
 TENANT_ID = 41
 TIMESTAMP = "2026-08-04T12:30:00Z"
 

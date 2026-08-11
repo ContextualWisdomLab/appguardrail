@@ -12,7 +12,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "commercial-readiness-loop.yml"
@@ -21,7 +20,9 @@ WORKFLOW_PATH = ROOT / ".github" / "workflows" / "commercial-readiness-loop.yml"
 def _load_module():
     """Load the scheduled-loop module after asserting the feature exists."""
     assert MODULE_PATH.exists(), "commercial-readiness loop implementation is missing"
-    spec = importlib.util.spec_from_file_location("commercial_readiness_loop", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "commercial_readiness_loop", MODULE_PATH
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -95,7 +96,9 @@ def test_hourly_workflow_is_default_branch_only_and_secret_bounded() -> None:
     assert "python3 -m scripts.ci.commercial_readiness_loop" in workflow
     assert workflow.count("secrets.NVIDIA_NIM_API_KEY") == 2
     assert "NVIDIA_API_KEY" in workflow
-    assert "anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a" in workflow
+    assert (
+        "anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a" in workflow
+    )
     assert "jules" not in lowered
     assert "copilot" not in lowered
     assert "PR_REVIEW_MERGE_TOKEN" not in workflow
@@ -137,7 +140,9 @@ def test_no_open_pr_dispatches_first_unfinished_gap_for_opencode() -> None:
     assert module.gap_marker(result.gap_id) in created[3]["body"]
     assert created[3]["labels"] == [module.COMMERCIAL_LABEL]
     assert "OpenCode Agent" in created[3]["body"]
-    assert not any("/issues/901/labels" in call[2] for call in client.calls if len(call) > 2)
+    assert not any(
+        "/issues/901/labels" in call[2] for call in client.calls if len(call) > 2
+    )
 
 
 def test_open_gap_prevents_duplicate_dispatch() -> None:
@@ -228,9 +233,17 @@ def test_gap_marker_and_registry_lookup_reject_invalid_identity() -> None:
     known = module.COMMERCIAL_GAPS[0].id
 
     assert module.parse_gap_marker(module.gap_marker(known)) == known
-    assert module.parse_gap_marker(module.gap_marker(known) + "\n" + module.gap_marker(known)) is None
+    assert (
+        module.parse_gap_marker(
+            module.gap_marker(known) + "\n" + module.gap_marker(known)
+        )
+        is None
+    )
     assert module.parse_gap_marker("prefix " + module.gap_marker("unknown-gap")) is None
-    assert module.parse_gap_marker("<!-- appguardrail-commercial-gap: unknown-gap -->") is None
+    assert (
+        module.parse_gap_marker("<!-- appguardrail-commercial-gap: unknown-gap -->")
+        is None
+    )
     assert module.parse_gap_marker(None) is None
     with pytest.raises(ValueError, match="lower-kebab-case"):
         module.gap_marker("Not Valid")
@@ -340,7 +353,9 @@ def test_github_client_reports_http_error_and_rejects_nonlist_page(monkeypatch) 
                 BytesIO(b"temporary"),
             )
 
-    monkeypatch.setattr(module.urllib.request, "build_opener", lambda *_: FailingOpener())
+    monkeypatch.setattr(
+        module.urllib.request, "build_opener", lambda *_: FailingOpener()
+    )
     client = module.GitHub("token")
     with pytest.raises(RuntimeError, match="503 temporary"):
         client.request("GET", "/fail")
@@ -387,9 +402,9 @@ def test_cli_renders_contract_without_github_token(monkeypatch, capsys) -> None:
     gap = module.COMMERCIAL_GAPS[0]
     monkeypatch.delenv("GH_TOKEN", raising=False)
 
-    assert module.main(
-        ["--render-agent-contract", gap.id, "--issue-number", "901"]
-    ) == 0
+    assert (
+        module.main(["--render-agent-contract", gap.id, "--issue-number", "901"]) == 0
+    )
     output = capsys.readouterr().out
     assert "# Trusted Commercial Builder Contract" in output
     assert gap.title in output
@@ -398,9 +413,7 @@ def test_cli_renders_contract_without_github_token(monkeypatch, capsys) -> None:
     with pytest.raises(SystemExit, match="--issue-number must be positive"):
         module.main(["--render-agent-contract", gap.id])
     with pytest.raises(ValueError, match="unknown reviewed commercial gap"):
-        module.main(
-            ["--render-agent-contract", "unknown-gap", "--issue-number", "901"]
-        )
+        module.main(["--render-agent-contract", "unknown-gap", "--issue-number", "901"])
 
 
 def test_parse_args_uses_repository_environment(monkeypatch) -> None:

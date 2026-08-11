@@ -73,3 +73,6 @@
 ## 2024-05-19 - Pathlib Instantiation in Hot Loops
 **Learning:** Blindly instantiating `pathlib.Path` objects in hot loops (like file discovery loops or display formatters such as `detect_language_axes` and `_display_path`) creates measurable performance bottlenecks due to object allocation and potential system calls. When checking file extensions or processing path strings, Python's native string methods like `str.rfind()` and `str.replace()` are vastly more efficient.
 **Action:** Replace `pathlib.Path` usage with fast C-level string operations (`replace("\\", "/")`, `rfind()`, `split()`) in performance-critical areas, particularly when traversing thousands of files, formatting paths, or extracting file extensions.
+## 2024-07-28 - Fast-path type checks in core data models
+**Learning:** In hot functions like `normalize_finding`, doing `str(val or "").upper()` on every field creates massive memory allocation and function call overhead, even when 99% of values are already perfectly formatted strings.
+**Action:** When normalizing large datasets (like arrays of findings), implement fast paths using `type(x) is str` to bypass `str()` casting entirely for valid values. Use constant sets (`_SEV_SET = set(SEVERITIES)`) for O(1) validation rather than list iterations.

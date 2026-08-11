@@ -7,7 +7,6 @@ from pathlib import Path
 import appguardrail_core
 from scripts.ci import commercial_readiness_loop
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOC_PATH = ROOT / "docs" / "code-scanning-analysis-drift.md"
 CHANGELOG_PATH = ROOT / "CHANGELOG.d" / "862-code-scanning-analysis-drift.md"
@@ -47,7 +46,9 @@ def test_operator_documentation_explains_evidence_and_permission_boundaries() ->
     assert "naruon" in text
 
 
-def test_changelog_fragment_describes_live_state_detection_without_overclaiming() -> None:
+def test_changelog_fragment_describes_live_state_detection_without_overclaiming() -> (
+    None
+):
     """Release notes must distinguish confirmed drift from unknown GitHub state."""
     text = CHANGELOG_PATH.read_text(encoding="utf-8")
 

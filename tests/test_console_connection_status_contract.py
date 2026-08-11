@@ -12,10 +12,7 @@ def test_connection_count_is_an_atomic_polite_status_region() -> None:
     """Asynchronous scan-count updates must be announced without interrupting users."""
     html = _console_html()
 
-    assert (
-        'id="conn" role="status" aria-live="polite" aria-atomic="true"'
-        in html
-    )
+    assert 'id="conn" role="status" aria-live="polite" aria-atomic="true"' in html
 
 
 def test_connection_count_uses_grammatical_singular_and_plural_labels() -> None:

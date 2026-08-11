@@ -1711,9 +1711,7 @@ def _push_findings(url, findings):
 
     base_path = parsed.path.rstrip("/")
     endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
-    endpoint = urllib.parse.urlunsplit(
-        ("https", parsed.netloc, endpoint_path, "", "")
-    )
+    endpoint = urllib.parse.urlunsplit(("https", parsed.netloc, endpoint_path, "", ""))
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
@@ -2725,20 +2723,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2805,13 +2805,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc

@@ -8,7 +8,6 @@ from pathlib import Path
 
 from appguardrail_core import issueops
 
-
 MODULE_PATH = (
     Path(__file__).resolve().parents[1]
     / "scripts"
@@ -58,9 +57,7 @@ def _legacy_issue(number: int, workflow: str, seen: set[str]) -> dict:
     return {
         "number": number,
         "state": "open",
-        "title": (
-            "[security-failure] ContextualWisdomLab/EgressWeave: " + workflow
-        ),
+        "title": ("[security-failure] ContextualWisdomLab/EgressWeave: " + workflow),
         "body": issueops.marker(
             "ContextualWisdomLab/EgressWeave",
             workflow,
@@ -91,8 +88,7 @@ def test_issue_index_reuses_legacy_dynamic_issue_under_canonical_key() -> None:
         "number": 851,
         "state": "open",
         "title": (
-            "[security-failure] ContextualWisdomLab/EgressWeave: "
-            + _DYNAMIC_WORKFLOW
+            "[security-failure] ContextualWisdomLab/EgressWeave: " + _DYNAMIC_WORKFLOW
         ),
         "body": issueops.marker(
             "ContextualWisdomLab/EgressWeave",

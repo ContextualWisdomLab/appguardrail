@@ -12,7 +12,6 @@ from appguardrail_core.openssf_evidence import (
     parse_project_matches,
 )
 
-
 VERIFIED_AT = "2026-08-04T06:30:00Z"
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 
@@ -198,7 +197,9 @@ def test_evidence_to_finding_preserves_auditable_metadata(
     severity: str,
 ) -> None:
     """Normalized findings must retain the evidence state used in buyer diligence."""
-    badge_tier = status if status in {"in_progress", "passing", "silver", "gold"} else ""
+    badge_tier = (
+        status if status in {"in_progress", "passing", "silver", "gold"} else ""
+    )
     evidence = OpenSSFEvidence(
         status=status,
         repository_url=REPOSITORY_URL,

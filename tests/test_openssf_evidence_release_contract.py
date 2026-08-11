@@ -12,7 +12,6 @@ from appguardrail_core import (
 )
 from scripts.ci.commercial_readiness_loop import COMMERCIAL_GAPS
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

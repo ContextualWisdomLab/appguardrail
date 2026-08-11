@@ -18,7 +18,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
-
 RETENTION_CATEGORIES = (
     "scan_history",
     "audit_events",
@@ -66,7 +65,11 @@ def _canonical_utc(value: str, field_name: str) -> str:
 def _identifier(value: str, field_name: str) -> str:
     """Return a non-empty bounded identifier without control characters."""
     identifier = str(value or "").strip()
-    if not identifier or len(identifier) > 256 or any(ord(char) < 32 for char in identifier):
+    if (
+        not identifier
+        or len(identifier) > 256
+        or any(ord(char) < 32 for char in identifier)
+    ):
         raise ValueError(f"{field_name} must be a non-empty bounded identifier")
     return identifier
 
@@ -120,8 +123,12 @@ class RetentionPolicy:
         _positive_integer(self.revision, "revision")
         for field_name in _DURATION_FIELDS:
             _retention_days(getattr(self, field_name), field_name)
-        object.__setattr__(self, "updated_at", _canonical_utc(self.updated_at, "updated_at"))
-        object.__setattr__(self, "updated_by", _identifier(self.updated_by, "updated_by"))
+        object.__setattr__(
+            self, "updated_at", _canonical_utc(self.updated_at, "updated_at")
+        )
+        object.__setattr__(
+            self, "updated_by", _identifier(self.updated_by, "updated_by")
+        )
 
     @classmethod
     def default(
@@ -153,9 +160,9 @@ class RetentionPolicy:
 
     def cutoffs(self, *, as_of: str) -> dict[str, str]:
         """Return the inclusive age cutoff for every data class at one UTC instant."""
-        instant = datetime.strptime(_canonical_utc(as_of, "as_of"), _UTC_FORMAT).replace(
-            tzinfo=timezone.utc
-        )
+        instant = datetime.strptime(
+            _canonical_utc(as_of, "as_of"), _UTC_FORMAT
+        ).replace(tzinfo=timezone.utc)
         return {
             category: (instant - timedelta(days=days)).strftime(_UTC_FORMAT)
             for category, days in self.retention_days().items()
@@ -197,7 +204,8 @@ def update_retention_policy(
     unsupported = set(changes) - set(_DURATION_FIELDS)
     if unsupported:
         raise ValueError(
-            "unsupported policy field: " + ", ".join(sorted(str(item) for item in unsupported))
+            "unsupported policy field: "
+            + ", ".join(sorted(str(item) for item in unsupported))
         )
     validated_changes = {
         field_name: _retention_days(value, field_name)
@@ -221,7 +229,9 @@ def _validated_counts(
     if not isinstance(counts, Mapping):
         raise ValueError(f"{field_name} count mapping is required")
     if set(counts) != set(RETENTION_CATEGORIES):
-        raise ValueError(f"{field_name} count mapping must contain every category exactly once")
+        raise ValueError(
+            f"{field_name} count mapping must contain every category exactly once"
+        )
     return {
         category: _nonnegative_integer(counts[category], f"{field_name} count")
         for category in RETENTION_CATEGORIES

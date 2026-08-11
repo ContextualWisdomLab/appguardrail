@@ -11,7 +11,6 @@ import pytest
 
 from scripts.ci import commercial_readiness_loop as loop
 
-
 ROOT = Path(__file__).resolve().parents[1]
 LOOP_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 RECONCILE_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_reconcile.py"

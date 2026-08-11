@@ -9,7 +9,6 @@ import pytest
 
 from appguardrail_core import pinned_https as transport
 
-
 PUBLIC_IPV4 = "8.8.8.8"
 
 
@@ -26,12 +25,14 @@ def _answer(
         socket.SOCK_STREAM,
         socket.IPPROTO_TCP,
         "",
-        socket_address
-        if socket_address is not None
-        else (
-            (ip_address, port, 0, 0)
-            if family == socket.AF_INET6
-            else (ip_address, port)
+        (
+            socket_address
+            if socket_address is not None
+            else (
+                (ip_address, port, 0, 0)
+                if family == socket.AF_INET6
+                else (ip_address, port)
+            )
         ),
     )
 
@@ -50,7 +51,9 @@ def test_hostname_rejects_overlong_identity_after_idna_normalization() -> None:
     hostname = "a." * 127 + "a"
     assert len(hostname) == 255
 
-    with pytest.raises(transport.DestinationValidationError, match="hostname is invalid"):
+    with pytest.raises(
+        transport.DestinationValidationError, match="hostname is invalid"
+    ):
         transport.resolve_public_https_destination(
             f"https://{hostname}/path",
             resolver=lambda *_args: pytest.fail("resolver must not run"),

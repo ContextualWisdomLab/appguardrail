@@ -14,7 +14,6 @@ from scripts.ci.verify_module_coverage import (
     verify_coverage,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "tests.yml"
 
