@@ -769,8 +769,7 @@ def test_cmd_scan_streams_collected_files_while_detecting_languages(tmp_path):
             events.append(f"yield:{file_path.name}")
             yield file_path
 
-    def fake_scan_file(file_path, _base_path, *, path_context):
-        assert path_context.base_path == tmp_path.resolve()
+    def fake_scan_file(file_path, _base_path):
         events.append(f"scan:{file_path.name}")
         return []
 
