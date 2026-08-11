@@ -65,6 +65,14 @@ def test_is_safe_url_reserved_and_not_global_ips():
     assert not _is_safe_url("http://0.0.0.0/")
 
 
+def test_is_safe_url_invalid_types():
+    assert not _is_safe_url(123)
+    assert not _is_safe_url(True)
+    assert not _is_safe_url(None)
+    assert not _is_safe_url([])
+    assert not _is_safe_url({})
+
+
 def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
     from scanner.cli.appguardrail import _push_findings
 
@@ -72,10 +80,7 @@ def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
 
     _push_findings("http://127.0.0.1/", [])
     captured = capsys.readouterr()
-    assert (
-        "URL must be a public HTTPS URL"
-        in captured.err
-    )
+    assert "URL must be a public HTTPS URL" in captured.err
 
 
 def test_safe_redirect_handler_rejects_internal_target():

@@ -122,3 +122,7 @@
 **Vulnerability:** DOM XSS via unescaped `severity` string interpolated into `innerHTML` in `scanner/dashboard/index.html`.
 **Learning:** Even enum-like or seemingly safe meta-fields like `severity` can contain malicious payloads if sourced from user input (findings file) and directly injected into innerHTML.
 **Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from `findings.json`, regardless of expected schema types.
+## 2026-08-05 - Missing string type validation in SSRF/URL parser guardrail
+**Vulnerability:** A Denial of Service (DoS) and application error exposure vulnerability caused by failing to enforce type validation on user inputs prior to passing them to `urllib.parse.urlparse` inside `_is_safe_url`. Non-string inputs like integers or booleans would trigger an unhandled `AttributeError` exception, potentially crashing the application or returning a 500 API error instead of gracefully validating the safety of the input.
+**Learning:** Security validation functions processing inputs from untrusted sources, such as deserialized JSON, CLI arguments, or web requests, must explicitly check types (e.g., `isinstance(input, str)`) before using string-specific standard library functions like `urllib.parse.urlparse`. It prevents unexpected stack traces and ensures a consistent fail-closed security posture.
+**Prevention:** Add an initial type guard like `if not isinstance(url, str): return False` at the beginning of `_is_safe_url` to safely reject unexpected types and preserve SSRF and URL validation integrity.
