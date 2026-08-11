@@ -52,7 +52,7 @@ def test_context_is_immutable_and_rejects_invalid_builder_inputs(tmp_path: Path)
 
     with pytest.raises(FrozenInstanceError):
         context.base_path_is_file = True  # type: ignore[misc]
-    with pytest.raises(TypeError, match="pathlib.Path"):
+    with pytest.raises(TypeError, match=r"pathlib\.Path"):
         build_scan_path_context(str(tmp_path))  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="Boolean"):
         build_scan_path_context(tmp_path, base_path_is_file=1)  # type: ignore[arg-type]
