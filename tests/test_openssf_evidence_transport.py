@@ -12,6 +12,7 @@ import pytest
 
 from appguardrail_core import openssf_evidence as evidence
 
+
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 VERIFIED_AT = "2026-08-04T07:00:00Z"
 
@@ -99,10 +100,7 @@ def test_current_origin_success_does_not_query_legacy() -> None:
     assert result.source_origin == evidence.CURRENT_ORIGIN
     assert len(opener.urls) == 1
     assert opener.urls[0].startswith(f"{evidence.CURRENT_ORIGIN}/projects.json?")
-    assert (
-        "url=https%3A%2F%2Fgithub.com%2FContextualWisdomLab%2Fappguardrail"
-        in opener.urls[0]
-    )
+    assert "url=https%3A%2F%2Fgithub.com%2FContextualWisdomLab%2Fappguardrail" in opener.urls[0]
     assert opener.timeouts == [9.5]
 
 
@@ -266,15 +264,11 @@ def test_network_failures_are_unavailable_without_exception_details(
     assert "dns" not in result.reason
 
 
-def test_default_timestamp_and_opener_are_constructed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_default_timestamp_and_opener_are_constructed(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public collector supplies deterministic helpers when callers omit them."""
     opener = SequenceOpener(_json_response([_project("silver", project_id=9)]))
     monkeypatch.setattr(evidence, "_utc_timestamp", lambda: VERIFIED_AT)
-    monkeypatch.setattr(
-        evidence.urllib.request, "build_opener", lambda *_handlers: opener
-    )
+    monkeypatch.setattr(evidence.urllib.request, "build_opener", lambda *_handlers: opener)
 
     result = evidence.collect_openssf_evidence(REPOSITORY_URL)
 

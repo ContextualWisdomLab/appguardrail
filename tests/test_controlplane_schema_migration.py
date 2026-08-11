@@ -17,6 +17,7 @@ from appguardrail_core.controlplane_schema import (
     migrate_controlplane_schema,
 )
 
+
 LEGACY_SCHEMA = """
 CREATE TABLE orgs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,9 +198,7 @@ def test_legacy_database_migrates_rows_and_foreign_keys_without_data_loss(
     scan_foreign_key = connection.execute(
         "PRAGMA foreign_key_list(security_scans)"
     ).fetchone()
-    key_foreign_key = connection.execute(
-        "PRAGMA foreign_key_list(access_keys)"
-    ).fetchone()
+    key_foreign_key = connection.execute("PRAGMA foreign_key_list(access_keys)").fetchone()
     assert scan_foreign_key[2] == "tenant_organizations"
     assert key_foreign_key[2] == "tenant_organizations"
     assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -234,9 +233,7 @@ def test_second_migration_is_idempotent_and_reports_no_schema_change() -> None:
     assert second.previous_version == 2
     assert second.current_version == 2
     assert second_schema == first_schema
-    assert (
-        connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 1
-    )
+    assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 1
 
 
 def test_new_audit_events_are_append_only_at_the_database_boundary() -> None:
@@ -279,6 +276,7 @@ def test_new_audit_events_are_append_only_at_the_database_boundary() -> None:
     assert connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0] == 1
 
 
+
 def test_tenant_delete_is_restricted_when_audit_evidence_exists() -> None:
     """Tenant deletion cannot cascade through retained append-only audit evidence."""
     connection = _connection()
@@ -307,16 +305,10 @@ def test_tenant_delete_is_restricted_when_audit_evidence_exists() -> None:
     with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY constraint failed"):
         connection.execute("DELETE FROM tenant_organizations WHERE id = 1")
 
-    assert (
-        connection.execute(
-            "SELECT COUNT(*) FROM tenant_organizations WHERE id = 1"
-        ).fetchone()[0]
-        == 1
-    )
-    assert (
-        connection.execute(
-            "SELECT COUNT(*) FROM audit_events WHERE audit_event_id = ?",
-            ("audit-event-retained",),
-        ).fetchone()[0]
-        == 1
-    )
+    assert connection.execute(
+        "SELECT COUNT(*) FROM tenant_organizations WHERE id = 1"
+    ).fetchone()[0] == 1
+    assert connection.execute(
+        "SELECT COUNT(*) FROM audit_events WHERE audit_event_id = ?",
+        ("audit-event-retained",),
+    ).fetchone()[0] == 1

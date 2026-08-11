@@ -9,7 +9,7 @@ DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
 NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
 
 _SEVERITY_ORDER = {severity: index for index, severity in enumerate(SEVERITIES)}
-_SEV_SET = set(SEVERITIES)
+_SEV_SET = frozenset(SEVERITIES)
 
 
 def normalize_finding(
@@ -22,30 +22,48 @@ def normalize_finding(
 
     sev = normalized.get("severity")
     if type(sev) is not str or sev not in _SEV_SET:
-        normalized["severity"] = str(sev or "INFO").upper()
+        try:
+            normalized["severity"] = str(sev or "INFO").upper()
+        except TypeError:
+            normalized["severity"] = "INFO"
 
     rule = normalized.get("rule_id")
     if type(rule) is not str or not rule:
-        normalized["rule_id"] = str(rule or "unknown-rule")
+        try:
+            normalized["rule_id"] = str(rule or "unknown-rule")
+        except TypeError:
+            normalized["rule_id"] = "unknown-rule"
 
     msg = normalized.get("message")
     if type(msg) is not str or not msg:
-        normalized["message"] = str(msg or "No message provided.")
+        try:
+            normalized["message"] = str(msg or "No message provided.")
+        except TypeError:
+            normalized["message"] = "No message provided."
 
     file = normalized.get("file")
     if type(file) is not str or not file:
-        normalized["file"] = str(file or "n/a")
+        try:
+            normalized["file"] = str(file or "n/a")
+        except TypeError:
+            normalized["file"] = "n/a"
 
     if not normalized.get("line"):
         normalized["line"] = 1
 
     cat = normalized.get("category")
     if type(cat) is not str or not cat:
-        normalized["category"] = str(cat or "misconfig")
+        try:
+            normalized["category"] = str(cat or "misconfig")
+        except TypeError:
+            normalized["category"] = "misconfig"
 
     ctx = normalized.get("context")
     if type(ctx) is not str or not ctx:
-        normalized["context"] = str(ctx or "app-code")
+        try:
+            normalized["context"] = str(ctx or "app-code")
+        except TypeError:
+            normalized["context"] = "app-code"
 
     normalized["references"] = _as_tuple(normalized.get("references"))
     normalized["owasp"] = _as_tuple(normalized.get("owasp"))
@@ -55,21 +73,28 @@ def normalize_finding(
     if not rem:
         rem = normalized.get("fix_prompt")
     if type(rem) is not str or not rem:
-        normalized["remediation"] = str(
-            rem or "Review and remediate this finding, then rerun AppGuardrail."
-        )
+        try:
+            normalized["remediation"] = str(
+                rem or "Review and remediate this finding, then rerun AppGuardrail."
+            )
+        except TypeError:
+            normalized["remediation"] = "Review and remediate this finding, then rerun AppGuardrail."
     elif rem != normalized.get("remediation"):
         normalized["remediation"] = rem
 
     verif = normalized.get("verification")
     if type(verif) is not str or not verif:
-        normalized["verification"] = str(
-            verif or "Rerun AppGuardrail after remediation."
-        )
+        try:
+            normalized["verification"] = str(verif or "Rerun AppGuardrail after remediation.")
+        except TypeError:
+            normalized["verification"] = "Rerun AppGuardrail after remediation."
 
     snip = normalized.get("snippet")
     if type(snip) is not str or not snip:
-        snip = str(snip or "")
+        try:
+            snip = str(snip or "")
+        except TypeError:
+            snip = ""
     normalized["snippet"] = safe_report_snippet(snip, max_len=snippet_max_len)
 
     return normalized
@@ -93,8 +118,11 @@ def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     for finding in findings:
         sev = finding.get("severity")
         if type(sev) is not str or sev not in _SEVERITY_ORDER:
-            sev = str(sev or "INFO").upper()
-            if sev not in _SEVERITY_ORDER:
+            try:
+                sev = str(sev or "INFO").upper()
+            except TypeError:
+                sev = "INFO"
+            if type(sev) is not str or sev not in _SEVERITY_ORDER:
                 sev = "INFO"
         counts[sev] += 1
     return counts
@@ -113,11 +141,17 @@ def is_deploy_blocking(
 
     sev = finding.get("severity")
     if type(sev) is not str or sev not in _SEVERITY_ORDER:
-        sev = str(sev or "INFO").upper()
+        try:
+            sev = str(sev or "INFO").upper()
+        except TypeError:
+            sev = "INFO"
 
     ctx = finding.get("context")
     if type(ctx) is not str or not ctx:
-        ctx = str(ctx or "app-code")
+        try:
+            ctx = str(ctx or "app-code")
+        except TypeError:
+            ctx = "app-code"
 
     return sev in severities and ctx not in NON_BLOCKING_CONTEXTS
 
@@ -134,15 +168,24 @@ def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
     """Sort by deploy-oriented severity, then category and rule id."""
     sev = finding.get("severity")
     if type(sev) is not str or sev not in _SEVERITY_ORDER:
-        sev = str(sev or "INFO").upper()
+        try:
+            sev = str(sev or "INFO").upper()
+        except TypeError:
+            sev = "INFO"
 
     cat = finding.get("category")
     if type(cat) is not str or not cat:
-        cat = str(cat or "misconfig")
+        try:
+            cat = str(cat or "misconfig")
+        except TypeError:
+            cat = "misconfig"
 
     rule = finding.get("rule_id")
     if type(rule) is not str or not rule:
-        rule = str(rule or "unknown-rule")
+        try:
+            rule = str(rule or "unknown-rule")
+        except TypeError:
+            rule = "unknown-rule"
 
     return (
         _SEVERITY_ORDER.get(sev, len(SEVERITIES)),
@@ -153,6 +196,11 @@ def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
 
 def safe_report_snippet(snippet: str, max_len: int = 400) -> str:
     """Trim report evidence without carrying oversized raw snippets."""
+    if type(snippet) is not str:
+        try:
+            snippet = str(snippet or "")
+        except TypeError:
+            snippet = ""
     if not snippet:
         return ""
     snippet = snippet.replace("\r\n", "\n").replace("\r", "\n").strip()
@@ -169,4 +217,7 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
     try:
         return tuple(item if type(item) is str else str(item) for item in value)
     except TypeError:
-        return (str(value),)
+        try:
+            return (str(value),)
+        except TypeError:
+            return ()

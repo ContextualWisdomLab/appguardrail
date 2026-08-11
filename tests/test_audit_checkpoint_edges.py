@@ -11,6 +11,7 @@ from appguardrail_core.audit_events import (
     verify_audit_chain,
 )
 
+
 TENANT_ID = 41
 OCCURRED_AT = "2026-08-04T12:10:00Z"
 

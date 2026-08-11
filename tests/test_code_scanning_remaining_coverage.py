@@ -123,12 +123,9 @@ def test_publish_returns_zero_before_issue_inventory_for_non_drift() -> None:
     )
     client = NoMutationClient()
 
-    assert (
-        drift.publish_records(
-            client,
-            "ContextualWisdomLab/appguardrail",
-            (template,),
-        )
-        == 0
-    )
+    assert drift.publish_records(
+        client,
+        "ContextualWisdomLab/appguardrail",
+        (template,),
+    ) == 0
     assert client.calls == []

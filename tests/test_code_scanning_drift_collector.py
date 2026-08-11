@@ -110,9 +110,9 @@ def test_github_pages_classifies_permission_service_and_api_failures() -> None:
         500: "api_error",
     }
     for status, state in expected.items():
-        client.request = lambda *_args, _status=status, **_kwargs: (
-            _ for _ in ()
-        ).throw(GitHubAPIError(_status, "denied"))
+        client.request = lambda *_args, _status=status, **_kwargs: (_ for _ in ()).throw(
+            GitHubAPIError(_status, "denied")
+        )
         result = client.pages("/items")
         assert result.status == state
         assert result.complete is False
@@ -126,7 +126,7 @@ def test_github_request_redacts_error_body_from_exception() -> None:
         403,
         "Forbidden",
         {},
-        io.BytesIO(b"authorization: Bearer secret-value"),
+        io.BytesIO(b'authorization: Bearer secret-value'),
     )
 
     class FailingOpener:
@@ -161,9 +161,7 @@ def test_parse_repositories_normalizes_reviewed_allowlist() -> None:
 class FakeClient:
     """Path-aware page client for deterministic collection tests."""
 
-    def __init__(
-        self, responses: dict[tuple[str, tuple[tuple[str, object], ...]], PageResult]
-    ):
+    def __init__(self, responses: dict[tuple[str, tuple[tuple[str, object], ...]], PageResult]):
         """Store endpoint responses and record every paginated request."""
         self.responses = responses
         self.calls: list[tuple[str, dict[str, object]]] = []
@@ -197,8 +195,7 @@ def _responses(
                     }.items()
                 )
             ),
-        ): pulls
-        or PageResult("ok", (_pull(),), True, ""),
+        ): pulls or PageResult("ok", (_pull(),), True, ""),
         (
             f"/repos/{repository}/code-scanning/analyses",
             tuple(
@@ -267,9 +264,7 @@ def test_collect_records_compares_base_and_exact_pull_request_evidence() -> None
     assert records[0].merge_sha == "cccccccccccccccccccccccccccccccccccccccc"
 
 
-def test_collect_records_reports_confirmed_drift_for_complete_empty_current_set() -> (
-    None
-):
+def test_collect_records_reports_confirmed_drift_for_complete_empty_current_set() -> None:
     """A complete empty PR analysis set is confirmed drift when base evidence exists."""
     client = FakeClient(_responses(current=PageResult("ok", (), True, "")))
 
@@ -333,7 +328,9 @@ def test_collect_records_accepts_exact_head_analysis_and_bounds_pull_requests() 
 def test_collect_records_returns_unknown_for_malformed_pull_request_payload() -> None:
     """Malformed pull request metadata must remain an explicit unknown record."""
     pulls = PageResult("ok", ({"number": 42},), True, "")
-    client = FakeClient(_responses(current=PageResult("ok", (), True, ""), pulls=pulls))
+    client = FakeClient(
+        _responses(current=PageResult("ok", (), True, ""), pulls=pulls)
+    )
 
     records = collect_records(
         client,

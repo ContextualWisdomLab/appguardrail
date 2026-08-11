@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+
 MODULE_PATH = (
     Path(__file__).resolve().parents[1]
     / "scripts"
@@ -249,7 +250,9 @@ def test_main_without_explicit_argv_uses_process_arguments(monkeypatch, capsys) 
         "run_loop",
         lambda _client, repository, dry_run: module.LoopResult(
             action=(
-                "complete" if repository.endswith("appguardrail") and dry_run else "bad"
+                "complete"
+                if repository.endswith("appguardrail") and dry_run
+                else "bad"
             ),
             gap_id=None,
             issue_number=None,

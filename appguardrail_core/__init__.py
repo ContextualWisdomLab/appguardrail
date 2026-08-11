@@ -113,6 +113,7 @@ from appguardrail_core.rules import (
     validate_rule_metadata,
 )
 
+
 ReportContext = _reports.ReportContext
 _BASE_RENDERER_ATTRIBUTE = "_openssf_base_buyer_diligence_renderer"
 if not hasattr(_reports, _BASE_RENDERER_ATTRIBUTE):

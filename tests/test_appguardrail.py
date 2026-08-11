@@ -7,32 +7,20 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    SCAN_RULES,
-    _bandit_findings,
-    _build_finding,
-    _collect_files,
-    _detect_scan_languages,
-    _load_packaged_regex_rules,
-    _path_allowed_by_rule,
-    _print_scan_results,
-    _ruff_findings,
-    _run_bandit_scan,
-    _run_codegraph_command,
-    _run_codegraph_index,
-    _run_ruff_security_scan,
-    _run_semgrep_scan,
-    _run_trivy_fs,
-    _run_zap_baseline,
-    _scan_file,
-    _semgrep_findings,
-    cmd_init,
-    cmd_monitor,
-    cmd_org_bundle,
-    cmd_report,
-    cmd_scan,
-    cmd_serve,
-)
+from scanner.cli.appguardrail import (SCAN_RULES, _bandit_findings,
+                                      _build_finding, _collect_files,
+                                      _detect_scan_languages,
+                                      _load_packaged_regex_rules,
+                                      _path_allowed_by_rule,
+                                      _print_scan_results, _ruff_findings,
+                                      _run_bandit_scan, _run_codegraph_command,
+                                      _run_codegraph_index,
+                                      _run_ruff_security_scan,
+                                      _run_semgrep_scan, _run_trivy_fs,
+                                      _run_zap_baseline, _scan_file,
+                                      _semgrep_findings, cmd_init, cmd_monitor,
+                                      cmd_org_bundle, cmd_report, cmd_scan,
+                                      cmd_serve)
 
 MOCK_RULES = [
     {

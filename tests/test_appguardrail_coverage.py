@@ -5,18 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    _collect_files,
-    _parse_inline_list,
-    _path_matches_glob,
-    _scan_file,
-    cmd_hook,
-    cmd_init,
-    cmd_monitor,
-    cmd_review,
-    cmd_scan,
-    main,
-)
+from scanner.cli.appguardrail import (_collect_files, _parse_inline_list,
+                                      _path_matches_glob, _scan_file, cmd_hook,
+                                      cmd_init, cmd_monitor, cmd_review,
+                                      cmd_scan, main)
 from tests.test_appguardrail import MOCK_RULES
 
 

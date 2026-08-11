@@ -33,9 +33,7 @@ def reconcile_handoff(
     if pull_requests:
         return loop.LoopResult("wait-prs", None, None, pull_requests)
 
-    active, _completed = loop._active_and_completed(
-        loop._gap_issues(client, repository)
-    )
+    active, _completed = loop._active_and_completed(loop._gap_issues(client, repository))
     for gap in loop.COMMERCIAL_GAPS:
         issue = active.get(gap.id)
         if issue is None:

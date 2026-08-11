@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+
 CURRENT_ORIGIN = "https://www.bestpractices.dev"
 LEGACY_ORIGIN = "https://bestpractices.coreinfrastructure.org"
 ALLOWED_ORIGINS = frozenset({CURRENT_ORIGIN, LEGACY_ORIGIN})
@@ -136,7 +137,9 @@ def _non_affirmative_evidence(
     )
 
 
-def _project_matches_repository(project: dict[str, Any], repository_url: str) -> bool:
+def _project_matches_repository(
+    project: dict[str, Any], repository_url: str
+) -> bool:
     """Return whether the official result carries the queried URL identity."""
     for field in ("repo_url", "homepage_url"):
         candidate = project.get(field)
@@ -536,11 +539,7 @@ def collect_openssf_evidence(
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> OpenSSFEvidence:
     """Collect current, then eligible historical, evidence for one repository."""
-    if (
-        isinstance(timeout, bool)
-        or not isinstance(timeout, (int, float))
-        or timeout <= 0
-    ):
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
         raise ValueError("timeout must be a positive number")
     normalized_repository = _normalize_repository_url(repository_url)
     timestamp = _normalize_verified_at(

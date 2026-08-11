@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
 
+
 CURRENT_SCHEMA_VERSION = 2
 MIGRATION_NAME = "retention_audit_schema_v2"
 
@@ -56,7 +57,9 @@ _LEGACY_TO_CANONICAL = {
     "keys": "access_keys",
 }
 _REQUIRED_LEGACY_COLUMNS = {
-    "orgs": frozenset({"id", "name", "api_key_hash", "created_at", "webhook_url"}),
+    "orgs": frozenset(
+        {"id", "name", "api_key_hash", "created_at", "webhook_url"}
+    ),
     "scans": frozenset(
         {
             "id",
@@ -71,7 +74,9 @@ _REQUIRED_LEGACY_COLUMNS = {
             "findings",
         }
     ),
-    "keys": frozenset({"id", "org_id", "key_hash", "role", "label", "created_at"}),
+    "keys": frozenset(
+        {"id", "org_id", "key_hash", "role", "label", "created_at"}
+    ),
 }
 
 
@@ -213,7 +218,8 @@ def _enable_foreign_keys(connection: sqlite3.Connection) -> None:
 
 def _create_base_tables(connection: sqlite3.Connection) -> None:
     """Create the canonical equivalents of the embedded legacy base schema."""
-    connection.execute("""
+    connection.execute(
+        """
         CREATE TABLE tenant_organizations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -221,8 +227,10 @@ def _create_base_tables(connection: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL,
             webhook_url TEXT
         )
-        """)
-    connection.execute("""
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE security_scans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             org_id INTEGER NOT NULL REFERENCES tenant_organizations(id),
@@ -235,8 +243,10 @@ def _create_base_tables(connection: sqlite3.Connection) -> None:
             new_blocking INTEGER NOT NULL DEFAULT 0,
             findings TEXT NOT NULL
         )
-        """)
-    connection.execute("""
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE access_keys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             org_id INTEGER NOT NULL REFERENCES tenant_organizations(id),
@@ -245,7 +255,8 @@ def _create_base_tables(connection: sqlite3.Connection) -> None:
             label TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
-        """)
+        """
+    )
 
 
 def _rename_legacy_tables(connection: sqlite3.Connection) -> None:
@@ -405,10 +416,7 @@ def _validate_current_schema(inspection: SchemaInspection) -> None:
         raise SchemaMigrationError(
             "schema version 2 is incomplete; missing objects: " + ", ".join(missing)
         )
-    if (
-        LEGACY_TABLE_NAMES & inspection.table_names
-        or "idx_scans_org" in inspection.index_names
-    ):
+    if LEGACY_TABLE_NAMES & inspection.table_names or "idx_scans_org" in inspection.index_names:
         raise SchemaMigrationError("schema version 2 still contains legacy objects")
 
 

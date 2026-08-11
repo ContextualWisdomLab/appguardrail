@@ -17,6 +17,7 @@ from appguardrail_core import (
     verify_purge_preview,
 )
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -103,7 +104,11 @@ def test_exact_coverage_workflow_tracks_every_core_surface() -> None:
 def test_implementation_plan_preserves_bounded_follow_up_slices() -> None:
     """The first modular core PR does not pretend persistence and APIs already exist."""
     plan = (
-        ROOT / "docs" / "superpowers" / "plans" / "2026-08-04-retention-audit-policy.md"
+        ROOT
+        / "docs"
+        / "superpowers"
+        / "plans"
+        / "2026-08-04-retention-audit-policy.md"
     ).read_text(encoding="utf-8")
 
     assert "Phase 1: dependency-free policy and audit core" in plan

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import appguardrail_core
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -31,9 +32,9 @@ def test_operator_documentation_records_safety_and_phase_boundary() -> None:
 
 def test_changelog_records_buyer_visible_migration_behavior() -> None:
     """The next release notes include data preservation and fail-closed behavior."""
-    changelog = (ROOT / "CHANGELOG.d" / "871-retention-schema-migration.md").read_text(
-        encoding="utf-8"
-    )
+    changelog = (
+        ROOT / "CHANGELOG.d" / "871-retention-schema-migration.md"
+    ).read_text(encoding="utf-8")
 
     assert "multiword `snake_case`" in changelog
     assert "preserving tenant" in changelog

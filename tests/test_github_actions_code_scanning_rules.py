@@ -8,6 +8,7 @@ import pytest
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
+
 _RULE_ID = "github-actions-sarif-missing-pull-request-trigger"
 
 
@@ -279,4 +280,6 @@ jobs:
     documentation_findings = _scan_file(documentation, tmp_path)
 
     assert [finding["rule_id"] for finding in workflow_findings].count(_RULE_ID) == 1
-    assert _RULE_ID not in {finding["rule_id"] for finding in documentation_findings}
+    assert _RULE_ID not in {
+        finding["rule_id"] for finding in documentation_findings
+    }

@@ -54,7 +54,8 @@ def test_mixed_legacy_and_canonical_tables_fail_without_partial_mutation() -> No
 def test_malformed_legacy_columns_fail_before_any_table_is_renamed() -> None:
     """Missing legacy data columns stop migration before its first DDL statement."""
     connection = _connection()
-    connection.executescript("""
+    connection.executescript(
+        """
         CREATE TABLE orgs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -80,7 +81,8 @@ def test_malformed_legacy_columns_fail_before_any_table_is_renamed() -> None:
             label TEXT NOT NULL,
             created_at TEXT NOT NULL
         );
-        """)
+        """
+    )
     connection.commit()
     before = _schema_snapshot(connection)
 
@@ -145,9 +147,7 @@ def test_injected_mid_migration_failure_rolls_back_renames_and_version(
         migrate_controlplane_schema(connection)
 
     assert _schema_snapshot(connection) == before
-    assert (
-        connection.execute("SELECT name FROM orgs WHERE id = 1").fetchone()[0] == "Acme"
-    )
+    assert connection.execute("SELECT name FROM orgs WHERE id = 1").fetchone()[0] == "Acme"
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
 
 
@@ -160,7 +160,7 @@ def test_foreign_key_violation_rolls_back_complete_migration() -> None:
         "INSERT INTO scans(org_id, created_at, repo, commit_sha, total, "
         "deploy_blocking, severity_counts, new_blocking, findings) "
         "VALUES (99, '2026-08-04T12:05:00Z', 'acme/repo', 'deadbeef', 1, 1, "
-        '\'{"CRITICAL":0,"HIGH":1,"WARNING":0,"INFO":0}\', 1, \'[]\')'
+        "'{\"CRITICAL\":0,\"HIGH\":1,\"WARNING\":0,\"INFO\":0}', 1, '[]')"
     )
     connection.commit()
     before = _schema_snapshot(connection)
@@ -182,6 +182,7 @@ def test_non_connection_and_closed_connection_are_rejected_cleanly() -> None:
     connection.close()
     with pytest.raises(SchemaMigrationError, match="closed connection"):
         migrate_controlplane_schema(connection)
+
 
 
 class ConcurrentCompletionConnection(sqlite3.Connection):
@@ -209,7 +210,9 @@ class ConcurrentCompletionConnection(sqlite3.Connection):
 
 def test_post_lock_schema_snapshot_handles_concurrent_completion() -> None:
     """A competing successful migrator turns this invocation into an idempotent no-op."""
-    connection = sqlite3.connect(":memory:", factory=ConcurrentCompletionConnection)
+    connection = sqlite3.connect(
+        ":memory:", factory=ConcurrentCompletionConnection
+    )
 
     result = migrate_controlplane_schema(connection)
 
@@ -217,6 +220,4 @@ def test_post_lock_schema_snapshot_handles_concurrent_completion() -> None:
     assert result.previous_version == CURRENT_SCHEMA_VERSION
     assert result.current_version == CURRENT_SCHEMA_VERSION
     assert connection.in_transaction is False
-    assert (
-        inspect_controlplane_schema(connection).user_version == CURRENT_SCHEMA_VERSION
-    )
+    assert inspect_controlplane_schema(connection).user_version == CURRENT_SCHEMA_VERSION

@@ -254,10 +254,9 @@ def test_drift_marker_and_render_reject_non_drift_records() -> None:
 
 def test_marker_parser_rejects_non_object_json_and_title_rejects_bad_identity() -> None:
     """Malformed markers and incomplete issue identities cannot affect deduplication."""
-    assert (
-        drift.parse_drift_marker(f"{drift.MARKER_PREFIX} [] {drift.MARKER_SUFFIX}")
-        == {}
-    )
+    assert drift.parse_drift_marker(
+        f"{drift.MARKER_PREFIX} [] {drift.MARKER_SUFFIX}"
+    ) == {}
     invalid = _drift_record(head_sha="invalid")
     with pytest.raises(ValueError, match="exact head"):
         drift.drift_issue_title(invalid)
@@ -307,9 +306,7 @@ def test_issue_index_rejects_incomplete_and_malformed_results() -> None:
             "ContextualWisdomLab/appguardrail",
         )
     with pytest.raises(RuntimeError, match="malformed"):
-        drift._issue_items(
-            IssueClient({"not": "a list"}), "ContextualWisdomLab/appguardrail"
-        )
+        drift._issue_items(IssueClient({"not": "a list"}), "ContextualWisdomLab/appguardrail")
 
 
 def test_issue_index_filters_noise_and_pull_requests() -> None:
@@ -339,9 +336,13 @@ def test_label_creation_tolerates_duplicate_only() -> None:
             """Raise the configured typed response."""
             raise drift.GitHubAPIError(self.status)
 
-    drift._ensure_label(LabelClient(422), "ContextualWisdomLab/appguardrail", "x")
+    drift._ensure_label(
+        LabelClient(422), "ContextualWisdomLab/appguardrail", "x"
+    )
     with pytest.raises(drift.GitHubAPIError) as exc_info:
-        drift._ensure_label(LabelClient(500), "ContextualWisdomLab/appguardrail", "x")
+        drift._ensure_label(
+            LabelClient(500), "ContextualWisdomLab/appguardrail", "x"
+        )
     assert exc_info.value.status == 500
 
 
@@ -367,31 +368,26 @@ def test_publish_reopens_changed_closed_issue_and_bounds_updates(monkeypatch) ->
     }
     client = IssueClient([existing])
 
-    assert (
-        drift.publish_records(client, "ContextualWisdomLab/appguardrail", (changed,))
-        == 1
-    )
+    assert drift.publish_records(
+        client, "ContextualWisdomLab/appguardrail", (changed,)
+    ) == 1
     patch = next(call for call in client.calls if call[0] == "PATCH")
     assert patch[2]["state"] == "open"
 
     bounded = IssueClient([])
     monkeypatch.setattr(drift, "MAX_ISSUE_UPDATES_PER_RUN", 0)
-    assert (
-        drift.publish_records(bounded, "ContextualWisdomLab/appguardrail", (original,))
-        == 0
-    )
+    assert drift.publish_records(
+        bounded, "ContextualWisdomLab/appguardrail", (original,)
+    ) == 0
 
 
 def test_publish_handles_non_object_create_response() -> None:
     """A bodyless successful create response remains bounded within the current run."""
     client = IssueClient([])
     client.create_result = None
-    assert (
-        drift.publish_records(
-            client, "ContextualWisdomLab/appguardrail", (_drift_record(),)
-        )
-        == 1
-    )
+    assert drift.publish_records(
+        client, "ContextualWisdomLab/appguardrail", (_drift_record(),)
+    ) == 1
 
 
 def test_parse_args_uses_environment_defaults(monkeypatch) -> None:

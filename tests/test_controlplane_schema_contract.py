@@ -17,6 +17,7 @@ from appguardrail_core.controlplane_schema import (
     migrate_controlplane_schema,
 )
 
+
 LEGACY_OBJECT_NAMES = {"orgs", "scans", "keys", "idx_scans_org"}
 
 
@@ -78,7 +79,9 @@ def test_current_version_rejects_legacy_index_residue() -> None:
     """A legacy index added after migration is treated as schema tampering."""
     connection = sqlite3.connect(":memory:")
     migrate_controlplane_schema(connection)
-    connection.execute("CREATE INDEX idx_scans_org ON security_scans(org_id, id DESC)")
+    connection.execute(
+        "CREATE INDEX idx_scans_org ON security_scans(org_id, id DESC)"
+    )
 
     with pytest.raises(SchemaMigrationError, match="legacy objects"):
         migrate_controlplane_schema(connection)

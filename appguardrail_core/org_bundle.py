@@ -10,15 +10,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from appguardrail_core.org_intelligence import (
-    OrgInventory,
-    PullRequestGateSummary,
-    build_buyer_evidence_pack,
-    build_org_inventory,
-    buyer_evidence_pack_to_dict,
-    render_org_readiness_report,
-    summarize_pr_gates,
-)
+from appguardrail_core.org_intelligence import (OrgInventory,
+                                                PullRequestGateSummary,
+                                                build_buyer_evidence_pack,
+                                                build_org_inventory,
+                                                buyer_evidence_pack_to_dict,
+                                                render_org_readiness_report,
+                                                summarize_pr_gates)
 
 REPO_FIELDS = "name,isFork,isPrivate,defaultBranchRef,url,description,visibility,primaryLanguage,pushedAt"
 PR_DETAIL_FIELDS = "number,title,updatedAt,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,headRefName,baseRefName"

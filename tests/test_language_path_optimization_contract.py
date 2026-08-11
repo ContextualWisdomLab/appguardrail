@@ -28,9 +28,7 @@ def test_string_path_language_detection_matches_path_objects(path_text: str) -> 
     assert detect_language_axes([path_text]) == detect_language_axes([Path(path_text)])
 
 
-def test_generator_input_is_materialized_once_for_profile_detection(
-    tmp_path: Path,
-) -> None:
+def test_generator_input_is_materialized_once_for_profile_detection(tmp_path: Path) -> None:
     """One-shot iterables must feed language, framework, and signal detection once."""
     manifest = tmp_path / "package.json"
     manifest.write_text('{"dependencies":{"next":"15"}}\n', encoding="utf-8")

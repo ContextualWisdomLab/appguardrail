@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Iterable, Mapping
 
+
 GENESIS_EVENT_HASH = "0" * 64
 MAX_AUDIT_SUMMARY_BYTES = 16_384
 MAX_AUDIT_SUMMARY_DEPTH = 8
@@ -56,11 +57,7 @@ def _canonical_utc(value: str, field_name: str) -> str:
 def _identifier(value: str, field_name: str) -> str:
     """Return one non-empty, bounded identifier without control characters."""
     identifier = str(value or "").strip()
-    if (
-        not identifier
-        or len(identifier) > 256
-        or any(ord(char) < 32 for char in identifier)
-    ):
+    if not identifier or len(identifier) > 256 or any(ord(char) < 32 for char in identifier):
         raise ValueError(f"{field_name} must be a non-empty bounded identifier")
     return identifier
 
@@ -90,9 +87,7 @@ def _sanitize_value(value: Any, *, depth: int) -> Any:
             if not key:
                 raise ValueError("audit summary object must use non-empty string keys")
             if key in sanitized:
-                raise ValueError(
-                    "audit summary object contains a duplicate normalized key"
-                )
+                raise ValueError("audit summary object contains a duplicate normalized key")
             sanitized[key] = (
                 "[REDACTED]"
                 if _sensitive_key(key)
@@ -182,9 +177,7 @@ def _event_payload(
     normalized_event_id = _identifier(event_id, "event_id")
     normalized_event_type = str(event_type or "").strip()
     if not _EVENT_TYPE_RE.fullmatch(normalized_event_type):
-        raise ValueError(
-            "event_type must use lowercase dot, underscore, or hyphen segments"
-        )
+        raise ValueError("event_type must use lowercase dot, underscore, or hyphen segments")
     normalized_previous_hash = str(previous_event_hash or "").strip().lower()
     if not _HASH_RE.fullmatch(normalized_previous_hash):
         raise ValueError("previous_event_hash must be a lowercase SHA-256 hex digest")
@@ -286,9 +279,7 @@ def verify_audit_chain(
     if expected_head_hash is not None:
         normalized_expected_hash = str(expected_head_hash or "").strip().lower()
         if not _HASH_RE.fullmatch(normalized_expected_hash):
-            raise ValueError(
-                "expected_head_hash must be a lowercase SHA-256 hex digest"
-            )
+            raise ValueError("expected_head_hash must be a lowercase SHA-256 hex digest")
 
     expected_previous_hash = GENESIS_EVENT_HASH
     expected_sequence = 1
@@ -305,20 +296,12 @@ def verify_audit_chain(
             if event.event_hash != recompute_event_hash(event):
                 raise ValueError("event hash mismatch")
         except ValueError as exc:
-            raise ValueError(
-                f"audit chain invalid at sequence {expected_sequence}: {exc}"
-            ) from exc
+            raise ValueError(f"audit chain invalid at sequence {expected_sequence}: {exc}") from exc
         expected_previous_hash = event.event_hash
         expected_sequence += 1
 
     actual_count = expected_sequence - 1
-    if (
-        normalized_expected_count is not None
-        and actual_count != normalized_expected_count
-    ):
+    if normalized_expected_count is not None and actual_count != normalized_expected_count:
         raise ValueError("audit chain checkpoint event count mismatch")
-    if (
-        normalized_expected_hash is not None
-        and expected_previous_hash != normalized_expected_hash
-    ):
+    if normalized_expected_hash is not None and expected_previous_hash != normalized_expected_hash:
         raise ValueError("audit chain checkpoint head hash mismatch")

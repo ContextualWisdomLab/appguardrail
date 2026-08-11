@@ -70,7 +70,8 @@ def test_dashboard_escapes_double_quotes_with_complete_html_entity() -> None:
     html = _dashboard_html()
 
     expected_mapping = (
-        "{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'," "\"'\":'&#39;','`':'&#96;'}"
+        "{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"
+        "\"'\":'&#39;','`':'&#96;'}"
     )
     assert expected_mapping in html
 

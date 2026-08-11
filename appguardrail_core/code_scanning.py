@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import re
 from typing import Any, Iterable, Literal
 
+
 SnapshotStatus = Literal["ok", "unknown"]
 AssessmentStatus = Literal["clean", "drift", "unknown"]
 
@@ -112,11 +113,7 @@ def normalize_analysis(payload: dict[str, Any]) -> AnalysisEvidence:
     if not isinstance(payload, dict):
         raise ValueError("analysis payload must be an object")
     analysis_id = payload.get("id")
-    if (
-        not isinstance(analysis_id, int)
-        or isinstance(analysis_id, bool)
-        or analysis_id <= 0
-    ):
+    if not isinstance(analysis_id, int) or isinstance(analysis_id, bool) or analysis_id <= 0:
         raise ValueError("id must be a positive integer")
 
     tool = payload.get("tool")
@@ -171,9 +168,7 @@ def build_snapshot(
         )
 
     refs = {str(ref).strip() for ref in expected_refs if str(ref).strip()}
-    commits = {
-        str(sha).strip().lower() for sha in expected_commit_shas if str(sha).strip()
-    }
+    commits = {str(sha).strip().lower() for sha in expected_commit_shas if str(sha).strip()}
     if any(not _COMMIT_SHA_RE.fullmatch(sha) for sha in commits):
         return AnalysisSnapshot(
             scope=normalized_scope,
@@ -231,12 +226,7 @@ def compare_snapshots(
     base: AnalysisSnapshot, current: AnalysisSnapshot
 ) -> DriftAssessment:
     """Compare complete snapshots without inferring drift from unknown evidence."""
-    if (
-        base.status != "ok"
-        or current.status != "ok"
-        or not base.complete
-        or not current.complete
-    ):
+    if base.status != "ok" or current.status != "ok" or not base.complete or not current.complete:
         reason = base.reason or current.reason or "incomplete_analysis_evidence"
         return DriftAssessment(status="unknown", reason=reason)
 
@@ -248,9 +238,7 @@ def compare_snapshots(
 
     current_by_identity = {evidence.identity: evidence for evidence in current.analyses}
     missing = tuple(
-        identity
-        for identity in sorted(healthy_base)
-        if identity not in current_by_identity
+        identity for identity in sorted(healthy_base) if identity not in current_by_identity
     )
     errored = tuple(
         current_by_identity[identity]

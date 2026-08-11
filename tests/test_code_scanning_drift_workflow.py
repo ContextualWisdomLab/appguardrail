@@ -10,6 +10,7 @@ import pytest
 from appguardrail_core.code_scanning import DriftAssessment
 from scripts.ci import collect_code_scanning_drift as drift
 
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "org-security-failure-collector.yml"
 
@@ -27,10 +28,7 @@ def test_org_collector_grants_only_required_live_analysis_permissions() -> None:
     assert "repositories: appguardrail" in workflow
     assert "persist-credentials: false" in workflow
     assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in workflow
-    assert (
-        "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
-        in workflow
-    )
+    assert "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1" in workflow
 
 
 def test_org_collector_runs_drift_after_existing_failure_collection() -> None:
@@ -42,17 +40,11 @@ def test_org_collector_runs_drift_after_existing_failure_collection() -> None:
     assert failure_command in workflow
     assert drift_command in workflow
     assert workflow.index(failure_command) < workflow.index(drift_command)
-    assert (
-        "CODE_SCANNING_DRIFT_REPOSITORIES: ${{ steps.app-config.outputs.repositories }}"
-        in workflow
-    )
+    assert "CODE_SCANNING_DRIFT_REPOSITORIES: ${{ steps.app-config.outputs.repositories }}" in workflow
     assert '--repositories "$CODE_SCANNING_DRIFT_REPOSITORIES"' in workflow
     assert "GH_READ_TOKEN: ${{ steps.read-app-token.outputs.token }}" in workflow
     assert "GH_WRITE_TOKEN: ${{ steps.write-app-token.outputs.token }}" in workflow
-    assert (
-        "secrets."
-        not in workflow.split("- name: Collect Code Scanning analysis drift", 1)[1]
-    )
+    assert "secrets." not in workflow.split("- name: Collect Code Scanning analysis drift", 1)[1]
 
 
 def test_parse_args_supports_explicit_bounded_configuration() -> None:
@@ -146,21 +138,18 @@ def test_main_collects_with_read_client_and_publishes_with_write_client(
     monkeypatch.setattr(drift, "collect_records", collect)
     monkeypatch.setattr(drift, "publish_records", publish)
 
-    assert (
-        drift.main(
-            [
-                "--owner",
-                "ContextualWisdomLab",
-                "--target-repo",
-                "ContextualWisdomLab/appguardrail",
-                "--repositories",
-                "appguardrail,naruon",
-                "--max-pull-requests",
-                "25",
-            ]
-        )
-        == 0
-    )
+    assert drift.main(
+        [
+            "--owner",
+            "ContextualWisdomLab",
+            "--target-repo",
+            "ContextualWisdomLab/appguardrail",
+            "--repositories",
+            "appguardrail,naruon",
+            "--max-pull-requests",
+            "25",
+        ]
+    ) == 0
 
     assert [client.token for client in clients] == ["read-token", "write-token"]
     assert observed == {

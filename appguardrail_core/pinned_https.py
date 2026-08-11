@@ -20,6 +20,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+
 DEFAULT_TIMEOUT_SECONDS = 15.0
 DEFAULT_MAX_REDIRECTS = 5
 DEFAULT_MAX_RESPONSE_BYTES = 1_000_000
@@ -97,9 +98,7 @@ def _has_control_character(value: str) -> bool:
     return any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)
 
 
-def _is_permitted_global_address(
-    value: ipaddress.IPv4Address | ipaddress.IPv6Address,
-) -> bool:
+def _is_permitted_global_address(value: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """Return whether an address is globally routable and not IPv4-mapped."""
     if isinstance(value, ipaddress.IPv6Address) and value.ipv4_mapped is not None:
         return False
@@ -186,18 +185,12 @@ def _resolved_address(
     try:
         parsed_ip = ipaddress.ip_address(raw_ip)
     except ValueError as exc:
-        raise DestinationValidationError(
-            "resolver returned an invalid IP address"
-        ) from exc
+        raise DestinationValidationError("resolver returned an invalid IP address") from exc
     if not _is_permitted_global_address(parsed_ip):
         raise DestinationValidationError(
             "HTTPS destination resolved to a non-global address"
         )
-    if (
-        family == socket.AF_INET6
-        and len(socket_address) >= 4
-        and socket_address[3] != 0
-    ):
+    if family == socket.AF_INET6 and len(socket_address) >= 4 and socket_address[3] != 0:
         raise DestinationValidationError("zone-scoped addresses are not permitted")
     return ResolvedAddress(
         family=family,
@@ -227,13 +220,9 @@ def resolve_public_https_destination(
     if parts.scheme.lower() != "https":
         raise DestinationValidationError("control-plane delivery requires public HTTPS")
     if parts.username is not None or parts.password is not None:
-        raise DestinationValidationError(
-            "HTTPS destination must not contain credentials"
-        )
+        raise DestinationValidationError("HTTPS destination must not contain credentials")
     if parts.fragment:
-        raise DestinationValidationError(
-            "HTTPS destination must not contain a fragment"
-        )
+        raise DestinationValidationError("HTTPS destination must not contain a fragment")
     if not parts.hostname:
         raise DestinationValidationError("HTTPS destination must include a hostname")
     hostname = _canonical_hostname(parts.hostname)
@@ -487,7 +476,9 @@ def post_json_pinned_https(
         if not 300 <= result.status < 400:
             return result
         if result.status not in _REDIRECT_STATUSES:
-            raise PinnedHTTPSFailure(f"unsupported redirect status {result.status}")
+            raise PinnedHTTPSFailure(
+                f"unsupported redirect status {result.status}"
+            )
         if redirects_followed >= max_redirects:
             raise PinnedHTTPSFailure("too many redirects")
         location = result.get_header("Location")
