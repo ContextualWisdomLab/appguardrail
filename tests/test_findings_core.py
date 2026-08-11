@@ -54,6 +54,23 @@ def test_severity_counts_folds_unknown_values_into_info():
     assert counts == {"CRITICAL": 1, "HIGH": 0, "WARNING": 0, "INFO": 3}
 
 
+def test_unhashable_severity_values_follow_the_unknown_severity_contract():
+    for severity in (["HIGH"], {"level": "HIGH"}):
+        raw_finding = {"severity": severity}
+
+        normalized = normalize_finding(raw_finding)
+
+        assert isinstance(normalized["severity"], str)
+        assert severity_counts([raw_finding]) == {
+            "CRITICAL": 0,
+            "HIGH": 0,
+            "WARNING": 0,
+            "INFO": 1,
+        }
+        assert not is_deploy_blocking(raw_finding)
+        assert finding_sort_key(raw_finding)[0] == 4
+
+
 def test_is_deploy_blocking_uses_context_and_case_insensitive_severity():
     assert is_deploy_blocking({"severity": "critical", "context": "app-code"})
     assert is_deploy_blocking({"severity": "HIGH"})
