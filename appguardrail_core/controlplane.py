@@ -216,7 +216,13 @@ def _slack_blocks(
     }
 
 
-def _is_safe_url(url: str) -> bool:
+def _is_safe_url(url: object) -> bool:
+    """Return whether a redirect or webhook target is a public HTTP(S) URL.
+
+    The boundary accepts untrusted values, rejects non-strings before parsing,
+    and denies literal or DNS-resolved addresses that are private, local,
+    reserved, link-local, multicast, unspecified, or otherwise non-global.
+    """
     if not isinstance(url, str):
         return False
 

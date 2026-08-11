@@ -1617,7 +1617,14 @@ def _write_findings_json(findings, output_path: Path):
     _console_print(f"🧾 Findings JSON written: {output_path}")
 
 
-def _is_safe_url(url: str) -> bool:
+def _is_safe_url(url: object) -> bool:
+    """Return whether an outbound alert target is a public HTTP(S) URL.
+
+    This CLI boundary treats every caller value as untrusted, fails closed for
+    non-strings before URL parsing, and rejects literal or resolved addresses
+    that are private, local, reserved, link-local, multicast, unspecified, or
+    otherwise non-global.
+    """
     if not isinstance(url, str):
         return False
 
