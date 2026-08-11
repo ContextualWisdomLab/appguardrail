@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-05-18 - 기본 파일 입력 UI의 불일치 문제 (Native File Input Inconsistency)
+**Learning:** 일관된 UI가 중요한 단일 페이지 애플리케이션(SPA)에서 기본 `<input type="file">` 요소는 브라우저나 플랫폼마다 시각적 불일치를 발생시키며, 종종 동일한 파일에 대한 연속적인 `change` 이벤트를 억제합니다.
+**Action:** 스타일이 적용된 프록시 버튼(예: `.primary-action` 클래스 사용)을 활용하여 시각적으로 숨겨진(`.sr-only`) 기본 파일 입력 요소를 클릭하도록 유도합니다. 이벤트를 캡처한 후, `change` 핸들러 내에서 입력 값을 초기화(`fileInput.value = ''`)하여 동일한 파일을 다시 업로드할 수 있도록 보장해야 합니다.
