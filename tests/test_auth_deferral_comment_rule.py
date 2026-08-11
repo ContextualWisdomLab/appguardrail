@@ -66,6 +66,10 @@ def test_executable_code_is_not_misclassified_as_an_auth_deferral_comment(
             "app.js",
             "/* temporary disable security checks for the prototype */\n",
         ),
+        (
+            "app.js",
+            "/*\n * release notes\n   // TODO: restore authentication before deployment\n */\n",
+        ),
     ],
 )
 def test_explicit_line_and_block_comment_deferrals_remain_detected(
