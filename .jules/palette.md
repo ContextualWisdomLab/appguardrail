@@ -66,4 +66,4 @@
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 ## 2026-08-06 - Interactive Dashboard Cards for Quick Filtering
 **Learning:** Making metric cards (like severity counts) interactive significantly reduces friction compared to using dropdown filters. It's a common dashboard pattern that users intuitively try to click, and explicitly adding `role="button"`, `tabindex="0"`, and `aria-pressed` makes it accessible.
-**Action:** When displaying aggregate metrics in a dashboard that correspond to list filters, always consider making the metric cards themselves act as toggle buttons for those filters.
+**Action:** When aggregate metric cards act as filter toggles, give them an accessible name that includes the current count, expose `role="button"`, `tabindex="0"`, and `aria-pressed`, and handle both `Enter` and `Space` activation while preventing the Space key's default scrolling.
