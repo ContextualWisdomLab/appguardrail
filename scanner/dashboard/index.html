@@ -179,9 +179,9 @@ function render(){
     if(isDeployBlocking(f)) blocking++;
   }
   const cards = SEV_ORDER.map(s=>`
-    <div class="card">
-      <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
-      <div class="n">${counts[s]}</div>
+    <div class="card" role="img" tabindex="0" aria-label="${s} findings: ${counts[s]}">
+      <div class="lbl" aria-hidden="true"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
+      <div class="n" aria-hidden="true">${counts[s]}</div>
     </div>`).join('');
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
     `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
@@ -214,7 +214,7 @@ function render(){
     <h1>Dashboard</h1>
     <p class="sub">${findingsText} · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
     <div class="cards">${cards}
-      <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
+      <div class="card" role="img" tabindex="0" aria-label="Deploy-blocking findings: ${blocking}"><div class="lbl" aria-hidden="true"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n" aria-hidden="true">${blocking}</div></div>
     </div>
     <div class="grid2">
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>

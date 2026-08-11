@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-05-24 - Accessible Statistical Cards
+**Learning:** Non-interactive statistical summary elements (like dashboard metric cards) are often read confusingly by screen readers as fragmented text (e.g., 'CRITICAL', '5'). Keyboard users also miss out on any supplementary tooltips if the element isn't focusable.
+**Action:** Treat visual summary cards like chart elements by adding `role="img"`, `tabindex="0"`, and a unified `aria-label` (while hiding internal text with `aria-hidden="true"`) so they are read as a single cohesive data point and discoverable via keyboard.
