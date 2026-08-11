@@ -21,7 +21,7 @@ def normalize_finding(
     normalized = dict(finding)
 
     sev = normalized.get("severity")
-    if sev not in _SEV_SET:
+    if type(sev) is not str or sev not in _SEV_SET:
         normalized["severity"] = str(sev or "INFO").upper()
 
     rule = normalized.get("rule_id")
@@ -92,7 +92,7 @@ def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     counts = {severity: 0 for severity in SEVERITIES}
     for finding in findings:
         sev = finding.get("severity")
-        if sev not in _SEVERITY_ORDER:
+        if type(sev) is not str or sev not in _SEVERITY_ORDER:
             sev = str(sev or "INFO").upper()
             if sev not in _SEVERITY_ORDER:
                 sev = "INFO"
@@ -112,7 +112,7 @@ def is_deploy_blocking(
     severities = blocking_severities or DEPLOY_BLOCKING_SEVERITIES
 
     sev = finding.get("severity")
-    if sev not in _SEVERITY_ORDER:
+    if type(sev) is not str or sev not in _SEVERITY_ORDER:
         sev = str(sev or "INFO").upper()
 
     ctx = finding.get("context")
@@ -133,7 +133,7 @@ def severities_at_or_above(min_severity: str) -> set[str]:
 def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
     """Sort by deploy-oriented severity, then category and rule id."""
     sev = finding.get("severity")
-    if sev not in _SEVERITY_ORDER:
+    if type(sev) is not str or sev not in _SEVERITY_ORDER:
         sev = str(sev or "INFO").upper()
 
     cat = finding.get("category")
