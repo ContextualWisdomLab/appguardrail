@@ -77,3 +77,7 @@
 ## 2026-08-12 - Async Detail Focus Restoration
 **Learning:** Closing an asynchronous detail panel without invalidating the pending request lets a late response repopulate the panel or steal focus after the user has left it.
 **Action:** Invalidate the request generation on close, restore focus only to a connected trigger, and expose equivalent Escape and close-button paths for success and error states.
+
+## 2026-08-12 - Skip to Content Accessibility
+**Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
+**Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
