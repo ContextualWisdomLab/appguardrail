@@ -969,6 +969,7 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
                 "message_lines": [],
                 "include_paths": [],
                 "exclude_paths": [],
+                "required_substrings": [],
                 "severity": "WARNING",
             }
             in_message = False
@@ -999,6 +1000,12 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
             continue
         if raw_line.startswith("    languages: "):
             current["languages"] = _parse_inline_list(raw_line.split(":", 1)[1])
+            path_mode = None
+            continue
+        if raw_line.startswith("    prefilter: "):
+            current["required_substrings"] = _parse_inline_list(
+                raw_line.split(":", 1)[1]
+            )
             path_mode = None
             continue
         if raw_line.startswith("      - pattern-regex: "):
@@ -1038,6 +1045,9 @@ def _compile_yaml_regex_rule(rule):
                 "extensions": extensions,
                 "include_paths": rule.get("include_paths") or [],
                 "exclude_paths": rule.get("exclude_paths") or [],
+                "required_substrings": tuple(
+                    rule.get("required_substrings") or ()
+                ),
             }
         )
     return compiled_rules
@@ -2148,6 +2158,7 @@ def _get_applicable_rules(ext: str):
                 rule["pattern"].finditer,
                 tuple(rule.get("include_paths") or ()),
                 tuple(rule.get("exclude_paths") or ()),
+                tuple(rule.get("required_substrings") or ()),
             )
             for rule in SCAN_RULES
             if not rule["extensions"] or ext in rule["extensions"]
@@ -2962,7 +2973,12 @@ def _scan_file(
                 finditer,
                 include_paths,
                 exclude_paths,
+                required_substrings,
             ) in applicable_rules:
+                if required_substrings and not all(
+                    substring in content for substring in required_substrings
+                ):
+                    continue
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
                         rel_path_for_filters = _display_path(

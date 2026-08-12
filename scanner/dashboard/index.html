@@ -92,8 +92,7 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <button type="button" id="header-browse" class="tag" style="margin-left:12px; cursor:pointer; color:var(--text); font-size:12px">Upload findings</button>
-  <input type="file" id="file" accept="application/json,.json" class="sr-only" tabindex="-1" aria-hidden="true">
+  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app"></main>
@@ -321,7 +320,6 @@ function load(data, srcLabel){
 }
 
 const fileInput = document.getElementById('file');
-document.getElementById('header-browse').addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   const selectedFile = fileInput.files?.[0];
   fileInput.value = '';
