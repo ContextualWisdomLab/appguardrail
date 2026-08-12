@@ -72,6 +72,17 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert "e.key === 'Enter' || e.key === ' '" in html
 
 
+def test_dashboard_upload_proxy_preserves_accessible_file_selection_contract():
+    """The styled upload control must remain a real button wired to the hidden input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert '<button type="button" id="header-browse"' in html
+    assert 'id="file" accept="application/json,.json" class="sr-only"' in html
+    assert 'tabindex="-1" aria-hidden="true"' in html
+    assert "document.getElementById('header-browse').addEventListener('click'" in html
+    assert "fileInput.value = '';" in html
+
+
 def test_dashboard_escapes_severity_in_innerhtml():
     """Severity chips must go through esc() — findings JSON is untrusted input."""
     html = dashboard_index_path().read_text(encoding="utf-8")
