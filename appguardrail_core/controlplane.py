@@ -221,6 +221,9 @@ def _is_safe_url(url: str) -> bool:
     import urllib.parse
     import socket
 
+    if not isinstance(url, str):
+        return False
+
     try:
         parsed = urllib.parse.urlparse(
             url
@@ -629,10 +632,13 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 if not has_role(role, "owner"):
                     return self._json(403, {"error": "owner role required"})
                 body = self._body()
-                if body is None:
+                if body is None or not isinstance(body, dict):
                     return self._json(400, {"error": "invalid JSON body"})
-                set_webhook(conn, org, (body or {}).get("url"))
-                return self._json(200, {"webhook_url": (body or {}).get("url")})
+                webhook_url = body.get("url")
+                if webhook_url is not None and not _is_safe_url(webhook_url):
+                    return self._json(400, {"error": "invalid webhook url"})
+                set_webhook(conn, org, webhook_url)
+                return self._json(200, {"webhook_url": webhook_url})
 
             if path == "/api/v1/keys":
                 if not has_role(role, "owner"):

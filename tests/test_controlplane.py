@@ -230,6 +230,19 @@ def test_api_set_webhook(server):
     )
     assert status == 200 and body["webhook_url"] == "http://hook.example/y"
 
+def test_api_set_webhook_ssrf_protection(server):
+    base, key = server
+    # Invalid type
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _req("POST", f"{base}/api/v1/webhook", key, {"url": 1234})
+    assert exc.value.code == 400
+    assert json.loads(exc.value.read())["error"] == "invalid webhook url"
+    # Localhost SSRF attempt
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://127.0.0.1/hook"})
+    assert exc.value.code == 400
+    assert json.loads(exc.value.read())["error"] == "invalid webhook url"
+
 
 def test_roles_and_key_scoping():
     conn = connect(":memory:")
