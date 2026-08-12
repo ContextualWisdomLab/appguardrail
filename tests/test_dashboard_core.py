@@ -47,6 +47,17 @@ def test_dashboard_index_ships_with_repo():
     assert b"AppGuardrail" in index.read_bytes()
 
 
+def test_dashboard_skip_link_is_first_and_targets_focusable_main():
+    """Keyboard users can bypass repeated controls and focus the main region."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    skip_link = '<a href="#app" class="skip-link">Skip to content</a>'
+    assert skip_link in html
+    assert '<main id="app" tabindex="-1">' in html
+    assert html.index(skip_link) < html.index("<header>")
+    assert ".skip-link:focus" in html
+    assert "outline:3px solid #fff" in html
+
+
 def test_dashboard_drag_drop_has_visible_state_and_clears_it():
     """Drag-and-drop exposes feedback and always clears it after leaving or dropping."""
     html = dashboard_index_path().read_text(encoding="utf-8")
