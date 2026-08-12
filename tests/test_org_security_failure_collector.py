@@ -110,7 +110,10 @@ def test_workflow_fails_closed_when_collector_app_is_unconfigured():
     assert "^[A-Za-z0-9_.-]+$" in workflow
     assert 'repository_key="${repository,,}"' in workflow
     assert "Check GitHub App private key secret availability" in workflow
-    assert "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY" in workflow
+    assert (
+        "requires ORG_SECURITY_FAILURE_APP_PRIVATE_KEY or NOEMA_GITHUB_APP_PRIVATE_KEY"
+        in workflow
+    )
     assert "Invalid or blank collector repository allowlist entry" in workflow
     assert "Duplicate collector repository allowlist entry" in workflow
     assert 'echo "repositories=$repositories_csv"' in workflow
@@ -180,7 +183,7 @@ def test_docker_entrypoint_cannot_be_shadowed_by_scanned_repository(tmp_path):
         '"/app/docker_entrypoint.py"]' in dockerfile
     )
     assert (
-        'HEALTHCHECK --interval=5m --timeout=10s --start-period=30s '
+        "HEALTHCHECK --interval=5m --timeout=10s --start-period=30s "
         '--retries=3 CMD ["/usr/local/bin/python", "-I", '
         '"/app/docker_entrypoint.py", "--help"]' in dockerfile
     )
@@ -479,7 +482,7 @@ def test_publish_findings_defers_after_bounded_new_update_limit(capsys):
     assert output.count("DRY_RUN update issue") == (
         collector.MAX_ISSUE_UPDATES_PER_RUN - 1
     )
-    assert "deferred 1 finding(s)" in output
+    assert "deferred 1 finding " in output
     assert (
         f"published {collector.MAX_ISSUE_UPDATES_PER_RUN} new security failure"
         in output
