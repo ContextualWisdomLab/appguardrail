@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2026-08-10 - Keyboard Accessible CSS Charts
+**Learning:** DOM-based CSS charts (like bar graphs using styled `<div>` elements) are inherently inaccessible to keyboard and screen reader users unless explicitly configured. Without focus management and roles, interactive or informative charts become invisible to assistive technologies.
+**Action:** Always add `tabindex="0"`, `role="img"`, an explicit `aria-label`, and a `:focus-visible` outline to individual chart elements so keyboard users can navigate them and screen readers can announce their data points.
