@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-12 - CSP-Compatible Dashboard Controls
+**Learning:** Inline event attributes prevent deployment under strict Content Security Policy and can silently regress when newly rendered controls bypass the shared listener contract.
+**Action:** Bind upload, severity, filter-clear, and dialog-close behavior with event listeners, keep the native file input behind an accessible proxy, and clear its value before parsing so the same file can be selected again.

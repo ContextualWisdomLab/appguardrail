@@ -93,7 +93,8 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
+  <button type="button" id="header-browse-btn" class="primary-action" aria-label="Upload findings file" style="margin-left:12px;min-height:28px;padding:4px 12px;font-size:13px">Load Findings</button>
+  <input type="file" id="file" accept="application/json,.json" class="sr-only" tabindex="-1" aria-hidden="true">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app" tabindex="-1"></main>
@@ -183,7 +184,7 @@ function render(){
     const isSelected = filterSev === s;
     const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
     return `
-    <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
+    <div class="card severity-card" role="button" tabindex="0" data-severity="${s}" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" style="${style}">
       <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
       <div class="n">${counts[s]}</div>
     </div>`;
@@ -235,7 +236,7 @@ function render(){
           <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
           <tbody>${rows||`<tr><td colspan="5" style="padding:32px 24px;text-align:center">
           <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:8px">No findings match the filter</div>
-          <button type="button" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s">Clear filters</button>
+          <button type="button" id="clear-filters-btn" aria-label="Clear filters" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s">Clear filters</button>
         </td></tr>`}</tbody>
         </table></div>
       </div>
@@ -244,6 +245,27 @@ function render(){
   if (liveSummary && liveSummary.textContent !== summaryText) {
     liveSummary.textContent = summaryText;
   }
+
+  app.querySelectorAll('.severity-card').forEach(card => {
+    const activate = () => {
+      const severitySelect = document.getElementById('sev');
+      severitySelect.value = card.dataset.severity === filterSev ? '' : card.dataset.severity;
+      severitySelect.dispatchEvent(new Event('change'));
+    };
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activate();
+      }
+    });
+  });
+  document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
+    query = '';
+    filterSev = '';
+    render();
+    document.getElementById('q')?.focus();
+  });
 
   document.getElementById('q').addEventListener('input', e=>{
     query = e.target.value.toLowerCase();
@@ -290,7 +312,7 @@ function openDetail(f){
     <div class="dlg-head">
       <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
-      <button aria-label="Close" title="Close (Esc)" onclick="document.getElementById('detail').close()">✕</button>
+      <button id="detail-close-btn" aria-label="Close" title="Close (Esc)">✕</button>
     </div>
     <div class="dlg-body">
       <p class="file">${esc(f.file)}:${esc(f.line)} · ${esc(f.category)} · context: ${esc(f.context||'app-code')}${isDeployBlocking(f)?' · <span class="tag block">deploy-blocking</span>':''}</p>
@@ -303,6 +325,7 @@ function openDetail(f){
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
         ${refs?`<div style="margin-top:6px">${refs}</div>`:''}</div>`:''}
     </div>`;
+  d.querySelector('#detail-close-btn').addEventListener('click', () => d.close());
   d.showModal();
 }
 
@@ -325,6 +348,7 @@ function load(data, srcLabel){
 }
 
 const fileInput = document.getElementById('file');
+document.getElementById('header-browse-btn')?.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   const selectedFile = fileInput.files?.[0];
   fileInput.value = '';
