@@ -82,22 +82,21 @@
   body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   a{color:var(--primary)}
-  .skip-link{position:absolute;top:-48px;left:0;background:var(--primary);color:#fff;padding:8px 16px;z-index:100;font-weight:700;border-radius:0 0 8px 0;transition:top .2s}\n  .skip-link:focus{top:0;outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 0 5px var(--primary)}\n</style>
+</style>
 <!-- Canonical design tokens (scanner/dashboard/tokens.json) served at /tokens.css;
      loaded last so served values override the inline fallback above. -->
 <link rel="stylesheet" href="tokens.css">
 </head>
 <body>
-<a href="#app" class="skip-link">Skip to content</a>
 <header>
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <button type="button" id="header-browse-btn" class="primary-action" aria-label="Upload findings file" style="margin-left:12px;min-height:28px;padding:4px 12px;font-size:13px">Load Findings</button>
+  <button type="button" id="header-browse-btn" class="primary-action" aria-label="Upload findings file" style="margin-left:12px; min-height: 28px; padding: 4px 12px; font-size: 13px;">Load Findings</button>
   <input type="file" id="file" accept="application/json,.json" class="sr-only" tabindex="-1" aria-hidden="true">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
-<main id="app" tabindex="-1"></main>
+<main id="app"></main>
 
 <dialog id="detail" aria-labelledby="dlg-title"></dialog>
 
@@ -180,15 +179,11 @@ function render(){
     byCat[c] = (byCat[c]||0)+1;
     if(isDeployBlocking(f)) blocking++;
   }
-  const cards = SEV_ORDER.map(s=>{
-    const isSelected = filterSev === s;
-    const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
-    return `
-    <div class="card severity-card" role="button" tabindex="0" data-severity="${s}" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" style="${style}">
+  const cards = SEV_ORDER.map(s=>`
+    <div class="card">
       <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
       <div class="n">${counts[s]}</div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
     `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
 
@@ -232,7 +227,7 @@ function render(){
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
           </select>
         </div>
-        <div class="panel"><table>
+        <div class="panel"><table id="findings-table">
           <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
           <tbody>${rows||`<tr><td colspan="5" style="padding:32px 24px;text-align:center">
           <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:8px">No findings match the filter</div>
@@ -246,25 +241,14 @@ function render(){
     liveSummary.textContent = summaryText;
   }
 
-  app.querySelectorAll('.severity-card').forEach(card => {
-    const activate = () => {
-      const severitySelect = document.getElementById('sev');
-      severitySelect.value = card.dataset.severity === filterSev ? '' : card.dataset.severity;
-      severitySelect.dispatchEvent(new Event('change'));
-    };
-    card.addEventListener('click', activate);
-    card.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        activate();
-      }
-    });
-  });
-  document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
-    query = '';
-    filterSev = '';
-    render();
-    document.getElementById('q')?.focus();
+  document.getElementById('findings-table')?.addEventListener('click', e => {
+    const btn = e.target.closest('#clear-filters-btn');
+    if (btn) {
+      query = '';
+      filterSev = '';
+      render();
+      document.getElementById('q')?.focus();
+    }
   });
 
   document.getElementById('q').addEventListener('input', e=>{
@@ -325,7 +309,9 @@ function openDetail(f){
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
         ${refs?`<div style="margin-top:6px">${refs}</div>`:''}</div>`:''}
     </div>`;
-  d.querySelector('#detail-close-btn').addEventListener('click', () => d.close());
+  document.getElementById('detail-close-btn')?.addEventListener('click', () => {
+    document.getElementById('detail').close();
+  });
   d.showModal();
 }
 

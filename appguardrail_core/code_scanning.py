@@ -237,19 +237,19 @@ def compare_snapshots(
         return DriftAssessment(status="unknown", reason="no_healthy_base_analysis")
 
     current_by_identity = {evidence.identity: evidence for evidence in current.analyses}
-
-    missing_list, errored_list, warnings_list = [], [], []
-    for identity in sorted(healthy_base):
-        if identity not in current_by_identity:
-            missing_list.append(identity)
-        else:
-            current_evidence = current_by_identity[identity]
-            if not current_evidence.healthy:
-                errored_list.append(current_evidence)
-            if current_evidence.warning:
-                warnings_list.append(current_evidence)
-    missing, errored, warnings = tuple(missing_list), tuple(errored_list), tuple(warnings_list)
-
+    missing = tuple(
+        identity for identity in sorted(healthy_base) if identity not in current_by_identity
+    )
+    errored = tuple(
+        current_by_identity[identity]
+        for identity in sorted(healthy_base)
+        if identity in current_by_identity and not current_by_identity[identity].healthy
+    )
+    warnings = tuple(
+        current_by_identity[identity]
+        for identity in sorted(healthy_base)
+        if identity in current_by_identity and current_by_identity[identity].warning
+    )
     if missing or errored:
         return DriftAssessment(
             status="drift",

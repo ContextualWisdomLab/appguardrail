@@ -21,15 +21,7 @@ CATEGORY_REFERENCE_DEFAULTS = {
         "OWASP A07:2021 - Identification and Authentication Failures",
         "CWE-798 - Use of Hard-coded Credentials",
     ),
-    "ssrf": (
-        "OWASP A10:2021 - Server-Side Request Forgery",
-        "CWE-918 - Server-Side Request Forgery",
-    ),
     "storage": ("OWASP A01:2021 - Broken Access Control",),
-}
-
-REFERENCE_CATEGORY_OVERRIDES = {
-    "CWE-918": "ssrf",
 }
 
 SAMM_BY_CATEGORY = {
@@ -39,7 +31,6 @@ SAMM_BY_CATEGORY = {
     "misconfig": "Operations / Environment Management",
     "payment": "Verification / Requirements-driven Testing",
     "secrets": "Operations / Environment Management",
-    "ssrf": "Implementation / Secure Build",
     "storage": "Implementation / Secure Build",
 }
 
@@ -67,10 +58,6 @@ REMEDIATION_BY_CATEGORY = {
     "secrets": (
         "Remove the secret from source, rotate it, and load future values from "
         "managed secret storage."
-    ),
-    "ssrf": (
-        "Validate untrusted URLs before persistence, reject non-public destinations, "
-        "and revalidate redirects or pin the outbound destination before delivery."
     ),
     "storage": "Enforce storage or database access controls with authenticated ownership policies.",
 }
@@ -114,15 +101,6 @@ def extract_public_references(message: str) -> tuple[str, ...]:
     )
 
 
-def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
-    """Prefer an authoritative public taxonomy over a rule-id heuristic."""
-    for reference in references:
-        for prefix, category in REFERENCE_CATEGORY_OVERRIDES.items():
-            if reference.startswith(prefix):
-                return category
-    return fallback
-
-
 def build_rule_metadata(
     rule_id: str,
     severity: str,
@@ -132,27 +110,18 @@ def build_rule_metadata(
     source: str = "appguardrail-rule",
 ) -> RuleMetadata:
     """Build a stable metadata envelope for a scanner finding."""
-    public_references = extract_public_references(message)
-    category = _category_for_references(public_references, category)
     references = _merge_references(
-        public_references,
+        extract_public_references(message),
         CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
     )
-    owasp_list, cwe_list = [], []
-    for ref in references:
-        if ref.startswith("OWASP "):
-            owasp_list.append(ref)
-        if ref.startswith("CWE-"):
-            cwe_list.append(ref)
-
     return RuleMetadata(
         rule_id=rule_id,
         severity=severity,
         category=category,
         source=source,
         references=references,
-        owasp=tuple(owasp_list),
-        cwe=tuple(cwe_list),
+        owasp=tuple(ref for ref in references if ref.startswith("OWASP ")),
+        cwe=tuple(ref for ref in references if ref.startswith("CWE-")),
         samm_practice=SAMM_BY_CATEGORY.get(category, "Verification / Security Testing"),
         remediation=REMEDIATION_BY_CATEGORY.get(
             category,
