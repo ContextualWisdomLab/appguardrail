@@ -24,28 +24,28 @@ def normalize_finding(
     if type(sev) is not str or sev not in _SEV_SET:
         try:
             normalized["severity"] = str(sev or "INFO").upper()
-        except TypeError:
+        except Exception:
             normalized["severity"] = "INFO"
 
     rule = normalized.get("rule_id")
     if type(rule) is not str or not rule:
         try:
             normalized["rule_id"] = str(rule or "unknown-rule")
-        except TypeError:
+        except Exception:
             normalized["rule_id"] = "unknown-rule"
 
     msg = normalized.get("message")
     if type(msg) is not str or not msg:
         try:
             normalized["message"] = str(msg or "No message provided.")
-        except TypeError:
+        except Exception:
             normalized["message"] = "No message provided."
 
     file = normalized.get("file")
     if type(file) is not str or not file:
         try:
             normalized["file"] = str(file or "n/a")
-        except TypeError:
+        except Exception:
             normalized["file"] = "n/a"
 
     if not normalized.get("line"):
@@ -55,14 +55,14 @@ def normalize_finding(
     if type(cat) is not str or not cat:
         try:
             normalized["category"] = str(cat or "misconfig")
-        except TypeError:
+        except Exception:
             normalized["category"] = "misconfig"
 
     ctx = normalized.get("context")
     if type(ctx) is not str or not ctx:
         try:
             normalized["context"] = str(ctx or "app-code")
-        except TypeError:
+        except Exception:
             normalized["context"] = "app-code"
 
     normalized["references"] = _as_tuple(normalized.get("references"))
@@ -77,7 +77,7 @@ def normalize_finding(
             normalized["remediation"] = str(
                 rem or "Review and remediate this finding, then rerun AppGuardrail."
             )
-        except TypeError:
+        except Exception:
             normalized["remediation"] = "Review and remediate this finding, then rerun AppGuardrail."
     elif rem != normalized.get("remediation"):
         normalized["remediation"] = rem
@@ -86,14 +86,14 @@ def normalize_finding(
     if type(verif) is not str or not verif:
         try:
             normalized["verification"] = str(verif or "Rerun AppGuardrail after remediation.")
-        except TypeError:
+        except Exception:
             normalized["verification"] = "Rerun AppGuardrail after remediation."
 
     snip = normalized.get("snippet")
     if type(snip) is not str or not snip:
         try:
             snip = str(snip or "")
-        except TypeError:
+        except Exception:
             snip = ""
     normalized["snippet"] = safe_report_snippet(snip, max_len=snippet_max_len)
 
@@ -120,7 +120,7 @@ def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
         if type(sev) is not str or sev not in _SEVERITY_ORDER:
             try:
                 sev = str(sev or "INFO").upper()
-            except TypeError:
+            except Exception:
                 sev = "INFO"
             if type(sev) is not str or sev not in _SEVERITY_ORDER:
                 sev = "INFO"
@@ -143,14 +143,14 @@ def is_deploy_blocking(
     if type(sev) is not str or sev not in _SEVERITY_ORDER:
         try:
             sev = str(sev or "INFO").upper()
-        except TypeError:
+        except Exception:
             sev = "INFO"
 
     ctx = finding.get("context")
     if type(ctx) is not str or not ctx:
         try:
             ctx = str(ctx or "app-code")
-        except TypeError:
+        except Exception:
             ctx = "app-code"
 
     return sev in severities and ctx not in NON_BLOCKING_CONTEXTS
@@ -170,21 +170,21 @@ def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
     if type(sev) is not str or sev not in _SEVERITY_ORDER:
         try:
             sev = str(sev or "INFO").upper()
-        except TypeError:
+        except Exception:
             sev = "INFO"
 
     cat = finding.get("category")
     if type(cat) is not str or not cat:
         try:
             cat = str(cat or "misconfig")
-        except TypeError:
+        except Exception:
             cat = "misconfig"
 
     rule = finding.get("rule_id")
     if type(rule) is not str or not rule:
         try:
             rule = str(rule or "unknown-rule")
-        except TypeError:
+        except Exception:
             rule = "unknown-rule"
 
     return (
@@ -199,7 +199,7 @@ def safe_report_snippet(snippet: str, max_len: int = 400) -> str:
     if type(snippet) is not str:
         try:
             snippet = str(snippet or "")
-        except TypeError:
+        except Exception:
             snippet = ""
     if not snippet:
         return ""
@@ -215,9 +215,23 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
     if type(value) is str:
         return (value,)
     try:
-        return tuple(item if type(item) is str else str(item) for item in value)
-    except TypeError:
+        iterator = iter(value)
+    except Exception:
         try:
             return (str(value),)
-        except TypeError:
+        except Exception:
             return ()
+
+    items: list[str] = []
+    try:
+        for item in iterator:
+            if type(item) is str:
+                items.append(item)
+                continue
+            try:
+                items.append(str(item))
+            except Exception:
+                continue
+    except Exception:
+        return tuple(items)
+    return tuple(items)
