@@ -230,6 +230,36 @@ def test_api_set_webhook(server):
     )
     assert status == 200 and body["webhook_url"] == "http://hook.example/y"
 
+
+def test_api_empty_webhook_body_rejected(server):
+    import http.client
+    from urllib.parse import urlparse as _u
+
+    base, key = server
+    _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"})
+
+    parsed = _u(base)
+    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+    conn.putrequest("POST", "/api/v1/webhook")
+    conn.putheader("Authorization", f"Bearer {key}")
+    conn.putheader("Content-Type", "application/json")
+    conn.putheader("Content-Length", "0")
+    conn.endheaders()
+    response = conn.getresponse()
+
+    assert response.status == 400
+    assert json.loads(response.read()) == {"error": "invalid JSON body"}
+    conn.close()
+
+
+def test_api_explicit_webhook_deletion(server):
+    base, key = server
+    status, body = _req("POST", f"{base}/api/v1/webhook", key, {"url": None})
+
+    assert status == 200
+    assert body["webhook_url"] is None
+
+
 def test_api_set_webhook_ssrf_protection(server):
     base, key = server
     # Invalid type

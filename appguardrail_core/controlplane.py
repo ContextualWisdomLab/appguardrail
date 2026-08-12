@@ -615,7 +615,10 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 # Negative reads until EOF; oversized bodies exhaust memory.
                 return None
             try:
-                return json.loads(self.rfile.read(length) or b"{}")
+                raw_body = self.rfile.read(length)
+                if not raw_body:
+                    return None
+                return json.loads(raw_body)
             except (ValueError, TypeError):
                 return None
 
