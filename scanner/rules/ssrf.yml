@@ -9,5 +9,6 @@ rules:
       [CWE-918 - Server-Side Request Forgery]
     severity: HIGH
     languages: [python]
+    prefilter: [set_webhook]
     cwe: [CWE-918]
     owasp: [A10:2021]

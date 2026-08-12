@@ -1,5 +1,7 @@
 """Regression tests for stored SSRF detection in the packaged rule engine."""
 
+from unittest.mock import patch
+
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 _RULE_ID = "python-stored-ssrf-webhook-url"
@@ -146,6 +148,34 @@ def test_packaged_rule_matches_direct_request_url_persistence():
     rule = _rule()
     assert rule["severity"] == "HIGH"
     assert rule["pattern"].search(_vulnerable_source())
+
+
+def test_packaged_rule_declares_sink_prefilter():
+    """Skip the expensive flow regex unless the persistence sink is present."""
+    assert _rule()["required_substrings"] == ("set_webhook",)
+
+
+def test_scan_file_skips_regex_when_sink_prefilter_is_absent(tmp_path):
+    """Do not invoke an expensive regex for files without its required sink."""
+    source_file = tmp_path / "benign.py"
+    source_file.write_text('target = body.get("url")\n' * 1000, encoding="utf-8")
+
+    class ExplodingPattern:
+        """Prove that prefilter rejection happens before regex evaluation."""
+
+        def finditer(self, _content):
+            raise AssertionError("regex must not run without the sink literal")
+
+    rule = {
+        "id": _RULE_ID,
+        "pattern": ExplodingPattern(),
+        "severity": "HIGH",
+        "message": "stored SSRF [CWE-918 - Server-Side Request Forgery]",
+        "extensions": [".py"],
+        "required_substrings": ("set_webhook",),
+    }
+    with patch("scanner.cli.appguardrail.SCAN_RULES", [rule]):
+        assert not _scan_file(source_file, tmp_path)
 
 
 def test_packaged_rule_matches_unvalidated_variable_persistence():
