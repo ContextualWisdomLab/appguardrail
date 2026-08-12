@@ -42,6 +42,20 @@ def _read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def _single_line_with(text: str, *markers: str) -> str:
+    """Return the one documentation line containing every requested marker."""
+
+    matches = [
+        line.strip()
+        for line in text.splitlines()
+        if all(marker in line for marker in markers)
+    ]
+    assert len(matches) == 1, (
+        f"expected one line containing {markers!r}, found {len(matches)}"
+    )
+    return matches[0]
+
+
 def test_canonical_detection_documents_exist() -> None:
     """Keep product, technical, detection, and operating memory discoverable."""
 
@@ -65,14 +79,32 @@ def test_integrated_ssrf_controls_are_promoted_but_distinct() -> None:
     architecture = _read("ARCHITECTURE.md")
     prd = _read("docs/PRD.md")
     traceability = _read("docs/TRACEABILITY.md")
-    assert "PR #924" in prd and "implemented-main" in prd
-    assert "PR #910" in prd and "implemented-main" in prd
-    assert "python-stored-ssrf-webhook-url" in traceability
-    assert "implemented-main through PR #910" in traceability
+
+    prevention_claim = _single_line_with(prd, "PR #924", "implemented-main")
+    assert "prevention" in prevention_claim and "webhook write boundary" in prevention_claim
+
+    detector_claim = _single_line_with(prd, "PR #910", "implemented-main")
+    assert "scanner detection" in detector_claim
+    assert "python-stored-ssrf-webhook-url" in detector_claim
+
+    active_issue_claim = _single_line_with(prd, "PR #911", "active-PR")
+    assert "no-exclusions registry" in active_issue_claim
+
+    detector_trace = _single_line_with(
+        traceability,
+        "automatic scanner detection of unsafe stored-webhook SSRF pattern",
+        "PR #910",
+    )
+    assert "python-stored-ssrf-webhook-url" in detector_trace
+    assert "implemented-main" in detector_trace and "bounded scope" in detector_trace
+
+    issue_trace = _single_line_with(
+        traceability,
+        "every retained issue claim mapped to executable detector obligation",
+        "PR #911 active-PR",
+    )
+    assert "issue-detection audit" in issue_trace
     assert "separate controls" in architecture
-    assert "bounded" in traceability
-    assert "PR #911" in prd and "active-PR" in prd
-    assert "PR #911 active-PR" in traceability
 
 
 def test_structural_rule_fixture_is_not_claimed_as_lightweight_execution() -> None:
