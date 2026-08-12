@@ -32,7 +32,10 @@
   h1{font-size:24px;margin:0 0 4px}
   .sub{color:var(--muted);margin:0 0 20px}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:20px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;transition:border-color 0.2s,box-shadow 0.2s,background 0.2s}
+  .card:hover{border-color:var(--primary)}
+  .clear-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s}
+  .clear-btn:hover{background:var(--divider)}
   .card .n{font-size:30px;font-weight:700}
   .card .lbl{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:600;font-size:13px}
   .dot{width:10px;height:10px;border-radius:50%}
@@ -235,7 +238,7 @@ function render(){
           <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
           <tbody>${rows||`<tr><td colspan="5" style="padding:32px 24px;text-align:center">
           <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:8px">No findings match the filter</div>
-          <button type="button" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s">Clear filters</button>
+          <button type="button" class="clear-btn" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();">Clear filters</button>
         </td></tr>`}</tbody>
         </table></div>
       </div>
@@ -281,7 +284,7 @@ function render(){
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
-  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
+  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener" aria-label="${esc(r)} (opens in a new tab)">${esc(r)}</a>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
