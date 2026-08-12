@@ -1,10 +1,21 @@
 """Regression tests for string-based language-profile path handling."""
 
+import inspect
 from pathlib import Path
 
 import pytest
 
-from appguardrail_core.language import detect_language_axes, detect_stack_profile
+from appguardrail_core.language import (
+    _detect_signals,
+    _iter_lower_path_components,
+    detect_language_axes,
+    detect_stack_profile,
+)
+from scanner.cli.appguardrail import _display_path
+
+
+class StringPath(str):
+    """String path subtype used to preserve the public ``str`` input contract."""
 
 
 @pytest.mark.parametrize(
@@ -26,6 +37,57 @@ from appguardrail_core.language import detect_language_axes, detect_stack_profil
 def test_string_path_language_detection_matches_path_objects(path_text: str) -> None:
     """The optimized string path must preserve the declared Path input contract."""
     assert detect_language_axes([path_text]) == detect_language_axes([Path(path_text)])
+
+
+def test_string_subclass_uses_string_language_detection_branch() -> None:
+    """A ``str`` subtype must not be mistaken for a ``Path``-like object."""
+    assert detect_language_axes([StringPath(r"src\main.py")]) == {"python"}
+
+
+def test_string_subclass_uses_string_display_path_branch() -> None:
+    """CLI display formatting must accept ``str`` subtypes without Path methods."""
+    assert _display_path(StringPath(r"src\main.py")) == "src/main.py"
+
+
+def test_display_path_avoids_allocating_when_normalization_is_unnecessary() -> None:
+    """An already normalized plain string must retain its exact object identity."""
+    path = "src/packages/appguardrail/module.py"
+
+    assert _display_path(path) is path
+
+
+def test_display_path_normalizes_every_windows_separator() -> None:
+    """Formatting still allocates the required slash-normalized Windows result."""
+    assert _display_path(r"src\packages\appguardrail\module.py") == (
+        "src/packages/appguardrail/module.py"
+    )
+
+
+@pytest.mark.parametrize(
+    ("path_text", "expects_template_marker"),
+    [
+        ("mytemplates/page.tsx", False),
+        ("views/page.tsx", True),
+        (r"src\views\page.tsx", True),
+        (r"src/views\page.tsx", True),
+    ],
+)
+def test_template_and_view_markers_use_exact_path_components(
+    path_text: str, expects_template_marker: bool
+) -> None:
+    """Template detection must handle both separators without substring matches."""
+    profile = detect_stack_profile([path_text])
+
+    assert ("templates" in profile.frameworks) is expects_template_marker
+
+
+def test_signal_detection_avoids_replace_split_hot_loop_allocations() -> None:
+    """Signal extraction and its helper must avoid replace/split path rebuilding."""
+    for function in (_detect_signals, _iter_lower_path_components):
+        source = inspect.getsource(function)
+
+        assert ".replace(" not in source
+        assert ".split(" not in source
 
 
 def test_generator_input_is_materialized_once_for_profile_detection(tmp_path: Path) -> None:
