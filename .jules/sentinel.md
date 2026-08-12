@@ -123,12 +123,7 @@
 **Learning:** Even enum-like or seemingly safe meta-fields like `severity` can contain malicious payloads if sourced from user input (findings file) and directly injected into innerHTML.
 **Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from `findings.json`, regardless of expected schema types.
 
-## 2024-05-24 - [SSRF in Webhook Endpoint]
-**Vulnerability:** The `/api/v1/webhook` endpoint accepted arbitrary URLs for the drift alert webhook without any server-side request forgery (SSRF) validation before saving them to the database.
-**Learning:** Even if a URL is validated prior to use (e.g., in `_send_alert`), accepting and storing arbitrary URLs without validation introduces a Stored SSRF vulnerability vector and violates the principle of failing fast and securely on untrusted input.
-**Prevention:** Always apply security validation functions (like `_is_safe_url`) immediately at the boundary/endpoint level prior to performing database insertion or mutation.
-
-## 2024-05-24 - [Uncaught Exception in _is_safe_url]
-**Vulnerability:** The `_is_safe_url` function relied on `urllib.parse.urlparse`, which assumes string inputs. Passing non-string inputs (like integers or booleans) caused an `AttributeError` exception, potentially leading to denial of service or 500 errors in JSON APIs expecting fail-closed validation.
-**Learning:** Security validation functions must handle malformed data types (not just malformed strings) gracefully without raising framework exceptions.
-**Prevention:** Explicitly validate input types (e.g., `isinstance(url, str)`) before passing them to parsing libraries that make type assumptions.
+## 2025-02-28 - Stored SSRF and Unhandled Parsing Exceptions Guardrail
+**Vulnerability:** The `/api/v1/webhook` POST endpoint in `appguardrail_core/controlplane.py` failed to validate the `url` property when accepting it into the database, leading to Stored SSRF risks. In addition, the core SSRF validation logic (`_is_safe_url`) in both the CLI and control-plane did not verify the input type (e.g. `isinstance(url, str)`). Passing non-string types (like integers) resulted in unhandled `AttributeError` exceptions inside `urllib.parse.urlparse`, which led to API 500 crashes on malicious JSON payloads.
+**Learning:** Network endpoints must explicitly validate the data type of user-provided configurations prior to execution or storage. Furthermore, webhooks configured by users should always be checked for SSRF when saved, as trusting them later assumes input has already been safely validated, bypassing downstream network guardrails.
+**Prevention:** Apply `_is_safe_url` checks directly upon ingestion (e.g., in `/api/v1/webhook`) and enforce type checks `if not isinstance(url, str): return False` prior to using library parsing functions like `urlparse`. Always return gracefully failing responses (like `400 Bad Request`) for unsafe URLs instead of allowing unhandled 500 server errors.

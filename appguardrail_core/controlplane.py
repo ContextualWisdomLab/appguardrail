@@ -615,7 +615,10 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 # Negative reads until EOF; oversized bodies exhaust memory.
                 return None
             try:
-                return json.loads(self.rfile.read(length) or b"{}")
+                raw_body = self.rfile.read(length)
+                if not raw_body:
+                    return None
+                return json.loads(raw_body)
             except (ValueError, TypeError):
                 return None
 
@@ -632,13 +635,11 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 if not has_role(role, "owner"):
                     return self._json(403, {"error": "owner role required"})
                 body = self._body()
-                if not isinstance(body, dict):
+                if body is None or not isinstance(body, dict):
                     return self._json(400, {"error": "invalid JSON body"})
                 webhook_url = body.get("url")
-                if webhook_url not in (None, "") and (
-                    not isinstance(webhook_url, str) or not _is_safe_url(webhook_url)
-                ):
-                    return self._json(400, {"error": "unsafe webhook url"})
+                if webhook_url is not None and not _is_safe_url(webhook_url):
+                    return self._json(400, {"error": "invalid webhook url"})
                 set_webhook(conn, org, webhook_url)
                 return self._json(200, {"webhook_url": webhook_url})
 

@@ -1,47 +1,365 @@
 rules:
-  - id: api-route-missing-auth-check
+  - id: missing-api-auth
     patterns:
-      - pattern: |
-          export async function GET($REQ, $CTX) {
-            $DB.$METHOD(...)
+      - pattern-either:
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+              }
+      - metavariable-regex:
+          metavariable: $DB
+          regex: '^(?:db|database|prisma|repository|store|supabase)(?:\.[A-Za-z_$][A-Za-z0-9_$]*)?$'
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const session = await getSession(...)
+            ...
           }
-      - pattern: |
-          export async function POST($REQ, $CTX) {
-            $DB.$METHOD(...)
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const session = await getServerSession(...)
+            ...
           }
-      - pattern: |
-          export async function PUT($REQ, $CTX) {
-            $DB.$METHOD(...)
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const session = await auth(...)
+            ...
           }
-      - pattern: |
-          export async function DELETE($REQ, $CTX) {
-            $DB.$METHOD(...)
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const user = await requireAuth(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const user = await authenticate(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const identity = await verifySession(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const { data: { user } } = await supabase.auth.getUser(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const session = await getSession(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const session = await getServerSession(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const session = await auth(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const user = await requireAuth(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const user = await authenticate(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const identity = await verifySession(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const { data: { user } } = await supabase.auth.getUser(...)
+            ...
           }
     message: |
-      API route handler accesses the database without an apparent authentication check.
-      Ensure every data-accessing route calls getServerSession(), auth(), or
-      supabase.auth.getUser() and returns 401 if the user is not authenticated.
-    severity: HIGH
+      API route accesses data before an approved authentication boundary.
+      Authenticate with a repository-approved API and result symbol before the
+      first database, repository, store, Prisma, or Supabase operation.
+    severity: CRITICAL
     languages: [typescript, javascript]
     paths:
       include:
-        - "**/app/api/**/*.ts"
-        - "**/pages/api/**/*.ts"
+        - "**/api/**"
+        - "**/routes/**"
+      exclude:
+        - "**/api/public/**"
+        - "**/api/webhooks/**"
 
-  - id: db-query-without-user-filter
+  - id: auth-after-data-access
     patterns:
-      - pattern: |
-          $DB.findMany({ where: { ... } })
-      - pattern: |
-          $DB.findAll(...)
+      - pattern-either:
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const session = await getSession(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const session = await getServerSession(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const session = await auth(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const user = await requireAuth(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const user = await authenticate(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const identity = await verifySession(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ, $RES) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const { data: { user } } = await supabase.auth.getUser(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const session = await getSession(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const session = await getServerSession(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const session = await auth(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const user = await requireAuth(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const user = await authenticate(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const identity = await verifySession(...)
+                ...
+              }
+          - pattern: |
+              export async function $METHOD($REQ: $TYPE) {
+                ...
+                $DB.$QUERY(...)
+                ...
+                const { data: { user } } = await supabase.auth.getUser(...)
+                ...
+              }
+      - metavariable-regex:
+          metavariable: $DB
+          regex: '^(?:db|database|prisma|repository|store|supabase)(?:\.[A-Za-z_$][A-Za-z0-9_$]*)?$'
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const session = await getSession(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const session = await getServerSession(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const session = await auth(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const user = await requireAuth(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const user = await authenticate(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const identity = await verifySession(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ, $RES) {
+            ...
+            const { data: { user } } = await supabase.auth.getUser(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const session = await getSession(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const session = await getServerSession(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const session = await auth(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const user = await requireAuth(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const user = await authenticate(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const identity = await verifySession(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ: $TYPE) {
+            ...
+            const { data: { user } } = await supabase.auth.getUser(...)
+            ...
+            $DB.$QUERY(...)
+            ...
+          }
     message: |
-      Database query may be returning records for all users. Ensure the query
-      filters by the authenticated user's ID (e.g., { where: { userId: session.user.id } })
-      to prevent cross-user data exposure.
-    severity: WARNING
+      Data access occurs before authentication. Move the approved authentication
+      call to the start of the protected handler and reject unauthenticated
+      requests before any database, repository, store, Prisma, or Supabase call.
+    severity: CRITICAL
     languages: [typescript, javascript]
+    paths:
+      include:
+        - "**/api/**"
+        - "**/routes/**"
+      exclude:
+        - "**/api/public/**"
+        - "**/api/webhooks/**"
 
-  - id: req-body-user-id-trust
+  - id: trusting-client-user-id
     patterns:
       - pattern: |
           $DB.$METHOD({ where: { userId: $REQ.body.userId } })
@@ -56,9 +374,7 @@ rules:
 
   - id: todo-skip-auth
     patterns:
-      - pattern-regex: '(?i)(?:todo|fixme|hack|temp|temporary).{0,50}(?:auth|security|permission|check|protect)'
-      - pattern-regex: '(?i)(?:skip|bypass|disable|remove).{0,30}(?:auth|authentication|authorization|security)'
-      - pattern-regex: '(?i)//\s*(?:disable|mock|fake)\s*(?:auth|security)'
+      - pattern-regex: '(?ims)(?:/\*(?:(?!\*/).){0,500}?(?:(?:todo|fixme|hack|temp|temporary)\b(?:(?!\*/).){0,50}?\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b|(?:skip|bypass|disable|remove)\b(?:(?!\*/).){0,30}?\b(?:auth|authentication|authorization|security)\b|(?:mock|fake)[ \t]+(?:auth|security)\b)(?:(?!\*/).){0,500}?\*/|^[ \t]*(?://|#)[ \t]*(?:(?:todo|fixme|hack|temp|temporary)\b[^\r\n]{0,50}\b(?:auth(?:entication|orization)?|security|permission|check|protect)\b|(?:skip|bypass|disable|remove)\b[^\r\n]{0,30}\b(?:auth|authentication|authorization|security)\b|(?:mock|fake)[ \t]+(?:auth|security)\b))'
     message: |
       Comment suggests authentication or security check was intentionally skipped
       or deferred. This is a common pattern in AI-generated code. Review and ensure
@@ -81,5 +397,6 @@ rules:
       exclude:
         - "**/*.test.*"
         - "**/*.spec.*"
-        - "**/tests/**"
         - "**/__tests__/**"
+        - "**/test/**"
+        - "**/tests/**"

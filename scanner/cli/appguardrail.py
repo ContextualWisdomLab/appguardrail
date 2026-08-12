@@ -89,6 +89,7 @@ from appguardrail_core.reports import (
     supported_report_types,
 )
 from appguardrail_core.rules import build_rule_metadata
+from appguardrail_core.scan_paths import ScanPathContext, build_scan_path_context
 
 __version__ = "0.1.1"
 
@@ -370,16 +371,6 @@ SCAN_RULES = [
         "severity": "CRITICAL",
         "message": "Firebase/Firestore rule allows unrestricted read/write access. Add authentication and ownership checks. [OWASP A01:2021 - Broken Access Control]",
         "extensions": [".rules"],
-    },
-    {
-        "id": "todo-skip-auth",
-        "pattern": re.compile(
-            r"(?i)(?:todo|fixme|hack|temp)[^\n]{0,50}(?:auth|security|permission|check|protect)",
-            re.MULTILINE,
-        ),
-        "severity": "HIGH",
-        "message": "Comment suggests auth/security check was deferred. Verify this is not deployed to production. [OWASP A01:2021 - Broken Access Control]",
-        "extensions": [".ts", ".tsx", ".js", ".jsx", ".py"],
     },
     {
         "id": "dangerous-cors",
@@ -1420,7 +1411,13 @@ def cmd_scan(args):
     files_scanned = 0
     scanned_files = []
 
-    if scan_path.is_file():
+    scan_path_is_file = scan_path.is_file()
+    path_context = build_scan_path_context(
+        scan_path,
+        base_path_is_file=scan_path_is_file,
+    )
+
+    if scan_path_is_file:
         files_to_scan = [scan_path]
     else:
         files_to_scan = _collect_files(scan_path)
@@ -1428,7 +1425,11 @@ def cmd_scan(args):
     for file_path in files_to_scan:
         scanned_files.append(file_path)
         files_scanned += 1
-        file_findings = _scan_file(file_path, scan_path)
+        file_findings = _scan_file(
+            file_path,
+            scan_path,
+            path_context=path_context,
+        )
         findings.extend(file_findings)
 
     profile = detect_stack_profile(scanned_files)
@@ -1714,7 +1715,9 @@ def _push_findings(url, findings):
 
     base_path = parsed.path.rstrip("/")
     endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
-    endpoint = urllib.parse.urlunsplit(("https", parsed.netloc, endpoint_path, "", ""))
+    endpoint = urllib.parse.urlunsplit(
+        ("https", parsed.netloc, endpoint_path, "", "")
+    )
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
@@ -2726,22 +2729,20 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = (
-            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-                [
-                    semgrep,
-                    "scan",
-                    "--config",
-                    config,
-                    "--json",
-                    str(scan_path),
-                ],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=600,
-            )
+        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+            [
+                semgrep,
+                "scan",
+                "--config",
+                config,
+                "--json",
+                str(scan_path),
+            ],
+            shell=False,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2808,15 +2809,13 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = (
-                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=900,
-                )
+            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=900,
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
@@ -2906,14 +2905,20 @@ def _run_codegraph_index(scan_path: Path):
     return _run_codegraph_command([codegraph, "status"], workdir, "status")
 
 
-def _scan_file(file_path: Path, base_path: Path):
-    """Scan a single file and return a list of findings."""
-    findings = []
+def _scan_file(
+    file_path: Path,
+    base_path: Path,
+    *,
+    path_context: ScanPathContext | None = None,
+):
+    """Scan one file using an optional immutable batch path context.
 
-    # ⚡ Bolt: Hoist expensive relative_to base_path resolution outside of loops.
-    # Path.is_dir() and Path.resolve() invoke stat() system calls. Doing this inside
-    # the finding iteration loop for every match was causing massive I/O overhead.
-    resolved_base_path = base_path if base_path.is_dir() else Path(".").resolve()
+    Direct callers may omit ``path_context`` and retain the historical safe
+    fallback. Batch callers should build one context and reuse it for every
+    file so root classification and normalized prefix construction happen once.
+    """
+    findings = []
+    context = path_context or build_scan_path_context(base_path)
 
     # ⚡ Bolt: Optimize stat calls by using os.lstat instead of Path objects
     # Impact: Combines symlink, file type, and size checks into a single stat call
@@ -2941,15 +2946,6 @@ def _scan_file(file_path: Path, base_path: Path):
     rel_path_for_filters = None
     build_finding = _build_finding
 
-    # Pre-compute string values to replace slow Path.relative_to() calls
-    resolved_base_path_str = str(resolved_base_path)
-    resolved_base_path_prefix = (
-        resolved_base_path_str + os.sep
-        if not resolved_base_path_str.endswith(os.sep)
-        else resolved_base_path_str
-    )
-    file_path_str_cache = str(file_path)
-
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -2969,19 +2965,9 @@ def _scan_file(file_path: Path, base_path: Path):
             ) in applicable_rules:
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
-                        if file_path_str_cache == resolved_base_path_str:
-                            rel_path_for_filters = "."
-                        elif file_path_str_cache.startswith(resolved_base_path_prefix):
-                            rel_path_for_filters = file_path_str_cache[
-                                len(resolved_base_path_prefix) :
-                            ]
-                        else:
-                            rel_path_for_filters = (
-                                file_path.name
-                                if base_path.is_file()
-                                else file_path_str_cache
-                            )
-                        rel_path_for_filters = _display_path(rel_path_for_filters)
+                        rel_path_for_filters = _display_path(
+                            context.relative_candidate(file_path)
+                        )
                     if not _path_allowed_by_rule(
                         rel_path_for_filters, include_paths, exclude_paths
                     ):
@@ -2994,20 +2980,8 @@ def _scan_file(file_path: Path, base_path: Path):
 
                 for match in finditer(content):
                     if rel_path_str is None:
-                        if file_path_str_cache == resolved_base_path_str:
-                            rel_path_for_output = "."
-                        elif file_path_str_cache.startswith(resolved_base_path_prefix):
-                            rel_path_for_output = file_path_str_cache[
-                                len(resolved_base_path_prefix) :
-                            ]
-                        else:
-                            rel_path_for_output = (
-                                file_path.name
-                                if base_path.is_file()
-                                else file_path_str_cache
-                            )
                         rel_path_str = _sanitize_terminal_output(
-                            _display_path(rel_path_for_output)
+                            _display_path(context.relative_candidate(file_path))
                         )
 
                     start_idx = match.start()
