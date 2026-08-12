@@ -4,16 +4,25 @@ import urllib.request
 import pytest
 
 from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
+from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
 def test_is_safe_url_public_domains():
     assert _is_safe_url("http://google.com/")
     assert _is_safe_url("https://github.com/")
 
-def test_is_safe_url_invalid_types():
-    assert not _is_safe_url(None)
-    assert not _is_safe_url(123)
-    assert not _is_safe_url(True)
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+@pytest.mark.parametrize(
+    "value",
+    [123, True, None, [], {}],
+    ids=["integer", "boolean", "none", "list", "mapping"],
+)
+def test_is_safe_url_invalid_types(validator, value):
+    assert not validator(value)
 
 
 def test_is_safe_url_ipv4_localhost():
