@@ -73,6 +73,20 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert "e.key === 'Enter' || e.key === ' '" in html
 
 
+def test_dashboard_severity_cards_are_accessible_filter_toggles():
+    """Severity cards must preserve their complete pointer and keyboard contract."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert 'aria-label="Filter by ${s}: ${counts[s]}"' in html
+    assert 'aria-pressed="${isSelected}"' in html
+    assert "document.getElementById('sev').value='${isSelected ? '' : s}'" in html
+    assert "dispatchEvent(new Event('change'))" in html
+    assert (
+        'onkeydown="if(event.key===\'Enter\'||event.key===\' \')'
+        '{event.preventDefault(); this.click();}"' in html
+    )
+
+
 def test_dashboard_escapes_severity_in_innerhtml():
     """Severity chips must go through esc() — findings JSON is untrusted input."""
     html = dashboard_index_path().read_text(encoding="utf-8")

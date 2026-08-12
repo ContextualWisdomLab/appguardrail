@@ -37,9 +37,8 @@
   tr.scan{cursor:pointer}
   tr.scan:hover{background:var(--bg)}
   input:focus-visible, button:focus-visible, tr.scan:focus-visible, .bar:focus-visible, #detail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .close-btn{float:right;border:none;background:none;font-size:16px;cursor:pointer;color:var(--muted);padding:0 4px;margin-top:-2px}
+  .close-btn{float:right;border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--muted);padding:0 4px;margin-top:-2px}
   .close-btn:hover{color:var(--text)}
-  .close-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
   .trend{display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px}
   .bar{flex:1;min-width:6px;border-radius:3px 3px 0 0}
@@ -80,18 +79,22 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
 let KEY=sessionStorage.getItem("ag_key")||"";
 let currentDetailRequest=0;
-let lastFocus=null;
+let lastDetailFocus=null;
 
-function closeDetail() {
-  $("#detail").classList.add("hidden");
-  $("#detail").innerHTML = "";
-  if (lastFocus) lastFocus.focus();
-}
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !$("#detail").classList.contains("hidden")) {
-    closeDetail();
+function closeDetail(){
+  currentDetailRequest+=1;
+  const detail=$("#detail");
+  detail.classList.add("hidden");
+  detail.innerHTML="";
+  if(lastDetailFocus instanceof HTMLElement && lastDetailFocus.isConnected){
+    lastDetailFocus.removeAttribute("aria-busy");
+    delete lastDetailFocus.dataset.detailRequest;
+    lastDetailFocus.focus();
   }
+  lastDetailFocus=null;
+}
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&!$("#detail").classList.contains("hidden"))closeDetail();
 });
 
 async function api(path){
@@ -127,7 +130,7 @@ async function load(){
     const max=Math.max(1,...ord.map(s=>s.deploy_blocking||0));
     $("#trend").innerHTML=ord.map(s=>{const h=Math.round(6+((s.deploy_blocking||0)/max)*54);
       const col=(s.deploy_blocking||0)>0?"var(--crit)":"var(--ok)";
-      return `<div class="bar" tabindex="0" role="img" aria-label="${esc(s.created_at)}: ${s.deploy_blocking||0} blocking" title="${esc(s.created_at)}: ${s.deploy_blocking||0} blocking" style="height:${h}px;background:${col}"></div>`;}).join("")||'<span class="muted">No scans yet.</span>';
+      return `<div class="bar" tabindex="0" role="img" aria-label="${esc(s.created_at)}: ${esc(String(s.deploy_blocking||0))} blocking" title="${esc(s.created_at)}: ${esc(String(s.deploy_blocking||0))} blocking" style="height:${h}px;background:${col}"></div>`;}).join("")||'<span class="muted">No scans yet.</span>';
     $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}" tabindex="0" role="button" title="View scan details">
       <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
       <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
@@ -141,8 +144,8 @@ async function load(){
 async function detail(id,tr){
   const requestId=++currentDetailRequest;
   const d=$("#detail");
-  lastFocus=document.activeElement;
-  d.setAttribute("tabindex", "-1");
+  lastDetailFocus=tr||document.activeElement;
+  d.setAttribute("tabindex","-1");
   if(tr){
     tr.dataset.detailRequest=String(requestId);
     tr.setAttribute("aria-busy","true");
@@ -155,17 +158,18 @@ async function detail(id,tr){
     const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
       <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
       <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
-    d.innerHTML=`<button type="button" class="close-btn" aria-label="Close details" onclick="closeDetail()">✕</button>
-      <strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
+    d.innerHTML=`<button type="button" class="close-btn" aria-label="Close details">✕</button><strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
       <table style="margin-top:8px"><thead><tr><th scope="col">Severity</th><th scope="col">Rule</th><th scope="col">Finding</th><th scope="col">Location</th></tr></thead>
       <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
+    d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.focus({preventScroll: true});
+    d.focus({preventScroll:true});
   }catch(e){
     if(requestId!==currentDetailRequest)return;
-    d.innerHTML='<button type="button" class="close-btn" aria-label="Close details" onclick="closeDetail()">✕</button><div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
+    d.innerHTML='<button type="button" class="close-btn" aria-label="Close details">✕</button><div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
+    d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.focus({preventScroll: true});
+    d.focus({preventScroll:true});
   }finally{
     if(tr&&tr.dataset.detailRequest===String(requestId)){
       tr.removeAttribute("aria-busy");

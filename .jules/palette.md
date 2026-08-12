@@ -66,6 +66,14 @@
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
 
-## 2026-08-08 - Focus Management and Non-Interactive Chart Accessibility
-**Learning:** Adding keyboard accessibility and explicit roles (`role="img"`) to visual chart elements (like `.bar` in trends) makes them accessible to screen readers, providing context without clutter. Furthermore, detail views popping up in the same flow must actively manage focus by saving `document.activeElement` before expanding and explicitly returning focus to it upon closing (e.g. via Escape key).
-**Action:** When implementing expandable detail sections and interactive charts, ensure focus is explicitly restored to the triggering element when closed, and use `tabindex="0"`, `role="img"`, and `aria-label` to surface data in visualizations.
+## 2026-08-10 - Keyboard Accessible CSS Charts
+**Learning:** DOM-based CSS charts (like bar graphs using styled `<div>` elements) are inherently inaccessible to keyboard and screen reader users unless explicitly configured. Without focus management and roles, interactive or informative charts become invisible to assistive technologies.
+**Action:** Always add `tabindex="0"`, `role="img"`, an explicit `aria-label`, and a `:focus-visible` outline to individual chart elements so keyboard users can navigate them and screen readers can announce their data points.
+
+## 2026-08-06 - Interactive Dashboard Cards for Quick Filtering
+**Learning:** Making metric cards (like severity counts) interactive significantly reduces friction compared to using dropdown filters. It's a common dashboard pattern that users intuitively try to click, and explicitly adding `role="button"`, `tabindex="0"`, and `aria-pressed` makes it accessible.
+**Action:** When aggregate metric cards act as filter toggles, give them an accessible name that includes the current count, expose `role="button"`, `tabindex="0"`, and `aria-pressed`, and handle both `Enter` and `Space` activation while preventing the Space key's default scrolling.
+
+## 2026-08-12 - Async Detail Focus Restoration
+**Learning:** Closing an asynchronous detail panel without invalidating the pending request lets a late response repopulate the panel or steal focus after the user has left it.
+**Action:** Invalidate the request generation on close, restore focus only to a connected trigger, and expose equivalent Escape and close-button paths for success and error states.
