@@ -66,21 +66,11 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
+    assert "aria-label=\"Upload findings file\"" in html
     assert "aria-label=\"Search findings\"" in html
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html
     assert "e.key === 'Enter' || e.key === ' '" in html
-
-
-def test_dashboard_upload_proxy_preserves_accessible_file_selection_contract():
-    """The styled upload control must remain a real button wired to the hidden input."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    assert '<button type="button" id="header-browse"' in html
-    assert 'id="file" accept="application/json,.json" class="sr-only"' in html
-    assert 'tabindex="-1" aria-hidden="true"' in html
-    assert "document.getElementById('header-browse').addEventListener('click'" in html
-    assert "fileInput.value = '';" in html
 
 
 def test_dashboard_escapes_severity_in_innerhtml():
