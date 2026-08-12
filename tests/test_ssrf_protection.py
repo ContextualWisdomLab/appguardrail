@@ -10,6 +10,11 @@ def test_is_safe_url_public_domains():
     assert _is_safe_url("http://google.com/")
     assert _is_safe_url("https://github.com/")
 
+def test_is_safe_url_invalid_types():
+    assert not _is_safe_url(None)
+    assert not _is_safe_url(123)
+    assert not _is_safe_url(True)
+
 
 def test_is_safe_url_ipv4_localhost():
     assert not _is_safe_url("http://127.0.0.1/")
