@@ -65,3 +65,7 @@
 ## 2025-02-18 - Search Input Escape Key
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
+
+## 2024-08-12 - Proxy native file inputs for consistent UX
+**Learning:** In single-page applications, browsers natively suppress `change` events on `<input type="file">` if the user selects the same file path sequentially. Additionally, native file inputs have inconsistent cross-browser styling.
+**Action:** Visually hide the native `<input type="file">` (using `sr-only`, `tabindex="-1"`, and `aria-hidden="true"`) and use a styled proxy `<button>` with an explicit click event listener to trigger the hidden file input. This allows complete styling control and fixes same-file selection issues when combined with clearing the input value after `change`.
