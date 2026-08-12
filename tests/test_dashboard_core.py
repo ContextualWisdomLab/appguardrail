@@ -50,9 +50,11 @@ def test_dashboard_index_ships_with_repo():
 def test_dashboard_skip_link_contract():
     """Dashboard must provide a skip-to-content link for keyboard users."""
     html = dashboard_index_path().read_text(encoding="utf-8")
-    assert '<a href="#app" class="skip-link">Skip to content</a>' in html
+    skip_link = '<a href="#app" class="skip-link">Skip to content</a>'
+    assert skip_link in html
     assert 'class="skip-link"' in html
     assert '<main id="app" tabindex="-1">' in html
+    assert html.index(skip_link) < html.index("<header>")
 
 
 def test_dashboard_drag_drop_has_visible_state_and_clears_it():
