@@ -66,6 +66,14 @@
 **Learning:** Users who heavily rely on keyboard navigation (and power users) experience friction when forced to backspace manually or switch to the mouse to click a "Clear" button after filtering a list.
 **Action:** Always provide an `Escape` key listener on search inputs to instantly clear the query and re-render the view, matching native OS text field behavior.
 
-## 2024-05-25 - Skip to Content Accessibility
-**Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header elements on every page load or state reset.
-**Action:** Always provide a visually hidden (but focusable) "Skip to content" link as the first interactive element on the page, pointing to a main content container with `tabindex="-1"` to correctly receive programmatic focus.
+## 2026-08-10 - Keyboard Accessible CSS Charts
+**Learning:** DOM-based CSS charts (like bar graphs using styled `<div>` elements) are inherently inaccessible to keyboard and screen reader users unless explicitly configured. Without focus management and roles, interactive or informative charts become invisible to assistive technologies.
+**Action:** Always add `tabindex="0"`, `role="img"`, an explicit `aria-label`, and a `:focus-visible` outline to individual chart elements so keyboard users can navigate them and screen readers can announce their data points.
+
+## 2026-08-06 - Interactive Dashboard Cards for Quick Filtering
+**Learning:** Making metric cards (like severity counts) interactive significantly reduces friction compared to using dropdown filters. It's a common dashboard pattern that users intuitively try to click, and explicitly adding `role="button"`, `tabindex="0"`, and `aria-pressed` makes it accessible.
+**Action:** When aggregate metric cards act as filter toggles, give them an accessible name that includes the current count, expose `role="button"`, `tabindex="0"`, and `aria-pressed`, and handle both `Enter` and `Space` activation while preventing the Space key's default scrolling.
+
+## 2026-08-12 - Skip to Content Accessibility
+**Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
+**Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
