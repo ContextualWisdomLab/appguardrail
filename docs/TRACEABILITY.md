@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-12
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -11,14 +11,14 @@
 | deploy gate/exclusions | gate policy | implemented-main |
 | safe deterministic autofix | fix engine | implemented-main for supported transforms only |
 | multi-tenant scan/history/drift/API keys | control plane | implemented-main |
-| webhook config/notification | control plane/network boundary | implemented-main; PR #910 stored-SSRF hardening active-PR |
+| webhook config/notification | control plane/network boundary | implemented-main; storage-boundary SSRF hardening integrated through PR #924 |
 | buyer/founder/agency/fix-pack reports | report modules | implemented-main |
 | CycloneDX SBOM | SBOM module | implemented-main |
 | organization buyer evidence | org evidence aggregator | implemented-main |
 | RCA-first feasibility scheduler | CI/agent policy | implemented-main |
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
-| automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in/external detector family | must be proven separately from PR #910 prevention; do not infer |
+| automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -26,7 +26,7 @@
 - `implemented-main` requires source/tests on protected `develop`, not an issue/PR description.
 - `active-PR` becomes current only after merge plus fresh protected-head required evidence.
 - External-engine capability must name the engine and availability; normalization does not convert it into a built-in detector.
-- A prevention/hardening change does not automatically promote the matching scanner-detection row.
+- A prevention/hardening change does not automatically promote the matching scanner-detection row; PR #924 and PR #910 were verified and promoted independently.
 - An issue registry mapping cannot promote an obligation unless actual detector execution derives its result from independent/closed evidence.
 
 ## Issue #911 traceability contract
@@ -44,6 +44,8 @@ For stored webhook/callback SSRF, trace separately:
 5. fixed negative fixture;
 6. control-plane self-regression;
 7. exact-head security/review evidence.
+
+Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
 
 ## Standards/research
 

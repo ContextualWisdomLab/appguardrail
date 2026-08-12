@@ -59,15 +59,20 @@ def test_documentation_map_links_cross_cutting_contracts() -> None:
         )
 
 
-def test_active_pr_detection_claims_are_not_promoted_to_main() -> None:
-    """Keep stored-SSRF and issue-obligation work labelled as active PRs."""
+def test_integrated_ssrf_controls_are_promoted_but_distinct() -> None:
+    """Promote merged SSRF controls without conflating prevention and detection."""
 
+    architecture = _read("ARCHITECTURE.md")
     prd = _read("docs/PRD.md")
     traceability = _read("docs/TRACEABILITY.md")
-    assert "PR #910" in prd and "not protected-branch behavior" in prd
+    assert "PR #924" in prd and "implemented-main" in prd
+    assert "PR #910" in prd and "implemented-main" in prd
+    assert "python-stored-ssrf-webhook-url" in traceability
+    assert "implemented-main through PR #910" in traceability
+    assert "separate controls" in architecture
+    assert "bounded" in traceability
     assert "PR #911" in prd and "active-PR" in prd
     assert "PR #911 active-PR" in traceability
-    assert "must be proven separately from PR #910 prevention" in traceability
 
 
 def test_structural_rule_fixture_is_not_claimed_as_lightweight_execution() -> None:

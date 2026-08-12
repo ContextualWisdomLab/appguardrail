@@ -1,7 +1,7 @@
 # AppGuardrail Test and Detector Validation Strategy
 
 **Status:** Accepted quality baseline  
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-12
 
 ## Mandatory gates
 
@@ -48,9 +48,10 @@ Cover direct and stored variants:
 - allowed HTTPS public destination;
 - malformed/ambiguous URL and encoded host/path forms;
 - framework/library sink/source variants supported by the detector;
-- control-plane write-path regression for PR #910 after integration.
+- control-plane write-path regressions integrated through PR #924;
+- packaged `python-stored-ssrf-webhook-url` scanner regressions integrated through PR #910, including direct, subscript, attribute, one-hop, ignored-validator, conditional/non-enforcing guard, guarded-then-unguarded sink, and fail-closed cases.
 
-A prevention test and a scanner-detection test are both required where AppGuardrail claims both controls.
+A prevention test and a scanner-detection test are both required where AppGuardrail claims both controls. The current built-in rule's passing corpus proves its bounded Python `set_webhook` contract, not universal interprocedural SSRF coverage.
 
 ## External engine tests
 

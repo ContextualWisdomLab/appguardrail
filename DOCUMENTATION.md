@@ -30,4 +30,4 @@ AppGuardrail has extensive rule, scanner, report, release, issue, and scheduler 
 - **external-engine** — capability delegated to an optional scanner such as Semgrep/Trivy/Bandit/ZAP rather than AppGuardrail's lightweight built-in matcher.
 - **evidence-only** — information visible in reports/history but not yet executable as an AppGuardrail detector.
 
-Critical current distinction: issue #911's no-exclusions issue-to-detector registry and executable obligation coverage are **active-PR**, not protected-branch behavior. Stored-webhook SSRF prevention in PR #910 is also not equivalent to AppGuardrail automatically detecting the unsafe stored-SSRF coding pattern; prevention and scanner detection are separate requirements.
+Critical current distinction: PR #911's no-exclusions issue-to-detector registry and executable obligation coverage remain **active-PR**, not protected-branch behavior. Stored-webhook SSRF prevention from PR #924 and bounded built-in detection from PR #910 are **implemented-main** as separate controls; the packaged rule covers its tested Python `set_webhook` persistence patterns and is not a universal SSRF taint-analysis claim.

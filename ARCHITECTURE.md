@@ -1,7 +1,7 @@
 # AppGuardrail Architecture
 
 **Status:** Accepted as-built/target architecture with maturity labels  
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-12
 
 ## Architectural goal
 
@@ -81,7 +81,7 @@ flowchart LR
     DNS --> NET
 ```
 
-Stored SSRF prevention and scanner detection are separate. PR #910 adds a prevention-side write-path check; a scanner rule must independently detect vulnerable validation/store/execute patterns before AppGuardrail claims automatic detection coverage.
+Stored SSRF prevention and scanner detection are separate controls. The control-plane write boundary was hardened through PR #924, while PR #910 added the packaged built-in rule `python-stored-ssrf-webhook-url`; both are implemented on protected `develop`. The detector is intentionally bounded to Python `set_webhook` direct and one-hop persistence flows covered by its regression corpus and does not claim universal interprocedural SSRF detection.
 
 ## Control-plane boundary
 

@@ -1,7 +1,7 @@
 # AppGuardrail Product Requirements Document
 
-**Status:** Accepted cross-cutting product baseline for protected `develop` at `0d07baae44a40edfcaec5e42c7fb9351510ca9f0`  
-**Last reviewed:** 2026-08-09
+**Status:** Accepted cross-cutting product baseline for protected `develop` at `77e3e0c5867b1143970fcdce80962bda8a8fc80f`  
+**Last reviewed:** 2026-08-12
 
 ## 1. Product purpose
 
@@ -13,6 +13,7 @@ The product goal is not merely to prevent one defect after a review. Security de
 
 - CLI initialization/guardrail installation for AI coding tools and stacks;
 - lightweight built-in Python/YAML-regex scanning plus optional Trivy/Bandit/Ruff/Semgrep/ZAP integration;
+- bounded built-in detection of tested Python stored-webhook persistence patterns through `python-stored-ssrf-webhook-url`;
 - normalized findings JSON and SARIF 2.1.0 output;
 - deploy gate with severity/config exclusions;
 - conservative deterministic autofix for semantics-preserving cases and reviewable fix prompts for behavior changes;
@@ -24,10 +25,11 @@ The product goal is not merely to prevent one defect after a review. Security de
 - organization buyer-evidence bundle;
 - continuous security/process workflows and RCA-first autonomous development policy.
 
-## 3. Active-PR product boundaries
+## 3. Current and active-PR product boundaries
 
-- PR #910 fixes stored webhook SSRF at the control-plane write boundary. Until merged, it is not protected-branch behavior. Even after merge, that prevention fix does **not** by itself prove the scanner can detect the unsafe stored-SSRF code pattern in another application.
-- PR #911 proposes a no-exclusions registry mapping the repository's retained issue history to executable detector-family obligations and authenticated workflow-result evidence. It is an active-PR product capability until merged and independently verified.
+- PR #924 is **implemented-main** prevention at the control-plane webhook write boundary: malformed bodies, non-string values, and unsafe destinations fail closed before persistence.
+- PR #910 is **implemented-main** scanner detection for the separate stored-webhook coding pattern through the packaged `python-stored-ssrf-webhook-url` rule. Its supported scope is the tested Python `set_webhook` direct and one-hop flows, including conditional/non-enforcing guard regressions; it is not a claim of universal interprocedural SSRF detection.
+- PR #911 proposes a no-exclusions registry mapping the repository's retained issue history to executable detector-family obligations and authenticated workflow-result evidence. It remains an active-PR product capability until merged and independently verified.
 - Open UX/performance Jules PRs remain active-PR and must not be described as current release behavior before integration.
 
 ## 4. Primary users
@@ -121,4 +123,4 @@ AppGuardrail SHALL produce deterministic component inventory with lockfile prove
 
 ## 10. Release acceptance
 
-A release requires one exact protected head with full detector/test coverage, control-plane/security regressions, exact CI/security/review, packaging/SBOM/provenance, migration/recovery evidence for changed persistent state, updated CHANGELOG/version/artifacts, and post-publish smoke. Active PR #910/#911 claims become current only after protected-branch integration and fresh protected-head verification.
+A release requires one exact protected head with full detector/test coverage, control-plane/security regressions, exact CI/security/review, packaging/SBOM/provenance, migration/recovery evidence for changed persistent state, updated CHANGELOG/version/artifacts, and post-publish smoke. PR #910 scanner detection and PR #924 write-boundary prevention are current protected-branch controls; PR #911 claims become current only after protected-branch integration and fresh protected-head verification.

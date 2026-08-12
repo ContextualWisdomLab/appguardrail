@@ -1,7 +1,7 @@
 # AppGuardrail Technical Requirements Document
 
 **Status:** Accepted cross-cutting technical baseline for protected `develop`  
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-12
 
 ## 1. Technical objective
 
@@ -53,7 +53,7 @@ user-controlled URL/source
 
 Stored SSRF exists when unsafe user-controlled destination data crosses a durable boundary and is later executed. Detection should recognize validation-before-store, validation-before-send, private/link-local/loopback/metadata targets, redirect policy, scheme/port restrictions, hostname/IP resolution semantics, and framework-specific request sinks where feasible.
 
-PR #910 adds a specific prevention guard at AppGuardrail's own webhook storage boundary; scanner coverage is a separate obligation.
+Prevention and scanner detection remain separate technical controls. PR #924 integrated the control plane's fail-closed webhook write boundary. PR #910 independently integrated the packaged `python-stored-ssrf-webhook-url` built-in rule and its focused direct, accessor, one-hop, ignored-validator, conditional/non-enforcing guard, guarded-then-unguarded sink, and fail-closed regression corpus. That implementation is bounded to its declared Python `set_webhook` contract and is not a universal interprocedural SSRF analyzer.
 
 ## 6. External engine adapters
 
