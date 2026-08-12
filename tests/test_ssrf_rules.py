@@ -162,6 +162,21 @@ def _production_guard_source():
     )
 
 
+def _none_aware_guard_source():
+    """Build the compact fail-closed guard used by the control plane."""
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    webhook_url = body.get("url")',
+            "    if webhook_url is not None and not _is_safe_url(webhook_url):",
+            '        return {"error": "unsafe webhook url"}',
+            f"    {sink}(conn, org, webhook_url)",
+            "",
+        ]
+    )
+
+
 def _scan_rule_findings(tmp_path, source):
     """Run the real file scanner and return only stored-SSRF findings."""
     source_file = tmp_path / "webhook.py"
@@ -260,6 +275,11 @@ def test_packaged_rule_ignores_fail_closed_guarded_persistence():
 def test_packaged_rule_ignores_production_fail_closed_guard():
     """Do not self-flag the control plane's multiline rejection guard."""
     assert not _rule()["pattern"].search(_production_guard_source())
+
+
+def test_packaged_rule_ignores_none_aware_fail_closed_guard():
+    """Do not self-flag a None-aware fail-closed rejection guard."""
+    assert not _rule()["pattern"].search(_none_aware_guard_source())
 
 
 def test_scan_file_emits_stored_ssrf_finding(tmp_path):
