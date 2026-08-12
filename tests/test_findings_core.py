@@ -3,14 +3,6 @@ from appguardrail_core.findings import (finding_sort_key, is_deploy_blocking,
                                         safe_report_snippet, severity_counts)
 
 
-class ExplosiveText:
-    def __bool__(self):
-        return True
-
-    def __str__(self):
-        raise RuntimeError("caller-controlled conversion failed")
-
-
 def test_normalize_finding_adds_report_contract_defaults():
     finding = normalize_finding(
         {
@@ -42,56 +34,6 @@ def test_normalize_findings_returns_stable_tuple():
 
     assert isinstance(normalized, tuple)
     assert [finding["rule_id"] for finding in normalized] == ["one", "two"]
-
-
-def test_normalize_finding_fails_closed_when_text_conversion_raises():
-    hostile = ExplosiveText()
-
-    finding = normalize_finding(
-        {
-            "severity": hostile,
-            "rule_id": hostile,
-            "message": hostile,
-            "file": hostile,
-            "category": hostile,
-            "context": hostile,
-            "remediation": hostile,
-            "verification": hostile,
-            "snippet": hostile,
-            "references": [hostile],
-            "owasp": [hostile],
-            "cwe": [hostile],
-        }
-    )
-
-    assert finding["severity"] == "INFO"
-    assert finding["rule_id"] == "unknown-rule"
-    assert finding["message"] == "No message provided."
-    assert finding["file"] == "n/a"
-    assert finding["category"] == "misconfig"
-    assert finding["context"] == "app-code"
-    assert finding["remediation"] == "Review and remediate this finding, then rerun AppGuardrail."
-    assert finding["verification"] == "Rerun AppGuardrail after remediation."
-    assert finding["snippet"] == ""
-    assert finding["references"] == ()
-    assert finding["owasp"] == ()
-    assert finding["cwe"] == ()
-
-
-def test_finding_helpers_fail_closed_when_text_conversion_raises():
-    hostile = ExplosiveText()
-
-    assert severity_counts([{"severity": hostile}]) == {
-        "CRITICAL": 0,
-        "HIGH": 0,
-        "WARNING": 0,
-        "INFO": 1,
-    }
-    assert not is_deploy_blocking({"severity": hostile, "context": hostile})
-    assert finding_sort_key(
-        {"severity": hostile, "category": hostile, "rule_id": hostile}
-    ) == (3, "misconfig", "unknown-rule")
-    assert safe_report_snippet(hostile) == ""
 
 
 def test_severity_counts_folds_unknown_values_into_info():

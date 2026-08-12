@@ -221,9 +221,6 @@ def _is_safe_url(url: str) -> bool:
     import urllib.parse
     import socket
 
-    if not isinstance(url, str):
-        return False
-
     try:
         parsed = urllib.parse.urlparse(
             url
@@ -615,10 +612,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 # Negative reads until EOF; oversized bodies exhaust memory.
                 return None
             try:
-                raw_body = self.rfile.read(length)
-                if not raw_body:
-                    return None
-                return json.loads(raw_body)
+                return json.loads(self.rfile.read(length) or b"{}")
             except (ValueError, TypeError):
                 return None
 
@@ -635,13 +629,10 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 if not has_role(role, "owner"):
                     return self._json(403, {"error": "owner role required"})
                 body = self._body()
-                if body is None or not isinstance(body, dict):
+                if body is None:
                     return self._json(400, {"error": "invalid JSON body"})
-                webhook_url = body.get("url")
-                if webhook_url is not None and not _is_safe_url(webhook_url):
-                    return self._json(400, {"error": "invalid webhook url"})
-                set_webhook(conn, org, webhook_url)
-                return self._json(200, {"webhook_url": webhook_url})
+                set_webhook(conn, org, (body or {}).get("url"))
+                return self._json(200, {"webhook_url": (body or {}).get("url")})
 
             if path == "/api/v1/keys":
                 if not has_role(role, "owner"):

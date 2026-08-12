@@ -112,7 +112,6 @@ from appguardrail_core.rules import (
     extract_public_references,
     validate_rule_metadata,
 )
-from appguardrail_core.scan_paths import ScanPathContext, build_scan_path_context
 
 
 ReportContext = _reports.ReportContext
@@ -188,7 +187,6 @@ __all__ = [
     "SchemaInspection",
     "SchemaMigrationError",
     "SchemaMigrationResult",
-    "ScanPathContext",
     "StackProfile",
     "StalePurgePreview",
     "build_buyer_evidence_pack",
@@ -197,7 +195,6 @@ __all__ = [
     "build_org_inventory",
     "build_purge_preview",
     "build_rule_metadata",
-    "build_scan_path_context",
     "buyer_evidence_pack_to_dict",
     "classify_pr_gate",
     "collect_openssf_evidence",
