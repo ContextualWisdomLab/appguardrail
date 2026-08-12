@@ -73,6 +73,20 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert "e.key === 'Enter' || e.key === ' '" in html
 
 
+def test_dashboard_severity_cards_are_accessible_filter_toggles():
+    """Severity cards must preserve their complete pointer and keyboard contract."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert 'aria-label="Filter by ${s}: ${counts[s]}"' in html
+    assert 'aria-pressed="${isSelected}"' in html
+    assert 'data-severity="${s}"' in html
+    assert "app.querySelectorAll('.severity-card').forEach" in html
+    assert "card.addEventListener('click', activate)" in html
+    assert "card.addEventListener('keydown'" in html
+    assert "e.key === 'Enter' || e.key === ' '" in html
+    assert "severitySelect.dispatchEvent(new Event('change'))" in html
+
+
 def test_dashboard_escapes_severity_in_innerhtml():
     """Severity chips must go through esc() — findings JSON is untrusted input."""
     html = dashboard_index_path().read_text(encoding="utf-8")
@@ -246,9 +260,25 @@ def test_dashboard_empty_state_clear_filters():
 
     assert "No findings match the filter" in html
     assert "aria-label=\"Clear filters\"" in html
-    assert "id=\"clear-filters-btn\"" in html
-    assert ".addEventListener('click'" in html
+    assert 'id="clear-filters-btn"' in html
+    assert "document.getElementById('clear-filters-btn')?.addEventListener" in html
     assert "Clear filters</button>" in html
+
+
+def test_dashboard_uses_csp_compatible_controls_and_reselectable_upload():
+    """Dashboard controls avoid inline handlers and allow same-file reselection."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert "onclick=" not in html
+    assert "onkeydown=" not in html
+    assert 'id="header-browse-btn"' in html
+    assert 'class="sr-only" tabindex="-1" aria-hidden="true"' in html
+    assert (
+        "document.getElementById('header-browse-btn')?.addEventListener('click'"
+        in html
+    )
+    assert "fileInput.value = '';" in html
+    assert "d.querySelector('#detail-close-btn').addEventListener('click'" in html
 
 
 def test_dashboard_dialog_close_button_has_tooltip():

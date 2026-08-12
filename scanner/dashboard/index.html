@@ -92,7 +92,7 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <button type="button" id="header-browse-btn" class="primary-action" aria-label="Upload findings file" style="margin-left:12px; min-height: 28px; padding: 4px 12px; font-size: 13px;">Load Findings</button>
+  <button type="button" id="header-browse-btn" class="primary-action" aria-label="Upload findings file" style="margin-left:12px;min-height:28px;padding:4px 12px;font-size:13px">Load Findings</button>
   <input type="file" id="file" accept="application/json,.json" class="sr-only" tabindex="-1" aria-hidden="true">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -179,11 +179,15 @@ function render(){
     byCat[c] = (byCat[c]||0)+1;
     if(isDeployBlocking(f)) blocking++;
   }
-  const cards = SEV_ORDER.map(s=>`
-    <div class="card">
+  const cards = SEV_ORDER.map(s=>{
+    const isSelected = filterSev === s;
+    const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
+    return `
+    <div class="card severity-card" role="button" tabindex="0" data-severity="${s}" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" style="${style}">
       <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
       <div class="n">${counts[s]}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
     `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
 
@@ -227,7 +231,7 @@ function render(){
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
           </select>
         </div>
-        <div class="panel"><table id="findings-table">
+        <div class="panel"><table>
           <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
           <tbody>${rows||`<tr><td colspan="5" style="padding:32px 24px;text-align:center">
           <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:8px">No findings match the filter</div>
@@ -241,14 +245,25 @@ function render(){
     liveSummary.textContent = summaryText;
   }
 
-  document.getElementById('findings-table')?.addEventListener('click', e => {
-    const btn = e.target.closest('#clear-filters-btn');
-    if (btn) {
-      query = '';
-      filterSev = '';
-      render();
-      document.getElementById('q')?.focus();
-    }
+  app.querySelectorAll('.severity-card').forEach(card => {
+    const activate = () => {
+      const severitySelect = document.getElementById('sev');
+      severitySelect.value = card.dataset.severity === filterSev ? '' : card.dataset.severity;
+      severitySelect.dispatchEvent(new Event('change'));
+    };
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activate();
+      }
+    });
+  });
+  document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
+    query = '';
+    filterSev = '';
+    render();
+    document.getElementById('q')?.focus();
   });
 
   document.getElementById('q').addEventListener('input', e=>{
@@ -309,9 +324,7 @@ function openDetail(f){
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
         ${refs?`<div style="margin-top:6px">${refs}</div>`:''}</div>`:''}
     </div>`;
-  document.getElementById('detail-close-btn')?.addEventListener('click', () => {
-    document.getElementById('detail').close();
-  });
+  d.querySelector('#detail-close-btn').addEventListener('click', () => d.close());
   d.showModal();
 }
 
