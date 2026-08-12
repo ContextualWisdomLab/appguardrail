@@ -85,6 +85,21 @@ def _non_enforcing_guard_with_unrelated_return_source():
     )
 
 
+def _conditional_rejection_guard_source():
+    """Build a guard that rejects only when an unrelated flag is true."""
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body, disabled):",
+            '    target = (body or {}).get("url")',
+            "    if disabled and not _is_safe_url(target):",
+            "        return",
+            f"    {sink}(conn, org, target)",
+            "",
+        ]
+    )
+
+
 def _positive_guard_source():
     """Build a safe flow whose persistence sink is inside a positive guard."""
     sink = "set_" + "webhook"
@@ -94,6 +109,21 @@ def _positive_guard_source():
             '    target = (body or {}).get("url")',
             "    if _is_safe_url(target):",
             f"        {sink}(conn, org, target)",
+            "",
+        ]
+    )
+
+
+def _positive_guard_then_unprotected_sink_source():
+    """Build a safe guarded sink followed by an unsafe unguarded sink."""
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    target = (body or {}).get("url")',
+            "    if _is_safe_url(target):",
+            f"        {sink}(conn, org, target)",
+            f"    {sink}(conn, org, target)",
             "",
         ]
     )
@@ -205,9 +235,21 @@ def test_packaged_rule_matches_non_enforcing_guard_with_unrelated_return():
     )
 
 
+def test_packaged_rule_matches_conditional_rejection_guard():
+    """Do not treat an unrelated conditional rejection as fail-closed."""
+    assert _rule()["pattern"].search(_conditional_rejection_guard_source())
+
+
 def test_packaged_rule_ignores_positive_guarded_persistence():
     """Do not flag a sink that is reachable only after positive validation."""
     assert not _rule()["pattern"].search(_positive_guard_source())
+
+
+def test_packaged_rule_matches_unprotected_sink_after_positive_guard():
+    """A guarded sink must not hide a later unprotected persistence sink."""
+    assert _rule()["pattern"].search(
+        _positive_guard_then_unprotected_sink_source()
+    )
 
 
 def test_packaged_rule_ignores_fail_closed_guarded_persistence():
