@@ -77,3 +77,7 @@
 ## 2026-08-12 - Async Detail Focus Restoration
 **Learning:** Closing an asynchronous detail panel without invalidating the pending request lets a late response repopulate the panel or steal focus after the user has left it.
 **Action:** Invalidate the request generation on close, restore focus only to a connected trigger, and expose equivalent Escape and close-button paths for success and error states.
+
+## 2026-08-12 - CSP-Compatible Dashboard Controls
+**Learning:** Inline event attributes prevent deployment under strict Content Security Policy and can silently regress when newly rendered controls bypass the shared listener contract.
+**Action:** Bind upload, severity, filter-clear, and dialog-close behavior with event listeners, keep the native file input behind an accessible proxy, and clear its value before parsing so the same file can be selected again.
