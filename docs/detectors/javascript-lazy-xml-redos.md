@@ -19,8 +19,10 @@ The detector requires all of the following evidence in one JavaScript or TypeScr
 2. the regular expression starts with an XML-like opening tag and ends with the same closing tag;
 3. the block body uses lazy dot-all emulation `[\s\S]*?`;
 4. the expression is global (`g`), so the engine is asked to continue searching the same untrusted input;
-5. the function does not establish a small numeric `input.length` upper bound before the sink;
+5. the function does not establish an immediately terminating `if (input.length > N) throw ...` or `if (input.length > N) return ...` guard before the sink, where the detector recognizes only one- through four-digit caps (`N <= 9999`) as a deliberately small local bound; and
 6. the search is function-bounded and character-bounded.
+
+A length comparison that only logs, records telemetry, or otherwise continues to the regex sink is not a bound. Six-digit and larger thresholds are intentionally not treated as protective evidence; applications needing a larger limit should replace the backtracking block collector or establish safety through a separately reviewed structural detector.
 
 The file-level prefilter requires `[\s\S]*?` and `.match`, which avoids evaluating the multiline signature on unrelated source files.
 
@@ -30,26 +32,29 @@ The file-level prefilter requires `[\s\S]*?` and `.match`, which avoids evaluati
 
 - the vulnerable `<Task>[\s\S]*?<\/Task>` block collector;
 - the reviewed linear `indexOf` / `slice` scanner as the primary negative oracle;
-- a small explicitly length-bounded parser negative;
+- a small explicitly terminating length-bounded parser negative;
+- six-digit, post-sink, and non-terminating length-check positives; and
 - a non-XML lazy-regex negative.
 
 The detector therefore proves the observed source contract rather than treating a cancelled security workflow label as evidence of a vulnerability.
 
 ## Remediation boundary
 
-Preferred remediation is a deterministic linear parser or delimiter scanner that advances monotonically after each complete block and stops once an opening delimiter has no closing delimiter. If a regular expression is retained, the application must impose a verified small input bound before matching and must separately establish the expression's worst-case complexity.
+Preferred remediation is a deterministic linear parser or delimiter scanner that advances monotonically after each complete block and stops once an opening delimiter has no closing delimiter. If a regular expression is retained, the application must impose a verified small input bound before matching, terminate the oversized-input path before the sink, and separately establish the expression's worst-case complexity.
 
 MITRE CWE-1333 defines inefficient regular-expression complexity as a weakness that can cause CPU resource exhaustion and explicitly recommends avoiding backtracking regular expressions on untrusted input or bounding input length. ECMAScript specifies RegExp matching using match states and backtracking semantics; the product must therefore not assume that a lazy quantifier implies linear execution.
 
 ## Declared limitations
 
-This detector does not claim coverage for:
+This detector currently recognizes only ordinary function declarations (`function name(...)`) and `export function` declarations. It does not detect the same source shape inside `async function`, `export default function`, arrow functions, class/object methods, or function declarations with TypeScript return-type annotations.
+
+It also does not claim coverage for:
 
 - nested or overlapping quantified expressions that do not use `[\s\S]*?`;
 - regular expressions created through `RegExp(...)` strings;
 - helper-mediated or cross-function dataflow;
 - parsers whose input is bounded through a wrapper rather than the detected function;
-- non-JavaScript regex engines;
+- non-JavaScript regex engines; or
 - regular expressions whose complexity requires semantic or automata analysis.
 
 Those cases require separate source-derived signatures or a structural/dataflow regex-complexity engine.
