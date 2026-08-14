@@ -214,7 +214,7 @@ def test_production_scanner_emits_normalized_health_finding(tmp_path: Path) -> N
     assert len(findings) == 1
     finding = findings[0]
     assert finding["severity"] == "MEDIUM"
-    assert finding["confidence"] == "medium"
+    assert finding["confidence"] == "high"
     assert finding["source"] == "appguardrail-rule"
     assert "CWE-918 - Server-Side Request Forgery (SSRF)" in finding["cwe"]
 
