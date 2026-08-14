@@ -12,7 +12,7 @@ _VULNERABLE_APP_BLOB_SHA = "926d528d17b7ae39ab89001657a21f7ef30af743"
 _VULNERABLE_AUTH_BLOB_SHA = "3d0b171fb2d5049f010c405f051409a849840b26"
 _FIXED_HEAD_SHA = "bd9a51584f1cf37f4f4446022a90775a20152edf"
 _FIXED_APP_BLOB_SHA = "13d95e5dfa0719451a5b4a6d952467994172b79a"
-_FIXED_AUTH_BLOB_SHA = "5893dd511f5a73fa8e595728e68f6e84d4011c45"
+_FIXED_AUTH_BLOB_SHA = "a16a7281b3da4683eea85263fea929dd9483e9df"
 
 _VULNERABLE_SIGNUP_SOURCE = """
 app.post('/api/auth/signup', async (c) => {
@@ -74,6 +74,25 @@ app.post('/api/profile', async (c) => {
 });
 """
 
+_ADJACENT_HANDLERS_SOURCE = """
+app.post('/api/auth/read-only', async (c) => {
+  const { password } = await c.req.json().catch(() => ({}));
+  if (String(password).length < 8) return c.json({ error: 'short' }, 400);
+});
+app.post('/api/auth/sink-only', async (c) => {
+  const password = loadTrustedPassword();
+  return c.json({ passwordHash: hashPassword(password) });
+});
+app.post('/api/auth/read-login', async (c) => {
+  const { password } = await c.req.json().catch(() => ({}));
+  return c.json({ accepted: Boolean(password) });
+});
+app.post('/api/auth/verify-only', async (c) => {
+  const password = loadTrustedPassword();
+  return c.json({ ok: verifyPassword(password || '', storedHash) });
+});
+"""
+
 
 def _rule(rule_id: str) -> dict:
     """Return one packaged rule by identity."""
@@ -101,7 +120,7 @@ def test_source_provenance_is_explicit_and_immutable() -> None:
     assert _VULNERABLE_AUTH_BLOB_SHA == "3d0b171fb2d5049f010c405f051409a849840b26"
     assert _FIXED_HEAD_SHA == "bd9a51584f1cf37f4f4446022a90775a20152edf"
     assert _FIXED_APP_BLOB_SHA == "13d95e5dfa0719451a5b4a6d952467994172b79a"
-    assert _FIXED_AUTH_BLOB_SHA == "5893dd511f5a73fa8e595728e68f6e84d4011c45"
+    assert _FIXED_AUTH_BLOB_SHA == "a16a7281b3da4683eea85263fea929dd9483e9df"
 
 
 def test_signup_rule_detects_string_coercion_before_password_hash() -> None:
@@ -148,6 +167,12 @@ def test_rules_ignore_non_password_string_coercion() -> None:
     """Require the source-derived password and crypto-helper boundary."""
     assert not _rule(_SIGNUP_RULE_ID)["pattern"].search(_NON_PASSWORD_COERCION_SOURCE)
     assert not _rule(_VERIFY_RULE_ID)["pattern"].search(_NON_PASSWORD_COERCION_SOURCE)
+
+
+def test_rules_do_not_cross_adjacent_handler_boundaries() -> None:
+    """Do not pair JSON extraction in one handler with a sink in a later handler."""
+    assert not _rule(_SIGNUP_RULE_ID)["pattern"].search(_ADJACENT_HANDLERS_SOURCE)
+    assert not _rule(_VERIFY_RULE_ID)["pattern"].search(_ADJACENT_HANDLERS_SOURCE)
 
 
 def test_scan_file_emits_normalized_type_validation_findings(tmp_path: Path) -> None:
