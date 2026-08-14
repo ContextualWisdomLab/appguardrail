@@ -22,7 +22,7 @@ PR `#397` introduced a shared `verifySessionJwt(token)` boundary that verifies t
 
 ## Detector contract
 
-Rule `javascript-url-session-jwt-revocation-bypass` reports only the source-derived Hono shape where:
+Rule `javascript-url-session-revocation-bypass` reports only the source-derived Hono shape where:
 
 1. a GET route obtains a credential from `c.req.query('token')`;
 2. the same bounded route directly calls one of the exact collected forms `uid = verifyToken(raw).sub` or `user = verifyToken(token)`; and
@@ -30,7 +30,7 @@ Rule `javascript-url-session-jwt-revocation-bypass` reports only the source-deri
 
 The two exact direct-call forms intentionally avoid matching the attachment route in the historical source, where the code already performed an inline `token_version` check after `verifyToken`.
 
-The rule is `HIGH`, high confidence, and maps to `CWE-613` and `OWASP A07:2025`.
+The rule is `HIGH`, high confidence, categorized under the authentication/authorization boundary, and maps explicitly to `CWE-613` and `OWASP A07:2025`. AppGuardrail does not append unrelated category-default CWEs when a detector already supplies complete CWE and OWASP taxonomy evidence.
 
 ## Security boundary
 
