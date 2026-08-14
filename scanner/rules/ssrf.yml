@@ -12,3 +12,21 @@ rules:
     prefilter: [set_webhook]
     cwe: [CWE-918]
     owasp: [A10:2021]
+
+  - id: python-ssrf-redirect-autofollow-after-validation
+    patterns:
+      - pattern-regex: '(?is)\bif\s+not\s+_is_safe_url\s*\(\s*(?P<url_var>[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*:\s*(?:#[^\n]*)?\n(?:[ \t]+[^\n]*\n){1,12}?(?:(?!\b(?:SafeRedirectHandler|build_opener)\b).){0,1000}?\burllib\.request\.Request\s*\(\s*(?P=url_var)\b(?:(?!\burllib\.request\.urlopen\b).){0,1000}?\burllib\.request\.urlopen\s*\('
+    message: |
+      The initial outbound URL is validated before urllib.request.urlopen(), but
+      urlopen follows HTTP redirects by default and the redirected destination is
+      not revalidated by this flow. A public URL can therefore redirect to a
+      private, loopback, link-local, metadata, or otherwise forbidden target.
+      Disable automatic redirects or install a redirect handler that applies the
+      same fail-closed destination policy to every redirect hop before connecting.
+      [CWE-918 - Server-Side Request Forgery]
+      [OWASP A10:2021 - Server-Side Request Forgery]
+    severity: HIGH
+    languages: [python]
+    prefilter: [_is_safe_url, urllib.request, urlopen]
+    cwe: [CWE-918]
+    owasp: [A10:2021]
