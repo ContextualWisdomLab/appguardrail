@@ -37,6 +37,8 @@
   tr.scan{cursor:pointer}
   tr.scan:hover{background:var(--bg)}
   input:focus-visible, button:focus-visible, tr.scan:focus-visible, .bar:focus-visible, #detail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  button:disabled, button[aria-busy="true"] { opacity: 0.6; cursor: not-allowed; }
+  tr.scan[aria-busy="true"] { opacity: 0.7; cursor: wait; pointer-events: none; }
   .close-btn{float:right;border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--muted);padding:0 4px;margin-top:-2px}
   .close-btn:hover{color:var(--text)}
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
@@ -177,10 +179,11 @@ async function detail(id,tr){
     }
   }
 }
-$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=false;$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
+$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=!$("#key").value.trim();$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
+$("#key").addEventListener("input",e=>{$("#connect").disabled=!e.target.value.trim();});
 $("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
 $("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
-if(KEY)load();
+if(KEY)load();else $("#connect").disabled=true;
 </script>
 </body>
 </html>
