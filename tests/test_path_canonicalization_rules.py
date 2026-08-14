@@ -1,19 +1,19 @@
-"""Regression tests for URL-path validation before canonicalization."""
+"""Regression tests for URL-path canonicalization-order detector variants."""
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 _RULE_ID = "python-url-path-traversal-validate-before-canonicalize"
 
 
-def _rule():
-    """Return the single packaged canonicalization-order rule under test."""
-    matches = [rule for rule in SCAN_RULES if rule["id"] == _RULE_ID]
-    assert len(matches) == 1, f"expected one loaded rule for {_RULE_ID}"
-    return matches[0]
+def _rules():
+    """Return all packaged source-shape variants for the weakness identity."""
+    matches = tuple(rule for rule in SCAN_RULES if rule["id"] == _RULE_ID)
+    assert len(matches) == 2, f"expected two loaded variants for {_RULE_ID}"
+    return matches
 
 
-def _historical_naruon_vulnerable_source():
-    """Build the source shape that accepted encoded CardDAV traversal segments."""
+def _raw_path_validation_source():
+    """Build a related source shape that validates an encoded path directly."""
     return "\n".join(
         [
             "def _txt_context_path(records: list[str]) -> str | None:",
@@ -144,41 +144,47 @@ def _scan_rule_findings(tmp_path, source):
     ]
 
 
-def test_packaged_rule_detects_historical_encoded_path_bypass():
+def test_packaged_rules_detect_raw_path_validation_bypass():
     """Detect literal dot-segment validation that returns the encoded path."""
-    rule = _rule()
-    assert rule["severity"] == "HIGH"
-    assert rule["pattern"].search(_historical_naruon_vulnerable_source())
+    rules = _rules()
+    assert all(rule["severity"] == "HIGH" for rule in rules)
+    assert sum(
+        bool(rule["pattern"].search(_raw_path_validation_source()))
+        for rule in rules
+    ) == 1
 
 
-def test_packaged_rule_declares_bounded_prefilter():
-    """Avoid evaluating the multiline regex for unrelated Python files."""
-    assert _rule()["required_substrings"] == (
-        ".split(",
-        ".startswith(",
-        "://",
-        "return",
+def test_packaged_rules_declare_bounded_prefilter():
+    """Avoid evaluating either multiline regex for unrelated Python files."""
+    expected = (".split(", ".startswith(", "://", "return")
+    assert all(rule["required_substrings"] == expected for rule in _rules())
+
+
+def test_packaged_rules_ignore_canonicalize_then_validate_flow():
+    """Do not flag a canonical representation used for validation and return."""
+    assert all(
+        not rule["pattern"].search(_canonicalized_source()) for rule in _rules()
     )
 
 
-def test_packaged_rule_ignores_canonicalize_then_validate_flow():
-    """Do not flag a bounded canonical representation used for validation."""
-    assert not _rule()["pattern"].search(_canonicalized_source())
-
-
-def test_packaged_rule_ignores_decode_before_same_variable_validation():
+def test_packaged_rules_ignore_decode_before_same_variable_validation():
     """Do not flag decoding that happens before all URL-path checks."""
-    assert not _rule()["pattern"].search(_single_decode_source())
+    assert all(
+        not rule["pattern"].search(_single_decode_source()) for rule in _rules()
+    )
 
 
-def test_packaged_rule_ignores_non_uri_segment_validation():
+def test_packaged_rules_ignore_non_uri_segment_validation():
     """Require URL-path guard evidence instead of generic path checking."""
-    assert not _rule()["pattern"].search(_non_uri_local_path_source())
+    assert all(
+        not rule["pattern"].search(_non_uri_local_path_source())
+        for rule in _rules()
+    )
 
 
 def test_scan_file_emits_normalized_canonicalization_finding(tmp_path):
-    """Exercise the exact production scanner entrypoint on the source replay."""
-    source = _historical_naruon_vulnerable_source()
+    """Exercise the exact production scanner entrypoint on the related replay."""
+    source = _raw_path_validation_source()
     findings = _scan_rule_findings(tmp_path, source)
 
     assert len(findings) == 1
