@@ -112,15 +112,14 @@ def test_source_provenance_is_explicit_and_immutable() -> None:
     assert _FIXED_HEAD_SHA == "37289072bd3039fcca3f113e5707e7a278a3a9b1"
     assert _git_blob_sha(_VULNERABLE_FIXTURE) == _VULNERABLE_BLOB_SHA
     assert _git_blob_sha(_FIXED_FIXTURE) == _FIXED_BLOB_SHA
-    assert _VULNERABLE_SOURCE.strip() in _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
-    assert _FIXED_SOURCE.strip() in _FIXED_FIXTURE.read_text(encoding="utf-8")
 
 
 def test_packaged_rule_detects_scopeweave_hardcoded_hs256_fallback() -> None:
-    """Detect an environment lookup that falls back to a shared signing key."""
+    """Detect the exact vulnerable ScopeWeave source object."""
     rule = _rule()
+    source = _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
     assert rule["severity"] == "CRITICAL"
-    assert rule["pattern"].search(_VULNERABLE_SOURCE)
+    assert rule["pattern"].search(source)
 
 
 def test_packaged_rule_detects_nullish_literal_fallback() -> None:
@@ -139,8 +138,9 @@ def test_packaged_rule_declares_bounded_prefilter() -> None:
 
 
 def test_packaged_rule_ignores_fail_closed_secret_configuration() -> None:
-    """Do not flag a required secret that is validated before token signing."""
-    assert not _rule()["pattern"].search(_FIXED_SOURCE)
+    """Do not flag the exact reviewed fail-closed source object."""
+    source = _FIXED_FIXTURE.read_text(encoding="utf-8")
+    assert not _rule()["pattern"].search(source)
 
 
 def test_packaged_rule_ignores_runtime_generated_fallback() -> None:
@@ -159,12 +159,18 @@ def test_packaged_rule_ignores_mutable_secret_reassigned_before_signing() -> Non
 
 
 def test_scan_file_emits_normalized_critical_finding(tmp_path: Path) -> None:
-    """Verify the exact production finding envelope for the source replay."""
-    findings = _scan(_VULNERABLE_SOURCE, tmp_path)
+    """Verify the production finding envelope against the exact source replay."""
+    source = _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
+    findings = _scan(source, tmp_path)
 
     assert len(findings) == 1
     finding = findings[0]
-    assert finding["line"] == 4
+    expected_line = next(
+        index
+        for index, line in enumerate(source.splitlines(), start=1)
+        if line.startswith("const SECRET = process.env.SCOPEWEAVE_JWT_SECRET ||")
+    )
+    assert finding["line"] == expected_line
     assert finding["snippet"] == "[REDACTED: sensitive match suppressed]"
     assert finding["severity"] == "CRITICAL"
     assert finding["category"] == "secrets"
@@ -181,4 +187,5 @@ def test_scan_file_emits_normalized_critical_finding(tmp_path: Path) -> None:
 
 def test_scan_file_does_not_flag_reviewed_fix(tmp_path: Path) -> None:
     """Keep the exact fail-closed reviewed source clean through production scan."""
-    assert _scan(_FIXED_SOURCE, tmp_path) == []
+    source = _FIXED_FIXTURE.read_text(encoding="utf-8")
+    assert _scan(source, tmp_path) == []
