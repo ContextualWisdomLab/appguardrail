@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| JavaScript JSON password type-validation before password crypto | built-in `javascript-json-password-string-coercion-before-hash` and `javascript-json-password-untyped-verify-fallback` rules | active-PR #945; source-authoritative ScopeWeave replay, production `_scan_file` oracle, CWE-1287 boundary |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,18 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Password type-validation detector family
+
+AppGuardrail issues `#770` and `#772` are duplicate cancelled workflow-event provenance from ScopeWeave PR `#386`; they are not vulnerability proof. The detector obligation is instead bound to the independently reviewed source pair:
+
+- vulnerable ScopeWeave revision `a756b7e3cf486cba0930c1a482c6a30e0df958f5`, with `server/app.mjs` blob `926d528d17b7ae39ab89001657a21f7ef30af743` and `server/auth.mjs` blob `3d0b171fb2d5049f010c405f051409a849840b26`;
+- reviewed fixed revision `bd9a51584f1cf37f4f4446022a90775a20152edf`, with corresponding blobs `13d95e5dfa0719451a5b4a6d952467994172b79a` and `5893dd511f5a73fa8e595728e68f6e84d4011c45`;
+- RED-first regression and production scanner replay in `tests/test_javascript_password_type_validation_rules.py`;
+- packaged rules in `scanner/rules/password_type_validation.yml`;
+- detector contract, limitations, remediation, and APA 7 references in `docs/detectors/javascript-password-type-validation.md`.
+
+The two bounded signatures cover only the observed Hono JSON-body shapes: coercive `String(password).length` followed by hashing of the original untyped value, and `verifyPassword(password || '', ...)` without a visible string-type guard. Fixed explicit type guards, schema-validated paths, other frameworks, helper aliases, and cross-file flows remain outside this detector family rather than being inferred from the cancelled collector events. Current CWE 4.20 defines CWE-1287 as failing to validate that input is actually of the expected type, while current Node.js `crypto.scryptSync` documentation restricts password inputs to supported string/binary-view types; ordinary JSON arrays and objects are not accepted by that API contract.
 
 ## Standards/research
 
