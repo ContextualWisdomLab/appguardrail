@@ -137,7 +137,7 @@ def test_scan_file_emits_normalized_critical_finding(tmp_path: Path) -> None:
     assert len(findings) == 1
     finding = findings[0]
     assert finding["line"] == 4
-    assert finding["snippet"].startswith("const SECRET = process.env")
+    assert finding["snippet"] == "[REDACTED: sensitive match suppressed]"
     assert finding["severity"] == "CRITICAL"
     assert finding["category"] == "secrets"
     assert finding["confidence"] == "high"
