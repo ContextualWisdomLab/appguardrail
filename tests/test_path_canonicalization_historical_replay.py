@@ -6,9 +6,11 @@ from scanner.cli import appguardrail as ag
 
 RULE_ID = "python-url-path-traversal-validate-before-canonicalize"
 SOURCE_REPOSITORY = "ContextualWisdomLab/naruon"
+SOURCE_PATH = "backend/services/carddav_discovery.py"
 VULNERABLE_HEAD_SHA = "fedf06b7eec7e6cd4e1a8b27b864d5152ff98b84"
 VULNERABLE_BLOB_SHA = "d12c23a46afc6f2f6a38321e326e64cf7f3a1436"
 FIXED_HEAD_SHA = "0547162be7fdc958e375e69b05e0e3b1c26e1074"
+FIXED_BLOB_SHA = "c1a475a18566d6cb62946a43b533a53ddd5bd4e2"
 
 VULNERABLE_SOURCE = '''
 def _txt_context_path(records: list[str]) -> str | None:
@@ -43,7 +45,44 @@ def _txt_context_path(records: list[str]) -> str | None:
     return None
 '''
 
-FIXED_SOURCE = VULNERABLE_SOURCE.replace("return path", "return decoded_path")
+# Independent immutable excerpt copied from SOURCE_PATH at FIXED_BLOB_SHA. Keep
+# this separate from VULNERABLE_SOURCE so the negative oracle cannot pass by
+# mechanically editing the positive fixture.
+FIXED_SOURCE = '''
+def _txt_context_path(records: list[str]) -> str | None:
+    """Extract and validate the RFC 6764 Section 6 TXT ``path`` hint."""
+    for record in records:
+        for part in record.split(";"):
+            key, _, value = part.strip().partition("=")
+            if key.strip().lower() != "path":
+                continue
+            path = value.strip()
+            decoded_path = path
+            for _ in range(_MAX_CONTEXT_PATH_DECODE_ROUNDS):
+                next_path = unquote(decoded_path)
+                if next_path == decoded_path:
+                    break
+                decoded_path = next_path
+            else:
+                # Reject values that still change after the decode budget. This
+                # keeps over-encoded traversal payloads from hiding another
+                # interpretation beyond the validation boundary.
+                if unquote(decoded_path) != decoded_path:
+                    continue
+            if (
+                decoded_path.startswith("/")
+                and "://" not in decoded_path
+                and "\\\\" not in decoded_path
+                and "?" not in decoded_path
+                and "#" not in decoded_path
+                and all(
+                    segment not in {".", ".."} for segment in decoded_path.split("/")
+                )
+                and all(category(ch) != "Cc" for ch in decoded_path)
+            ):
+                return decoded_path
+    return None
+'''
 
 
 def _scan(source: str, tmp_path: Path) -> list[dict]:
@@ -73,13 +112,15 @@ def test_exact_historical_source_detects_validated_decoded_but_returned_raw_path
 def test_exact_fixed_source_returns_the_same_canonical_value_that_was_validated(
     tmp_path: Path,
 ) -> None:
-    """Do not flag the reviewed fix that returns ``decoded_path``."""
+    """Do not flag the independently captured reviewed fixed source."""
     assert _scan(FIXED_SOURCE, tmp_path) == []
 
 
 def test_source_provenance_is_explicit_and_immutable() -> None:
-    """Pin the repository, vulnerable source identity, and reviewed fixed head."""
+    """Pin repository path plus vulnerable and reviewed fixed Git identities."""
     assert SOURCE_REPOSITORY == "ContextualWisdomLab/naruon"
+    assert SOURCE_PATH == "backend/services/carddav_discovery.py"
     assert VULNERABLE_HEAD_SHA == "fedf06b7eec7e6cd4e1a8b27b864d5152ff98b84"
     assert VULNERABLE_BLOB_SHA == "d12c23a46afc6f2f6a38321e326e64cf7f3a1436"
     assert FIXED_HEAD_SHA == "0547162be7fdc958e375e69b05e0e3b1c26e1074"
+    assert FIXED_BLOB_SHA == "c1a475a18566d6cb62946a43b533a53ddd5bd4e2"
