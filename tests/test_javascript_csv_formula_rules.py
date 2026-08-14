@@ -101,7 +101,7 @@ def test_rule_declares_csv_context_prefilter() -> None:
     assert _rule()["required_substrings"] == (
         "text/csv",
         ".test(",
-        ".join(',')",
+        ".join(",
     )
 
 
