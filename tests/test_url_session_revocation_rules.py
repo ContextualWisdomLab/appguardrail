@@ -4,7 +4,7 @@ from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
-_RULE_ID = "javascript-url-session-jwt-revocation-bypass"
+_RULE_ID = "javascript-url-session-revocation-bypass"
 _SOURCE_REPOSITORY = "ContextualWisdomLab/scopeweave"
 _COLLECTOR_ISSUE = 775
 _SOURCE_PR = 397
@@ -177,9 +177,12 @@ def test_scan_file_emits_normalized_session_expiration_finding(tmp_path: Path) -
         assert finding["severity"] == "HIGH"
         assert finding["source"] == "appguardrail-rule"
         assert finding["confidence"] == "high"
+        assert finding["category"] == "authz"
         assert finding["cwe"] == (
             "CWE-613 - Insufficient Session Expiration",
         )
+        assert finding["owasp"] == ("OWASP A07:2025 - Authentication Failures",)
+        assert "authentication" in finding["remediation"].lower()
 
 
 def test_scan_file_keeps_revocation_aware_candidate_clean(tmp_path: Path) -> None:
