@@ -122,12 +122,12 @@ function formatFindingCount(count){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));}
 function safeUrl(u){
-  if (typeof u === 'string' && u.startsWith('//')) {
-    return '#';
-  }
+  if (typeof u !== 'string') return '#';
+  const candidate = u.trim();
+  if (/^[\\/]{2}/.test(candidate)) return '#';
   try {
-    const parsed = new URL(u, window.location.href);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return u;
+    const parsed = new URL(candidate, window.location.href);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
   } catch(e){}
   return '#';
 }
