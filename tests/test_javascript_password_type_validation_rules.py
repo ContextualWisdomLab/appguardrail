@@ -1,5 +1,6 @@
 """Source-authoritative regressions for JSON password type validation."""
 
+import hashlib
 from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
@@ -13,6 +14,8 @@ _VULNERABLE_AUTH_BLOB_SHA = "3d0b171fb2d5049f010c405f051409a849840b26"
 _FIXED_HEAD_SHA = "bd9a51584f1cf37f4f4446022a90775a20152edf"
 _FIXED_APP_BLOB_SHA = "13d95e5dfa0719451a5b4a6d952467994172b79a"
 _FIXED_AUTH_BLOB_SHA = "a16a7281b3da4683eea85263fea929dd9483e9df"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_FIXED_AUTH_FIXTURE = _FIXTURE_DIR / "scopeweave_auth_password_fixed.mjs"
 
 _VULNERABLE_SIGNUP_SOURCE = """
 app.post('/api/auth/signup', async (c) => {
@@ -94,6 +97,13 @@ app.post('/api/auth/verify-only', async (c) => {
 """
 
 
+def _git_blob_sha(path: Path) -> str:
+    """Return the Git blob object ID for one pinned source fixture."""
+    payload = path.read_bytes()
+    header = f"blob {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
+
+
 def _rule(rule_id: str) -> dict:
     """Return one packaged rule by identity."""
     matches = [rule for rule in SCAN_RULES if rule["id"] == rule_id]
@@ -113,7 +123,7 @@ def _scan(source: str, tmp_path: Path) -> list[dict]:
 
 
 def test_source_provenance_is_explicit_and_immutable() -> None:
-    """Pin source repository, vulnerable/fixed revisions, and affected blobs."""
+    """Pin source revisions and independently verify the reviewed auth blob bytes."""
     assert _SOURCE_REPOSITORY == "ContextualWisdomLab/scopeweave"
     assert _VULNERABLE_HEAD_SHA == "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
     assert _VULNERABLE_APP_BLOB_SHA == "926d528d17b7ae39ab89001657a21f7ef30af743"
@@ -121,6 +131,10 @@ def test_source_provenance_is_explicit_and_immutable() -> None:
     assert _FIXED_HEAD_SHA == "bd9a51584f1cf37f4f4446022a90775a20152edf"
     assert _FIXED_APP_BLOB_SHA == "13d95e5dfa0719451a5b4a6d952467994172b79a"
     assert _FIXED_AUTH_BLOB_SHA == "a16a7281b3da4683eea85263fea929dd9483e9df"
+    assert _git_blob_sha(_FIXED_AUTH_FIXTURE) == _FIXED_AUTH_BLOB_SHA
+    fixed_auth = _FIXED_AUTH_FIXTURE.read_text(encoding="utf-8")
+    assert "const password = typeof pw === 'string' ? pw : '';" in fixed_auth
+    assert "if (typeof pw !== 'string') return false;" in fixed_auth
 
 
 def test_signup_rule_detects_string_coercion_before_password_hash() -> None:
