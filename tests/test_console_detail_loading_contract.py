@@ -61,7 +61,10 @@ def test_console_connection_state_is_exception_safe_and_single_flight():
     assert 'button.removeAttribute("aria-busy");' in html
     assert "async function connect(){" in html
     assert "if(connecting)return;" in html
-    assert "try{await load();}finally{" in html
+    assert "try{" in html
+    assert "const connected=await load();" in html
+    assert 'if(!connected)KEY="";' in html
+    assert "}finally{" in html
     assert '$("#key").addEventListener("input",syncConnectState);' in html
     assert "if(KEY)load()" not in html
     assert "syncConnectState();" in html
