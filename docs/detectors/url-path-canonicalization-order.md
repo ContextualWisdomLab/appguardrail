@@ -4,32 +4,46 @@
 **Rule ID:** `python-url-path-traversal-validate-before-canonicalize`  
 **Primary weakness classes:** CWE-180, CWE-22  
 **Collected issue family:** AppGuardrail issues #489, #502, and #503  
-**Source change:** `ContextualWisdomLab/naruon` PR #1206; collected heads `cf5a1b0bd21cac2e2fa7ff61d5eca0cdad3db1c1` and `fedf06b7eec7e6cd4e1a8b27b864d5152ff98b84`; analyzed fixed head `0547162be7fdc958e375e69b05e0e3b1c26e1074`
+**Source change:** `ContextualWisdomLab/naruon` PR #1206; collected heads `cf5a1b0bd21cac2e2fa7ff61d5eca0cdad3db1c1` and `fedf06b7eec7e6cd4e1a8b27b864d5152ff98b84`; vulnerable source blob `d12c23a46afc6f2f6a38321e326e64cf7f3a1436`; analyzed fixed head `0547162be7fdc958e375e69b05e0e3b1c26e1074`; fixed source blob `c1a475a18566d6cb62946a43b533a53ddd5bd4e2`
 
 ## Buyer-visible protection
 
-A URL-path validator can reject literal `.` and `..` segments while still accepting percent-encoded or multiply encoded equivalents. If a downstream URL consumer decodes a different representation, validation has protected the wrong value. The packaged rule detects the bounded Python source shape observed in the source event and emits a deploy-blocking HIGH finding before that pattern reaches production.
+A URL-path validator can reject literal `.` and `..` segments while still accepting percent-encoded or multiply encoded equivalents. A second variant can decode and validate a safe representation but accidentally return the original encoded representation to the downstream consumer. In both cases validation protects a different value from the value that is executed. The packaged rule detects these bounded Python source shapes and emits a deploy-blocking HIGH finding before that mismatch reaches production.
 
 ## Detection contract
 
-The lightweight detector reports a finding only when one function contains all of the following evidence:
+The lightweight detector contains two source-derived subpatterns under one weakness identity.
 
-1. a path-like local variable is assigned from a stripped external value;
-2. the same variable is treated as a URL path by checking a leading slash and excluding scheme, query, and fragment markers;
-3. literal `.` and `..` segments are checked on that still-encoded variable;
-4. the same variable is returned unchanged;
-5. no `unquote(...)` or `unquote_to_bytes(...)` call canonicalizes that variable before the checks.
+### Raw-value validation before canonicalization
 
-The regex is function-bounded and size-bounded. A four-token prefilter (`.split(`, `.startswith(`, `://`, and `return`) avoids evaluating the multiline expression for unrelated Python files.
+A finding requires one function to contain all of the following evidence:
+
+1. a path-like local variable assigned from a stripped external value;
+2. URL-path guards on that same still-encoded variable: leading slash plus scheme, query, and fragment exclusions;
+3. literal `.` and `..` segment checks on that variable;
+4. the same variable returned unchanged;
+5. no `unquote(...)` or `unquote_to_bytes(...)` call canonicalizing that variable before validation.
+
+### Canonical-value validation followed by raw-value return
+
+A finding requires one function to contain all of the following evidence:
+
+1. a stripped raw path variable;
+2. a distinct canonical variable initialized from the raw value;
+3. `unquote(...)` or `unquote_to_bytes(...)` applied to the canonical variable;
+4. URL-path and dot-segment guards applied to that canonical variable;
+5. the original raw variable returned instead of the validated canonical variable.
+
+Both expressions are function-bounded and size-bounded. A four-token prefilter (`.split(`, `.startswith(`, `://`, and `return`) avoids evaluating the multiline expressions for unrelated Python files.
 
 ## Source-authoritative evidence corpus
 
-`tests/test_path_canonicalization_rules.py` preserves two independent oracles:
+Two focused test modules preserve distinct obligations:
 
-- **Positive replay:** the pre-fix CardDAV TXT context-path shape, where literal dot-segment checks were applied to `path` and the original value was returned.
-- **Negative replay:** the fixed shape, where a bounded decoded representation is validated and that same representation is returned.
+- `tests/test_path_canonicalization_historical_replay.py` replays the exact collected Naruon source shape from vulnerable blob `d12c23a46afc6f2f6a38321e326e64cf7f3a1436`: `decoded_path` is canonicalized and validated, but raw `path` is returned. The reviewed fixed negative returns `decoded_path` and is pinned to head `0547162be7fdc958e375e69b05e0e3b1c26e1074` and blob `c1a475a18566d6cb62946a43b533a53ddd5bd4e2`.
+- `tests/test_path_canonicalization_rules.py` covers the earlier raw validate-before-decode shape, a same-variable decode fix, generic non-URL local-path negatives, parser/prefilter contracts, and black-box production `_scan_file` metadata.
 
-Additional negatives cover same-variable decoding before validation and generic local-path segment checks that do not carry the URL-path guard signature. The tests execute both the compiled packaged rule and the production `_scan_file` entrypoint, including normalized severity, category, CWE, OWASP, source line, and confidence metadata.
+The oracle is not a Boolean embedded in source input. Tests assert expected detection independently, execute the compiled packaged rules and production scanner entrypoint, and verify normalized severity, category, CWE, OWASP, source line, and confidence metadata.
 
 ## Remediation boundary
 
@@ -41,7 +55,7 @@ The finding does not prescribe blind repeated decoding. The repair must follow t
 4. validate dot segments, separators, controls, and application-specific allowlists on that representation;
 5. pass the same validated representation to the URL consumer.
 
-RFC 3986 distinguishes component parsing, percent-encoding normalization, and dot-segment removal, and warns against repeatedly decoding the same string. CWE-180 likewise requires canonicalization before validation and identifies double decoding as a related failure mode. The source replay keeps the detector tied to observed code while this document keeps remediation tied to authoritative standards.
+RFC 3986 distinguishes component parsing, percent-encoding normalization, and dot-segment removal, and warns against repeatedly decoding the same string. CWE-180 likewise requires canonicalization before validation and identifies double decoding as a related failure mode. The exact source replay keeps the detector tied to observed code while this document keeps remediation tied to authoritative standards.
 
 ## Declared limitations
 
@@ -51,9 +65,10 @@ This is not a general interprocedural taint engine. It intentionally does not cl
 - alternate decoder APIs not named `unquote` or `unquote_to_bytes`;
 - languages other than Python;
 - filesystem-only paths without the URL guard signature;
-- custom frameworks that canonicalize implicitly before this source shape.
+- custom frameworks that canonicalize implicitly before these source shapes;
+- representation mismatches that do not preserve the bounded raw/canonical assignment relationship.
 
-Those cases require separate source-derived detector obligations or a structural/dataflow engine. Expanding this regex without an independent positive and fixed-negative corpus is prohibited because wider matching would create unsupported efficacy claims.
+Those cases require separate source-derived detector obligations or a structural/dataflow engine. Expanding these regexes without an independent positive and fixed-negative corpus is prohibited because wider matching would create unsupported efficacy claims.
 
 ## APA 7 references
 
