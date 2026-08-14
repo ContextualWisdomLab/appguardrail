@@ -13,7 +13,7 @@ Active detector contract for the source-derived ScopeWeave password-boundary wea
 - Vulnerable `server/auth.mjs` blob: `3d0b171fb2d5049f010c405f051409a849840b26`
 - Reviewed fixed revision: `bd9a51584f1cf37f4f4446022a90775a20152edf`
 - Fixed `server/app.mjs` blob: `13d95e5dfa0719451a5b4a6d952467994172b79a`
-- Fixed `server/auth.mjs` blob: `5893dd511f5a73fa8e595728e68f6e84d4011c45`
+- Fixed `server/auth.mjs` blob: `a16a7281b3da4683eea85263fea929dd9483e9df`
 - Collected AppGuardrail provenance: issues `#770` and `#772` from cancelled Strix workflow events on ScopeWeave PR `#386`.
 
 The vulnerable signup route accepted `password` from an untyped JSON body, validated `String(password).length`, and then forwarded the original `password` value to `hashPassword`. The vulnerable login route forwarded `password || ''` to `verifyPassword` without first proving that `password` was a string. The helper layer then passed the value to Node.js `scryptSync`.
