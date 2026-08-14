@@ -153,7 +153,12 @@ def test_packaged_rule_detects_historical_encoded_path_bypass():
 
 def test_packaged_rule_declares_bounded_prefilter():
     """Avoid evaluating the multiline regex for unrelated Python files."""
-    assert _rule()["required_substrings"] == (".split(", "return")
+    assert _rule()["required_substrings"] == (
+        ".split(",
+        ".startswith(",
+        "://",
+        "return",
+    )
 
 
 def test_packaged_rule_ignores_canonicalize_then_validate_flow():
@@ -188,9 +193,11 @@ def test_scan_file_emits_normalized_canonicalization_finding(tmp_path):
     assert finding["cwe"] == (
         "CWE-180 - Incorrect Behavior Order: Validate Before Canonicalize",
         "CWE-22 - Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+        "CWE-74 - Injection",
     )
     assert finding["owasp"] == (
         "OWASP A01:2021 - Broken Access Control",
+        "OWASP A03:2021 - Injection",
     )
     assert "canonical" in finding["message"].lower()
 
