@@ -1,0 +1,18 @@
+rules:
+  - id: python-auth-header-compare-digest-unicode-string
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*(?:async\s+)?def\s+require_authorization\s*\((?:(?!^[ \t]*\)).){0,1500}?\)\s*(?:->[^:]{0,200})?:\s*(?:(?!^[ \t]*(?:async\s+)?def\s).){0,5000}?provided\s*=\s*authorization\s+or\s+(?P<q>["''])(?P=q)(?:(?!provided\.isascii\s*\(|authorization\.isascii\s*\(|provided\.encode\s*\().){0,3000}?hmac\.compare_digest\s*\(\s*provided\s*,'
+    message: |
+      A FastAPI Authorization header remains a Python string and is passed
+      directly to hmac.compare_digest without rejecting non-ASCII input or
+      converting the comparison operand to bytes. Python's constant-time
+      comparator accepts string operands only when they contain ASCII, so an
+      attacker-controlled Unicode header can reach an exception path instead
+      of the intended authentication denial. Reject unsupported characters or
+      compare bounded byte strings before the constant-time sink.
+      [CWE-248 - Uncaught Exception]
+      [CWE-20 - Improper Input Validation]
+    severity: HIGH
+    languages: [python]
+    prefilter: ["hmac.compare_digest(", "Header()", "provided = authorization or"]
+    cwe: [CWE-248, CWE-20]
