@@ -58,6 +58,20 @@ function parseEffectivelyUnboundedXml(xml) {
 }
 """
 
+_SIX_DIGIT_BOUND_SOURCE = r"""
+function parseWithSixDigitCap(xml) {
+  if (xml.length > 999999) throw new Error('too large');
+  return xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
+}
+"""
+
+_NON_TERMINATING_LENGTH_GUARD_SOURCE = r"""
+function parseAfterLoggingLargeInput(xml) {
+  if (xml.length > 1024) console.debug('large input');
+  return xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
+}
+"""
+
 _POST_SINK_BOUND_SOURCE = r"""
 function parseBeforeCheckingLength(xml) {
   const blocks = xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
@@ -132,6 +146,20 @@ def test_rule_ignores_explicitly_size_bounded_lazy_regex() -> None:
 def test_scan_flags_large_bound_as_not_meaningfully_bounded(tmp_path: Path) -> None:
     """Do not let a multi-megabyte cap suppress this quadratic-risk source shape."""
     findings = _findings(tmp_path, _LARGE_BOUND_SOURCE)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "HIGH"
+
+
+def test_scan_flags_six_digit_bound_as_not_meaningfully_bounded(tmp_path: Path) -> None:
+    """A six-digit cap is outside the detector's intentionally small safe bound."""
+    findings = _findings(tmp_path, _SIX_DIGIT_BOUND_SOURCE)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "HIGH"
+
+
+def test_scan_flags_length_guard_that_does_not_terminate(tmp_path: Path) -> None:
+    """A logging-only length branch cannot prevent the regex sink from executing."""
+    findings = _findings(tmp_path, _NON_TERMINATING_LENGTH_GUARD_SOURCE)
     assert len(findings) == 1
     assert findings[0]["severity"] == "HIGH"
 
