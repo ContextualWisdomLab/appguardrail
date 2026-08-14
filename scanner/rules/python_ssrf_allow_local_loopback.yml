@@ -1,0 +1,18 @@
+rules:
+  - id: python-ssrf-allow-local-unbound-loopback
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*def\s+_validate_global_address\s*\((?:(?!^[ \t]*\)).){0,1600}?\)\s*(?:->[^:]{0,200})?:\s*(?:(?!^[ \t]*def\s).){0,5000}?is_allowed_local\s*=\s*False\s*(?:(?!^[ \t]*def\s).){0,1200}?if\s+policy\.allow_local\s*:\s*if\s+ip_address\.is_loopback\s*:\s*is_allowed_local\s*=\s*True'
+    message: |
+      A global-address validator enables a local-development exception and then
+      accepts any loopback address before binding that exception to the original
+      hostname. A dotted remote hostname can therefore inherit the loopback
+      escape hatch after DNS resolution or rebinding. Bind every local exception
+      to an explicitly permitted local hostname before accepting loopback or
+      private address space, and reject special-use destinations by default.
+      [CWE-918 - Server-Side Request Forgery (SSRF)]
+      [OWASP A10:2021 - Server-Side Request Forgery (SSRF)]
+    severity: HIGH
+    languages: [python]
+    prefilter: ["def _validate_global_address", "policy.allow_local", "ip_address.is_loopback", "is_allowed_local = True"]
+    cwe: [CWE-918]
+    owasp: [A10:2021]
