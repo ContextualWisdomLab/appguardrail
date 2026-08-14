@@ -12,5 +12,5 @@ rules:
       [CWE-400 - Uncontrolled Resource Consumption]
     severity: HIGH
     languages: [javascript, typescript]
-    prefilter: ["[\\s\\S]*?", ".match"]
+    prefilter: ["[\s\S]*?", ".match"]
     cwe: [CWE-1333, CWE-400]
