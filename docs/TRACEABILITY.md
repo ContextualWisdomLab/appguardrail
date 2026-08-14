@@ -19,7 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
-| automatic scanner detection of URL-path validation before canonicalization | built-in `python-url-path-traversal-validate-before-canonicalize` rule | implemented-main through PR #940 for the tested Python URL-path source shape derived from issue #489; bounded scope |
+| automatic scanner detection of URL-path validation before canonicalization | built-in `python-url-path-traversal-validate-before-canonicalize` rule | PR #940 active-PR for the tested Python URL-path source shape derived from issue #489; promote only after protected-head merge evidence |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -60,7 +60,7 @@ For encoded URL-path traversal and validation-order failures, trace separately:
 6. explicit false-positive and false-negative boundaries;
 7. exact-head security, review, and merge evidence.
 
-PR #940 supplies the packaged detector, source-derived efficacy corpus, and focused detector documentation for AppGuardrail issue #489. Its declared scope is limited to the tested Python URL-path shape; it does not claim general interprocedural path traversal detection.
+PR #940 proposes the packaged detector, source-derived efficacy corpus, and focused detector documentation for AppGuardrail issue #489. Its declared scope is limited to the tested Python URL-path shape; it does not claim general interprocedural path traversal detection. The row above remains `active-PR` until GitHub records protected-branch merge evidence for the exact reviewed head.
 
 ## Standards/research
 
