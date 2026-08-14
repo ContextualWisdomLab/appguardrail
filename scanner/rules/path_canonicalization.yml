@@ -1,0 +1,17 @@
+rules:
+  - id: python-url-path-traversal-validate-before-canonicalize
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*(?P<path>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*[^\n]+\.strip\s*\(\s*\)\s*\n(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?(?P=path)\.startswith\s*\(\s*["'']/["'']\s*\))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?["'']://["'']\s+not\s+in\s+(?P=path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?["'']\?["'']\s+not\s+in\s+(?P=path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?["'']\#["'']\s+not\s+in\s+(?P=path))(?:(?!^[ \t]*(?:async[ \t]+)?def\b)(?![^\n]*\bunquote(?:_to_bytes)?\s*\(\s*(?P=path)\s*\)).){0,1800}?\b(?P<segment>[A-Za-z_][A-Za-z0-9_]*)\s+not\s+in\s+\{\s*["'']\.["'']\s*,\s*["'']\.\.["'']\s*\}\s+for\s+(?P=segment)\s+in\s+(?P=path)\.split\s*\(\s*["'']/["'']\s*\)(?:(?!^[ \t]*(?:async[ \t]+)?def\b)(?![^\n]*\bunquote(?:_to_bytes)?\s*\(\s*(?P=path)\s*\)).){0,1000}?\breturn\s+(?P=path)\b'
+    message: |
+      URL-like path input is checked for literal dot segments and returned in its
+      original percent-encoded representation. Canonicalize or decode into the
+      representation the consumer will use, reject ambiguous residual encoding,
+      validate that representation, and pass the same validated value onward.
+      [CWE-180 - Incorrect Behavior Order: Validate Before Canonicalize]
+      [CWE-22 - Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')]
+      [OWASP A01:2021 - Broken Access Control]
+    severity: HIGH
+    languages: [python]
+    prefilter: [".split(", ".startswith(", "://", "return"]
+    cwe: [CWE-180, CWE-22]
+    owasp: [A01:2021]
