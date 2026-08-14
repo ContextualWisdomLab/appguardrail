@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| Node.js authentication password type validation before `scryptSync` | built-in `javascript-auth-scrypt-unvalidated-password-type` family | issue #948 active-PR obligation; exact ScopeWeave vulnerable/fixed Git blobs, two source-shape variants, and production `_scan_file` regressions required before promotion |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,20 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Scrypt password type-boundary traceability contract
+
+The source-backed detector obligation in issue #948 is separate from the collector workflow status that first surfaced the source change. Its evidence chain is:
+
+1. collector issues #729 and #732 preserve ScopeWeave PR #394 event provenance only;
+2. vulnerable source is pinned to ScopeWeave head `a756b7e3cf486cba0930c1a482c6a30e0df958f5`, `server/auth.mjs` blob `3d0b171fb2d5049f010c405f051409a849840b26`;
+3. reviewed fixed source is pinned to head `644e9fc5cb3adfb96e2948152f92c61f8661e6d3`, blob `a16a7281b3da4683eea85263fea929dd9483e9df`;
+4. `hashPassword` and `verifyPassword` are independently tested source-shape variants under one CWE-1287 family;
+5. the fixed source, safe normalization, and unrelated KDF helper are negative oracles;
+6. the production `_scan_file` entrypoint must emit normalized HIGH findings on the vulnerable replay and none on the reviewed repair;
+7. only exact-head protected checks plus independent review can promote the family to `implemented-main`.
+
+Cancelled or failed workflow/reviewer jobs are never detector efficacy evidence and are not sufficient to satisfy any step above.
 
 ## Standards/research
 
