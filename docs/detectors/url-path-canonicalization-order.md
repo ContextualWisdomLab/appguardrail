@@ -3,7 +3,8 @@
 **Status:** Accepted source-derived detector slice  
 **Rule ID:** `python-url-path-traversal-validate-before-canonicalize`  
 **Primary weakness classes:** CWE-180, CWE-22  
-**Source event:** AppGuardrail issue #489, derived from `ContextualWisdomLab/naruon` PR #1206 at source head `0547162be7fdc958e375e69b05e0e3b1c26e1074`
+**Collected issue family:** AppGuardrail issues #489, #502, and #503  
+**Source change:** `ContextualWisdomLab/naruon` PR #1206; collected heads `cf5a1b0bd21cac2e2fa7ff61d5eca0cdad3db1c1` and `fedf06b7eec7e6cd4e1a8b27b864d5152ff98b84`; analyzed fixed head `0547162be7fdc958e375e69b05e0e3b1c26e1074`
 
 ## Buyer-visible protection
 
