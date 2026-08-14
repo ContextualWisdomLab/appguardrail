@@ -2,11 +2,13 @@ rules:
   - id: python-url-path-traversal-validate-before-canonicalize
     patterns:
       - pattern-regex: '(?msx)^[ \t]*(?P<path>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*[^\n]+\.strip\s*\(\s*\)\s*\n(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?(?P=path)\.startswith\s*\(\s*["'']/["'']\s*\))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?["'']://["'']\s+not\s+in\s+(?P=path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?["'']\?["'']\s+not\s+in\s+(?P=path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1200}?["'']\#["'']\s+not\s+in\s+(?P=path))(?:(?!^[ \t]*(?:async[ \t]+)?def\b)(?![^\n]*\bunquote(?:_to_bytes)?\s*\(\s*(?P=path)\s*\)).){0,1800}?\b(?P<segment>[A-Za-z_][A-Za-z0-9_]*)\s+not\s+in\s+\{\s*["'']\.["'']\s*,\s*["'']\.\.["'']\s*\}\s+for\s+(?P=segment)\s+in\s+(?P=path)\.split\s*\(\s*["'']/["'']\s*\)(?:(?!^[ \t]*(?:async[ \t]+)?def\b)(?![^\n]*\bunquote(?:_to_bytes)?\s*\(\s*(?P=path)\s*\)).){0,1000}?\breturn\s+(?P=path)\b'
+      - pattern-regex: '(?msx)^[ \t]*(?P<raw_path>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*[^\n]+\.strip\s*\(\s*\)\s*\n(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,400}?^[ \t]*(?P<canonical_path>(?!(?P=raw_path)\b)[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P=raw_path)\s*\n(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1400}?\bunquote(?:_to_bytes)?\s*\(\s*(?P=canonical_path)\s*\))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1800}?(?P=canonical_path)\.startswith\s*\(\s*["'']/["'']\s*\))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1800}?["'']://["'']\s+not\s+in\s+(?P=canonical_path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1800}?["'']\?["'']\s+not\s+in\s+(?P=canonical_path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,1800}?["'']\#["'']\s+not\s+in\s+(?P=canonical_path))(?=(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,2200}?\b(?P<canonical_segment>[A-Za-z_][A-Za-z0-9_]*)\s+not\s+in\s+\{\s*["'']\.["'']\s*,\s*["'']\.\.["'']\s*\}\s+for\s+(?P=canonical_segment)\s+in\s+(?P=canonical_path)\.split\s*\(\s*["'']/["'']\s*\))(?:(?!^[ \t]*(?:async[ \t]+)?def\b).){0,2400}?\breturn\s+(?P=raw_path)\b'
     message: |
-      URL-like path input is checked for literal dot segments and returned in its
-      original percent-encoded representation. Canonicalize or decode into the
-      representation the consumer will use, reject ambiguous residual encoding,
-      validate that representation, and pass the same validated value onward.
+      URL-like path input is checked before canonicalization, or one decoded
+      representation is validated while the original percent-encoded value is
+      returned. Canonicalize or decode into the representation the consumer will
+      use, reject ambiguous residual encoding, validate that representation, and
+      pass the same validated value onward.
       [CWE-180 - Incorrect Behavior Order: Validate Before Canonicalize]
       [CWE-22 - Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')]
       [OWASP A01:2021 - Broken Access Control]
