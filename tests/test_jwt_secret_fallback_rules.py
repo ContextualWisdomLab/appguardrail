@@ -1,5 +1,6 @@
 """Source-authoritative regression tests for hardcoded JWT secret fallbacks."""
 
+import hashlib
 from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
@@ -10,6 +11,9 @@ _VULNERABLE_HEAD_SHA = "7a6ff367a43a8711fc97d124d0bed5dad8941b7d"
 _VULNERABLE_BLOB_SHA = "3d0b171fb2d5049f010c405f051409a849840b26"
 _FIXED_HEAD_SHA = "37289072bd3039fcca3f113e5707e7a278a3a9b1"
 _FIXED_BLOB_SHA = "5893dd511f5a73fa8e595728e68f6e84d4011c45"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_VULNERABLE_FIXTURE = _FIXTURE_DIR / "scopeweave_auth_vulnerable.mjs"
+_FIXED_FIXTURE = _FIXTURE_DIR / "scopeweave_auth_fixed.mjs"
 
 _VULNERABLE_SOURCE = """
 import { createHmac } from 'node:crypto';
@@ -76,6 +80,13 @@ export function signToken(payload) {
 """
 
 
+def _git_blob_sha(path: Path) -> str:
+    """Return the Git object ID for one immutable source fixture."""
+    payload = path.read_bytes()
+    header = f"blob {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
+
+
 def _rule():
     """Return the single packaged rule for the exact source-derived slice."""
     matches = [rule for rule in SCAN_RULES if rule["id"] == _RULE_ID]
@@ -95,12 +106,14 @@ def _scan(source: str, tmp_path: Path) -> list[dict]:
 
 
 def test_source_provenance_is_explicit_and_immutable() -> None:
-    """Pin the vulnerable and fixed ScopeWeave source identities."""
+    """Pin exact ScopeWeave source snapshots to their recorded Git blob IDs."""
     assert _SOURCE_REPOSITORY == "ContextualWisdomLab/scopeweave"
     assert _VULNERABLE_HEAD_SHA == "7a6ff367a43a8711fc97d124d0bed5dad8941b7d"
-    assert _VULNERABLE_BLOB_SHA == "3d0b171fb2d5049f010c405f051409a849840b26"
     assert _FIXED_HEAD_SHA == "37289072bd3039fcca3f113e5707e7a278a3a9b1"
-    assert _FIXED_BLOB_SHA == "5893dd511f5a73fa8e595728e68f6e84d4011c45"
+    assert _git_blob_sha(_VULNERABLE_FIXTURE) == _VULNERABLE_BLOB_SHA
+    assert _git_blob_sha(_FIXED_FIXTURE) == _FIXED_BLOB_SHA
+    assert _VULNERABLE_SOURCE.strip() in _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
+    assert _FIXED_SOURCE.strip() in _FIXED_FIXTURE.read_text(encoding="utf-8")
 
 
 def test_packaged_rule_detects_scopeweave_hardcoded_hs256_fallback() -> None:
