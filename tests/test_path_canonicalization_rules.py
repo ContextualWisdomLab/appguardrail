@@ -89,6 +89,32 @@ def _canonicalized_source():
     )
 
 
+def _recanonicalized_raw_return_source():
+    """Build a safe flow where the original name is canonicalized before return."""
+    return "\n".join(
+        [
+            "from urllib.parse import unquote",
+            "",
+            "def normalize_path(value):",
+            "    path = value.strip()",
+            "    decoded_path = path",
+            "    decoded_path = unquote(decoded_path)",
+            "    if (",
+            '        decoded_path.startswith("/")',
+            '        and "://" not in decoded_path',
+            "        and all(",
+            '            segment not in {".", ".."}',
+            '            for segment in decoded_path.split("/")',
+            "        )",
+            "    ):",
+            "        path = unquote(path)",
+            "        return path",
+            "    return None",
+            "",
+        ]
+    )
+
+
 def _single_decode_source():
     """Build a same-variable decode that occurs before URI-path validation."""
     return "\n".join(
@@ -164,6 +190,14 @@ def test_packaged_rules_ignore_canonicalize_then_validate_flow():
     """Do not flag a canonical representation used for validation and return."""
     assert all(
         not rule["pattern"].search(_canonicalized_source()) for rule in _rules()
+    )
+
+
+def test_packaged_rules_ignore_recanonicalized_raw_return_name():
+    """Do not flag when the original variable is canonicalized before return."""
+    assert all(
+        not rule["pattern"].search(_recanonicalized_raw_return_source())
+        for rule in _rules()
     )
 
 
