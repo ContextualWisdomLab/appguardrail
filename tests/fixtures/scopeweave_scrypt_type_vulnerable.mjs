@@ -46,6 +46,7 @@ export function verifyToken(token) {
   const parts = String(token || '').split('.');
   if (parts.length !== 3) throw new Error('malformed token');
   const [header, body, sig] = parts;
+  // Recompute HS256 signature; never read/trust the header's declared alg.
   const expected = createHmac('sha256', SECRET).update(`${header}.${body}`).digest('base64url');
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
