@@ -216,6 +216,22 @@ def _enable_foreign_keys(connection: sqlite3.Connection) -> None:
         raise SchemaMigrationError("foreign key enforcement could not be enabled")
 
 
+def _create_access_keys_table(connection: sqlite3.Connection) -> None:
+    """Create the canonical access-key table and its authorization constraints."""
+    connection.execute(
+        """
+        CREATE TABLE access_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id INTEGER NOT NULL REFERENCES tenant_organizations(id),
+            key_hash TEXT NOT NULL UNIQUE,
+            role TEXT NOT NULL CHECK(role IN ('owner','member','viewer')),
+            label TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+
 def _create_base_tables(connection: sqlite3.Connection) -> None:
     """Create the canonical equivalents of the embedded legacy base schema."""
     connection.execute(
@@ -245,27 +261,38 @@ def _create_base_tables(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    _create_access_keys_table(connection)
+
+
+def _migrate_legacy_access_keys(connection: sqlite3.Connection) -> None:
+    """Rebuild shipped legacy keys under canonical role and label constraints.
+
+    Historical AppGuardrail allowed a nullable label and relied on application
+    code, rather than SQLite, to limit roles.  Rebuilding the table makes that
+    authorization invariant enforceable at the database boundary.  A missing
+    label is normalized to the runtime's canonical empty-string representation;
+    an unsupported historical role fails the enclosing migration transaction.
+    """
+    _create_access_keys_table(connection)
     connection.execute(
         """
-        CREATE TABLE access_keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            org_id INTEGER NOT NULL REFERENCES tenant_organizations(id),
-            key_hash TEXT NOT NULL UNIQUE,
-            role TEXT NOT NULL CHECK(role IN ('owner','member','viewer')),
-            label TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )
+        INSERT INTO access_keys(id, org_id, key_hash, role, label, created_at)
+        SELECT id, org_id, key_hash, role, COALESCE(label, ''), created_at
+        FROM keys
         """
     )
+    connection.execute("DROP TABLE keys")
 
 
 def _rename_legacy_tables(connection: sqlite3.Connection) -> None:
-    """Rename the three validated legacy base tables without copying rows."""
-    for legacy_name, canonical_name in _LEGACY_TO_CANONICAL.items():
+    """Rename legacy base tables and rebuild access keys with v2 constraints."""
+    for legacy_name in ("orgs", "scans"):
+        canonical_name = _LEGACY_TO_CANONICAL[legacy_name]
         connection.execute(
             f"ALTER TABLE {_quoted_identifier(legacy_name)} "
             f"RENAME TO {_quoted_identifier(canonical_name)}"
         )
+    _migrate_legacy_access_keys(connection)
     connection.execute("DROP INDEX IF EXISTS idx_scans_org")
 
 
