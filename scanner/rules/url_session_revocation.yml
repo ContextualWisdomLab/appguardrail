@@ -1,5 +1,5 @@
 rules:
-  - id: javascript-url-session-jwt-revocation-bypass
+  - id: javascript-url-session-revocation-bypass
     patterns:
       - pattern-regex: '(?msx)app\.get\(\s*["''][^"''\n]{1,180}["'']\s*,\s*\(c\)\s*=>\s*\{(?=(?:(?!^[ \t]*app\.(?:get|post|put|patch|delete)\s*\().){0,5000}?c\.req\.query\(\s*["'']token["'']\s*\))(?=(?:(?!^[ \t]*app\.(?:get|post|put|patch|delete)\s*\().){0,8000}?(?:uid\s*=\s*verifyToken\(\s*raw\s*\)\.sub|user\s*=\s*verifyToken\(\s*token\s*\)))'
     message: |
