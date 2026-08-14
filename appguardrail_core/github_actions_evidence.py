@@ -464,15 +464,14 @@ def _positive_identifier(value: Any, label: str) -> int:
 def _required_text(value: Any, label: str, max_length: int) -> str:
     if not isinstance(value, str):
         raise EvidenceValidationError(f"{label} must be text")
-    normalized = value.strip()
-    if (
-        not normalized
-        or len(normalized) > max_length
-        or any(
-            character in normalized
-            for character in ("\x00", "\r", "\n")
-        )
+    if any(
+        character in value for character in ("\x00", "\r", "\n")
     ):
+        raise EvidenceValidationError(
+            f"{label} is empty, oversized, or contains controls"
+        )
+    normalized = value.strip()
+    if not normalized or len(normalized) > max_length:
         raise EvidenceValidationError(
             f"{label} is empty, oversized, or contains controls"
         )
