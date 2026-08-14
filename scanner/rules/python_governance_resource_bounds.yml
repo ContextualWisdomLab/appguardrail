@@ -26,5 +26,5 @@ rules:
       [CWE-400 - Uncontrolled Resource Consumption]
     severity: MEDIUM
     languages: [python]
-    prefilter: ["subprocess.run(", "gh", "def _run_gh"]
+    prefilter: ["subprocess.run(", '"gh"', "def _run_gh"]
     cwe: [CWE-400]
