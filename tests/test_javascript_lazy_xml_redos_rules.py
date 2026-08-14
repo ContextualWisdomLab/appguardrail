@@ -51,6 +51,21 @@ function parseSmallInternalFixture(xml) {
 }
 """
 
+_LARGE_BOUND_SOURCE = r"""
+function parseEffectivelyUnboundedXml(xml) {
+  if (xml.length > 9999999) throw new Error('too large');
+  return xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
+}
+"""
+
+_POST_SINK_BOUND_SOURCE = r"""
+function parseBeforeCheckingLength(xml) {
+  const blocks = xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
+  if (xml.length > 1024) throw new Error('too large');
+  return blocks;
+}
+"""
+
 _NON_XML_SOURCE = r"""
 function scanText(text) {
   return text.match(/[\s\S]*?/g) || [];
@@ -105,6 +120,20 @@ def test_rule_ignores_reviewed_linear_scanner_fix() -> None:
 def test_rule_ignores_explicitly_size_bounded_lazy_regex() -> None:
     """Do not flag a locally bounded fixture parser with a small input cap."""
     assert not _rule()["pattern"].search(_BOUNDED_REGEX_SOURCE)
+
+
+def test_scan_flags_large_bound_as_not_meaningfully_bounded(tmp_path: Path) -> None:
+    """Do not let a multi-megabyte cap suppress this quadratic-risk source shape."""
+    findings = _findings(tmp_path, _LARGE_BOUND_SOURCE)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "HIGH"
+
+
+def test_scan_flags_length_check_that_occurs_after_regex_sink(tmp_path: Path) -> None:
+    """A post-sink guard cannot protect the already-executed regex operation."""
+    findings = _findings(tmp_path, _POST_SINK_BOUND_SOURCE)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "HIGH"
 
 
 def test_rule_ignores_non_xml_lazy_regex() -> None:
