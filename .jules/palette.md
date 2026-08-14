@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2024-08-14 - External link context switch warning
+**Learning:** Screen readers need explicit warning when a link opens in a new tab.
+**Action:** Always add an aria-label with '(opens in a new tab)' for links with target="_blank".
