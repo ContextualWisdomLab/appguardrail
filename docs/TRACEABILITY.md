@@ -53,12 +53,12 @@ Current protected-branch evidence keeps those controls distinct: PR #924 supplie
 AppGuardrail issues `#770` and `#772` are duplicate cancelled workflow-event provenance from ScopeWeave PR `#386`; they are not vulnerability proof. The detector obligation is instead bound to the independently reviewed source pair:
 
 - vulnerable ScopeWeave revision `a756b7e3cf486cba0930c1a482c6a30e0df958f5`, with `server/app.mjs` blob `926d528d17b7ae39ab89001657a21f7ef30af743` and `server/auth.mjs` blob `3d0b171fb2d5049f010c405f051409a849840b26`;
-- reviewed fixed revision `bd9a51584f1cf37f4f4446022a90775a20152edf`, with corresponding blobs `13d95e5dfa0719451a5b4a6d952467994172b79a` and `5893dd511f5a73fa8e595728e68f6e84d4011c45`;
+- reviewed fixed revision `bd9a51584f1cf37f4f4446022a90775a20152edf`, with `server/app.mjs` blob `13d95e5dfa0719451a5b4a6d952467994172b79a` and `server/auth.mjs` blob `a16a7281b3da4683eea85263fea929dd9483e9df`;
 - RED-first regression and production scanner replay in `tests/test_javascript_password_type_validation_rules.py`;
 - packaged rules in `scanner/rules/password_type_validation.yml`;
 - detector contract, limitations, remediation, and APA 7 references in `docs/detectors/javascript-password-type-validation.md`.
 
-The two bounded signatures cover only the observed Hono JSON-body shapes: coercive `String(password).length` followed by hashing of the original untyped value, and `verifyPassword(password || '', ...)` without a visible string-type guard. Fixed explicit type guards, schema-validated paths, other frameworks, helper aliases, and cross-file flows remain outside this detector family rather than being inferred from the cancelled collector events. Current CWE 4.20 defines CWE-1287 as failing to validate that input is actually of the expected type, while current Node.js `crypto.scryptSync` documentation restricts password inputs to supported string/binary-view types; ordinary JSON arrays and objects are not accepted by that API contract.
+The two bounded signatures cover only the observed Hono JSON-body shapes: coercive `String(password).length` followed by hashing of the original untyped value, and `verifyPassword(password || '', ...)` without a visible string-type guard. Their regex regions terminate at the current handler boundary so a JSON source in one adjacent route cannot be paired with a password-crypto sink in another route. Fixed explicit type guards, schema-validated paths, other frameworks, helper aliases, and cross-file flows remain outside this detector family rather than being inferred from the cancelled collector events. Current CWE 4.20 defines CWE-1287 as failing to validate that input is actually of the expected type, while current Node.js `crypto.scryptSync` documentation restricts password inputs to supported string/binary-view types; ordinary JSON arrays and objects are not accepted by that API contract.
 
 ## Standards/research
 
