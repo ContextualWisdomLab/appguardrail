@@ -1,7 +1,7 @@
 rules:
   - id: javascript-xml-lazy-dotall-block-redos
     patterns:
-      - pattern-regex: '(?msx)^(?:export\s+)?function\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(\s*(?P<input>[A-Za-z_$][A-Za-z0-9_$]*)[^)]*\)\s*\{(?!(?:(?!^(?:export\s+)?function\b).){0,2000}?\b(?P=input)\.length\s*(?:>|>=)\s*[0-9]{1,7}\b)(?:(?!^(?:export\s+)?function\b).){0,8000}?\b(?P=input)\.match(?:All)?\s*\(\s*/<(?P<tag>[A-Za-z][A-Za-z0-9:_-]*)>\[\\s\\S\]\*\?<\\/(?P=tag)>/g'
+      - pattern-regex: '(?msx)^(?:export\s+)?function\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(\s*(?P<input>[A-Za-z_$][A-Za-z0-9_$]*)[^)]*\)\s*\{(?!(?:(?!^(?:export\s+)?function\b).){0,2000}?\b(?P=input)\.length\s*>=?\s*[0-9]{1,6}\b(?:(?!^(?:export\s+)?function\b).){0,6000}?\b(?P=input)\.match(?:All)?\s*\()(?:(?!^(?:export\s+)?function\b).){0,8000}?\b(?P=input)\.match(?:All)?\s*\(\s*/<(?P<tag>[A-Za-z][A-Za-z0-9:_-]*)>\[\\s\\S\]\*\?<\\/(?P=tag)>/g'
     message: |
       XML-like input is split into blocks with an unbounded lazy `[\s\S]*?`
       JavaScript regular expression. Repeated opening tags with a missing closing
