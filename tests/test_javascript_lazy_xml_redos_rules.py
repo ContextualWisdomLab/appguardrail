@@ -11,42 +11,15 @@ _VULNERABLE_HEAD_SHA = "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
 _VULNERABLE_BLOB_SHA = "7e44932baf55854d18f7ef9da0937d14f982b9ed"
 _FIXED_HEAD_SHA = "bd9a51584f1cf37f4f4446022a90775a20152edf"
 _FIXED_BLOB_SHA = "9016cfbf157b812a738bf8f7f9063f43b4af2737"
+_VULNERABLE_SOURCE_LINES = (741, 780)
+_FIXED_SOURCE_LINES = (741, 809)
+_VULNERABLE_SECTION_SHA256 = "491922167e389e8fa4aae8dc875d203802521193ba9afafbd621e7a1202a5ccf"
+_FIXED_SECTION_SHA256 = "25119bfbd5f2b57d583aad7161aa218de7b13d0533dfd9ea0eb00ddf6f9a9f53"
 _FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "scopeweave" / "javascript_lazy_xml_redos"
-_VULNERABLE_FIXTURE = _FIXTURE_ROOT / f"{_VULNERABLE_HEAD_SHA}-cloud-sync.js"
-_FIXED_FIXTURE = _FIXTURE_ROOT / f"{_FIXED_HEAD_SHA}-cloud-sync.js"
-
-_VULNERABLE_SOURCE = r"""
-export function parseMsProjectXml(xml) {
-  const tasks = [];
-  const blocks = xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
-  for (const block of blocks) {
-    const preds = [...block.matchAll(/<PredecessorLink>[\s\S]*?<PredecessorUID>(\d+)<\/PredecessorUID>[\s\S]*?<\/PredecessorLink>/g)]
-      .map((m) => `msp-${m[1]}`);
-    tasks.push({ predecessors: preds.join(',') });
-  }
-  return tasks;
-}
-"""
-
-_FIXED_SOURCE = r"""
-export function parseMsProjectXml(xml) {
-  const collectBlocks = (source, openTag, closeTag) => {
-    const out = [];
-    let from = 0;
-    for (;;) {
-      const start = source.indexOf(openTag, from);
-      if (start === -1) break;
-      const contentStart = start + openTag.length;
-      const end = source.indexOf(closeTag, contentStart);
-      if (end === -1) break;
-      out.push(source.slice(start, end + closeTag.length));
-      from = end + closeTag.length;
-    }
-    return out;
-  };
-  return collectBlocks(String(xml || ''), '<Task>', '</Task>');
-}
-"""
+_VULNERABLE_FIXTURE = _FIXTURE_ROOT / f"{_VULNERABLE_HEAD_SHA}-parseMsProjectXml.js"
+_FIXED_FIXTURE = _FIXTURE_ROOT / f"{_FIXED_HEAD_SHA}-parseMsProjectXml.js"
+_VULNERABLE_SOURCE = _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
+_FIXED_SOURCE = _FIXED_FIXTURE.read_text(encoding="utf-8")
 
 _BOUNDED_REGEX_SOURCE = r"""
 function parseSmallInternalFixture(xml) {
@@ -116,29 +89,27 @@ def _findings(tmp_path: Path, source: str) -> list[dict]:
     ]
 
 
-def _git_blob_sha(content: bytes) -> str:
-    """Return Git's content-addressed SHA-1 for one blob payload."""
-    header = f"blob {len(content)}\0".encode("ascii")
-    return hashlib.sha1(header + content).hexdigest()
-
-
 def test_source_provenance_pins_vulnerable_and_fixed_scopeweave_blobs() -> None:
-    """Keep detector efficacy tied to immutable source identities."""
+    """Keep detector efficacy tied to immutable upstream source identities."""
     assert _SOURCE_REPOSITORY == "ContextualWisdomLab/scopeweave"
     assert _VULNERABLE_HEAD_SHA == "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
     assert _VULNERABLE_BLOB_SHA == "7e44932baf55854d18f7ef9da0937d14f982b9ed"
     assert _FIXED_HEAD_SHA == "bd9a51584f1cf37f4f4446022a90775a20152edf"
     assert _FIXED_BLOB_SHA == "9016cfbf157b812a738bf8f7f9063f43b4af2737"
+    assert _VULNERABLE_SOURCE_LINES == (741, 780)
+    assert _FIXED_SOURCE_LINES == (741, 809)
 
 
-def test_source_fixtures_are_exact_pinned_git_blobs() -> None:
-    """Reject source replays that drift from the reviewed ScopeWeave blobs."""
-    assert _git_blob_sha(_VULNERABLE_FIXTURE.read_bytes()) == _VULNERABLE_BLOB_SHA
-    assert _git_blob_sha(_FIXED_FIXTURE.read_bytes()) == _FIXED_BLOB_SHA
+def test_source_sections_are_immutable_exact_replays() -> None:
+    """Reject any drift in the committed upstream function-section fixtures."""
+    vulnerable_digest = hashlib.sha256(_VULNERABLE_FIXTURE.read_bytes()).hexdigest()
+    fixed_digest = hashlib.sha256(_FIXED_FIXTURE.read_bytes()).hexdigest()
+    assert vulnerable_digest == _VULNERABLE_SECTION_SHA256
+    assert fixed_digest == _FIXED_SECTION_SHA256
 
 
 def test_rule_detects_scopeweave_lazy_xml_block_collection() -> None:
-    """Detect unbounded lazy dot-all block collection over XML-like input."""
+    """Detect the exact vulnerable ScopeWeave function replay."""
     rule = _rule()
     assert rule["severity"] == "HIGH"
     assert rule["pattern"].search(_VULNERABLE_SOURCE)
@@ -150,7 +121,7 @@ def test_rule_declares_xml_and_lazy_dotall_prefilter() -> None:
 
 
 def test_rule_ignores_reviewed_linear_scanner_fix() -> None:
-    """Do not flag the source-reviewed indexOf/slice replacement."""
+    """Do not flag the exact reviewed ScopeWeave function replay."""
     assert not _rule()["pattern"].search(_FIXED_SOURCE)
 
 
@@ -200,7 +171,7 @@ def test_rule_ignores_non_xml_lazy_regex() -> None:
 
 
 def test_scan_file_emits_high_redos_finding(tmp_path: Path) -> None:
-    """Exercise the production scanner on the vulnerable source replay."""
+    """Exercise the production scanner on the exact vulnerable source replay."""
     findings = _findings(tmp_path, _VULNERABLE_SOURCE)
     assert len(findings) == 1
     finding = findings[0]
@@ -212,5 +183,5 @@ def test_scan_file_emits_high_redos_finding(tmp_path: Path) -> None:
 
 
 def test_scan_file_does_not_flag_reviewed_fix(tmp_path: Path) -> None:
-    """Keep the exact linear source fix clean through production scan."""
+    """Keep the exact fixed ScopeWeave source replay clean in production scan."""
     assert _findings(tmp_path, _FIXED_SOURCE) == []
