@@ -61,6 +61,21 @@ export function exportCsv(rows) {
 }
 """
 
+_ADJACENT_ROUTE_SOURCE = r"""
+app.get('/api/formula-preview', (c) => {
+  let s = String(c.req.query('value') || '');
+  if (/^[=+\-@|]/.test(s)) s = `'${s}`;
+  return c.text(s);
+});
+
+app.get('/api/unrelated-export', (c) => {
+  const lines = [['id'].join(',')];
+  return c.text(lines.join('\\r\\n'), 200, {
+    'content-type': 'text/csv; charset=utf-8',
+  });
+});
+"""
+
 
 def _rule():
     """Return the single packaged CSV formula neutralization detector."""
@@ -118,6 +133,11 @@ def test_rule_ignores_same_guard_outside_csv_export() -> None:
 def test_rule_does_not_claim_missing_neutralizer_dataflow() -> None:
     """Do not overclaim coverage for exporters with no recognizable guard."""
     assert not _rule()["pattern"].search(_NO_NEUTRALIZER_SOURCE)
+
+
+def test_rule_does_not_cross_adjacent_route_boundary() -> None:
+    """Do not pair a formula guard in one route with another route's CSV sink."""
+    assert not _rule()["pattern"].search(_ADJACENT_ROUTE_SOURCE)
 
 
 def test_scan_file_emits_normalized_csv_formula_finding(tmp_path: Path) -> None:
