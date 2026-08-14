@@ -31,26 +31,6 @@ export function signToken(payload) {
 }
 """
 
-_FIXED_SOURCE = """
-import { createHmac } from 'node:crypto';
-
-const SECRET = process.env.SCOPEWEAVE_JWT_SECRET;
-if (
-  typeof SECRET !== 'string'
-  || SECRET.replace(/\\s/g, '').length < 32
-  || SECRET.includes('${SCOPEWEAVE_JWT_SECRET')
-) {
-  throw new Error('SCOPEWEAVE_JWT_SECRET must be configured securely');
-}
-
-export function signToken(payload) {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig = createHmac('sha256', SECRET).update(`${header}.${body}`).digest('base64url');
-  return `${header}.${body}.${sig}`;
-}
-"""
-
 _RANDOM_FALLBACK_SOURCE = """
 import { createHmac, randomBytes } from 'node:crypto';
 
