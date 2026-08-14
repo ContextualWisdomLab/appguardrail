@@ -16,6 +16,7 @@ _FIXED_APP_BLOB_SHA = "13d95e5dfa0719451a5b4a6d952467994172b79a"
 _FIXED_AUTH_BLOB_SHA = "a16a7281b3da4683eea85263fea929dd9483e9df"
 _FIXTURE_DIR = Path(__file__).parent / "fixtures"
 _FIXED_AUTH_FIXTURE = _FIXTURE_DIR / "scopeweave_auth_password_fixed.mjs"
+_DETECTOR_DOC = Path(__file__).parents[1] / "docs/detectors/javascript-password-type-validation.md"
 
 _VULNERABLE_SIGNUP_SOURCE = """
 app.post('/api/auth/signup', async (c) => {
@@ -135,6 +136,13 @@ def test_source_provenance_is_explicit_and_immutable() -> None:
     fixed_auth = _FIXED_AUTH_FIXTURE.read_text(encoding="utf-8")
     assert "const password = typeof pw === 'string' ? pw : '';" in fixed_auth
     assert "if (typeof pw !== 'string') return false;" in fixed_auth
+
+
+def test_detector_doctoring_pins_reviewed_auth_blob() -> None:
+    """Keep detector doctoring aligned with independently verified source identity."""
+    doctoring = _DETECTOR_DOC.read_text(encoding="utf-8")
+    assert f"- Fixed `server/auth.mjs` blob: `{_FIXED_AUTH_BLOB_SHA}`" in doctoring
+    assert "5893dd511f5a73fa8e595728e68f6e84d4011c45" not in doctoring
 
 
 def test_signup_rule_detects_string_coercion_before_password_hash() -> None:
