@@ -11,5 +11,5 @@ rules:
       [CWE-1236 - Improper Neutralization of Formula Elements in a CSV File]
     severity: HIGH
     languages: [javascript, typescript]
-    prefilter: ["text/csv", ".test(", ".join(',')"]
+    prefilter: ["text/csv", ".test(", ".join("]
     cwe: [CWE-1236]
