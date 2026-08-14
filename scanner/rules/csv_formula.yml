@@ -1,0 +1,15 @@
+rules:
+  - id: javascript-csv-formula-leading-whitespace-bypass
+    patterns:
+      - pattern-regex: '(?msx)if\s*\(\s*/\^\[=\+\\\-@\|\]/\.test\s*\(\s*(?P<value>[A-Za-z_$][A-Za-z0-9_$]*)\s*\)\s*\)\s*(?P=value)\s*=\s*`?["'']?\$\{?(?P=value)\}?`?(?=.{0,5000}?text/csv)'
+    message: |
+      A CSV formula neutralizer checks only the first raw character for formula
+      prefixes. Leading whitespace can therefore bypass the guard before the
+      exported value is opened in spreadsheet software. Normalize or account
+      for leading whitespace before checking formula-sensitive prefixes, and
+      apply the neutralization to every untrusted CSV field.
+      [CWE-1236 - Improper Neutralization of Formula Elements in a CSV File]
+    severity: HIGH
+    languages: [javascript, typescript]
+    prefilter: ["text/csv", ".test(", ".join(',')"]
+    cwe: [CWE-1236]
