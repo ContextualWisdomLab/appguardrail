@@ -68,6 +68,21 @@ def read_file(path: str):
     return Path(path).read_text(encoding="utf-8")
 """
 
+_CROSS_FUNCTION_REUSE_SOURCE = """
+import urllib.request
+
+
+def validate_only(url: str) -> bool:
+    if not _is_safe_url(url):
+        return False
+    return True
+
+
+def fetch_unrelated(url: str):
+    req = urllib.request.Request(url, method="GET")
+    return urllib.request.urlopen(req, timeout=10)
+"""
+
 
 def _rule():
     """Return the single packaged redirect-autofollow rule under test."""
@@ -125,6 +140,11 @@ def test_packaged_rule_does_not_claim_generic_unvalidated_urlopen() -> None:
 def test_packaged_rule_ignores_non_network_url_validation() -> None:
     """Require urllib network dispatch rather than any URL-named validation."""
     assert not _rule()["pattern"].search(_NON_NETWORK_URLLIB_SOURCE)
+
+
+def test_packaged_rule_does_not_cross_function_boundaries() -> None:
+    """Keep the guard, Request, and urlopen operations in one Python function."""
+    assert not _rule()["pattern"].search(_CROSS_FUNCTION_REUSE_SOURCE)
 
 
 def test_scan_file_emits_normalized_high_finding(tmp_path: Path) -> None:
