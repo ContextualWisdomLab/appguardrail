@@ -66,6 +66,13 @@ function parseBeforeCheckingLength(xml) {
 }
 """
 
+_NON_ENFORCING_LENGTH_CHECK_SOURCE = r"""
+function parseAfterTelemetryOnly(xml) {
+  console.debug('small?', xml.length <= 1024);
+  return xml.match(/<Task>[\s\S]*?<\/Task>/g) || [];
+}
+"""
+
 _NON_XML_SOURCE = r"""
 function scanText(text) {
   return text.match(/[\s\S]*?/g) || [];
@@ -132,6 +139,13 @@ def test_scan_flags_large_bound_as_not_meaningfully_bounded(tmp_path: Path) -> N
 def test_scan_flags_length_check_that_occurs_after_regex_sink(tmp_path: Path) -> None:
     """A post-sink guard cannot protect the already-executed regex operation."""
     findings = _findings(tmp_path, _POST_SINK_BOUND_SOURCE)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "HIGH"
+
+
+def test_scan_flags_non_enforcing_length_comparison(tmp_path: Path) -> None:
+    """A telemetry-only comparison is not evidence that input was bounded."""
+    findings = _findings(tmp_path, _NON_ENFORCING_LENGTH_CHECK_SOURCE)
     assert len(findings) == 1
     assert findings[0]["severity"] == "HIGH"
 
