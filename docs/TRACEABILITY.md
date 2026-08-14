@@ -16,8 +16,8 @@
 | CycloneDX SBOM | SBOM module | implemented-main |
 | organization buyer evidence | org evidence aggregator | implemented-main |
 | RCA-first feasibility scheduler | CI/agent policy | implemented-main |
-| every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
-| authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
+| broad every-issue executable obligation coverage | issue-detection audit | not implemented; historical PR #911 closed as an inventory prototype |
+| source-authoritative GitHub Actions run/job evidence | bounded REST acquirer and verifier | active PR #939; not current until protected `develop` contains its reviewed head |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
 | automatic scanner detection of URL-path validation before canonicalization | built-in `python-url-path-traversal-validate-before-canonicalize` rule | source/test evidence tracked in PR #940 for issues #489, #502, and #503; current only when protected `develop` contains the reviewed detector head, otherwise active-PR |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
@@ -29,10 +29,11 @@
 - External-engine capability must name the engine and availability; normalization does not convert it into a built-in detector.
 - A prevention/hardening change does not automatically promote the matching scanner-detection row; PR #924 and PR #910 were verified and promoted independently.
 - An issue registry mapping cannot promote an obligation unless actual detector execution derives its result from independent/closed evidence.
+- A source-evidence acquirer does not prove the scientific or operational efficacy of the workflow detector that produced the source object; that detector still needs an independent oracle.
 
-## Issue #911 traceability contract
+## Issue-audit transition
 
-When PR #911 is accepted, the authoritative obligation system should preserve issue number/claim identity, detector family, evidence fixture/workflow provenance, execution result, and detector rule/finding evidence. Deduplicating equivalent incidents into one detector family is allowed; dropping a retained claim through an exclusion/waiver list is not.
+Historical PR #911 was closed because its broad generated registry did not establish cause-bound detector execution, independent direct-detector validation, or protected-branch operational proof. Its branch remains an inventory source only. PR #939 replaces it with one bounded source-authoritative GitHub Actions evidence contract; each later detector family must add its own authoritative probe, independent oracle, mutation evidence, production entrypoint, and exact-head gates.
 
 ## SSRF traceability contract
 
@@ -69,4 +70,4 @@ Existing repository docs/doctoring/security evidence remain the bibliography/sou
 
 ## Change rule
 
-Every new issue-class detector or product security boundary should add/update a row and its concrete test/evidence path. Stale/queued/cancelled/rate-limited/predecessor checks cannot promote evidence maturity.
+Every new issue-class detector, evidence acquirer, or product security boundary should add or update a row and its concrete test/evidence path. Stale, queued, cancelled, rate-limited, or predecessor checks cannot promote evidence maturity.
