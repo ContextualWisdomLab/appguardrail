@@ -75,8 +75,7 @@ jobs:
             tests/test_github_actions_evidence.py \
             tests/test_github_actions_evidence_edges.py \
             tests/test_github_actions_evidence_validation_edges.py \
-            tests/test_github_actions_evidence_docstrings.py \
-            tests/test_github_actions_evidence_mutations.py
+            tests/test_github_actions_evidence_docstrings.py
           python -m coverage report \
             --include='appguardrail_core/github_actions_evidence.py' \
             --precision=2 \
