@@ -6,8 +6,9 @@
 <title>AppGuardrail Console</title>
 <!--
   Org console for the AppGuardrail control plane (`appguardrail serve`).
-  Paste an org API key, then it calls GET /api/v1/scans (same origin) to show
-  scan history, the deploy-blocking trend, and per-scan detail.
+  Paste a viewer-scoped org API key, then it calls GET /api/v1/scans (same
+  origin) to show scan history, the deploy-blocking trend, and per-scan detail.
+  The browser keeps the key in memory only; owner operations are not exposed.
   ponytail: no framework, no build step. Consumes the API in controlplane.py.
 -->
 <style>
@@ -56,12 +57,12 @@
   <h1>AppGuardrail Console</h1>
   <span class="muted" id="conn" role="status" aria-live="polite" aria-atomic="true"></span>
   <span style="flex:1"></span>
-  <input id="key" type="password" placeholder="Org API key (agk_…)" autocomplete="off" aria-label="Organization API key">
+  <input id="key" type="password" placeholder="Viewer API key (agk_…)" autocomplete="off" aria-label="Viewer-scoped organization API key">
   <button id="connect">Connect</button>
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
 <main>
-  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste your org API key and connect to view scan history.</div>
+  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste a viewer-scoped organization API key. This console keeps it only in this tab's memory and never stores it.</div>
   <div id="app" class="hidden">
     <div class="stats" id="stats"></div>
     <div class="card">
@@ -79,7 +80,8 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
-let KEY=sessionStorage.getItem("ag_key")||"";
+let KEY="";
+let connecting=false;
 let currentDetailRequest=0;
 let lastDetailFocus=null;
 
@@ -140,8 +142,9 @@ async function load(){
       tr.onclick=()=>detail(tr.dataset.id,tr);
       tr.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(tr.dataset.id,tr); } });
     });
+    return true;
   }catch(e){ $("#msg").classList.remove("hidden");$("#app").classList.add("hidden");
-    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
+    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`;return false; }
 }
 async function detail(id,tr){
   const requestId=++currentDetailRequest;
@@ -179,11 +182,38 @@ async function detail(id,tr){
     }
   }
 }
-$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=!$("#key").value.trim();$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
-$("#key").addEventListener("input",e=>{$("#connect").disabled=!e.target.value.trim();});
-$("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
-$("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
-if(KEY)load();else $("#connect").disabled=true;
+function syncConnectState(){
+  const button=$("#connect");
+  button.disabled=connecting||!$("#key").value.trim();
+  if(connecting){
+    button.setAttribute("aria-busy","true");
+    button.textContent="Connecting...";
+  }else{
+    button.removeAttribute("aria-busy");
+    button.textContent="Connect";
+  }
+}
+async function connect(){
+  if(connecting)return;
+  const candidate=$("#key").value.trim();
+  if(!candidate)return;
+  KEY=candidate;
+  $("#key").value="";
+  connecting=true;
+  syncConnectState();
+  try{
+    const connected=await load();
+    if(!connected)KEY="";
+  }finally{
+    connecting=false;
+    syncConnectState();
+  }
+}
+$("#connect").onclick=connect;
+$("#key").addEventListener("input",syncConnectState);
+$("#key").addEventListener("keydown",e=>{if(e.key==="Enter"&&!connecting)$("#connect").click();});
+$("#logout").onclick=()=>{KEY="";location.reload();};
+syncConnectState();
 </script>
 </body>
 </html>
