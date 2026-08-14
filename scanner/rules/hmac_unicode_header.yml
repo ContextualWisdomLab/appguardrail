@@ -1,7 +1,7 @@
 rules:
   - id: python-hmac-compare-digest-unicode-header-dos
     patterns:
-      - pattern-regex: '(?msx)authorization\s*:\s*Annotated\[[^\n]{0,240}?Header\s*\(\s*\)\s*\][^\n]*\n(?=(?:(?!^\s*def\s+).){0,5000}?provided\s*=\s*authorization\s+or\s*["'']["''])(?=(?:(?!^\s*def\s+).){0,8000}?hmac\.compare_digest\s*\(\s*provided\s*,\s*expected\s*\))'
+      - pattern-regex: '(?msx)authorization\s*:\s*Annotated\[[^\n]{0,240}?Header\s*\(\s*\)\s*\][^\n]*\n(?=(?:(?!^\s*(?:async\s+)?def\s+).){0,5000}?provided\s*=\s*authorization\s+or\s*["'']["''])(?=(?:(?!^\s*(?:async\s+)?def\s+).){0,8000}?hmac\.compare_digest\s*\(\s*provided\s*,\s*expected\s*\))'
     message: |
       A FastAPI Authorization header is kept as an arbitrary Python string and
       later passed directly to hmac.compare_digest(provided, expected).
