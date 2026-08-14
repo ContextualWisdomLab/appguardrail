@@ -1,5 +1,6 @@
 """Regression tests for bounded detection of lazy XML block regexes."""
 
+import hashlib
 from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
@@ -10,6 +11,9 @@ _VULNERABLE_HEAD_SHA = "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
 _VULNERABLE_BLOB_SHA = "7e44932baf55854d18f7ef9da0937d14f982b9ed"
 _FIXED_HEAD_SHA = "bd9a51584f1cf37f4f4446022a90775a20152edf"
 _FIXED_BLOB_SHA = "9016cfbf157b812a738bf8f7f9063f43b4af2737"
+_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "scopeweave" / "javascript_lazy_xml_redos"
+_VULNERABLE_FIXTURE = _FIXTURE_ROOT / f"{_VULNERABLE_HEAD_SHA}-cloud-sync.js"
+_FIXED_FIXTURE = _FIXTURE_ROOT / f"{_FIXED_HEAD_SHA}-cloud-sync.js"
 
 _VULNERABLE_SOURCE = r"""
 export function parseMsProjectXml(xml) {
@@ -112,6 +116,12 @@ def _findings(tmp_path: Path, source: str) -> list[dict]:
     ]
 
 
+def _git_blob_sha(content: bytes) -> str:
+    """Return Git's content-addressed SHA-1 for one blob payload."""
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content).hexdigest()
+
+
 def test_source_provenance_pins_vulnerable_and_fixed_scopeweave_blobs() -> None:
     """Keep detector efficacy tied to immutable source identities."""
     assert _SOURCE_REPOSITORY == "ContextualWisdomLab/scopeweave"
@@ -119,6 +129,12 @@ def test_source_provenance_pins_vulnerable_and_fixed_scopeweave_blobs() -> None:
     assert _VULNERABLE_BLOB_SHA == "7e44932baf55854d18f7ef9da0937d14f982b9ed"
     assert _FIXED_HEAD_SHA == "bd9a51584f1cf37f4f4446022a90775a20152edf"
     assert _FIXED_BLOB_SHA == "9016cfbf157b812a738bf8f7f9063f43b4af2737"
+
+
+def test_source_fixtures_are_exact_pinned_git_blobs() -> None:
+    """Reject source replays that drift from the reviewed ScopeWeave blobs."""
+    assert _git_blob_sha(_VULNERABLE_FIXTURE.read_bytes()) == _VULNERABLE_BLOB_SHA
+    assert _git_blob_sha(_FIXED_FIXTURE.read_bytes()) == _FIXED_BLOB_SHA
 
 
 def test_rule_detects_scopeweave_lazy_xml_block_collection() -> None:
