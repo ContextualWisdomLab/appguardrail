@@ -48,3 +48,29 @@ jobs:
             --test tests/test_code_scanning_page_result_issue_index.py \
             --test tests/test_code_scanning_remaining_coverage.py \
             --test tests/test_code_scanning_review_regressions.py
+
+  semgrep-rule-validation:
+    name: Semgrep rule validation (1.170.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate packaged path-canonicalization rules
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: |
+          set -euo pipefail
+          image="semgrep/semgrep@sha256:f42392ee2c00f0de06702135e0e20415f481935900790fbe37aa778591be3999"
+          version="$(docker run --rm --platform linux/amd64 --entrypoint semgrep "$image" --version)"
+          test "$version" = "1.170.0"
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "${GITHUB_WORKSPACE}:/src:ro" \
+            -w /src \
+            -e SEMGREP_SEND_METRICS=off \
+            --entrypoint semgrep \
+            "$image" \
+            --metrics off \
+            --validate \
+            --config scanner/rules/path_canonicalization.yml
