@@ -13,7 +13,7 @@ Active bounded detector contract for the NewsDOM bearer-authentication weakness 
 - Authoritative reviewed fix: merged PR `#539`, head `e22bb76bcf821dfa21eb83938a474c6cf3e7c1e8`
 - Protected merge commit: `76417bd240398c1a4bf2f6c65d693ea523b179d0`
 - Fixed `src/newsdom_api/main.py` blob: `f61aafc2d6592f4a84c7b02b50cfe4a972623463`
-- Collector provenance retained by the corresponding NewsDOM security-workflow issues, including the PR `#495`, `#497`, and `#499` event family. Cancelled or failed workflow conclusions are not used as vulnerability proof.
+- Retained AppGuardrail collector provenance: issues `#796`, `#802`, `#804`, `#807`, `#808`, and `#811`, covering the duplicate PR `#495`, `#497`, and `#499` workflow-event family. Cancelled or failed workflow conclusions are not used as vulnerability proof.
 
 The vulnerable function accepted `authorization` as a FastAPI `Header()` string, assigned `provided = authorization or ""`, and passed `provided` and `expected` directly to `hmac.compare_digest`. Python documents that string operands for `compare_digest` are ASCII-only. A non-ASCII attacker-controlled header can therefore raise `TypeError` before the application reaches its normal `401` response.
 
