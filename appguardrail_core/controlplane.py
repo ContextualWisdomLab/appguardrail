@@ -324,7 +324,7 @@ def create_key(
     api_key = "agk_" + secrets.token_urlsafe(32)
     cur = conn.execute(
         "INSERT INTO access_keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
-        (org_id, _hash_key(api_key), role, label, _now()),
+        (org_id, _hash_key(api_key), role, label or "", _now()),
     )
     conn.commit()
     return cur.lastrowid, api_key
