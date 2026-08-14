@@ -19,7 +19,7 @@ The lightweight detector contains two source-derived subpatterns under one weakn
 A finding requires one function to contain all of the following evidence:
 
 1. a path-like local variable assigned from a stripped external value;
-2. URL-path guards on that same still-encoded variable: leading slash plus scheme, query, and fragment exclusions;
+2. URL-path guards on that same still-encoded variable: a leading slash plus an explicit scheme-delimiter exclusion (`"://" not in <same variable>`);
 3. literal `.` and `..` segment checks on that variable;
 4. the same variable returned unchanged;
 5. no `unquote(...)` or `unquote_to_bytes(...)` call canonicalizing that variable before validation.
@@ -31,10 +31,10 @@ A finding requires one function to contain all of the following evidence:
 1. a stripped raw path variable;
 2. a distinct canonical variable initialized from the raw value;
 3. `unquote(...)` or `unquote_to_bytes(...)` applied to the canonical variable;
-4. URL-path and dot-segment guards applied to that canonical variable;
+4. URL-path leading-slash and same-variable scheme-delimiter exclusion plus literal dot-segment guards applied to that canonical variable;
 5. the original raw variable returned instead of the validated canonical variable.
 
-Both expressions are function-bounded and size-bounded. A four-token prefilter (`.split(`, `.startswith(`, `://`, and `return`) avoids evaluating the multiline expressions for unrelated Python files.
+Both expressions are function-bounded and size-bounded. A four-token prefilter (`.split(`, `.startswith(`, `://`, and `return`) avoids evaluating the multiline expressions for unrelated Python files. The historical source also rejects query and fragment delimiters; those checks remain part of the replay corpus but are not structural prerequisites of the compact production regex, so the detector does not claim that narrower guard signature.
 
 ## Source-authoritative evidence corpus
 
