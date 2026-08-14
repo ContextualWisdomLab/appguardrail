@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -30,25 +31,14 @@ SCHEMA_VERSION = "1.0"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_IDENTIFIER_DIGITS = 20
+MAX_AGE_HOURS = 24 * 365 * 10
 _REPOSITORY_RE = re.compile(
     r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}\Z"
 )
 _HEAD_SHA_RE = re.compile(r"[0-9a-fA-F]{40}\Z")
 _SOURCE_DIGEST_RE = re.compile(r"[0-9a-f]{64}\Z")
-_ALLOWED_CONCLUSIONS = {
-    "success",
-    "failure",
-    "cancelled",
-    "timed_out",
-    "action_required",
-}
-_ALLOWED_STEP_CONCLUSIONS = _ALLOWED_CONCLUSIONS | {
-    "skipped",
-    "neutral",
-    "stale",
-    "startup_failure",
-    "",
-}
+_ALLOWED_CONCLUSIONS = {"success", "failure", "cancelled", "timed_out", "action_required"}
+_ALLOWED_STEP_CONCLUSIONS = _ALLOWED_CONCLUSIONS | {"skipped", "neutral", "stale", "startup_failure", ""}
 
 
 class EvidenceValidationError(ValueError):
@@ -131,9 +121,7 @@ class GitHubApiClient:
             r"/repos/[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}/actions/(?:runs|jobs)/[1-9][0-9]{0,19}",
             path,
         ):
-            raise ValueError(
-                "GitHub API path is not an allowed Actions resource path"
-            )
+            raise ValueError("GitHub API path is not an allowed Actions resource path")
         request = urllib.request.Request(  # noqa: S310 - exact fixed GitHub origin
             f"{self._api_root}{path}",
             method="GET",
@@ -166,17 +154,13 @@ class GitHubApiClient:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise EvidenceAcquisitionError("GitHub API network failure") from exc
         if len(body) > self._max_response_bytes:
-            raise EvidenceAcquisitionError(
-                "GitHub API response exceeded the response limit"
-            )
+            raise EvidenceAcquisitionError("GitHub API response exceeded the response limit")
         try:
             payload = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise EvidenceAcquisitionError("GitHub API returned invalid JSON") from exc
         if not isinstance(payload, dict):
-            raise EvidenceAcquisitionError(
-                "GitHub API response must be a JSON object"
-            )
+            raise EvidenceAcquisitionError("GitHub API response must be a JSON object")
         return payload
 
 
@@ -195,8 +179,8 @@ def verify_actions_job(
         raise EvidenceValidationError("run payload must be a JSON object")
     if not isinstance(job, Mapping):
         raise EvidenceValidationError("job payload must be a JSON object")
-    if max_age <= timedelta(0):
-        raise EvidenceValidationError("max_age must be positive")
+    if not isinstance(max_age, timedelta) or max_age <= timedelta(0):
+        raise EvidenceValidationError("max_age must be a positive timedelta")
 
     run_id = _positive_identifier(run.get("id"), "run id")
     job_id = _positive_identifier(job.get("id"), "job id")
@@ -214,15 +198,11 @@ def verify_actions_job(
     job_url = _required_text(job.get("html_url"), "job URL", 600)
     expected_job_url = f"{expected_run_url}/job/{job_id}"
     if job_url != expected_job_url:
-        raise EvidenceValidationError(
-            "job URL does not match repository, run, and job ids"
-        )
+        raise EvidenceValidationError("job URL does not match repository, run, and job ids")
 
     head_sha = _required_text(run.get("head_sha"), "head SHA", 40).lower()
     if not _HEAD_SHA_RE.fullmatch(head_sha):
-        raise EvidenceValidationError(
-            "head SHA must contain exactly 40 hexadecimal characters"
-        )
+        raise EvidenceValidationError("head SHA must contain exactly 40 hexadecimal characters")
 
     run_status = _required_text(run.get("status"), "run status", 40).lower()
     if run_status != "completed":
@@ -231,12 +211,8 @@ def verify_actions_job(
     if job_status != "completed":
         raise EvidenceValidationError("job status must be completed")
 
-    run_conclusion = _required_text(
-        run.get("conclusion"), "run conclusion", 40
-    ).lower()
-    job_conclusion = _required_text(
-        job.get("conclusion"), "job conclusion", 40
-    ).lower()
+    run_conclusion = _required_text(run.get("conclusion"), "run conclusion", 40).lower()
+    job_conclusion = _required_text(job.get("conclusion"), "job conclusion", 40).lower()
     if run_conclusion not in _ALLOWED_CONCLUSIONS:
         raise EvidenceValidationError("run conclusion is unsupported")
     if job_conclusion not in _ALLOWED_CONCLUSIONS:
@@ -246,18 +222,12 @@ def verify_actions_job(
         run.get("name") or job.get("workflow_name"), "workflow name", 500
     )
     job_name = _required_text(job.get("name"), "job name", 500)
-    if not is_security_name(
-        workflow_name, job.get("workflow_name"), job_name
-    ):
+    if not is_security_name(workflow_name, job.get("workflow_name"), job_name):
         raise EvidenceValidationError("job is not security-relevant")
 
     observed = _normalize_observed_at(observed_at)
-    run_updated_at = _parse_github_time(
-        run.get("updated_at"), "run updated_at"
-    )
-    job_completed_at = _parse_github_time(
-        job.get("completed_at"), "job completed_at"
-    )
+    run_updated_at = _parse_github_time(run.get("updated_at"), "run updated_at")
+    job_completed_at = _parse_github_time(job.get("completed_at"), "job completed_at")
     source_updated_at = max(run_updated_at, job_completed_at)
     if source_updated_at > observed:
         raise EvidenceValidationError("source evidence is future-dated")
@@ -277,17 +247,13 @@ def verify_actions_job(
             "status": run_status,
             "conclusion": run_conclusion,
             "updated_at": _format_timestamp(run_updated_at),
-            "pull_request_numbers": _pull_request_numbers(
-                run.get("pull_requests")
-            ),
+            "pull_request_numbers": _pull_request_numbers(run.get("pull_requests")),
         },
         "job": {
             "id": job_id,
             "run_id": job_run_id,
             "name": job_name,
-            "workflow_name": _optional_text(
-                job.get("workflow_name"), 500
-            ),
+            "workflow_name": _optional_text(job.get("workflow_name"), 500),
             "html_url": job_url,
             "status": job_status,
             "conclusion": job_conclusion,
@@ -302,9 +268,7 @@ def verify_actions_job(
         ensure_ascii=False,
     ).encode("utf-8")
     source_digest = hashlib.sha256(canonical).hexdigest()
-    normalized_seen = {
-        _normalize_digest(value) for value in seen_source_digests
-    }
+    normalized_seen = {_normalize_digest(value) for value in seen_source_digests}
     if source_digest in normalized_seen:
         raise EvidenceValidationError("duplicate source evidence digest")
 
@@ -358,13 +322,9 @@ def acquire_actions_job(
         f"/repos/{normalized_repository}/actions/jobs/{normalized_job_id}"
     )
     if _positive_identifier(run.get("id"), "run id") != normalized_run_id:
-        raise EvidenceValidationError(
-            "acquired run id does not match requested run id"
-        )
+        raise EvidenceValidationError("acquired run id does not match requested run id")
     if _positive_identifier(job.get("id"), "job id") != normalized_job_id:
-        raise EvidenceValidationError(
-            "acquired job id does not match requested job id"
-        )
+        raise EvidenceValidationError("acquired job id does not match requested job id")
     return verify_actions_job(
         normalized_repository,
         run,
@@ -388,11 +348,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seen-source-digest", action="append", default=[])
     args = parser.parse_args(argv)
 
+    if (
+        not math.isfinite(args.max_age_hours)
+        or args.max_age_hours <= 0
+        or args.max_age_hours > MAX_AGE_HOURS
+    ):
+        _write_error(
+            "invalid_max_age",
+            f"max_age_hours must be finite and within (0, {MAX_AGE_HOURS}]",
+        )
+        return 2
+
     token = os.environ.get("APPGUARDRAIL_GITHUB_TOKEN", "").strip()
     if not token:
-        _write_error(
-            "missing_token", "APPGUARDRAIL_GITHUB_TOKEN is required"
-        )
+        _write_error("missing_token", "APPGUARDRAIL_GITHUB_TOKEN is required")
         return 2
     try:
         client = GitHubApiClient(token)
@@ -404,22 +373,15 @@ def main(argv: list[str] | None = None) -> int:
             max_age=timedelta(hours=args.max_age_hours),
             seen_source_digests=args.seen_source_digest,
         )
-    except (
-        EvidenceAcquisitionError,
-        EvidenceValidationError,
-        ValueError,
-    ) as exc:
+    except (EvidenceAcquisitionError, EvidenceValidationError, ValueError) as exc:
         _write_error("source_evidence_unavailable", str(exc))
         return 2
-    print(
-        json.dumps(
-            evidence.to_dict(), sort_keys=True, ensure_ascii=False
-        )
-    )
+    print(json.dumps(evidence.to_dict(), sort_keys=True, ensure_ascii=False))
     return 1 if evidence.detector_state == "failure" else 0
 
 
 def _content_type(headers: Any) -> str:
+    """Return a response media type without trusting arbitrary header objects."""
     if hasattr(headers, "get_content_type"):
         return str(headers.get_content_type())
     if hasattr(headers, "get"):
@@ -428,89 +390,75 @@ def _content_type(headers: Any) -> str:
 
 
 def _validate_repository(repository: Any) -> str:
-    if not isinstance(repository, str) or not _REPOSITORY_RE.fullmatch(
-        repository
-    ):
-        raise EvidenceValidationError(
-            "repository must be an exact owner/name identifier"
-        )
+    """Validate and return one exact bounded GitHub owner/name identifier."""
+    if not isinstance(repository, str) or not _REPOSITORY_RE.fullmatch(repository):
+        raise EvidenceValidationError("repository must be an exact owner/name identifier")
     owner, name = repository.split("/", 1)
     if owner in {".", ".."} or name in {".", ".."}:
-        raise EvidenceValidationError(
-            "repository contains an invalid path segment"
-        )
+        raise EvidenceValidationError("repository contains an invalid path segment")
     return repository
 
 
 def _positive_identifier(value: Any, label: str) -> int:
-    if isinstance(value, bool):
-        raise EvidenceValidationError(
-            f"{label} must be a positive integer"
-        )
-    try:
-        normalized = int(value)
-    except (TypeError, ValueError) as exc:
-        raise EvidenceValidationError(
-            f"{label} must be a positive integer"
-        ) from exc
+    """Validate and return a positive bounded integer identifier."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise EvidenceValidationError(f"{label} must be a positive integer")
+    if isinstance(value, str) and (not value.isascii() or not value.isdigit()):
+        raise EvidenceValidationError(f"{label} must be a positive integer")
+    normalized = int(value)
     if normalized <= 0 or len(str(normalized)) > MAX_IDENTIFIER_DIGITS:
         raise EvidenceValidationError(
-            f"{label} must be a positive integer of at most "
-            f"{MAX_IDENTIFIER_DIGITS} digits"
+            f"{label} must be a positive integer of at most {MAX_IDENTIFIER_DIGITS} digits"
         )
     return normalized
 
 
 def _required_text(value: Any, label: str, max_length: int) -> str:
+    """Validate one bounded non-empty string without line controls."""
     if not isinstance(value, str):
         raise EvidenceValidationError(f"{label} must be text")
-    if any(
-        character in value for character in ("\x00", "\r", "\n")
-    ):
-        raise EvidenceValidationError(
-            f"{label} is empty, oversized, or contains controls"
-        )
+    if any(character in value for character in ("\x00", "\r", "\n")):
+        raise EvidenceValidationError(f"{label} is empty, oversized, or contains controls")
     normalized = value.strip()
     if not normalized or len(normalized) > max_length:
-        raise EvidenceValidationError(
-            f"{label} is empty, oversized, or contains controls"
-        )
+        raise EvidenceValidationError(f"{label} is empty, oversized, or contains controls")
     return normalized
 
 
 def _optional_text(value: Any, max_length: int) -> str:
+    """Return a validated optional string using the empty string for null."""
     if value is None:
         return ""
     return _required_text(value, "optional text", max_length)
 
 
 def _parse_github_time(value: Any, label: str) -> datetime:
+    """Parse a timezone-aware GitHub timestamp and normalize it to UTC."""
     text = _required_text(value, label, 64)
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise EvidenceValidationError(
-            f"{label} is not a valid ISO timestamp"
-        ) from exc
+        raise EvidenceValidationError(f"{label} is not a valid ISO timestamp") from exc
     if parsed.tzinfo is None:
         raise EvidenceValidationError(f"{label} must include a timezone")
     return parsed.astimezone(timezone.utc)
 
 
 def _normalize_observed_at(value: datetime | None) -> datetime:
+    """Return a timezone-aware UTC observation timestamp."""
     observed = value or datetime.now(timezone.utc)
     if not isinstance(observed, datetime) or observed.tzinfo is None:
-        raise EvidenceValidationError(
-            "observed_at must be timezone-aware"
-        )
+        raise EvidenceValidationError("observed_at must be timezone-aware")
     return observed.astimezone(timezone.utc)
 
 
 def _format_timestamp(value: datetime) -> str:
+    """Serialize a datetime as canonical UTC ISO 8601 text."""
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _normalize_steps(value: Any) -> list[dict[str, Any]]:
+    """Validate, sort, and normalize bounded terminal GitHub job steps."""
     if value is None:
         return []
     if not isinstance(value, list):
@@ -519,29 +467,21 @@ def _normalize_steps(value: Any) -> list[dict[str, Any]]:
     seen_numbers: set[int] = set()
     for raw_step in value:
         if not isinstance(raw_step, Mapping):
-            raise EvidenceValidationError(
-                "each job step must be a JSON object"
-            )
+            raise EvidenceValidationError("each job step must be a JSON object")
         number = _positive_identifier(raw_step.get("number"), "step number")
         if number in seen_numbers:
-            raise EvidenceValidationError(
-                "job step numbers must be unique"
-            )
+            raise EvidenceValidationError("job step numbers must be unique")
         seen_numbers.add(number)
-        status = _required_text(
-            raw_step.get("status"), "step status", 40
-        ).lower()
+        status = _required_text(raw_step.get("status"), "step status", 40).lower()
+        if status != "completed":
+            raise EvidenceValidationError("step status must be completed")
         conclusion = str(raw_step.get("conclusion") or "").strip().lower()
         if conclusion not in _ALLOWED_STEP_CONCLUSIONS:
-            raise EvidenceValidationError(
-                "step conclusion is unsupported"
-            )
+            raise EvidenceValidationError("step conclusion is unsupported")
         normalized.append(
             {
                 "number": number,
-                "name": _required_text(
-                    raw_step.get("name"), "step name", 500
-                ),
+                "name": _required_text(raw_step.get("name"), "step name", 500),
                 "status": status,
                 "conclusion": conclusion,
             }
@@ -550,6 +490,7 @@ def _normalize_steps(value: Any) -> list[dict[str, Any]]:
 
 
 def _pull_request_numbers(value: Any) -> list[int]:
+    """Return sorted unique pull-request numbers from a GitHub run payload."""
     if value is None:
         return []
     if not isinstance(value, list):
@@ -557,31 +498,24 @@ def _pull_request_numbers(value: Any) -> list[int]:
     numbers: set[int] = set()
     for item in value:
         if not isinstance(item, Mapping):
-            raise EvidenceValidationError(
-                "each pull request must be a JSON object"
-            )
+            raise EvidenceValidationError("each pull request must be a JSON object")
         number = item.get("number")
         if number is not None:
-            numbers.add(
-                _positive_identifier(number, "pull request number")
-            )
+            numbers.add(_positive_identifier(number, "pull request number"))
     return sorted(numbers)
 
 
 def _normalize_digest(value: Any) -> str:
+    """Validate and normalize one lower-case SHA-256 evidence digest."""
     if not isinstance(value, str):
         raise EvidenceValidationError("source digest must be text")
     normalized = value.strip().lower()
     if not _SOURCE_DIGEST_RE.fullmatch(normalized):
-        raise EvidenceValidationError(
-            "source digest must be 64 hexadecimal characters"
-        )
+        raise EvidenceValidationError("source digest must be 64 hexadecimal characters")
     return normalized
 
 
 def _write_error(error_code: str, message: str) -> None:
+    """Write one stable machine-readable error object to standard error."""
     payload = {"error_code": error_code, "message": message}
-    print(
-        json.dumps(payload, sort_keys=True, ensure_ascii=False),
-        file=sys.stderr,
-    )
+    print(json.dumps(payload, sort_keys=True, ensure_ascii=False), file=sys.stderr)
