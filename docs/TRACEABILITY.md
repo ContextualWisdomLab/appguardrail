@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| automatic scanner detection of URL-path validation before canonicalization | built-in `python-url-path-traversal-validate-before-canonicalize` rule | implemented-main through PR #940 for the tested Python URL-path source shape derived from issue #489; bounded scope |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -47,9 +48,23 @@ For stored webhook/callback SSRF, trace separately:
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
 
+## URL-path canonicalization traceability contract
+
+For encoded URL-path traversal and validation-order failures, trace separately:
+
+1. the source repository, pull request, and exact source head that exposed the pattern;
+2. the original validate-before-canonicalize source replay;
+3. the fixed canonicalize-then-validate negative replay;
+4. the packaged detector rule and bounded prefilter;
+5. production `_scan_file` execution and normalized CWE/OWASP metadata;
+6. explicit false-positive and false-negative boundaries;
+7. exact-head security, review, and merge evidence.
+
+PR #940 supplies the packaged detector, source-derived efficacy corpus, and focused detector documentation for AppGuardrail issue #489. Its declared scope is limited to the tested Python URL-path shape; it does not claim general interprocedural path traversal detection.
+
 ## Standards/research
 
-Existing repository docs/doctoring/security evidence remain the bibliography/source-of-truth for standards such as SARIF, CycloneDX, GitHub security interfaces, and applicable OWASP/CWE classes. Material new detector classes should add authoritative standard/CWE/OWASP references and APA 7 citations in doctoring where research/standards materially drive implementation.
+Existing repository docs/doctoring/security evidence remain the bibliography/source-of-truth for standards such as SARIF, CycloneDX, GitHub security interfaces, and applicable OWASP/CWE classes. Material new detector classes should add authoritative standard/CWE/OWASP references and APA 7 citations in doctoring where research/standards materially drive implementation. The URL-path canonicalization references and operational boundary are recorded in `docs/detectors/url-path-canonicalization-order.md`.
 
 ## Change rule
 
