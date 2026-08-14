@@ -65,6 +65,16 @@ export function label() {
 }
 """
 
+_REASSIGNED_SECRET_SOURCE = """
+import { createHmac } from 'node:crypto';
+
+let SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
+SECRET = loadManagedSecret();
+export function signToken(payload) {
+  return createHmac('sha256', SECRET).update(JSON.stringify(payload)).digest('base64url');
+}
+"""
+
 
 def _rule():
     """Return the single packaged rule for the exact source-derived slice."""
@@ -128,6 +138,11 @@ def test_packaged_rule_ignores_runtime_generated_fallback() -> None:
 def test_packaged_rule_ignores_literal_not_used_for_signing() -> None:
     """Require an HMAC signing sink rather than any optional secret fallback."""
     assert not _rule()["pattern"].search(_NON_SIGNING_SOURCE)
+
+
+def test_packaged_rule_ignores_mutable_secret_reassigned_before_signing() -> None:
+    """Do not attribute a literal fallback to a later replacement HMAC key."""
+    assert not _rule()["pattern"].search(_REASSIGNED_SECRET_SOURCE)
 
 
 def test_scan_file_emits_normalized_critical_finding(tmp_path: Path) -> None:
