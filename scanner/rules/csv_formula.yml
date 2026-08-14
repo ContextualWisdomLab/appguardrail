@@ -1,7 +1,7 @@
 rules:
   - id: javascript-csv-formula-leading-whitespace-bypass
     patterns:
-      - pattern-regex: '(?msx)if\s*\(\s*/\^\[=\+\\\-@\|\]/\.test\s*\(\s*(?P<value>[A-Za-z_$][A-Za-z0-9_$]*)\s*\)\s*\)\s*(?P=value)\s*=\s*`?["'']?\$\{?(?P=value)\}?`?(?=.{0,5000}?text/csv)'
+      - pattern-regex: '(?msx)if\s*\(\s*/\^\[=\+\\\-@\|\]/\.test\s*\(\s*(?P<value>[A-Za-z_$][A-Za-z0-9_$]*)\s*\)\s*\)\s*(?P=value)\s*=\s*`?["'']?\$\{?(?P=value)\}?`?(?=(?:(?!^[ \t]*app\.(?:get|post|put|patch|delete)\s*\().){0,5000}?text/csv)'
     message: |
       A CSV formula neutralizer checks only the first raw character for formula
       prefixes. Leading whitespace can therefore bypass the guard before the
