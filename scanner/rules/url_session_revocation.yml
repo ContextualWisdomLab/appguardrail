@@ -1,0 +1,19 @@
+rules:
+  - id: javascript-url-session-jwt-revocation-bypass
+    patterns:
+      - pattern-regex: '(?msx)app\.get\(\s*["''][^"''\n]{1,180}["'']\s*,\s*\(c\)\s*=>\s*\{(?=(?:(?!^[ \t]*app\.(?:get|post|put|patch|delete)\s*\().){0,5000}?c\.req\.query\(\s*["'']token["'']\s*\))(?=(?:(?!^[ \t]*app\.(?:get|post|put|patch|delete)\s*\().){0,8000}?(?:uid\s*=\s*verifyToken\(\s*raw\s*\)\.sub|user\s*=\s*verifyToken\(\s*token\s*\)))'
+    message: |
+      A Hono GET route accepts a session JWT from the URL query string and
+      validates only the JWT signature before using its subject. The observed
+      session model also has database-backed token_version revocation, so this
+      direct verifyToken path can keep an old session credential usable after
+      logout-all or another revocation event. Route URL-carried session JWTs
+      through the same revocation-aware verification boundary as bearer tokens,
+      or enforce the current session-generation value inline before authorization.
+      [CWE-613 - Insufficient Session Expiration]
+      [OWASP A07:2025 - Authentication Failures]
+    severity: HIGH
+    languages: [javascript, typescript]
+    prefilter: ["c.req.query('token')", "verifyToken(", "app.get("]
+    cwe: [CWE-613]
+    owasp: [A07:2025]
