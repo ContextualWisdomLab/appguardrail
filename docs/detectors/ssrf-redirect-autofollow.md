@@ -2,7 +2,7 @@
 
 ## Security contract
 
-Rule `python-ssrf-redirect-autofollow-after-validation` detects one bounded Python source shape: a URL variable is rejected when `_is_safe_url(variable)` fails, then the same variable is used to construct `urllib.request.Request(...)`, and the request is dispatched with `urllib.request.urlopen(...)` without an intervening redirect-aware opener. Python's default `HTTPRedirectHandler` handles HTTP redirects; therefore validating only the initial destination does not prove that later redirect hops remain inside the same destination policy.
+Rule `python-ssrf-redirect-autofollow-after-validation` detects one bounded Python source shape inside a single function body: a URL variable is rejected when `_is_safe_url(variable)` fails, then the same variable is used to construct `urllib.request.Request(...)`, and the request is dispatched with `urllib.request.urlopen(...)` without an intervening redirect-aware opener. The matcher stops at a subsequent `def`, `async def`, or `class` declaration so same-named variables in adjacent functions cannot be joined into one flow. Python's default `HTTPRedirectHandler` handles HTTP redirects; therefore validating only the initial destination does not prove that later redirect hops remain inside the same destination policy.
 
 The source-authoritative positive is `ContextualWisdomLab/appguardrail` commit `5a7cb7e7237532ffb4366b4d4dc758d0df8993fc`, `appguardrail_core/controlplane.py` blob `07300b0f0df3b7c61c9304812836a4b541a67e6b`. The reviewed fixed source is commit `814e8bf982c27d5aba10ba7ab28b2540ce601c3e`, blob `bf74784ecd168685153700150020648e4ee4e806`, which installs `SafeRedirectHandler` through `urllib.request.build_opener(...)` and applies `_is_safe_url(newurl)` on every redirect request.
 
@@ -14,7 +14,7 @@ Do not rely on a one-time URL validation check when the HTTP client can redirect
 
 This rule is intentionally narrower than general SSRF detection. It does not claim coverage for `requests`, `httpx`, `aiohttp`, custom transports, `urllib` calls that skip the observed `_is_safe_url` boundary, helper/cross-file flows, aliases, dynamically imported clients, DNS rebinding after validation, proxy behavior, or redirect policies implemented outside the matched function. A generic unvalidated `urlopen` call is outside this detector family and should be handled by a separate source/sink rule.
 
-The rule uses `_is_safe_url`, `urllib.request`, and `urlopen` prefilters and bounded multiline distances so the lightweight scanner does not evaluate the expression for unrelated files.
+The rule uses `_is_safe_url`, `urllib.request`, and `urlopen` prefilters, explicit Python declaration boundaries, and bounded multiline distances so the lightweight scanner does not evaluate or connect the expression across unrelated code.
 
 ## Standards and primary references
 
