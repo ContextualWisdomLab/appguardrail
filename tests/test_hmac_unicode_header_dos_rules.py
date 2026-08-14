@@ -66,6 +66,19 @@ def require_authorization(
         raise HTTPException(status_code=401)
 '''
 
+_ADJACENT_ASYNC_FUNCTION_SOURCE = '''
+def read_authorization(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    provided = authorization or ""
+    return provided
+
+async def compare_unrelated_value() -> bool:
+    expected = "constant"
+    provided = "constant"
+    return hmac.compare_digest(provided, expected)
+'''
+
 
 def _rule() -> dict:
     """Return the packaged Unicode-header HMAC rule."""
@@ -130,6 +143,11 @@ def test_rule_ignores_generic_ascii_hexdigest_comparison() -> None:
 def test_rule_ignores_header_checks_without_compare_digest() -> None:
     """Require the documented Python HMAC sink contract."""
     assert not _rule()["pattern"].search(_NON_HMAC_HEADER_SOURCE)
+
+
+def test_rule_does_not_cross_adjacent_async_function_boundary() -> None:
+    """Do not pair a header source with an unrelated async function HMAC sink."""
+    assert not _rule()["pattern"].search(_ADJACENT_ASYNC_FUNCTION_SOURCE)
 
 
 def test_scan_file_emits_normalized_uncaught_exception_finding(tmp_path: Path) -> None:
