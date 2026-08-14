@@ -1,8 +1,8 @@
 rules:
   - id: python-url-path-traversal-validate-before-canonicalize
     patterns:
-      - pattern-regex: '(?ms)^[ \t]*(?P<p>\w+)\s*=\s*[^\n]+\.strip\(\)\n(?:(?!^[ \t]*(?P=p)\s*=|\bunquote\(\s*(?P=p)\s*\)|^[ \t]*(?:async )?def).){0,1800}?(?P=p)\.startswith\(["'']/["'']\).{0,600}?["'']://["''] not in (?P=p)\b.{0,1000}?(?P<s>\w+)\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}\s+for\s+(?P=s)\s+in\s+(?P=p)\.split\(["'']/["'']\)(?:(?!^[ \t]*(?P=p)\s*=|\bunquote\(\s*(?P=p)\s*\)|^[ \t]*(?:async )?def).){0,700}?return\s+(?P=p)\b'
-      - pattern-regex: '(?ms)^[ \t]*(?P<r>\w+)\s*=\s*[^\n]+\.strip\(\)\n.{0,400}?(?P<c>\w+)\s*=\s*(?P=r)\s*\n.{0,1200}?\bunquote\(\s*(?P=c)\s*\).{0,1800}?(?P=c)\.startswith\(["'']/["'']\).{0,600}?["'']://["''] not in (?P=c)\b.{0,1200}?(?P<s>\w+)\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}\s+for\s+(?P=s)\s+in\s+(?P=c)\.split\(["'']/["'']\)(?:(?!^[ \t]*(?P=r)\s*=|^[ \t]*(?:async )?def).){0,700}?return\s+(?P=r)\b'
+      - pattern-regex: '(?m)^[ \t]*(?P<p>\w+)\s*=\s*[^\n]+\.strip\(\)\n(?!(?:[^\n]*\n){0,64}[ \t]*(?P=p)\s*=)(?!(?:[^\n]*\n){0,64}[^\n]*\bdef\b)(?:[^\n]*\n){0,24}?[^\n]*(?P=p)\.startswith\(["'']/["'']\)(?:[^\n]*\n){0,8}?[^\n]*["'']://["''] not in (?P=p)\b(?:[^\n]*\n){0,12}?[^\n]*segment\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}(?:[^\n]*\n){0,2}?[^\n]*for\s+segment\s+in\s+(?P=p)\.split\(["'']/["'']\)(?:[^\n]*\n){0,8}?[^\n]*return\s+(?P=p)\b'
+      - pattern-regex: '(?m)^[ \t]*(?P<r>\w+)\s*=\s*[^\n]+\.strip\(\)\n(?!(?:[^\n]*\n){0,64}[ \t]*(?P=r)\s*=)(?!(?:[^\n]*\n){0,64}[^\n]*\bdef\b)(?:[^\n]*\n){0,6}?[ \t]*(?P<c>\w+)\s*=\s*(?P=r)\s*\n(?:[^\n]*\n){0,10}?[^\n]*\bunquote\(\s*(?P=c)\s*\)(?:[^\n]*\n){0,18}?[^\n]*(?P=c)\.startswith\(["'']/["'']\)(?:[^\n]*\n){0,8}?[^\n]*["'']://["''] not in (?P=c)\b(?:[^\n]*\n){0,12}?[^\n]*segment\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}[^\n]*for\s+segment\s+in\s+(?P=c)\.split\(["'']/["'']\)(?:[^\n]*\n){0,8}?[^\n]*return\s+(?P=r)\b'
     message: |
       URL-like path input is checked before canonicalization, or one decoded
       representation is validated while the original percent-encoded value is
