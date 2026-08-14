@@ -114,7 +114,7 @@ Running the migration again on a complete version-two database returns `changed=
 
 A failed migration raises `SchemaMigrationError` with a bounded operational category. It does not include customer rows, key hashes, findings, webhook targets, or SQL payload content. Runtime startup propagates that failure after closing the connection; it does not silently create legacy tables or continue with an incomplete schema.
 
-## Current phase boundary
+## Phase boundary: current runtime activation
 
 The runtime now reads and writes the version-two canonical **table** names and invokes the migration during controlled startup. This removes the shipped dependency on the legacy table bootstrap while preserving the reviewed row/column contract and data values.
 
