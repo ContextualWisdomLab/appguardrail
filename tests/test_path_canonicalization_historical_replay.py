@@ -66,7 +66,7 @@ def test_exact_historical_source_detects_validated_decoded_but_returned_raw_path
     findings = _scan(VULNERABLE_SOURCE, tmp_path)
 
     assert len(findings) == 1
-    assert findings[0]["line"] == 10
+    assert findings[0]["line"] == 9
     assert findings[0]["snippet"] == "path = value.strip()"
 
 
