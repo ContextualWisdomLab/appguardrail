@@ -3,6 +3,8 @@
 // trust → immune to alg-confusion). This is a security boundary; do not simplify.
 import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from 'node:crypto';
 
+// Personal Access Tokens. Format: swk_<random>. Only the SHA-256 hash is
+// stored; the full secret is shown to the user exactly once at creation.
 export function generateApiToken() {
   const full = `swk_${randomBytes(24).toString('base64url')}`;
   return { full, prefix: full.slice(0, 12), hash: createHash('sha256').update(full).digest('hex') };
@@ -11,6 +13,9 @@ export function hashApiToken(full) {
   return createHash('sha256').update(String(full)).digest('hex');
 }
 
+// Fail closed: never mint or verify tokens with a missing/weak/placeholder secret.
+// Require ≥32 non-whitespace characters so compose-unexpanded literals and short
+// defaults cannot silently ship.
 const SECRET = process.env.SCOPEWEAVE_JWT_SECRET;
 if (
   typeof SECRET !== 'string'
@@ -54,6 +59,7 @@ export function verifyToken(token) {
   const parts = String(token || '').split('.');
   if (parts.length !== 3) throw new Error('malformed token');
   const [header, body, sig] = parts;
+  // Recompute HS256 signature; never read/trust the header's declared alg.
   const expected = createHmac('sha256', SECRET).update(`${header}.${body}`).digest('base64url');
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
