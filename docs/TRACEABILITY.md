@@ -19,7 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
-| automatic scanner detection of URL-path validation before canonicalization | built-in `python-url-path-traversal-validate-before-canonicalize` rule | PR #940 active-PR for the tested Python URL-path source shape derived from issue #489; promote only after protected-head merge evidence |
+| automatic scanner detection of URL-path validation before canonicalization | built-in `python-url-path-traversal-validate-before-canonicalize` rule | PR #940 active-PR for the tested Python URL-path source shape collected in issues #489, #502, and #503; promote only after protected-head merge evidence |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -52,15 +52,16 @@ Current protected-branch evidence keeps those controls distinct: PR #924 supplie
 
 For encoded URL-path traversal and validation-order failures, trace separately:
 
-1. the source repository, pull request, and exact source head that exposed the pattern;
-2. the original validate-before-canonicalize source replay;
-3. the fixed canonicalize-then-validate negative replay;
-4. the packaged detector rule and bounded prefilter;
-5. production `_scan_file` execution and normalized CWE/OWASP metadata;
-6. explicit false-positive and false-negative boundaries;
-7. exact-head security, review, and merge evidence.
+1. every collected issue/event identity and its exact source head;
+2. the source repository and pull request that exposed the shared pattern;
+3. the original validate-before-canonicalize source replay;
+4. the fixed canonicalize-then-validate negative replay;
+5. the packaged detector rule and bounded prefilter;
+6. production `_scan_file` execution and normalized CWE/OWASP metadata;
+7. explicit false-positive and false-negative boundaries;
+8. exact-head security, review, and merge evidence.
 
-PR #940 proposes the packaged detector, source-derived efficacy corpus, and focused detector documentation for AppGuardrail issue #489. Its declared scope is limited to the tested Python URL-path shape; it does not claim general interprocedural path traversal detection. The row above remains `active-PR` until GitHub records protected-branch merge evidence for the exact reviewed head.
+PR #940 proposes the packaged detector, source-derived efficacy corpus, and focused detector documentation for the Naruon PR #1206 event family collected in AppGuardrail issues #489, #502, and #503. Deduplication is detector-family consolidation, not evidence deletion: both collected source heads and the analyzed fixed head remain recorded. The detector scope is limited to the tested Python URL-path shape and does not claim general interprocedural path traversal detection. The row above remains `active-PR` until GitHub records protected-branch merge evidence for the exact reviewed head.
 
 ## Standards/research
 
