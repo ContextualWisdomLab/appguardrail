@@ -1,0 +1,16 @@
+rules:
+  - id: javascript-xml-lazy-dotall-block-redos
+    patterns:
+      - pattern-regex: '(?msx)^(?:export\s+)?function\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(\s*(?P<input>[A-Za-z_$][A-Za-z0-9_$]*)[^)]*\)\s*\{(?!(?:(?!^(?:export\s+)?function\b).){0,2000}?\b(?P=input)\.length\s*(?:>|>=)\s*[0-9]{1,7}\b)(?:(?!^(?:export\s+)?function\b).){0,8000}?\b(?P=input)\.match(?:All)?\s*\(\s*/<(?P<tag>[A-Za-z][A-Za-z0-9:_-]*)>\[\\s\\S\]\*\?<\\/(?P=tag)>/g'
+    message: |
+      XML-like input is split into blocks with an unbounded lazy `[\s\S]*?`
+      JavaScript regular expression. Repeated opening tags with a missing closing
+      delimiter can force repeated rescans/backtracking and consume excessive CPU.
+      Use a linear parser/scanner, or impose and verify a small input bound before
+      applying the expression.
+      [CWE-1333 - Inefficient Regular Expression Complexity]
+      [CWE-400 - Uncontrolled Resource Consumption]
+    severity: HIGH
+    languages: [javascript, typescript]
+    prefilter: ["[\\s\\S]*?", ".match"]
+    cwe: [CWE-1333, CWE-400]
