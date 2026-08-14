@@ -15,7 +15,7 @@ rules:
 
   - id: python-ssrf-redirect-autofollow-after-validation
     patterns:
-      - pattern-regex: '(?is)\bif\s+not\s+_is_safe_url\s*\(\s*(?P<url_var>[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*:\s*(?:#[^\n]*)?\n(?:[ \t]+[^\n]*\n){1,12}?(?:(?!\b(?:SafeRedirectHandler|build_opener)\b).){0,1000}?\burllib\.request\.Request\s*\(\s*(?P=url_var)\b(?:(?!\burllib\.request\.urlopen\b).){0,1000}?\burllib\.request\.urlopen\s*\('
+      - pattern-regex: '(?ims)\bif\s+not\s+_is_safe_url\s*\(\s*(?P<url_var>[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*:\s*(?:#[^\n]*)?\n(?:[ \t]+[^\n]*\n){1,12}?(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)\b|\b(?:SafeRedirectHandler|build_opener)\b).){0,1000}?\burllib\.request\.Request\s*\(\s*(?P=url_var)\b(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)\b|\burllib\.request\.urlopen\b).){0,1000}?\burllib\.request\.urlopen\s*\('
     message: |
       The initial outbound URL is validated before urllib.request.urlopen(), but
       urlopen follows HTTP redirects by default and the redirected destination is
