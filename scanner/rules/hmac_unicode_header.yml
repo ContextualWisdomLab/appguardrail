@@ -1,0 +1,19 @@
+rules:
+  - id: python-hmac-compare-digest-unicode-header-dos
+    patterns:
+      - pattern-regex: '(?msx)authorization\s*:\s*Annotated\[[^\n]{0,240}?Header\s*\(\s*\)\s*\][^\n]*\n(?=(?:(?!^\s*def\s+).){0,5000}?provided\s*=\s*authorization\s+or\s*["'']["''])(?=(?:(?!^\s*def\s+).){0,8000}?hmac\.compare_digest\s*\(\s*provided\s*,\s*expected\s*\))'
+    message: |
+      A FastAPI Authorization header is kept as an arbitrary Python string and
+      later passed directly to hmac.compare_digest(provided, expected).
+      Python compare_digest accepts str operands only when they contain ASCII;
+      attacker-controlled non-ASCII header text can therefore raise TypeError
+      before the application returns its normal authentication failure. Compare
+      bounded byte-oriented credentials instead, or encode both operands before
+      the constant-time comparison and reject malformed/oversized input first.
+      [CWE-248 - Uncaught Exception]
+      [OWASP A10:2025 - Mishandling of Exceptional Conditions]
+    severity: MEDIUM
+    languages: [python]
+    prefilter: ["Header()", "hmac.compare_digest", "authorization"]
+    cwe: [CWE-248]
+    owasp: [A10:2025]
