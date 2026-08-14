@@ -14,13 +14,14 @@ A server that silently substitutes a source-controlled string when a JWT signing
 
 The lightweight detector requires all of the following evidence in one JavaScript or TypeScript file:
 
-1. `const`, `let`, or `var` assigns a local key variable from `process.env.NAME` or `process.env["NAME"]`;
+1. a `const` declaration assigns a local key variable from `process.env.NAME` or `process.env["NAME"]`;
 2. `||` or `??` supplies a hardcoded string of at least eight characters;
-3. the same variable is later passed as the key argument to `createHmac("sha256", key)`;
-4. the sink occurs within a bounded 12,000-character window;
-5. the variable is not reassigned before the sink.
+3. the same immutable binding is later passed as the key argument to `createHmac("sha256", key)`;
+4. the sink occurs within a bounded 12,000-character window.
 
-The rule is protected by the file-level prefilter `process.env`, `createHmac`, and `HS256`. The prefilter avoids evaluating the multiline expression for unrelated source files; the regex then binds the environment-derived variable to the actual HMAC key argument.
+The detector intentionally excludes mutable `let` and `var` bindings. A mutable binding can replace the literal fallback before the HMAC sink, and a regex-only rule cannot safely prove all JavaScript reassignment/control-flow paths. Restricting the source contract to `const` avoids attributing the old literal to a later managed key.
+
+The rule is protected by the file-level prefilter `process.env`, `createHmac`, and `HS256`. The prefilter avoids evaluating the multiline expression for unrelated source files; the regex then binds the environment-derived immutable variable to the actual HMAC key argument.
 
 ## Source-authoritative evidence corpus
 
@@ -31,6 +32,7 @@ The rule is protected by the file-level prefilter `process.env`, `createHmac`, a
 - the equivalent nullish-coalescing fallback;
 - a runtime-random fallback negative;
 - a literal fallback that never reaches a signing sink;
+- a mutable `let` fallback that is reassigned before signing;
 - the production `_scan_file` finding envelope, including line, severity, category, confidence, CWE, and OWASP metadata;
 - immutable repository, head, and blob identifiers for both sides of the source change.
 
@@ -51,6 +53,7 @@ RFC 8725 requires sufficient cryptographic-key entropy and states that human-mem
 
 This is not a general JavaScript dataflow engine. It intentionally does not claim coverage for:
 
+- mutable `let`/`var` key bindings, because proving the sink value requires control-flow/dataflow analysis;
 - signing keys passed through helper functions, objects, arrays, or dependency injection;
 - environment APIs other than the tested `process.env` forms;
 - HMAC algorithms or JWT libraries that do not expose the tested `createHmac("sha256", key)` shape;
