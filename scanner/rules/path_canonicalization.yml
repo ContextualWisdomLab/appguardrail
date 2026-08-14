@@ -1,8 +1,8 @@
 rules:
   - id: python-url-path-traversal-validate-before-canonicalize
     patterns:
-      - pattern-regex: '(?ms)^[ \t]*(?P<p>\w+)\s*=\s*[^\n]+\.strip\(\)\n(?!(?:(?!return\s+(?P=p)).){0,3000}?(?:\n[ \t]*(?:async )?def|^[ \t]*(?P=p)\s*=|\bunquote\(\s*(?P=p)\s*\)))(?:(?!return\s+(?P=p)).){0,1800}?(?P=p)\.startswith\(["'']/["'']\)(?:(?!return\s+(?P=p)).){0,600}?["'']://["''] not in (?P=p)\b(?:(?!return\s+(?P=p)).){0,1000}?(?P<s>\w+)\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}\s+for\s+(?P=s)\s+in\s+(?P=p)\.split\(["'']/["'']\)(?:(?!return\s+(?P=p)).){0,700}?return\s+(?P=p)\b'
-      - pattern-regex: '(?ms)^ *(?P<r>\w+) *= *[^\n]+\.strip\(\)\n.{0,400}?^ *(?P<c>\w+) *= *(?P=r) *\n(?=(?:(?!^ *(?:async )?def|^ *(?P=r) *=).){0,2800}?return (?P=r)\b)(?=(?:(?!return (?P=r)).){0,1200}?unquote\((?P=c)\))(?=(?:(?!return (?P=r)).){0,1800}?(?P=c)\.startswith\(["'']/["'']\))(?=(?:(?!return (?P=r)).){0,1800}?["'']://["''] not in (?P=c))(?=(?:(?!return (?P=r)).){0,2400}?(?P<s>\w+) not in \{["'']\.["''], ["'']\.\.["'']\} for (?P=s) in (?P=c)\.split\(["'']/["'']\))(?:(?!return (?P=r)).){0,2800}?return (?P=r)\b'
+      - pattern-regex: '(?ms)^[ \t]*(?P<p>\w+)\s*=\s*[^\n]+\.strip\(\)\n(?:(?!^[ \t]*(?P=p)\s*=|\bunquote\(\s*(?P=p)\s*\)|^[ \t]*(?:async )?def).){0,1800}?(?P=p)\.startswith\(["'']/["'']\).{0,600}?["'']://["''] not in (?P=p)\b.{0,1000}?(?P<s>\w+)\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}\s+for\s+(?P=s)\s+in\s+(?P=p)\.split\(["'']/["'']\)(?:(?!^[ \t]*(?P=p)\s*=|\bunquote\(\s*(?P=p)\s*\)|^[ \t]*(?:async )?def).){0,700}?return\s+(?P=p)\b'
+      - pattern-regex: '(?ms)^[ \t]*(?P<r>\w+)\s*=\s*[^\n]+\.strip\(\)\n.{0,400}?(?P<c>\w+)\s*=\s*(?P=r)\s*\n.{0,1200}?\bunquote\(\s*(?P=c)\s*\).{0,1800}?(?P=c)\.startswith\(["'']/["'']\).{0,600}?["'']://["''] not in (?P=c)\b.{0,1200}?(?P<s>\w+)\s+not\s+in\s+\{["'']\.["''],\s*["'']\.\.["'']\}\s+for\s+(?P=s)\s+in\s+(?P=c)\.split\(["'']/["'']\)(?:(?!^[ \t]*(?P=r)\s*=|^[ \t]*(?:async )?def).){0,700}?return\s+(?P=r)\b'
     message: |
       URL-like path input is checked before canonicalization, or one decoded
       representation is validated while the original percent-encoded value is
