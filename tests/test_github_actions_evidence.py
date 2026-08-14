@@ -6,7 +6,6 @@ import io
 import json
 import urllib.error
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 
