@@ -1,0 +1,33 @@
+rules:
+  - id: javascript-url-session-token-without-revocation
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*app\.get\s*\(\s*["'']/api/projects/:id/calendar\.ics["'']\s*,\s*\(c\)\s*=>\s*\{(?:(?!^[ \t]*app\.).){0,6000}?c\.req\.query\s*\(\s*["'']token["'']\s*\)(?:(?!^[ \t]*app\.).){0,3000}?try\s*\{\s*uid\s*=\s*verifyToken\s*\(\s*raw\s*\)\.sub\s*;?\s*\}\s*catch'
+    message: |
+      A calendar URL-token endpoint performs only JWT signature/expiry
+      verification and then authorizes the project without enforcing the
+      application's database-backed session revocation state. A token that was
+      invalidated by logout-all, password change, or another token-version bump
+      can remain usable through this alternate transport until JWT expiration.
+      Route every session token through the same server-side revocation boundary
+      used by normal bearer authentication.
+      [CWE-613 - Insufficient Session Expiration]
+    severity: HIGH
+    languages: [javascript, typescript]
+    prefilter: ["calendar.ics", "c.req.query('token')", "verifyToken(raw)"]
+    cwe: [CWE-613]
+
+  - id: javascript-url-session-token-without-revocation
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*app\.get\s*\(\s*["'']/api/projects/:id/stream["'']\s*,\s*\(c\)\s*=>\s*\{(?:(?!^[ \t]*app\.).){0,5000}?c\.req\.query\s*\(\s*["'']token["'']\s*\)(?:(?!^[ \t]*app\.).){0,2000}?try\s*\{\s*user\s*=\s*verifyToken\s*\(\s*token\s*\)\s*;?\s*\}\s*catch'
+    message: |
+      A streaming URL-token endpoint performs only JWT signature/expiry
+      verification and bypasses the application's database-backed session
+      revocation state. Stale session credentials can therefore continue to
+      authorize this alternate transport after a server-side logout-all or
+      password-change revocation event. Use the same trusted revocation-aware
+      session verifier as the normal authentication middleware.
+      [CWE-613 - Insufficient Session Expiration]
+    severity: HIGH
+    languages: [javascript, typescript]
+    prefilter: ["/stream", "c.req.query('token')", "verifyToken(token)"]
+    cwe: [CWE-613]
