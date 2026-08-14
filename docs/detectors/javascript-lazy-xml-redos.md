@@ -28,15 +28,15 @@ The file-level prefilter requires `[\s\S]*?` and `.match`, which avoids evaluati
 
 ## Source-authoritative evidence
 
-`tests/test_javascript_lazy_xml_redos_rules.py` pins both sides of the reviewed ScopeWeave source change and exercises the production `_scan_file` entrypoint. The corpus includes:
+`tests/test_javascript_lazy_xml_redos_rules.py` pins both immutable ScopeWeave `cloud-sync.js` blob identities and replays the exact `parseMsProjectXml` function sections from those revisions rather than independently authored approximations. The committed section fixtures correspond to vulnerable lines 741–780 and fixed lines 741–809 and carry independent SHA-256 digests so fixture drift fails deterministically. The tests exercise the production `_scan_file` entrypoint. The corpus includes:
 
-- the vulnerable `<Task>[\s\S]*?<\/Task>` block collector;
-- the reviewed linear `indexOf` / `slice` scanner as the primary negative oracle;
+- the exact vulnerable `<Task>[\s\S]*?<\/Task>` block collector from the pinned vulnerable blob;
+- the exact reviewed linear `indexOf` / `slice` implementation from the pinned fixed blob as the primary negative oracle;
 - a small explicitly terminating length-bounded parser negative;
 - six-digit, post-sink, and non-terminating length-check positives; and
 - a non-XML lazy-regex negative.
 
-The detector therefore proves the observed source contract rather than treating a cancelled security workflow label as evidence of a vulnerability.
+The upstream Git blob SHAs remain the authoritative complete-file identities; the vendored fixtures intentionally contain only the detector-relevant function sections, avoiding unrelated application code while preserving byte-exact detector evidence. The detector therefore proves the observed source contract rather than treating a cancelled security workflow label as evidence of a vulnerability.
 
 ## Remediation boundary
 
