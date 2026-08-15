@@ -54,7 +54,14 @@ def job_payload(**overrides):
         "status": "completed",
         "conclusion": "failure",
         "completed_at": "2026-08-02T23:43:30Z",
-        "steps": [],
+        "steps": [
+            {
+                "number": 19,
+                "name": "Publish review",
+                "status": "completed",
+                "conclusion": "failure",
+            }
+        ],
     }
     payload.update(overrides)
     return payload
@@ -71,7 +78,7 @@ def load_mutant(old: str, new: str):
     mutant.__package__ = "appguardrail_core"
     sys.modules[module_name] = mutant
     try:
-        exec(
+        exec(  # noqa: S102 - executes only this repository's own module source
             compile(mutated_source, str(MODULE_PATH), "exec"),
             mutant.__dict__,
         )
@@ -117,6 +124,16 @@ def security_obligation_oracle(module):
 def outcome_mapping_oracle(module):
     """Require a failed source conclusion to map to detector failure."""
     assert verify(module).detector_state == "failure"
+
+
+def required_steps_oracle(module):
+    """Require terminal source evidence to contain at least one job step."""
+    for steps in (None, []):
+        try:
+            verify(module, job=job_payload(steps=steps))
+        except module.EvidenceValidationError:
+            continue
+        raise AssertionError("missing or empty step evidence was accepted")
 
 
 def acquisition_identity_oracle(module):
@@ -186,6 +203,17 @@ def test_kills_outcome_mapping_inversion():
     )
     with pytest.raises(AssertionError):
         outcome_mapping_oracle(mutant)
+
+
+def test_kills_required_step_evidence_bypass():
+    """Prove the step oracle kills an empty-step validation bypass."""
+    required_steps_oracle(evidence_module)
+    mutant = load_mutant(
+        "if not value:\n        raise EvidenceValidationError(\"job steps must contain at least one completed step\")",
+        "if False:\n        raise EvidenceValidationError(\"job steps must contain at least one completed step\")",
+    )
+    with pytest.raises(AssertionError, match="step evidence"):
+        required_steps_oracle(mutant)
 
 
 def test_kills_acquired_identifier_check_inversion():
