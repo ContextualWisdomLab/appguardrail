@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2024-05-19 - Visually hiding file inputs for better UX
+**Learning:** Browsers natively suppress `change` events on `<input type="file">` if the user selects the same file repeatedly. Also, native file inputs are often difficult to style consistently. Replacing them with a styled proxy `<button>` element is a huge UX win.
+**Action:** When modifying file inputs, visually hide them (using `class="sr-only" tabindex="-1" aria-hidden="true"`) and use a proxy `<button>`. Always preserve the original `aria-label` on the hidden input to maintain accessibility, and use `addEventListener('click')` instead of inline handlers. Additionally, ensure the proxy triggers the click on the native input, and immediately clear the input value (`fileInput.value = ''`) inside the `change` listener to allow sequential selections of the same file.
