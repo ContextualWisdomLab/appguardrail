@@ -96,7 +96,7 @@ def test_rejects_non_timedelta_age_and_unfinished_step():
 
 def test_identifier_rejects_float_and_non_ascii_digits():
     """Prevent lossy integer coercion and Unicode digit ambiguity."""
-    for value in (1.0, "２"):
+    for value in (1.0, "\uff12"):  # FULLWIDTH DIGIT TWO
         with pytest.raises(
             evidence_module.EvidenceValidationError, match="positive integer"
         ):
