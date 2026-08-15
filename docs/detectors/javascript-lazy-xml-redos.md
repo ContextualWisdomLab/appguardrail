@@ -20,11 +20,11 @@ The detector requires all of the following evidence in one JavaScript or TypeScr
 3. the block body uses lazy dot-all emulation `[\s\S]*?`;
 4. the expression is global (`g`), so the engine is asked to continue searching the same untrusted input;
 5. the function does not establish an immediately terminating `if (input.length > N) throw ...` or `if (input.length > N) return ...` guard before the sink, where the detector recognizes only one- through four-digit caps (`N <= 9999`) as a deliberately small local bound; and
-6. the search is function-bounded and character-bounded.
+6. the search is function-bounded and protected by the file-level prefilter described below.
 
 A length comparison that only logs, records telemetry, or otherwise continues to the regex sink is not a bound. Six-digit and larger thresholds are intentionally not treated as protective evidence; applications needing a larger limit should replace the backtracking block collector or establish safety through a separately reviewed structural detector.
 
-The file-level prefilter requires `[\s\S]*?` and `.match`, which avoids evaluating the multiline signature on unrelated source files.
+The file-level prefilter requires `[\s\S]*?` and `.match`, which avoids evaluating the multiline signature on unrelated source files. The shared rule is also consumed by Semgrep: its function-bound scans deliberately avoid large fixed-width `{0,N}` repetitions, because the prior 2,000/6,000/8,000-character windows exceeded Semgrep's regex compilation capacity for this expression. Regression coverage rejects reintroduction of those large bounded scans, while the required Semgrep/Strix gate supplies the executable compatibility oracle.
 
 ## Source-authoritative evidence
 
@@ -66,3 +66,5 @@ ECMA International. (2026). *ECMAScript 2026 language specification*. https://tc
 MITRE Corporation. (2026). *CWE-1333: Inefficient regular expression complexity* (Common Weakness Enumeration Version 4.20). https://cwe.mitre.org/data/definitions/1333.html
 
 MITRE Corporation. (2026). *CWE-400: Uncontrolled resource consumption* (Common Weakness Enumeration Version 4.20). https://cwe.mitre.org/data/definitions/400.html
+
+Semgrep, Inc. (2026). *Static analysis and rule-writing glossary*. https://semgrep.dev/docs/writing-rules/glossary
