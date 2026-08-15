@@ -1,0 +1,3 @@
+## Added
+
+- Added the HIGH `java-spring-admin-discarded-tenant-context` SAST rule for the source-proven Clearfolio admin weakness where a tenant permission check discards its returned tenant context before a global job read or tenant-sensitive mutation. The rule is bounded to the observed Spring/custom-service shape, uses exact vulnerable and reviewed-fixed source fixtures, and tells operators to carry tenant identity into the trusted service/data boundary. AppGuardrail issue #550 remains collector provenance; detector efficacy is grounded in the pinned source transition rather than the failed security workflow itself.
