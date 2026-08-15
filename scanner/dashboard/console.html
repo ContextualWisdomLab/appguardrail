@@ -169,13 +169,13 @@ async function detail(id,tr){
       <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
     d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.focus({preventScroll:true});
+    d.querySelector(".close-btn").focus({preventScroll:true});
   }catch(e){
     if(requestId!==currentDetailRequest)return;
     d.innerHTML='<button type="button" class="close-btn" aria-label="Close details" title="Close (Esc)">✕</button><div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
     d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.focus({preventScroll:true});
+    d.querySelector(".close-btn").focus({preventScroll:true});
   }finally{
     if(tr&&tr.dataset.detailRequest===String(requestId)){
       tr.removeAttribute("aria-busy");
