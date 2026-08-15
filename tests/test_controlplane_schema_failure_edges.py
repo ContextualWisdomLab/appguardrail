@@ -9,6 +9,7 @@ import pytest
 
 from appguardrail_core.controlplane_schema import (
     CURRENT_SCHEMA_VERSION,
+    MIGRATION_NAME,
     SchemaMigrationError,
     inspect_controlplane_schema,
     migrate_controlplane_schema,
@@ -173,6 +174,55 @@ def test_foreign_key_violation_rolls_back_complete_migration() -> None:
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
 
 
+def test_matching_migration_marker_with_stale_user_version_recovers() -> None:
+    """An exact v2 marker may repair a stale pragma instead of wedging startup."""
+    connection = _connection()
+    migrate_controlplane_schema(connection)
+    connection.execute("PRAGMA user_version = 1")
+    connection.commit()
+
+    result = migrate_controlplane_schema(connection)
+
+    assert result.previous_version == 1
+    assert result.current_version == CURRENT_SCHEMA_VERSION
+    assert result.changed is True
+    marker = connection.execute(
+        "SELECT schema_version, migration_name FROM schema_migrations"
+    ).fetchall()
+    assert [tuple(row) for row in marker] == [(CURRENT_SCHEMA_VERSION, MIGRATION_NAME)]
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "migration_name"),
+    [
+        (CURRENT_SCHEMA_VERSION, "unexpected_schema_v2"),
+        (1, MIGRATION_NAME),
+    ],
+)
+def test_conflicting_migration_marker_fails_closed(
+    schema_version: int, migration_name: str
+) -> None:
+    """Ambiguous migration metadata is never ignored while repairing a stale pragma."""
+    connection = _connection()
+    migrate_controlplane_schema(connection)
+    connection.execute("DELETE FROM schema_migrations")
+    connection.execute(
+        "INSERT INTO schema_migrations(schema_version, migration_name) VALUES (?, ?)",
+        (schema_version, migration_name),
+    )
+    connection.execute("PRAGMA user_version = 1")
+    connection.commit()
+
+    with pytest.raises(SchemaMigrationError, match="conflicting schema migration metadata"):
+        migrate_controlplane_schema(connection)
+
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == 1
+    marker = connection.execute(
+        "SELECT schema_version, migration_name FROM schema_migrations"
+    ).fetchall()
+    assert [tuple(row) for row in marker] == [(schema_version, migration_name)]
+
+
 def test_non_connection_and_closed_connection_are_rejected_cleanly() -> None:
     """Public migration boundaries reject unsupported or unusable connection objects."""
     with pytest.raises(ValueError, match=r"sqlite3\.Connection"):
@@ -182,7 +232,6 @@ def test_non_connection_and_closed_connection_are_rejected_cleanly() -> None:
     connection.close()
     with pytest.raises(SchemaMigrationError, match="closed connection"):
         migrate_controlplane_schema(connection)
-
 
 
 class ConcurrentCompletionConnection(sqlite3.Connection):
