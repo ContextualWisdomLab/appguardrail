@@ -6,8 +6,8 @@
 <title>AppGuardrail Console</title>
 <!--
   Org console for the AppGuardrail control plane (`appguardrail serve`).
-  Paste a dedicated viewer API key, then it calls GET /api/v1/scans (same origin)
-  to show scan history, the deploy-blocking trend, and per-scan detail.
+  Paste an org API key, then it calls GET /api/v1/scans (same origin) to show
+  scan history, the deploy-blocking trend, and per-scan detail.
   ponytail: no framework, no build step. Consumes the API in controlplane.py.
 -->
 <style>
@@ -54,12 +54,12 @@
   <h1>AppGuardrail Console</h1>
   <span class="muted" id="conn" role="status" aria-live="polite" aria-atomic="true"></span>
   <span style="flex:1"></span>
-  <input id="key" type="password" placeholder="Viewer API key (agk_…)" autocomplete="off" aria-label="Viewer API key">
+  <input id="key" type="password" placeholder="Org API key (agk_…)" autocomplete="off" aria-label="Organization API key">
   <button id="connect">Connect</button>
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
 <main>
-  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste a dedicated viewer API key and connect to view scan history.</div>
+  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste your org API key and connect to view scan history.</div>
   <div id="app" class="hidden">
     <div class="stats" id="stats"></div>
     <div class="card">
@@ -77,9 +77,7 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
-let KEY="";
-sessionStorage.removeItem("ag_key");
-sessionStorage.removeItem("ag_viewer_key");
+let KEY=sessionStorage.getItem("ag_key")||"";
 let currentDetailRequest=0;
 let lastDetailFocus=null;
 
@@ -104,11 +102,6 @@ async function api(path){
   if(r.status===401)throw new Error("Invalid API key.");
   if(!r.ok)throw new Error("Request failed ("+r.status+").");
   return r.json();
-}
-async function requireViewerKey(){
-  const r=await fetch("/api/v1/scans",{method:"POST",headers:{Authorization:"Bearer "+KEY}});
-  if(r.status===401)throw new Error("Invalid API key.");
-  if(r.status!==403)throw new Error("Use a dedicated viewer API key.");
 }
 function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
 function scrollDetailIntoView(element){
@@ -165,18 +158,18 @@ async function detail(id,tr){
     const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
       <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
       <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
-    d.innerHTML=`<button type="button" class="close-btn" aria-label="Close details" title="Close (Esc)">✕</button><strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
+    d.innerHTML=`<button type="button" class="close-btn" aria-label="Close details">✕</button><strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
       <table style="margin-top:8px"><thead><tr><th scope="col">Severity</th><th scope="col">Rule</th><th scope="col">Finding</th><th scope="col">Location</th></tr></thead>
       <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
     d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.querySelector(".close-btn").focus({preventScroll:true});
+    d.focus({preventScroll:true});
   }catch(e){
     if(requestId!==currentDetailRequest)return;
-    d.innerHTML='<button type="button" class="close-btn" aria-label="Close details" title="Close (Esc)">✕</button><div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
+    d.innerHTML='<button type="button" class="close-btn" aria-label="Close details">✕</button><div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
     d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.querySelector(".close-btn").focus({preventScroll:true});
+    d.focus({preventScroll:true});
   }finally{
     if(tr&&tr.dataset.detailRequest===String(requestId)){
       tr.removeAttribute("aria-busy");
@@ -184,31 +177,10 @@ async function detail(id,tr){
     }
   }
 }
-$("#connect").onclick=async()=>{
-  KEY=$("#key").value.trim();
-  if(!KEY)return;
-  $("#key").value="";
-  $("#connect").disabled=true;
-  $("#connect").setAttribute("aria-busy","true");
-  $("#connect").textContent="Connecting...";
-  try{
-    await requireViewerKey();
-    await load();
-  }catch(e){
-    KEY="";
-    $("#conn").textContent="";
-    $("#msg").classList.remove("hidden");
-    $("#app").classList.add("hidden");
-    $("#logout").classList.add("hidden");
-    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`;
-  }finally{
-    $("#connect").disabled=false;
-    $("#connect").removeAttribute("aria-busy");
-    $("#connect").textContent="Connect";
-  }
-};
+$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=false;$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
 $("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
-$("#logout").onclick=()=>{KEY="";sessionStorage.removeItem("ag_key");sessionStorage.removeItem("ag_viewer_key");location.reload();};
+$("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
+if(KEY)load();
 </script>
 </body>
 </html>
