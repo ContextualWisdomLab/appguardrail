@@ -65,6 +65,22 @@ def test_build_rule_metadata_deduplicates_message_and_default_references():
     )
 
 
+def test_build_rule_metadata_preserves_explicit_cwe_over_category_default():
+    metadata = build_rule_metadata(
+        "tenant-scope",
+        "HIGH",
+        "Tenant scope discarded. [CWE-863 - Incorrect Authorization]",
+        category="authz",
+    )
+
+    assert metadata.references == (
+        "CWE-863 - Incorrect Authorization",
+        "OWASP A01:2021 - Broken Access Control",
+    )
+    assert metadata.cwe == ("CWE-863 - Incorrect Authorization",)
+    assert metadata.owasp == ("OWASP A01:2021 - Broken Access Control",)
+
+
 def test_validate_rule_metadata_reports_missing_public_reference():
     errors = validate_rule_metadata(
         {
