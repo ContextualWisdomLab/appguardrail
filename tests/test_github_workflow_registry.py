@@ -177,6 +177,25 @@ def test_transport_failures_are_unresolved(failure: Exception, reason: str) -> N
     assert m.inventory_to_findings(inventory)[0]["rule_id"] == "github-actions-workflow-inventory-incomplete"
 
 
+def test_late_collection_failure_preserves_acquired_source_identity() -> None:
+    """Late transport failure retains exact branch and tree provenance for operator triage."""
+    base = f"{m.API_ORIGIN}/repos/{REPO}"
+    workflow_url = f"{base}/actions/workflows?per_page=100"
+    opener = transport()
+    opener.responses[workflow_url] = urllib.error.HTTPError(
+        workflow_url,
+        403,
+        "error",
+        {},
+        None,
+    )
+    inventory = m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP)
+    assert not inventory.complete and inventory.reason == "http_403"
+    assert inventory.default_branch == "develop"
+    assert inventory.default_branch_sha == BRANCH_SHA
+    assert inventory.tree_sha == TREE_SHA
+
+
 def test_transport_rejects_hostile_media_size_json_and_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
     """Origin, media type, response size, JSON syntax, and Link syntax stay bounded."""
     base = f"{m.API_ORIGIN}/repos/{REPO}"
