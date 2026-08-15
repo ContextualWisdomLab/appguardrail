@@ -5,6 +5,9 @@ from pathlib import Path
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 _RULE_ID = "python-hmac-compare-digest-unicode-header-dos"
+_RULE_PATH = (
+    Path(__file__).resolve().parents[1] / "scanner" / "rules" / "hmac_unicode_header.yml"
+)
 _SOURCE_REPOSITORY = "ContextualWisdomLab/newsdom-api"
 _SOURCE_PR = 539
 _VULNERABLE_HEAD_SHA = "04491c0e9ac38b9f793029683cebfb8210ccfadd"
@@ -107,6 +110,16 @@ def test_source_provenance_pins_vulnerable_and_protected_fix() -> None:
     assert _REVIEWED_FIX_HEAD_SHA == "e22bb76bcf821dfa21eb83938a474c6cf3e7c1e8"
     assert _REVIEWED_FIX_BLOB_SHA == "f61aafc2d6592f4a84c7b02b50cfe4a972623463"
     assert _PROTECTED_MERGE_SHA == "76417bd240398c1a4bf2f6c65d693ea523b179d0"
+
+
+def test_rule_file_declares_non_executable_detection_data_boundary() -> None:
+    """Keep review agents from mistaking a detector signature for runtime code."""
+    source = _RULE_PATH.read_text(encoding="utf-8")
+    assert "# AppGuardrail detector artifact: non-executable SAST signature data." in source
+    assert (
+        "# Vulnerable source shapes below describe detection targets, not AppGuardrail runtime code."
+        in source
+    )
 
 
 def test_rule_detects_raw_header_strings_passed_to_compare_digest() -> None:
