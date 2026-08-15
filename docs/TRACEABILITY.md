@@ -52,7 +52,7 @@ Current protected-branch evidence keeps those controls distinct: PR #924 supplie
 
 PR #963 traces AppGuardrail issue #550 separately from source proof. The collector event points to Clearfolio PR #240 at `0eb7fa9cfc56062983f5337228ca3a7317cf17a8`; the positive source fixture is exact Git blob `5086b1d3797a9c32831900d09d93d8df44c5e13a`. Clearfolio PR #240 names #172 as superseding; the reviewed negative oracle is `f4ae8dd695afe1dd41decbc7e6b2a11d0ee5e461`, exact Git blob `872f0a66ea6dc8da95f8327e3d4cf40d3c08689f`, and remains unmerged. Promotion therefore requires AppGuardrail PR #963 source/tests to merge under fresh protected-head evidence; neither the failed collector workflow nor the unmerged Clearfolio fixed candidate can independently promote detector maturity.
 
-The executable evidence path is `scanner/rules/java_tenant_authorization.yml` plus `tests/test_java_spring_tenant_authz_scope_rules.py` and `tests/test_java_spring_tenant_authz_source_fixtures.py`; detector doctoring and bounded remediation guidance live in `docs/detectors/java-spring-tenant-authorization-scope.md`.
+The executable evidence path is `scanner/rules/java_tenant_authorization.yml` plus `tests/test_java_spring_tenant_authz_scope_rules.py`, `tests/test_java_spring_tenant_authz_source_fixtures.py`, and `tests/test_java_spring_tenant_authz_fixture_scan.py`; detector doctoring and bounded remediation guidance live in `docs/detectors/java-spring-tenant-authorization-scope.md`.
 
 ## Standards/research
 
