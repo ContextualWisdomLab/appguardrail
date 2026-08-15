@@ -103,6 +103,17 @@ def test_identifier_rejects_float_and_non_ascii_digits():
             evidence_module._positive_identifier(value, "id")
 
 
+def test_client_rejects_crlf_in_bearer_token_before_header_construction():
+    """Reject HTTP field-line injection material at the credential boundary."""
+    for token in (
+        "valid-prefix\rX-Injected: yes",
+        "valid-prefix\nX-Injected: yes",
+        "valid-prefix\x00suffix",
+    ):
+        with pytest.raises(ValueError, match="control characters"):
+            evidence_module.GitHubApiClient(token)
+
+
 def test_cli_rejects_non_finite_or_excessive_age_before_auth(monkeypatch, capsys):
     """Fail closed on invalid freshness windows without requiring a credential."""
     monkeypatch.delenv("APPGUARDRAIL_GITHUB_TOKEN", raising=False)
