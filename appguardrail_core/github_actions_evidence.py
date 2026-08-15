@@ -235,6 +235,8 @@ def verify_actions_job(
         raise EvidenceValidationError("source evidence is stale")
 
     steps = _normalize_steps(job.get("steps"))
+    branch_name = _optional_text(run.get("head_branch"), 255)
+    event_name = _required_text(run.get("event"), "event name", 100)
     source_projection = {
         "repository": normalized_repository,
         "run": {
@@ -242,8 +244,8 @@ def verify_actions_job(
             "name": workflow_name,
             "html_url": run_url,
             "head_sha": head_sha,
-            "head_branch": _optional_text(run.get("head_branch"), 255),
-            "event": _required_text(run.get("event"), "event name", 100),
+            "head_branch": branch_name,
+            "event": event_name,
             "status": run_status,
             "conclusion": run_conclusion,
             "updated_at": _format_timestamp(run_updated_at),
@@ -288,8 +290,8 @@ def verify_actions_job(
         run_id=run_id,
         job_id=job_id,
         head_sha=head_sha,
-        branch_name=_optional_text(run.get("head_branch"), 255),
-        event_name=_required_text(run.get("event"), "event name", 100),
+        branch_name=branch_name,
+        event_name=event_name,
         run_url=run_url,
         job_url=job_url,
         job_conclusion=job_conclusion,
@@ -397,6 +399,7 @@ def _validate_repository(repository: Any) -> str:
     if owner in {".", ".."} or name in {".", ".."}:
         raise EvidenceValidationError("repository contains an invalid path segment")
     return repository
+
 
 def _positive_identifier(value: Any, label: str) -> int:
     """Validate and return a positive bounded integer identifier."""
