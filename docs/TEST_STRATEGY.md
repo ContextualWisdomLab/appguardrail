@@ -1,7 +1,7 @@
 # AppGuardrail Test and Detector Validation Strategy
 
 **Status:** Accepted quality baseline  
-**Last reviewed:** 2026-08-14
+**Last reviewed:** 2026-08-15
 
 ## Mandatory gates
 
@@ -41,16 +41,17 @@ Every evidence acquirer must prove its source identity independently of the call
 
 - exact repository/run/job URL and identifier binding;
 - exact head SHA and versioned API contract;
+- at least one completed job step; missing, null, or empty `steps` evidence must fail closed before classification;
 - true failure, true pass, cancelled failure, and non-security negative cases;
 - malformed, wrong-origin, unfinished, future, stale, duplicate, oversized, non-JSON, and unavailable cases;
 - token non-disclosure and no raw response-body leakage in errors;
 - deterministic digest across mapping insertion order;
-- production CLI pass/failure/inconclusive exit codes;
+- production CLI pass/failure/inconclusive exit codes, with missing or empty step evidence mapped to inconclusive exit code 2;
 - an AST-based complete-docstring gate;
 - 100% statement and branch coverage measured without mutation execution contaminating the coverage result;
-- independent mutation oracles that kill source-identity inversion, security-obligation bypass, outcome inversion, and requested/acquired identifier inversion.
+- independent mutation oracles that kill source-identity inversion, security-obligation bypass, outcome inversion, required-step bypass, and requested/acquired identifier inversion.
 
-The #815-shaped test object is a historical source shape, not a generated detector answer. Expected outcomes are asserted by independent test logic. Exact runbook, threat boundary, and traceability are in `docs/github-actions-source-evidence.md`.
+The required-step regression was introduced RED before the production guard and is exercised both through the production verifier and an independent mutation oracle. The #815-shaped test object is a historical source shape, not a generated detector answer. Expected outcomes are asserted by independent test logic. Exact runbook, threat boundary, and traceability are in `docs/github-actions-source-evidence.md`.
 
 ## SSRF tests
 
