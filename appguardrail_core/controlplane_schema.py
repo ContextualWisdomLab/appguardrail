@@ -433,6 +433,36 @@ def _create_governance_objects(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
 
 
+def _record_schema_migration(connection: sqlite3.Connection) -> None:
+    """Record this migration once while rejecting contradictory history.
+
+    A database can carry the exact migration marker while ``user_version`` is
+    stale after external restore or administrative repair.  That exact marker
+    is safe to reuse.  A reused version with a different name, or the same name
+    attached to another version, is ambiguous and therefore fails closed.
+    """
+    version_row = connection.execute(
+        "SELECT migration_name FROM schema_migrations WHERE schema_version = ?",
+        (CURRENT_SCHEMA_VERSION,),
+    ).fetchone()
+    if version_row is not None:
+        if str(version_row[0]) != MIGRATION_NAME:
+            raise SchemaMigrationError("conflicting schema migration metadata")
+        return
+
+    name_row = connection.execute(
+        "SELECT schema_version FROM schema_migrations WHERE migration_name = ?",
+        (MIGRATION_NAME,),
+    ).fetchone()
+    if name_row is not None:
+        raise SchemaMigrationError("conflicting schema migration metadata")
+
+    connection.execute(
+        "INSERT INTO schema_migrations(schema_version, migration_name) VALUES (?, ?)",
+        (CURRENT_SCHEMA_VERSION, MIGRATION_NAME),
+    )
+
+
 def _validate_current_schema(inspection: SchemaInspection) -> None:
     """Reject a version-two database whose required objects are missing."""
     missing_tables = CANONICAL_TABLE_NAMES - inspection.table_names
@@ -490,11 +520,7 @@ def migrate_controlplane_schema(
         elif schema_kind == "fresh":
             _create_base_tables(connection)
         _create_governance_objects(connection)
-        connection.execute(
-            "INSERT INTO schema_migrations(schema_version, migration_name) "
-            "VALUES (?, ?)",
-            (CURRENT_SCHEMA_VERSION, MIGRATION_NAME),
-        )
+        _record_schema_migration(connection)
         connection.execute("PRAGMA user_version = 2")
         violations = tuple(connection.execute("PRAGMA foreign_key_check"))
         if violations:
