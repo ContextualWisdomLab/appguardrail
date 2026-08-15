@@ -1,6 +1,7 @@
 """Source-derived regressions for bounded governance JSON and subprocess execution."""
 
 from pathlib import Path
+import tomllib
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
@@ -12,72 +13,23 @@ _VULNERABLE_BLOB_SHA = "3dab225870e5fce806047a622a605b6c451bce59"
 _PARTIAL_FIXED_HEAD_SHA = "c9456a0c29c5b0c37cb11867c1a8e605738db40c"
 _PARTIAL_FIXED_BLOB_SHA = "b016f8c698189d580634b81a1508f567379dcbfc"
 _PROTECTED_FIXED_BLOB_SHA = "65b8b3b9e1a5c8d68987261987b9e20660e2d1ab"
-
-_VULNERABLE_SOURCE = '''
-import json
-import subprocess
-from pathlib import Path
-
-def _read_json(path: Path) -> dict[str, object]:
-    with path.open(encoding="utf-8") as fh:
-        payload = json.load(fh)
-    if not isinstance(payload, dict):
-        raise RuntimeError("JSON artifact must be an object")
-    return payload
+_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "governance_resource_bound_sources.toml"
 
 
-def _source_commit(repo_root: Path) -> str:
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return completed.stdout.strip()
+def _load_source_fixtures() -> dict[str, str]:
+    """Load deliberately vulnerable and safe source replays as inert test data."""
+    with _FIXTURE_PATH.open("rb") as fixture_file:
+        fixtures = tomllib.load(fixture_file)
+    assert all(isinstance(source, str) for source in fixtures.values())
+    return fixtures
 
 
-def _run_gh_snapshot(repo: str) -> dict[str, object]:
-    repo_command = ["gh", "repo", "view", repo, "--json", "nameWithOwner"]
-    prs_command = ["gh", "pr", "list", "--repo", repo, "--json", "number,title"]
-    repo_result = subprocess.run(repo_command, capture_output=True, text=True)
-    prs_result = subprocess.run(prs_command, capture_output=True, text=True)
-    return {"repo": repo_result.stdout, "prs": prs_result.stdout}
-'''
-
-_SAFE_JSON_SOURCE = '''
-from fast_mlsirm.io import read_json_object
-from pathlib import Path
-
-def _read_json(path: Path) -> dict[str, object]:
-    return read_json_object(path)
-'''
-
-_UNSAFE_STAT_THEN_OPEN_SOURCE = '''
-import json
-from pathlib import Path
-
-def _read_json(path: Path) -> dict[str, object]:
-    if path.stat().st_size > 32 * 1024 * 1024:
-        raise ValueError("too large")
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
-'''
-
-_SAFE_SUBPROCESS_SOURCE = '''
-import subprocess
-
-def _run_gh_snapshot(repo: str):
-    command = ["gh", "pr", "list", "--repo", repo]
-    return subprocess.run(command, capture_output=True, text=True, timeout=60)
-'''
-
-_NON_GOVERNANCE_SOURCE = '''
-import subprocess
-
-def run_local_formatter():
-    return subprocess.run(["ruff", "format", "."], check=True)
-'''
+_SOURCE_FIXTURES = _load_source_fixtures()
+_VULNERABLE_SOURCE = _SOURCE_FIXTURES["vulnerable"]
+_SAFE_JSON_SOURCE = _SOURCE_FIXTURES["safe_json"]
+_UNSAFE_STAT_THEN_OPEN_SOURCE = _SOURCE_FIXTURES["unsafe_stat_then_open"]
+_SAFE_SUBPROCESS_SOURCE = _SOURCE_FIXTURES["safe_subprocess"]
+_NON_GOVERNANCE_SOURCE = _SOURCE_FIXTURES["non_governance"]
 
 
 def _rule(rule_id: str) -> dict:
@@ -106,6 +58,14 @@ def test_source_provenance_records_fast_mlsirm_revisions() -> None:
     assert _PARTIAL_FIXED_HEAD_SHA == "c9456a0c29c5b0c37cb11867c1a8e605738db40c"
     assert _PARTIAL_FIXED_BLOB_SHA == "b016f8c698189d580634b81a1508f567379dcbfc"
     assert _PROTECTED_FIXED_BLOB_SHA == "65b8b3b9e1a5c8d68987261987b9e20660e2d1ab"
+
+
+def test_regression_corpus_is_non_executable_fixture_data() -> None:
+    """Keep vulnerable replay text out of importable Python source scanned as product code."""
+    assert _FIXTURE_PATH.suffix == ".toml"
+    assert _FIXTURE_PATH.parent.name == "fixtures"
+    assert "def _read_json" in _VULNERABLE_SOURCE
+    assert "subprocess.run" in _VULNERABLE_SOURCE
 
 
 def test_json_rule_detects_direct_governance_json_load() -> None:
