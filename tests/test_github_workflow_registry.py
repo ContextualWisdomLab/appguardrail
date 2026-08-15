@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import urllib.error
 
 import pytest
@@ -158,7 +159,7 @@ def transport(*, second_page: bool = False) -> Opener:
 def test_collector_follows_link_pagination_and_pins_headers() -> None:
     """Collector follows GitHub Link pagination while preserving exact source identity."""
     opener = transport(second_page=True)
-    inventory = m.collect_workflow_inventory(REPO, token="token-value", opener=opener, verified_at=STAMP)
+    inventory = m.collect_workflow_inventory(REPO, token="token-value", opener=opener, verified_at=STAMP)  # noqa: S106
     assert inventory.complete and [e.status for e in inventory.entries] == ["present", "orphaned_deleted"]
     assert len(opener.requests) == 5
     assert all(h["x-github-api-version"] == m.API_VERSION and h["authorization"] == "Bearer token-value" for _, h in opener.requests)
@@ -184,7 +185,8 @@ def test_transport_rejects_hostile_media_size_json_and_pagination(monkeypatch: p
     assert m.collect_workflow_inventory(REPO, opener=Opener({base: Response({"x": "long"})}), verified_at=STAMP).reason == "response_too_large"
     monkeypatch.setattr(m, "MAX_RESPONSE_BYTES", 2_000_000)
     assert m.collect_workflow_inventory(REPO, opener=Opener({base: Response({}, raw=b"{bad")}), verified_at=STAMP).reason == "malformed_json"
-    opener = transport(); p1 = f"{base}/actions/workflows?per_page=100"
+    opener = transport()
+    p1 = f"{base}/actions/workflows?per_page=100"
     opener.responses[p1] = Response(page(workflow(1, LIVE), total=2), link='<https://attacker.invalid/x>; rel="next"')
     assert m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP).reason == "untrusted_pagination_url"
     assert m._next_link('<https://api.github.com/x>; rel="prev"', REPO) == ""
@@ -194,10 +196,14 @@ def test_transport_rejects_hostile_media_size_json_and_pagination(monkeypatch: p
 
 def test_pagination_cycle_and_limit_are_non_clean(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cyclic and unbounded Link chains cannot become complete evidence."""
-    base = f"{m.API_ORIGIN}/repos/{REPO}"; p1 = f"{base}/actions/workflows?per_page=100"
-    opener = transport(); opener.responses[p1] = Response(page(workflow(1, LIVE)), link=f'<{p1}>; rel="next"')
+    base = f"{m.API_ORIGIN}/repos/{REPO}"
+    p1 = f"{base}/actions/workflows?per_page=100"
+    opener = transport()
+    opener.responses[p1] = Response(page(workflow(1, LIVE)), link=f'<{p1}>; rel="next"')
     assert m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP).reason == "pagination_cycle"
-    opener = transport(); p2 = f"{p1}&page=2"; opener.responses[p1] = Response(page(workflow(1, LIVE), total=2), link=f'<{p2}>; rel="next"')
+    opener = transport()
+    p2 = f"{p1}&page=2"
+    opener.responses[p1] = Response(page(workflow(1, LIVE), total=2), link=f'<{p2}>; rel="next"')
     monkeypatch.setattr(m, "MAX_PAGES", 1)
     assert m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP).reason == "pagination_limit_exceeded"
 
@@ -206,13 +212,16 @@ def test_default_transport_timestamp_and_source_short_circuits(monkeypatch: pyte
     """Default transport stamps UTC and malformed live source identity stops early."""
     handler = m.NoRedirect()
     assert handler.redirect_request(object(), object(), 302, "Moved", {}, "https://example.test") is None
-    opener = transport(); monkeypatch.setattr(m.urllib.request, "build_opener", lambda *handlers: opener)
+    opener = transport()
+    monkeypatch.setattr(m.urllib.request, "build_opener", lambda *handlers: opener)
     inventory = m.collect_workflow_inventory(REPO)
     assert inventory.complete and inventory.verified_at.endswith("Z")
     base = f"{m.API_ORIGIN}/repos/{REPO}"
-    bad_repo = repo(); bad_repo["default_branch"] = ""
+    bad_repo = repo()
+    bad_repo["default_branch"] = ""
     assert m.collect_workflow_inventory(REPO, opener=Opener({base: Response(bad_repo)}), verified_at=STAMP).reason == "invalid_default_branch"
-    bad_branch = branch(); bad_branch["commit"] = {"sha": BRANCH_SHA, "commit": {"tree": {"sha": "short"}}}
+    bad_branch = branch()
+    bad_branch["commit"] = {"sha": BRANCH_SHA, "commit": {"tree": {"sha": "short"}}}
     assert m.collect_workflow_inventory(REPO, opener=Opener({base: Response(repo()), f"{base}/branches/develop": Response(bad_branch)}), verified_at=STAMP).reason == "invalid_tree_sha"
 
 
@@ -231,5 +240,5 @@ def test_identity_inputs_and_cli_exit_contract(monkeypatch: pytest.MonkeyPatch, 
         payload = json.loads(capsys.readouterr().out)
         assert payload["schema_version"] == 1
     monkeypatch.setattr(m, "collect_workflow_inventory", lambda *args, **kwargs: cases[1][0])
-    monkeypatch.setattr(m.sys, "argv", ["appguardrail-workflow-registry", REPO])
+    monkeypatch.setattr(sys, "argv", ["appguardrail-workflow-registry", REPO])
     assert m.main() == 0
