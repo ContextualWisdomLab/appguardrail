@@ -103,6 +103,8 @@ class GitHubApiClient:
         """Initialize a client with one scoped token and bounded I/O limits."""
         if not isinstance(token, str) or not token.strip():
             raise ValueError("GitHub token must be non-empty")
+        if any(ord(character) < 32 or ord(character) == 127 for character in token):
+            raise ValueError("GitHub token must not contain HTTP control characters")
         if api_root.rstrip("/") != API_ROOT:
             raise ValueError("GitHub API root must be https://api.github.com")
         if timeout_seconds <= 0:
