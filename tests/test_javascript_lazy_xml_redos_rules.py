@@ -2,6 +2,7 @@
 
 import hashlib
 from pathlib import Path
+import re
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
@@ -20,6 +21,7 @@ _VULNERABLE_FIXTURE = _FIXTURE_ROOT / f"{_VULNERABLE_HEAD_SHA}-parseMsProjectXml
 _FIXED_FIXTURE = _FIXTURE_ROOT / f"{_FIXED_HEAD_SHA}-parseMsProjectXml.js"
 _VULNERABLE_SOURCE = _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
 _FIXED_SOURCE = _FIXED_FIXTURE.read_text(encoding="utf-8")
+_PCRE2_LARGE_BOUNDED_SCAN = re.compile(r"\{0,[1-9][0-9]{3,}\}")
 
 _BOUNDED_REGEX_SOURCE = r"""
 function parseSmallInternalFixture(xml) {
@@ -118,6 +120,11 @@ def test_rule_detects_scopeweave_lazy_xml_block_collection() -> None:
 def test_rule_declares_xml_and_lazy_dotall_prefilter() -> None:
     """Avoid evaluating the multiline detector for unrelated JavaScript."""
     assert _rule()["required_substrings"] == ("[\\s\\S]*?", ".match")
+
+
+def test_rule_avoids_large_bounded_scans_that_break_semgrep_pcre2() -> None:
+    """Keep the shared YAML rule compilable by Semgrep's PCRE2 regex engine."""
+    assert not _PCRE2_LARGE_BOUNDED_SCAN.search(_rule()["pattern"].pattern)
 
 
 def test_rule_ignores_reviewed_linear_scanner_fix() -> None:
