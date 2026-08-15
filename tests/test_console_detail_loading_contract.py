@@ -37,3 +37,13 @@ def test_console_detail_scrolling_respects_reduced_motion():
     assert "element.scrollIntoView();" in html
     assert 'element.scrollIntoView({behavior:"smooth"});' in html
     assert html.count("scrollDetailIntoView(d);") == 2
+
+
+def test_console_detail_close_control_is_wired_and_focused_on_every_result():
+    """Success and error details must expose the same operable close affordance."""
+    html = _console_html()
+
+    assert html.count('title="Close (Esc)"') == 2
+    assert html.count('d.querySelector(".close-btn").addEventListener("click",closeDetail);') == 2
+    assert html.count('d.querySelector(".close-btn").focus({preventScroll:true});') == 2
+    assert "d.focus({preventScroll:true});" not in html
