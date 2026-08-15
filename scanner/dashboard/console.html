@@ -6,8 +6,8 @@
 <title>AppGuardrail Console</title>
 <!--
   Org console for the AppGuardrail control plane (`appguardrail serve`).
-  Paste an org API key, then it calls GET /api/v1/scans (same origin) to show
-  scan history, the deploy-blocking trend, and per-scan detail.
+  Paste a dedicated viewer API key, then it calls GET /api/v1/scans (same origin)
+  to show scan history, the deploy-blocking trend, and per-scan detail.
   ponytail: no framework, no build step. Consumes the API in controlplane.py.
 -->
 <style>
@@ -56,12 +56,12 @@
   <h1>AppGuardrail Console</h1>
   <span class="muted" id="conn" role="status" aria-live="polite" aria-atomic="true"></span>
   <span style="flex:1"></span>
-  <input id="key" type="password" placeholder="Org API key (agk_…)" autocomplete="off" aria-label="Organization API key">
+  <input id="key" type="password" placeholder="Viewer API key (agk_…)" autocomplete="off" aria-label="Viewer API key">
   <button id="connect">Connect</button>
   <button id="logout" class="ghost hidden">Sign out</button>
 </header>
 <main>
-  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste your org API key and connect to view scan history.</div>
+  <div id="msg" class="card muted" role="alert" aria-live="polite">Paste a dedicated viewer API key and connect to view scan history.</div>
   <div id="app" class="hidden">
     <div class="stats" id="stats"></div>
     <div class="card">
@@ -79,7 +79,9 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
-let KEY=sessionStorage.getItem("ag_key")||"";
+let KEY="";
+sessionStorage.removeItem("ag_key");
+sessionStorage.removeItem("ag_viewer_key");
 let currentDetailRequest=0;
 let lastDetailFocus=null;
 
@@ -104,6 +106,11 @@ async function api(path){
   if(r.status===401)throw new Error("Invalid API key.");
   if(!r.ok)throw new Error("Request failed ("+r.status+").");
   return r.json();
+}
+async function requireViewerKey(){
+  const r=await fetch("/api/v1/scans",{method:"POST",headers:{Authorization:"Bearer "+KEY}});
+  if(r.status===401)throw new Error("Invalid API key.");
+  if(r.status!==403)throw new Error("Use a dedicated viewer API key.");
 }
 function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
 function scrollDetailIntoView(element){
@@ -133,7 +140,7 @@ async function load(){
     $("#trend").innerHTML=ord.map(s=>{const h=Math.round(6+((s.deploy_blocking||0)/max)*54);
       const col=(s.deploy_blocking||0)>0?"var(--crit)":"var(--ok)";
       return `<div class="bar" tabindex="0" role="img" aria-label="${esc(s.created_at)}: ${esc(String(s.deploy_blocking||0))} blocking" title="${esc(s.created_at)}: ${esc(String(s.deploy_blocking||0))} blocking" style="height:${h}px;background:${col}"></div>`;}).join("")||'<span class="muted">No scans yet.</span>';
-    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${s.id}" tabindex="0" role="button" title="View scan details">
+    $("#history tbody").innerHTML=scans.map(s=>`<tr class="scan" data-id="${esc(s.id)}" tabindex="0" role="button" title="View scan details">
       <td>${esc(s.created_at)}</td><td>${esc(s.repo||"—")}</td><td><code>${esc((s.commit||"—").slice(0,10))}</code></td>
       <td>${s.total}</td><td>${pill(s.deploy_blocking,"var(--crit)")}</td><td>${pill(s.new_blocking,"var(--high)")}</td></tr>`).join("")||'<tr><td colspan="6" class="muted">No scans. POST to /api/v1/scans from CI.</td></tr>';
     document.querySelectorAll("tr.scan").forEach(tr=>{
@@ -165,13 +172,13 @@ async function detail(id,tr){
       <tbody>${rows||'<tr><td colspan="4" class="muted">No findings.</td></tr>'}</tbody></table>`;
     d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.focus({preventScroll:true});
+    d.querySelector(".close-btn").focus({preventScroll:true});
   }catch(e){
     if(requestId!==currentDetailRequest)return;
     d.innerHTML='<button type="button" class="close-btn" aria-label="Close details" title="Close (Esc)">✕</button><div role="alert" class="err">Error loading details: '+esc(e.message)+'</div>';
     d.querySelector(".close-btn").addEventListener("click",closeDetail);
     scrollDetailIntoView(d);
-    d.focus({preventScroll:true});
+    d.querySelector(".close-btn").focus({preventScroll:true});
   }finally{
     if(tr&&tr.dataset.detailRequest===String(requestId)){
       tr.removeAttribute("aria-busy");
@@ -179,10 +186,31 @@ async function detail(id,tr){
     }
   }
 }
-$("#connect").onclick=async()=>{KEY=$("#key").value.trim();if(!KEY)return;sessionStorage.setItem("ag_key",KEY);$("#key").value="";$("#connect").disabled=true;$("#connect").setAttribute("aria-busy","true");$("#connect").textContent="Connecting...";await load();$("#connect").disabled=false;$("#connect").removeAttribute("aria-busy");$("#connect").textContent="Connect";};
+$("#connect").onclick=async()=>{
+  KEY=$("#key").value.trim();
+  if(!KEY)return;
+  $("#key").value="";
+  $("#connect").disabled=true;
+  $("#connect").setAttribute("aria-busy","true");
+  $("#connect").textContent="Connecting...";
+  try{
+    await requireViewerKey();
+    await load();
+  }catch(e){
+    KEY="";
+    $("#conn").textContent="";
+    $("#msg").classList.remove("hidden");
+    $("#app").classList.add("hidden");
+    $("#logout").classList.add("hidden");
+    $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`;
+  }finally{
+    $("#connect").disabled=false;
+    $("#connect").removeAttribute("aria-busy");
+    $("#connect").textContent="Connect";
+  }
+};
 $("#key").addEventListener("keydown",e=>{if(e.key==="Enter")$("#connect").click();});
-$("#logout").onclick=()=>{sessionStorage.removeItem("ag_key");location.reload();};
-if(KEY)load();
+$("#logout").onclick=()=>{KEY="";sessionStorage.removeItem("ag_key");sessionStorage.removeItem("ag_viewer_key");location.reload();};
 </script>
 </body>
 </html>

@@ -37,3 +37,21 @@ def test_console_detail_scrolling_respects_reduced_motion():
     assert "element.scrollIntoView();" in html
     assert 'element.scrollIntoView({behavior:"smooth"});' in html
     assert html.count("scrollDetailIntoView(d);") == 2
+
+
+def test_console_detail_close_control_is_wired_and_focused_on_every_result():
+    """Success and error details must expose the same operable close affordance."""
+    html = _console_html()
+    detail_flow = html.split("async function detail(id,tr){", 1)[1].split(
+        '$("#connect").onclick=', 1
+    )[0]
+    result_flow = detail_flow.split("try{", 1)[1]
+    success_path, remainder = result_flow.split("}catch(e){", 1)
+    error_path = remainder.split("}finally{", 1)[0]
+
+    for path in (success_path, error_path):
+        assert 'title="Close (Esc)"' in path
+        assert 'd.querySelector(".close-btn").addEventListener("click",closeDetail);' in path
+        assert 'd.querySelector(".close-btn").focus({preventScroll:true});' in path
+
+    assert "d.focus({preventScroll:true});" not in detail_flow
