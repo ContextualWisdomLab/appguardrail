@@ -398,7 +398,6 @@ def _validate_repository(repository: Any) -> str:
         raise EvidenceValidationError("repository contains an invalid path segment")
     return repository
 
-
 def _positive_identifier(value: Any, label: str) -> int:
     """Validate and return a positive bounded integer identifier."""
     if isinstance(value, bool) or not isinstance(value, (int, str)):
@@ -458,11 +457,11 @@ def _format_timestamp(value: datetime) -> str:
 
 
 def _normalize_steps(value: Any) -> list[dict[str, Any]]:
-    """Validate, sort, and normalize bounded terminal GitHub job steps."""
-    if value is None:
-        return []
+    """Validate, sort, and normalize non-empty terminal GitHub job steps."""
     if not isinstance(value, list):
-        raise EvidenceValidationError("job steps must be a list")
+        raise EvidenceValidationError("job steps must be a non-empty list")
+    if not value:
+        raise EvidenceValidationError("job steps must contain at least one completed step")
     normalized: list[dict[str, Any]] = []
     seen_numbers: set[int] = set()
     for raw_step in value:
