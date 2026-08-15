@@ -244,12 +244,21 @@ def test_verify_additional_fail_closed_edges():
     empty_optional = gae.verify_actions_job(
         REPOSITORY,
         run_payload(head_branch=None, pull_requests=None),
-        job_payload(workflow_name=None, steps=None),
+        job_payload(workflow_name=None),
         observed_at=OBSERVED_AT,
         max_age=timedelta(hours=48),
     )
     assert empty_optional.branch_name == ""
-    assert empty_optional.failed_step_numbers == ()
+    assert empty_optional.failed_step_numbers == (19,)
+
+    with pytest.raises(gae.EvidenceValidationError, match="steps"):
+        gae.verify_actions_job(
+            REPOSITORY,
+            run_payload(),
+            job_payload(steps=None),
+            observed_at=OBSERVED_AT,
+            max_age=timedelta(hours=48),
+        )
 
     duplicate_prs = verify(
         run=run_payload(
@@ -293,6 +302,8 @@ def test_scalar_and_collection_validation_edges():
     assert gae._format_timestamp(OBSERVED_AT) == "2026-08-03T00:00:00Z"
 
     invalid_steps = (
+        None,
+        [],
         "not-a-list",
         [1],
         [
@@ -323,7 +334,6 @@ def test_scalar_and_collection_validation_edges():
             gae.EvidenceValidationError, match="steps|step|conclusion"
         ):
             gae._normalize_steps(steps)
-    assert gae._normalize_steps(None) == []
     sorted_steps = gae._normalize_steps(
         [
             {
