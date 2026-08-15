@@ -6,6 +6,12 @@ from pathlib import Path
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 _RULE_ID = "javascript-auth-scrypt-unvalidated-password-type"
+_RULE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "scanner"
+    / "rules"
+    / "javascript_scrypt_password_type.yml"
+)
 _SOURCE_REPOSITORY = "ContextualWisdomLab/scopeweave"
 _VULNERABLE_HEAD_SHA = "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
 _VULNERABLE_BLOB_SHA = "3d0b171fb2d5049f010c405f051409a849840b26"
@@ -72,6 +78,16 @@ def test_source_provenance_is_exact_and_immutable() -> None:
     assert _FIXED_HEAD_SHA == "644e9fc5cb3adfb96e2948152f92c61f8661e6d3"
     assert _git_blob_sha(_VULNERABLE_FIXTURE) == _VULNERABLE_BLOB_SHA
     assert _git_blob_sha(_FIXED_FIXTURE) == _FIXED_BLOB_SHA
+
+
+def test_rule_file_declares_non_executable_detection_data_boundary() -> None:
+    """Keep model-backed checks from mistaking detector signatures for runtime code."""
+    source = _RULE_PATH.read_text(encoding="utf-8")
+    assert "# AppGuardrail detector artifact: non-executable SAST signature data." in source
+    assert (
+        "# Vulnerable source shapes below describe detection targets, not AppGuardrail runtime code."
+        in source
+    )
 
 
 def test_packaged_variants_detect_both_scopeweave_password_scrypt_sinks() -> None:
