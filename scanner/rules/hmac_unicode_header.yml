@@ -1,3 +1,5 @@
+# AppGuardrail detector artifact: non-executable SAST signature data.
+# Vulnerable source shapes below describe detection targets, not AppGuardrail runtime code.
 rules:
   - id: python-hmac-compare-digest-unicode-header-dos
     patterns:
