@@ -1,64 +1,90 @@
-# Source replays are inert test data, not importable Python modules.
-# Keeping deliberately vulnerable examples outside *.py prevents repository-level
-# security scanners from mistaking regression corpus text for shipped source.
+# Exact source slices are inert test data, not importable Python modules.
+# Each source-shaped value below is copied from the named immutable fast-mlsirm
+# Git blob and is bound by a fixed SHA-256 assertion in the regression test.
 
-vulnerable = '''
-import json
-import subprocess
-from pathlib import Path
-
-def _read_json(path: Path) -> dict[str, object]:
+vulnerable_json = '''
+def _read_json(path: Path) -> dict[str, Any]:
     with path.open(encoding="utf-8") as fh:
         payload = json.load(fh)
     if not isinstance(payload, dict):
-        raise RuntimeError("JSON artifact must be an object")
+        raise RuntimeError(f"JSON artifact must be an object: {path}")
     return payload
+'''
 
-
-def _source_commit(repo_root: Path) -> str:
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return completed.stdout.strip()
-
-
-def _run_gh_snapshot(repo: str) -> dict[str, object]:
-    repo_command = ["gh", "repo", "view", repo, "--json", "nameWithOwner"]
-    prs_command = ["gh", "pr", "list", "--repo", repo, "--json", "number,title"]
+vulnerable_subprocess = '''
+def _run_gh_snapshot(repo: str) -> dict[str, Any]:
+    repo_command = [
+        "gh",
+        "repo",
+        "view",
+        repo,
+        "--json",
+        "nameWithOwner,defaultBranchRef,visibility,isArchived,pushedAt,updatedAt,url",
+    ]
+    prs_command = [
+        "gh",
+        "pr",
+        "list",
+        "--repo",
+        repo,
+        "--state",
+        "open",
+        "--limit",
+        "100",
+        "--json",
+        "number,title,headRefName,baseRefName,isDraft,mergeStateStatus,reviewDecision,updatedAt,url",
+    ]
     repo_result = subprocess.run(repo_command, capture_output=True, text=True)
     prs_result = subprocess.run(prs_command, capture_output=True, text=True)
-    return {"repo": repo_result.stdout, "prs": prs_result.stdout}
 '''
 
-safe_json = '''
-from fast_mlsirm.io import read_json_object
-from pathlib import Path
-
-def _read_json(path: Path) -> dict[str, object]:
-    return read_json_object(path)
-'''
-
-unsafe_stat_then_open = '''
-import json
-from pathlib import Path
-
-def _read_json(path: Path) -> dict[str, object]:
+partial_json = '''
+def _read_json(path: Path) -> dict[str, Any]:
     if path.stat().st_size > 32 * 1024 * 1024:
-        raise ValueError("too large")
+        raise ValueError(f"JSON artifact exceeds the 32MB limit: {path}")
     with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+        payload = json.load(fh)
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"JSON artifact must be an object: {path}")
+    return payload
 '''
 
-safe_subprocess = '''
-import subprocess
+partial_subprocess = '''
+def _run_gh_snapshot(repo: str) -> dict[str, Any]:
+    repo_command = [
+        "gh",
+        "repo",
+        "view",
+        repo,
+        "--json",
+        "nameWithOwner,defaultBranchRef,visibility,isArchived,pushedAt,updatedAt,url",
+    ]
+    prs_command = [
+        "gh",
+        "pr",
+        "list",
+        "--repo",
+        repo,
+        "--state",
+        "open",
+        "--limit",
+        "100",
+        "--json",
+        "number,title,headRefName,baseRefName,isDraft,mergeStateStatus,reviewDecision,updatedAt,url",
+    ]
+    try:
+        repo_result = subprocess.run(
+            repo_command, capture_output=True, text=True, timeout=60
+        )
+        prs_result = subprocess.run(
+            prs_command, capture_output=True, text=True, timeout=60
+        )
+'''
 
-def _run_gh_snapshot(repo: str):
-    command = ["gh", "pr", "list", "--repo", repo]
-    return subprocess.run(command, capture_output=True, text=True, timeout=60)
+protected_json = '''
+def _read_json(path: Path) -> dict[str, Any]:
+    """Read one descriptor-safe bounded JSON object from disk."""
+    return read_json_object(path)
 '''
 
 non_governance = '''

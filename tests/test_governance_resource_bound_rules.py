@@ -1,5 +1,6 @@
 """Source-derived regressions for bounded governance JSON and subprocess execution."""
 
+import hashlib
 from pathlib import Path
 import tomllib
 
@@ -13,23 +14,39 @@ _VULNERABLE_BLOB_SHA = "3dab225870e5fce806047a622a605b6c451bce59"
 _PARTIAL_FIXED_HEAD_SHA = "c9456a0c29c5b0c37cb11867c1a8e605738db40c"
 _PARTIAL_FIXED_BLOB_SHA = "b016f8c698189d580634b81a1508f567379dcbfc"
 _PROTECTED_FIXED_BLOB_SHA = "65b8b3b9e1a5c8d68987261987b9e20660e2d1ab"
+_SOURCE_SLICE_SHA256 = {
+    "vulnerable_json": "4826b68fc064627877e2d56cd516f4cd7f4649befc11ee8331aaa409749bccde",
+    "vulnerable_subprocess": "9c45a14c6eceef8c87b4e0ceb78e2eaaad49e420a6814c4add7bcc2eb46c7288",
+    "partial_json": "df4e1f5206549c7c9cc2fd629d7cf669d17108fa4370fda8199c84bb138e11aa",
+    "partial_subprocess": "48462fb8b85e3dc93733aed45a50cfe3bd479eb2cf5bafc3440583cd839fb373",
+    "protected_json": "642bd066ea1ea2778a2f9a4ca193f9eb275d6ac605e50f87d4e84dc8da6711de",
+}
 _FIXTURE_PATH = Path(__file__).parent / "fixtures" / "governance_resource_bound_sources.toml"
 
 
 def _load_source_fixtures() -> dict[str, str]:
-    """Load deliberately vulnerable and safe source replays as inert test data."""
+    """Load exact pinned-source slices and bounded negative fixtures as inert data."""
     with _FIXTURE_PATH.open("rb") as fixture_file:
         fixtures = tomllib.load(fixture_file)
     assert all(isinstance(source, str) for source in fixtures.values())
     return fixtures
 
 
+def _sha256_text(source: str) -> str:
+    """Return the SHA-256 digest of one UTF-8 source fixture."""
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
 _SOURCE_FIXTURES = _load_source_fixtures()
-_VULNERABLE_SOURCE = _SOURCE_FIXTURES["vulnerable"]
-_SAFE_JSON_SOURCE = _SOURCE_FIXTURES["safe_json"]
-_UNSAFE_STAT_THEN_OPEN_SOURCE = _SOURCE_FIXTURES["unsafe_stat_then_open"]
-_SAFE_SUBPROCESS_SOURCE = _SOURCE_FIXTURES["safe_subprocess"]
+_VULNERABLE_JSON_SOURCE = _SOURCE_FIXTURES["vulnerable_json"]
+_VULNERABLE_SUBPROCESS_SOURCE = _SOURCE_FIXTURES["vulnerable_subprocess"]
+_PARTIAL_JSON_SOURCE = _SOURCE_FIXTURES["partial_json"]
+_PARTIAL_SUBPROCESS_SOURCE = _SOURCE_FIXTURES["partial_subprocess"]
+_PROTECTED_JSON_SOURCE = _SOURCE_FIXTURES["protected_json"]
 _NON_GOVERNANCE_SOURCE = _SOURCE_FIXTURES["non_governance"]
+_VULNERABLE_SOURCE = (
+    f"{_VULNERABLE_JSON_SOURCE}\n{_VULNERABLE_SUBPROCESS_SOURCE}"
+)
 
 
 def _rule(rule_id: str) -> dict:
@@ -60,41 +77,51 @@ def test_source_provenance_records_fast_mlsirm_revisions() -> None:
     assert _PROTECTED_FIXED_BLOB_SHA == "65b8b3b9e1a5c8d68987261987b9e20660e2d1ab"
 
 
+def test_replay_slices_match_pinned_source_digests() -> None:
+    """Fail when detector input drifts away from reviewed immutable source slices."""
+    assert {
+        name: _sha256_text(_SOURCE_FIXTURES[name])
+        for name in _SOURCE_SLICE_SHA256
+    } == _SOURCE_SLICE_SHA256
+
+
 def test_regression_corpus_is_non_executable_fixture_data() -> None:
     """Keep vulnerable replay text out of importable Python source scanned as product code."""
     assert _FIXTURE_PATH.suffix == ".toml"
     assert _FIXTURE_PATH.parent.name == "fixtures"
-    assert "def _read_json" in _VULNERABLE_SOURCE
-    assert "subprocess.run" in _VULNERABLE_SOURCE
+    assert "def _read_json" in _VULNERABLE_JSON_SOURCE
+    assert "subprocess.run" in _VULNERABLE_SUBPROCESS_SOURCE
 
 
 def test_json_rule_detects_direct_governance_json_load() -> None:
-    """Detect unbounded `json.load` in the source-derived governance reader."""
+    """Detect unbounded `json.load` in the exact pinned governance reader slice."""
     rule = _rule(_JSON_RULE_ID)
     assert rule["severity"] == "MEDIUM"
-    assert rule["pattern"].search(_VULNERABLE_SOURCE)
+    assert rule["pattern"].search(_VULNERABLE_JSON_SOURCE)
 
 
 def test_json_rule_ignores_descriptor_safe_bounded_loader() -> None:
-    """Keep the protected `read_json_object` repair negative."""
-    assert not _rule(_JSON_RULE_ID)["pattern"].search(_SAFE_JSON_SOURCE)
+    """Keep the protected `read_json_object` source slice negative."""
+    assert not _rule(_JSON_RULE_ID)["pattern"].search(_PROTECTED_JSON_SOURCE)
 
 
 def test_json_rule_keeps_stat_then_open_race_in_scope() -> None:
     """Do not accept path-stat then reopen as a descriptor-safe size boundary."""
-    assert _rule(_JSON_RULE_ID)["pattern"].search(_UNSAFE_STAT_THEN_OPEN_SOURCE)
+    assert _rule(_JSON_RULE_ID)["pattern"].search(_PARTIAL_JSON_SOURCE)
 
 
 def test_subprocess_rule_detects_gh_commands_without_timeout() -> None:
-    """Detect governance GitHub CLI subprocesses that can wait indefinitely."""
+    """Detect exact pinned GitHub CLI subprocess source without a timeout."""
     rule = _rule(_SUBPROCESS_RULE_ID)
     assert rule["severity"] == "MEDIUM"
-    assert rule["pattern"].search(_VULNERABLE_SOURCE)
+    assert rule["pattern"].search(_VULNERABLE_SUBPROCESS_SOURCE)
 
 
 def test_subprocess_rule_ignores_explicit_timeout() -> None:
-    """Keep the directionally correct timeout repair negative."""
-    assert not _rule(_SUBPROCESS_RULE_ID)["pattern"].search(_SAFE_SUBPROCESS_SOURCE)
+    """Keep the exact partial-fix timeout source slice negative."""
+    assert not _rule(_SUBPROCESS_RULE_ID)["pattern"].search(
+        _PARTIAL_SUBPROCESS_SOURCE
+    )
 
 
 def test_subprocess_rule_ignores_non_governance_command() -> None:
@@ -117,7 +144,7 @@ def test_packaged_rules_use_parser_safe_prefilters() -> None:
 
 
 def test_production_scanner_emits_both_resource_bound_findings(tmp_path: Path) -> None:
-    """Exercise both source-derived weaknesses through the exact scanner entrypoint."""
+    """Exercise both pinned weakness slices through the exact scanner entrypoint."""
     findings = _scan(_VULNERABLE_SOURCE, tmp_path)
     assert {finding["rule_id"] for finding in findings} == {
         _JSON_RULE_ID,

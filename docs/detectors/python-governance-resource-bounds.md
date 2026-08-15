@@ -14,6 +14,8 @@ The failed Strix job in AppGuardrail issue #791 is provenance only. Detector eff
 - partial repair blob: `b016f8c698189d580634b81a1508f567379dcbfc`;
 - current protected `main` governance-script blob: `65b8b3b9e1a5c8d68987261987b9e20660e2d1ab`.
 
+The regression corpus stores the detector-relevant function slices copied from those immutable blobs as inert TOML data. Fixed SHA-256 assertions bind every vulnerable, partial-fix, and protected-fix slice before the production rule or scanner entrypoint is exercised. A future fixture edit therefore fails instead of silently changing the source oracle while leaving only the Git object identifiers unchanged.
+
 PR #388 was closed after review because its `path.stat()` then `path.open()` size check was vulnerable to replacement between check and use. Its subprocess timeout additions were explicitly described as directionally correct. Current protected main uses the repository's descriptor-safe `read_json_object` for offline snapshots and bounds the Git metadata child process. The current GitHub-CLI helper has evolved independently, so this detector slice is deliberately source-shaped and does not claim that every current subprocess path is already bounded.
 
 ## Detector A — direct governance `json.load`
