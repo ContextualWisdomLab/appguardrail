@@ -424,3 +424,126 @@ def test_all_production_functions_are_documented() -> None:
     functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
     assert functions
     assert all(ast.get_docstring(node) for node in functions)
+
+
+def test_low_level_malformed_edges_are_fail_closed() -> None:
+    """Malformed byte types and non-object JSON cannot bypass assurance checks."""
+    findings = _findings_bytes()
+    evidence = _evidence_bytes(findings)
+
+    wrong_bytes = assess_scan_artifacts(
+        "not-bytes",  # type: ignore[arg-type]
+        evidence,
+        expected_repository=REPOSITORY,
+        expected_commit=COMMIT,
+        now=NOW,
+    )
+    evidence_array = _assess(findings, b"[]")
+
+    assert wrong_bytes["scan_outcome_code"] == "untrusted"
+    assert "findings_bytes_invalid" in wrong_bytes["reasons"]
+    assert evidence_array["scan_outcome_code"] == "untrusted"
+    assert "evidence_json_invalid" in evidence_array["reasons"]
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("repository", ""),
+        ("commit", "short"),
+        ("execution", "mystery"),
+        ("completed_detectors", "builtin"),
+        ("configured_detectors", [""]),
+        ("external_engines", []),
+        ("scope", []),
+        ("gate", []),
+        ("findings_sha256", "ABC"),
+        ("generated_at", ""),
+    ],
+)
+def test_structural_evidence_defects_are_untrusted(key: str, value) -> None:
+    """Every malformed evidence field fails closed before outcome qualification."""
+    findings = _findings_bytes()
+    evidence = json.loads(_evidence_bytes(findings))
+    evidence[key] = value
+    result = _assess(
+        findings,
+        (json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n").encode(),
+    )
+
+    assert result["scan_outcome_code"] == "untrusted"
+    assert result["reasons"]
+
+
+def test_naive_time_and_invalid_expected_commit_are_rejected() -> None:
+    """Caller trust anchors require an exact SHA and timezone-aware evaluation time."""
+    findings = _findings_bytes()
+    evidence = _evidence_bytes(findings)
+
+    with pytest.raises(ValueError):
+        assess_scan_artifacts(
+            findings,
+            evidence,
+            expected_repository=REPOSITORY,
+            expected_commit="short",
+            now=NOW,
+        )
+
+    with pytest.raises(ValueError):
+        assess_scan_artifacts(
+            findings,
+            evidence,
+            expected_repository=REPOSITORY,
+            expected_commit=COMMIT,
+            now=datetime(2026, 8, 16),
+        )
+
+
+def test_naive_generated_time_and_incomplete_execution_never_clean() -> None:
+    """Naive timestamps are untrusted and explicit incomplete execution stays incomplete."""
+    findings = _findings_bytes()
+
+    naive = _assess(
+        findings,
+        _evidence_bytes(findings, generated_at="2026-08-15T23:55:00"),
+    )
+    incomplete = _assess(
+        findings,
+        _evidence_bytes(findings, execution="incomplete"),
+    )
+
+    assert naive["scan_outcome_code"] == "untrusted"
+    assert "generated_at_invalid" in naive["reasons"]
+    assert incomplete["scan_outcome_code"] == "incomplete"
+    assert "scan_execution_incomplete" in incomplete["reasons"]
+
+
+def test_cli_invalid_now_fails_closed_without_output(tmp_path: Path) -> None:
+    """Invalid CLI evaluation time returns non-passing status and no stale output."""
+    findings_path = tmp_path / "findings.json"
+    evidence_path = tmp_path / "evidence.json"
+    output_path = tmp_path / "assurance.json"
+    findings = _findings_bytes()
+    findings_path.write_bytes(findings)
+    evidence_path.write_bytes(_evidence_bytes(findings))
+    output_path.write_text('{"scan_outcome_code":"clean"}', encoding="utf-8")
+
+    exit_code = main(
+        [
+            "--findings",
+            str(findings_path),
+            "--evidence",
+            str(evidence_path),
+            "--out",
+            str(output_path),
+            "--repository",
+            REPOSITORY,
+            "--commit",
+            COMMIT,
+            "--now",
+            "not-a-time",
+        ]
+    )
+
+    assert exit_code == 2
+    assert not output_path.exists()
