@@ -8,5 +8,5 @@
 
 ## Security
 
-- GitHub API acquisition is fixed to `https://api.github.com`, rejects redirects, caps responses at 2 MiB, emits sanitized errors, and excludes bearer tokens and raw logs from portable evidence.
+- GitHub API acquisition is fixed to `https://api.github.com`, rejects redirects, caps responses at 2 MiB, rejects HTTP control characters in bearer credentials before header construction, emits sanitized errors, and excludes bearer tokens and raw logs from portable evidence.
 - Invalid or unavailable evidence returns an explicit inconclusive exit path instead of being interpreted as success.
