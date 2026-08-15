@@ -578,7 +578,8 @@ def _request_json(
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(normalized_url, headers=headers, method="GET")
+    # _normalize_api_url pins HTTPS, api.github.com, and the requested repository scope.
+    request = urllib.request.Request(normalized_url, headers=headers, method="GET")  # noqa: S310
     try:
         with opener.open(request, timeout=timeout) as response:
             if not _is_json_media_type(response.headers.get("Content-Type")):
@@ -657,6 +658,9 @@ def collect_workflow_inventory(
     if opener is None:
         opener = urllib.request.build_opener(NoRedirect())
     base_url = f"{API_ORIGIN}/repos/{repository}"
+    default_branch = ""
+    default_branch_sha = ""
+    tree_sha = ""
     try:
         repository_payload, _ = _request_json(
             base_url,
@@ -665,12 +669,12 @@ def collect_workflow_inventory(
             token=token,
             timeout=timeout,
         )
-        default_branch = (
+        default_branch_value = (
             repository_payload.get("default_branch")
             if isinstance(repository_payload, dict)
             else None
         )
-        if not isinstance(default_branch, str) or not default_branch:
+        if not isinstance(default_branch_value, str) or not default_branch_value:
             return build_workflow_inventory(
                 repository=repository,
                 verified_at=verified_at,
@@ -679,6 +683,7 @@ def collect_workflow_inventory(
                 tree_payload={},
                 workflow_pages=[],
             )
+        default_branch = default_branch_value
         branch_url = f"{base_url}/branches/{urllib.parse.quote(default_branch, safe='')}"
         branch_payload, _ = _request_json(
             branch_url,
@@ -687,8 +692,19 @@ def collect_workflow_inventory(
             token=token,
             timeout=timeout,
         )
-        tree_sha = _nested_value(branch_payload, "commit", "commit", "tree", "sha")
-        if not _valid_sha(tree_sha):
+        branch_sha = _nested_value(branch_payload, "commit", "sha")
+        tree_sha_value = _nested_value(branch_payload, "commit", "commit", "tree", "sha")
+        branch_identity_valid = (
+            isinstance(branch_payload, dict)
+            and branch_payload.get("name") == default_branch
+            and branch_payload.get("protected") is True
+            and _valid_sha(branch_sha)
+        )
+        if branch_identity_valid:
+            default_branch_sha = str(branch_sha)
+            if _valid_sha(tree_sha_value):
+                tree_sha = str(tree_sha_value)
+        if not _valid_sha(tree_sha_value):
             return build_workflow_inventory(
                 repository=repository,
                 verified_at=verified_at,
@@ -697,7 +713,7 @@ def collect_workflow_inventory(
                 tree_payload={},
                 workflow_pages=[],
             )
-        tree_url = f"{base_url}/git/trees/{tree_sha}?recursive=1"
+        tree_url = f"{base_url}/git/trees/{tree_sha_value}?recursive=1"
         tree_payload, _ = _request_json(
             tree_url,
             repository=repository,
@@ -712,7 +728,14 @@ def collect_workflow_inventory(
             timeout=timeout,
         )
     except EvidenceCollectionError as exc:
-        return _incomplete_inventory(repository, verified_at, str(exc))
+        return _incomplete_inventory(
+            repository,
+            verified_at,
+            str(exc),
+            default_branch=default_branch,
+            default_branch_sha=default_branch_sha,
+            tree_sha=tree_sha,
+        )
     return build_workflow_inventory(
         repository=repository,
         verified_at=verified_at,
