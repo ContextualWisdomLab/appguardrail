@@ -85,6 +85,14 @@ def test_console_close_buttons_explain_the_escape_shortcut():
     assert html.count('aria-label="Close details" title="Close (Esc)"') == 2
 
 
+def test_console_detail_focus_moves_to_close_control():
+    """Success and failure detail views must focus an operable close control."""
+    html = _console_html()
+
+    assert html.count('d.querySelector(".close-btn").focus({preventScroll:true});') == 2
+    assert "d.focus({preventScroll:true});" not in html
+
+
 def test_console_hover_feedback_excludes_disabled_controls():
     """Hover feedback must not imply that a disabled control can be activated."""
     html = _console_html()
