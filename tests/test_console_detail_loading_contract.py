@@ -68,3 +68,26 @@ def test_console_connection_state_is_exception_safe_and_single_flight():
     assert '$("#key").addEventListener("input",syncConnectState);' in html
     assert "if(KEY)load()" not in html
     assert "syncConnectState();" in html
+
+
+def test_console_escapes_scan_identifiers_in_attribute_context():
+    """Untrusted scan identifiers must not break out of the data-id attribute."""
+    html = _console_html()
+
+    assert 'data-id="${esc(s.id)}"' in html
+    assert 'data-id="${s.id}"' not in html
+
+
+def test_console_close_buttons_explain_the_escape_shortcut():
+    """Both success and error close controls must expose their keyboard shortcut."""
+    html = _console_html()
+
+    assert html.count('aria-label="Close details" title="Close (Esc)"') == 2
+
+
+def test_console_hover_feedback_excludes_disabled_controls():
+    """Hover feedback must not imply that a disabled control can be activated."""
+    html = _console_html()
+
+    assert "button:hover:not(:disabled)" in html
+    assert "transition:filter 0.2s, opacity 0.2s" in html
