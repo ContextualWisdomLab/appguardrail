@@ -148,7 +148,7 @@ git commit -m "feat(actions): add evidence acquisition CLI"
 
 **Files:**
 - Create: `docs/github-actions-source-evidence.md`
-- Create: `docs/adr/0013-source-authoritative-actions-evidence.md`
+- Create: `docs/adr/0007-source-authoritative-actions-evidence.md`
 - Create: `CHANGELOG.d/938-source-authoritative-actions-evidence.md`
 - Modify: `ARCHITECTURE.md`
 - Modify: `docs/TEST_STRATEGY.md`
@@ -190,7 +190,7 @@ git commit -m "docs(actions): trace source-authoritative evidence slice"
 
 **Files:**
 - Modify only if required: `.github/workflows/tests.yml`
-- Verify: all files changed in Tasks 1-4.
+- Verify: `.github/workflows/github-actions-evidence-coverage.yml` and all files changed in Tasks 1-4.
 
 **Interfaces:**
 - Produces: exact-head CI evidence and a reviewable PR linked to issue #938.
@@ -213,7 +213,7 @@ Run: `pytest -q`
 
 Run: `python -m build`
 
-Expected: all commands succeed without warnings.
+Expected: all commands succeed without warnings, and the dedicated `GitHub Actions Evidence Coverage` workflow is required on the exact PR head.
 
 - [ ] **Step 3: Open a bounded PR**
 
