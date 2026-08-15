@@ -29,5 +29,7 @@ def test_detail_panel_close_invalidates_async_work_and_restores_focus() -> None:
     assert 'e.key==="Escape"' in html
     assert html.count('class="close-btn" aria-label="Close details"') == 2
     assert html.count('d.querySelector(".close-btn").addEventListener("click",closeDetail);') == 2
-    assert html.count("d.focus({preventScroll:true});") == 2
+    assert html.count(
+        'd.querySelector(".close-btn").focus({preventScroll:true});'
+    ) == 2
     assert 'aria-label="${esc(s.created_at)}: ${esc(String(s.deploy_blocking||0))} blocking"' in html
