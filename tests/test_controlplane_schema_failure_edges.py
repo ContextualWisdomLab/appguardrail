@@ -216,6 +216,7 @@ def test_conflicting_migration_marker_fails_closed(
     with pytest.raises(SchemaMigrationError, match="conflicting schema migration metadata"):
         migrate_controlplane_schema(connection)
 
+    assert connection.in_transaction is False
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 1
     marker = connection.execute(
         "SELECT schema_version, migration_name FROM schema_migrations"
