@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-15
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| tenant-scoped Spring admin authorization context continuity | built-in `java-spring-admin-discarded-tenant-context` rule + source-backed fixture replay | PR #963 active-PR; issue #550 is collector provenance only; exact vulnerable/fixed source blobs pinned |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,12 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Tenant authorization traceability contract
+
+PR #963 traces AppGuardrail issue #550 separately from source proof. The collector event points to Clearfolio PR #240 at `0eb7fa9cfc56062983f5337228ca3a7317cf17a8`; the positive source fixture is exact Git blob `5086b1d3797a9c32831900d09d93d8df44c5e13a`. Clearfolio PR #240 names #172 as superseding; the reviewed negative oracle is `f4ae8dd695afe1dd41decbc7e6b2a11d0ee5e461`, exact Git blob `872f0a66ea6dc8da95f8327e3d4cf40d3c08689f`, and remains unmerged. Promotion therefore requires AppGuardrail PR #963 source/tests to merge under fresh protected-head evidence; neither the failed collector workflow nor the unmerged Clearfolio fixed candidate can independently promote detector maturity.
+
+The executable evidence path is `scanner/rules/java_tenant_authorization.yml` plus `tests/test_java_spring_tenant_authz_scope_rules.py` and `tests/test_java_spring_tenant_authz_source_fixtures.py`; detector doctoring and bounded remediation guidance live in `docs/detectors/java-spring-tenant-authorization-scope.md`.
 
 ## Standards/research
 
