@@ -1,4 +1,9 @@
-"""Normalized finding contract shared across AppGuardrail surfaces."""
+"""Normalized finding contract shared across AppGuardrail surfaces.
+
+Severity handling is deliberately fail-closed: malformed, missing, or unknown
+severity evidence is classified as ``CRITICAL`` until an adapter maps it into
+the canonical AppGuardrail severity vocabulary.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +15,21 @@ NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
 
 _SEVERITY_ORDER = {severity: index for index, severity in enumerate(SEVERITIES)}
 _SEV_SET = frozenset(SEVERITIES)
+_FAIL_CLOSED_SEVERITY = "CRITICAL"
+
+
+def _normalize_severity(value: Any) -> str:
+    """Return a canonical severity, failing closed on ambiguous evidence."""
+    if type(value) is str:
+        candidate = value.upper()
+    else:
+        try:
+            candidate = str(value or "").upper()
+        except Exception:
+            return _FAIL_CLOSED_SEVERITY
+    if candidate not in _SEV_SET:
+        return _FAIL_CLOSED_SEVERITY
+    return candidate
 
 
 def normalize_finding(
@@ -20,12 +40,7 @@ def normalize_finding(
     """Return a normalized, report-safe AppGuardrail finding dictionary."""
     normalized = dict(finding)
 
-    sev = normalized.get("severity")
-    if type(sev) is not str or sev not in _SEV_SET:
-        try:
-            normalized["severity"] = str(sev or "INFO").upper()
-        except Exception:
-            normalized["severity"] = "INFO"
+    normalized["severity"] = _normalize_severity(normalized.get("severity"))
 
     rule = normalized.get("rule_id")
     if type(rule) is not str or not rule:
@@ -113,18 +128,10 @@ def normalize_findings(
 
 
 def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
-    """Count normalized severities, folding unknown values into INFO."""
+    """Count severities, folding malformed or unknown values into CRITICAL."""
     counts = {severity: 0 for severity in SEVERITIES}
     for finding in findings:
-        sev = finding.get("severity")
-        if type(sev) is not str or sev not in _SEVERITY_ORDER:
-            try:
-                sev = str(sev or "INFO").upper()
-            except Exception:
-                sev = "INFO"
-            if type(sev) is not str or sev not in _SEVERITY_ORDER:
-                sev = "INFO"
-        counts[sev] += 1
+        counts[_normalize_severity(finding.get("severity"))] += 1
     return counts
 
 
@@ -136,15 +143,11 @@ def is_deploy_blocking(
 
     ``blocking_severities`` overrides the default CRITICAL/HIGH set, letting a
     config raise or lower the gate threshold (see ``severities_at_or_above``).
+    Ambiguous severity evidence is classified as CRITICAL before applying the
+    configured threshold.
     """
     severities = blocking_severities or DEPLOY_BLOCKING_SEVERITIES
-
-    sev = finding.get("severity")
-    if type(sev) is not str or sev not in _SEVERITY_ORDER:
-        try:
-            sev = str(sev or "INFO").upper()
-        except Exception:
-            sev = "INFO"
+    sev = _normalize_severity(finding.get("severity"))
 
     ctx = finding.get("context")
     if type(ctx) is not str or not ctx:
@@ -166,12 +169,7 @@ def severities_at_or_above(min_severity: str) -> set[str]:
 
 def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
     """Sort by deploy-oriented severity, then category and rule id."""
-    sev = finding.get("severity")
-    if type(sev) is not str or sev not in _SEVERITY_ORDER:
-        try:
-            sev = str(sev or "INFO").upper()
-        except Exception:
-            sev = "INFO"
+    sev = _normalize_severity(finding.get("severity"))
 
     cat = finding.get("category")
     if type(cat) is not str or not cat:
@@ -188,7 +186,7 @@ def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
             rule = "unknown-rule"
 
     return (
-        _SEVERITY_ORDER.get(sev, len(SEVERITIES)),
+        _SEVERITY_ORDER[sev],
         cat,
         rule,
     )
