@@ -12,6 +12,9 @@ _VULNERABLE_BLOB_SHA = "5086b1d3797a9c32831900d09d93d8df44c5e13a"
 _FIXED_PR = 172
 _FIXED_HEAD_SHA = "f4ae8dd695afe1dd41decbc7e6b2a11d0ee5e461"
 _FIXED_BLOB_SHA = "872f0a66ea6dc8da95f8327e3d4cf40d3c08689f"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_VULNERABLE_FIXTURE = _FIXTURE_DIR / "clearfolio_admin_controller_vulnerable.java"
+_FIXED_FIXTURE = _FIXTURE_DIR / "clearfolio_admin_controller_fixed.java"
 
 _VULNERABLE_LIST_SOURCE = """
 @RestController
@@ -203,6 +206,29 @@ def test_scan_file_emits_normalized_authorization_finding(tmp_path: Path) -> Non
     assert finding["file"] == "AdminController.java"
     assert finding["cwe"] == ("CWE-863 - Incorrect Authorization",)
     assert "Capture the returned TenantContext" in finding["message"]
+
+
+def test_scan_file_replays_pinned_clearfolio_source_fixtures(tmp_path: Path) -> None:
+    """Bind production scanner evidence directly to the immutable source fixtures."""
+    vulnerable_source = _VULNERABLE_FIXTURE.read_text(encoding="utf-8")
+    vulnerable_findings = _scan(vulnerable_source, tmp_path)
+
+    assert len(vulnerable_findings) == 3
+    assert all(finding["severity"] == "HIGH" for finding in vulnerable_findings)
+    assert all(finding["source"] == "appguardrail-rule" for finding in vulnerable_findings)
+    assert all(finding["category"] == "authz" for finding in vulnerable_findings)
+    assert all(finding["confidence"] == "high" for finding in vulnerable_findings)
+    assert all(
+        finding["cwe"] == ("CWE-863 - Incorrect Authorization",)
+        for finding in vulnerable_findings
+    )
+    assert all(
+        "Capture the returned TenantContext" in finding["message"]
+        for finding in vulnerable_findings
+    )
+
+    fixed_source = _FIXED_FIXTURE.read_text(encoding="utf-8")
+    assert _scan(fixed_source, tmp_path) == []
 
 
 def test_scan_file_keeps_reviewed_scope_repairs_clean(tmp_path: Path) -> None:
