@@ -67,6 +67,72 @@ def _workflow(body: str, *, trigger: str = "workflow_call", input_type: str = "s
     return header + textwrap.indent(textwrap.dedent(body).strip(), "        ") + "\n"
 
 
+def _quoted_and_spaced_workflow() -> str:
+    """Use valid YAML quoting and mapping whitespace around every key boundary."""
+    return textwrap.dedent(
+        """
+        name: Quoted workflow keys
+        "on":
+          "workflow_call" :
+            "inputs" :
+              "release_name" :
+                description: Caller-controlled release label
+                required: true
+                "type" : "string"
+        jobs:
+          publish:
+            runs-on: ubuntu-latest
+            steps:
+              - name: Publish
+                "run" : |
+                  printf '%s\\n' "${{ inputs['release_name'] }}"
+        """
+    ).lstrip()
+
+
+def _blank_input_metadata_workflow() -> str:
+    """Place a legal blank line inside the declared string-input mapping."""
+    return textwrap.dedent(
+        """
+        name: Blank input metadata
+        on:
+          workflow_call:
+            inputs:
+              release_name:
+                description: Caller-controlled release label
+
+                type: string
+        jobs:
+          publish:
+            runs-on: ubuntu-latest
+            steps:
+              - run: echo "${{ inputs.release_name }}"
+        """
+    ).lstrip()
+
+
+def _blank_run_block_workflow() -> str:
+    """Place a legal blank line before interpolation in a literal run block."""
+    return textwrap.dedent(
+        """
+        name: Blank run block
+        on:
+          workflow_call:
+            inputs:
+              release_name:
+                type: string
+        jobs:
+          publish:
+            runs-on: ubuntu-latest
+            steps:
+              - run: |
+                  printf '%s\\n' start
+
+                  printf '%s\\n' "${{ inputs.release_name }}"
+        """
+    ).lstrip()
+
+
 def test_source_provenance_is_exact_and_immutable() -> None:
     """Pin the vulnerable and reviewed fixed central-workflow Git objects."""
     assert _SOURCE_REPOSITORY == "ContextualWisdomLab/.github"
@@ -85,13 +151,13 @@ def test_packaged_rule_detects_exact_central_workflow_regression() -> None:
     assert rule["pattern"].search(source)
 
 
-def test_packaged_rule_declares_bounded_workflow_prefilters() -> None:
-    """Skip multiline evaluation outside input-bearing workflow source."""
+def test_packaged_rule_declares_grammar_compatible_prefilters() -> None:
+    """Use lexical hints shared by quoted and whitespace-varied YAML spellings."""
     assert _rule()["required_substrings"] == (
         "workflow_",
         "inputs",
-        "type: string",
-        "run:",
+        "string",
+        "run",
         "${{",
     )
 
@@ -143,6 +209,21 @@ def test_packaged_rule_detects_expression_with_fallback() -> None:
         """
     )
     assert _rule()["pattern"].search(source)
+
+
+def test_scan_file_detects_quoted_and_spaced_yaml_keys(tmp_path: Path) -> None:
+    """Do not let legal YAML key quoting or colon spacing bypass prefilters."""
+    assert len(_scan(_quoted_and_spaced_workflow(), tmp_path)) == 1
+
+
+def test_packaged_rule_detects_blank_input_metadata_lines() -> None:
+    """Allow legal blank lines inside the bounded input metadata mapping."""
+    assert _rule()["pattern"].search(_blank_input_metadata_workflow())
+
+
+def test_packaged_rule_detects_blank_lines_inside_run_blocks() -> None:
+    """Allow legal blank lines before a direct expression in a run block."""
+    assert _rule()["pattern"].search(_blank_run_block_workflow())
 
 
 def test_packaged_rule_ignores_env_indirection() -> None:
