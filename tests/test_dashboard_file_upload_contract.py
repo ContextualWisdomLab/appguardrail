@@ -20,19 +20,19 @@ def test_empty_state_browse_action_uses_an_accessible_event_listener() -> None:
 
 
 def test_header_upload_proxy_is_native_tokenized_and_state_perceivable() -> None:
-    """The header proxy must stay keyboard-native and use reusable visual states."""
+    """The header proxy must keep its visible action text as its accessible name."""
     html = _dashboard_html()
 
     assert (
-        '<button type="button" id="upload-btn" class="upload-action" '
-        'aria-label="Upload findings file">Upload file</button>'
+        '<button type="button" id="upload-btn" class="upload-action">'
+        'Upload findings file</button>'
     ) in html
+    assert 'id="upload-btn" class="upload-action" aria-label=' not in html
     assert "const uploadBtn = document.getElementById('upload-btn');" in html
     assert "uploadBtn.addEventListener('click', () => fileInput.click());" in html
     assert ".upload-action{" in html
     assert ".upload-action:hover{" in html
     assert ".upload-action:disabled{" in html
-    assert 'id="upload-btn" aria-label=' not in html
     assert 'id="upload-btn" style=' not in html
 
 
