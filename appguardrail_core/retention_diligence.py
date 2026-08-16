@@ -10,9 +10,10 @@ authorization authority into the reporting layer.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 
 from appguardrail_core.audit_events import GENESIS_EVENT_HASH
 from appguardrail_core.retention_policy import (
@@ -179,7 +180,7 @@ class RetentionAuditPosture:
                     "last_purge_legal_hold_revision",
                 ),
             )
-        elif any(value not in ("", None) for value in receipt_fields):
+        elif any(value is not None and value != "" for value in receipt_fields):
             raise ValueError("last purge fields require last_purge_receipt_id")
 
     @property
