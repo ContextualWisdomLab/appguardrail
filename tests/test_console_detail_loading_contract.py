@@ -20,17 +20,18 @@ def test_console_ignores_out_of_order_detail_results_and_errors():
 
 
 def test_console_exposes_loading_busy_and_error_states():
-    """Loading and failure states must remain perceivable to assistive technology."""
+    """Busy and unavailable semantics must stay distinct and keyboard-consistent."""
     html = _console_html()
 
-    assert (
-        ':disabled, [aria-busy="true"]{opacity:.6;cursor:not-allowed;pointer-events:none}'
-        in html
-    )
+    assert ':disabled, [aria-disabled="true"]{opacity:.6;cursor:not-allowed;pointer-events:none}' in html
+    assert '[aria-busy="true"]{opacity:.6;cursor:progress}' in html
     assert 'tr.setAttribute("aria-busy","true");' in html
+    assert 'tr.setAttribute("aria-disabled","true");' in html
+    assert 'if(tr&&tr.getAttribute("aria-disabled")==="true")return;' in html
     assert 'aria-live="polite" class="muted">Loading scan details...' in html
     assert 'role="alert" class="err">Error loading details:' in html
     assert 'tr.removeAttribute("aria-busy");' in html
+    assert 'tr.removeAttribute("aria-disabled");' in html
 
 
 def test_console_detail_scrolling_respects_reduced_motion():
