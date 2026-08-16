@@ -15,7 +15,7 @@ _SOURCE_REPOSITORY = "ContextualWisdomLab/newsdom-api"
 _SOURCE_PR = 539
 _VULNERABLE_HEAD_SHA = "04491c0e9ac38b9f793029683cebfb8210ccfadd"
 _VULNERABLE_BLOB_SHA = "4efdad56ed78ed5c0158cdf0d746aedfe72604fe"
-_REVIEWED_FIX_HEAD_SHA = "e22bb76bcf821dfa21eb83938a474c6cf3e7c1e8"
+_REVIEWED_FIX_HEAD_SHA = "e22bb76bcf821dfa21deb83938a474c6cf3e7c1e8"
 _PROTECTED_MERGE_SHA = "76417bd240398c1a4bf2f6c65d693ea523b179d0"
 _REVIEWED_FIX_BLOB_SHA = "f61aafc2d6592f4a84c7b02b50cfe4a972623463"
 
@@ -136,7 +136,7 @@ def test_source_provenance_pins_vulnerable_and_protected_fix() -> None:
     assert _SOURCE_PR == 539
     assert _VULNERABLE_HEAD_SHA == "04491c0e9ac38b9f793029683cebfb8210ccfadd"
     assert _VULNERABLE_BLOB_SHA == "4efdad56ed78ed5c0158cdf0d746aedfe72604fe"
-    assert _REVIEWED_FIX_HEAD_SHA == "e22bb76bcf821dfa21eb83938a474c6cf3e7c1e8"
+    assert _REVIEWED_FIX_HEAD_SHA == "e22bb76bcf821dfa21deb83938a474c6cf3e7c1e8"
     assert _PROTECTED_MERGE_SHA == "76417bd240398c1a4bf2f6c65d693ea523b179d0"
     assert _REVIEWED_FIX_BLOB_SHA == "f61aafc2d6592f4a84c7b02b50cfe4a972623463"
 
@@ -208,7 +208,7 @@ def test_scan_file_emits_normalized_missing_authentication_finding(tmp_path: Pat
         "CWE-306 - Missing Authentication for Critical Function",
     )
     assert finding["owasp"] == (
-        "A07:2025 - Authentication Failures",
+        "OWASP A07:2025 - Authentication Failures",
     )
 
 
