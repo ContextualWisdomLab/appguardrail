@@ -13,6 +13,6 @@ rules:
       [OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [java]
-    prefilter: [implements MultipartFile, private final byte[], getBytes]
+    prefilter: ["MultipartFile", "getBytes"]
     cwe: [CWE-374, CWE-375]
     owasp: [A08:2021]
