@@ -231,11 +231,21 @@ def test_api_set_webhook(server):
     assert status == 200 and body["webhook_url"] == "http://hook.example/y"
 
 
-def test_api_empty_webhook_body_rejected(server):
+def test_api_empty_webhook_body_rejected(server, monkeypatch):
     import http.client
+    import socket
     from urllib.parse import urlparse as _u
 
     base, key = server
+
+    real_getaddrinfo = socket.getaddrinfo
+
+    def deterministic_getaddrinfo(host, *args, **kwargs):
+        if host == "hook.example":
+            raise socket.gaierror()
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", deterministic_getaddrinfo)
     _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"})
 
     parsed = _u(base)
