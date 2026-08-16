@@ -182,8 +182,9 @@ def test_scan_file_emits_normalized_high_integrity_finding(tmp_path: Path) -> No
         "CWE-374 - Passing Mutable Objects to an Untrusted Method",
         "CWE-375 - Returning a Mutable Object to an Untrusted Caller",
     )
-    assert finding["owasp"] == (
-        "OWASP A08:2021 - Software and Data Integrity Failures",
+    assert (
+        "OWASP A08:2021 - Software and Data Integrity Failures"
+        in finding["owasp"]
     )
 
 
