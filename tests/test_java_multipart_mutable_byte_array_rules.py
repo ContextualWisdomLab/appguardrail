@@ -14,6 +14,9 @@ _VULNERABLE_BLOB_SHA = "7bd4d0df252a9ecfde89b1b87cafb716130f8a69"
 _FIXED_HEAD_SHA = "ae0bc74d3ccc811da6d117443663170b2df189c4"
 _FIXED_BLOB_SHA = "c47cdd80a786bddddaacd2bb05a82b8b37e61114"
 _FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_RULE_SOURCE = (
+    Path(__file__).parents[1] / "scanner" / "rules" / "java_mutable_state.yml"
+)
 _VULNERABLE_FIXTURE = (
     _FIXTURE_DIR / "clearfolio_in_memory_multipart_file_vulnerable.java"
 )
@@ -70,6 +73,30 @@ def _clone_based_safe_source() -> str:
     )
 
 
+def _fully_qualified_interface_source() -> str:
+    """Qualify the MultipartFile interface while retaining the vulnerability."""
+    return _VULNERABLE_FIXTURE.read_text(encoding="utf-8").replace(
+        "implements MultipartFile",
+        "implements org.springframework.web.multipart.MultipartFile",
+    )
+
+
+def _line_broken_implements_source() -> str:
+    """Place the interface name on the line after implements."""
+    return _VULNERABLE_FIXTURE.read_text(encoding="utf-8").replace(
+        "implements MultipartFile",
+        "implements\n        MultipartFile",
+    )
+
+
+def _spaced_array_declaration_source() -> str:
+    """Use legal whitespace between the byte type and array brackets."""
+    return _VULNERABLE_FIXTURE.read_text(encoding="utf-8").replace(
+        "private final byte[] content;",
+        "private final byte [] content;",
+    )
+
+
 def _unrelated_byte_array_holder() -> str:
     """Return an internal byte array outside the MultipartFile contract."""
     return """
@@ -120,13 +147,16 @@ def test_packaged_rule_detects_exact_clearfolio_aliasing_regression() -> None:
     assert rule["pattern"].search(source)
 
 
-def test_packaged_rule_declares_bounded_prefilters() -> None:
-    """Avoid multiline evaluation outside Java MultipartFile implementations."""
-    assert _rule()["required_substrings"] == (
-        "implements MultipartFile",
-        "private final byte[]",
-        "getBytes",
+def test_rule_source_uses_yaml_safe_quoted_prefilters() -> None:
+    """Keep inline YAML punctuation out of unquoted prefilter scalars."""
+    assert 'prefilter: ["MultipartFile", "getBytes"]' in _RULE_SOURCE.read_text(
+        encoding="utf-8"
     )
+
+
+def test_packaged_rule_declares_grammar_compatible_prefilters() -> None:
+    """Prefilter only on tokens shared by every supported Java spelling."""
+    assert _rule()["required_substrings"] == ("MultipartFile", "getBytes")
 
 
 def test_packaged_rule_detects_constructor_aliasing_independently() -> None:
@@ -186,6 +216,21 @@ def test_scan_file_emits_normalized_high_integrity_finding(tmp_path: Path) -> No
         "OWASP A08:2021 - Software and Data Integrity Failures"
         in finding["owasp"]
     )
+
+
+def test_scan_file_detects_fully_qualified_interface(tmp_path: Path) -> None:
+    """Do not let package qualification bypass the file-level prefilter."""
+    assert len(_scan(_fully_qualified_interface_source(), tmp_path)) == 1
+
+
+def test_scan_file_detects_line_broken_implements_clause(tmp_path: Path) -> None:
+    """Do not let legal interface-list whitespace bypass detection."""
+    assert len(_scan(_line_broken_implements_source(), tmp_path)) == 1
+
+
+def test_scan_file_detects_spaced_array_declaration(tmp_path: Path) -> None:
+    """Do not let legal byte-array whitespace bypass detection."""
+    assert len(_scan(_spaced_array_declaration_source(), tmp_path)) == 1
 
 
 def test_scan_file_keeps_reviewed_fix_clean(tmp_path: Path) -> None:
