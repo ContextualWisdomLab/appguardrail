@@ -65,6 +65,31 @@ def test_build_rule_metadata_deduplicates_message_and_default_references():
     )
 
 
+def test_build_rule_metadata_preserves_complete_explicit_taxonomy():
+    """Do not append unrelated category defaults when both taxonomies are explicit."""
+    metadata = build_rule_metadata(
+        "python-auth-secret-missing-fail-open",
+        "HIGH",
+        (
+            "Missing required authentication secret fails open. "
+            "[CWE-306 - Missing Authentication for Critical Function] "
+            "[OWASP A07:2025 - Authentication Failures]"
+        ),
+        category="secrets",
+    )
+
+    assert metadata.references == (
+        "CWE-306 - Missing Authentication for Critical Function",
+        "OWASP A07:2025 - Authentication Failures",
+    )
+    assert metadata.cwe == (
+        "CWE-306 - Missing Authentication for Critical Function",
+    )
+    assert metadata.owasp == (
+        "OWASP A07:2025 - Authentication Failures",
+    )
+
+
 def test_validate_rule_metadata_reports_missing_public_reference():
     errors = validate_rule_metadata(
         {
