@@ -40,6 +40,7 @@ jobs:
             tests/test_audit_checkpoint_edges.py \
             tests/test_retention_policy.py \
             tests/test_retention_policy_edges.py \
+            tests/test_retention_audit_diligence.py \
             tests/test_retention_audit_release_contract.py \
             tests/test_module_coverage_gate_contract.py
 
@@ -48,9 +49,12 @@ jobs:
           python -m scripts.ci.verify_module_coverage \
             --module appguardrail_core/audit_events.py \
             --module appguardrail_core/retention_policy.py \
+            --module appguardrail_core/retention_diligence.py \
+            --module appguardrail_core/retention_diligence_report.py \
             --test tests/test_audit_events.py \
             --test tests/test_audit_checkpoint_edges.py \
             --test tests/test_retention_policy.py \
             --test tests/test_retention_policy_edges.py \
+            --test tests/test_retention_audit_diligence.py \
             --test tests/test_retention_audit_release_contract.py \
             --test tests/test_module_coverage_gate_contract.py
