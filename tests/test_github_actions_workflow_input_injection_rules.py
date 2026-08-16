@@ -47,8 +47,8 @@ def _scan(source: str, tmp_path: Path, *, name: str = "deploy-pages.yml") -> lis
 
 def _workflow(body: str, *, trigger: str = "workflow_call", input_type: str = "string") -> str:
     """Build one reusable or manually dispatched workflow around a test body."""
-    return textwrap.dedent(
-        f"""
+    header = textwrap.dedent(
+        f"""\
         name: Injection contract
         on:
           {trigger}:
@@ -62,9 +62,9 @@ def _workflow(body: str, *, trigger: str = "workflow_call", input_type: str = "s
             runs-on: ubuntu-latest
             steps:
               - name: Publish
-        {textwrap.indent(textwrap.dedent(body).strip(), "        ")}
         """
     ).lstrip()
+    return header + textwrap.indent(textwrap.dedent(body).strip(), "        ") + "\n"
 
 
 def test_source_provenance_is_exact_and_immutable() -> None:
