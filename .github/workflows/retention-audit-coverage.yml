@@ -41,6 +41,7 @@ jobs:
             tests/test_retention_policy.py \
             tests/test_retention_policy_edges.py \
             tests/test_retention_audit_diligence.py \
+            tests/test_retention_diligence_markdown_safety.py \
             tests/test_retention_audit_release_contract.py \
             tests/test_module_coverage_gate_contract.py
 
@@ -56,5 +57,6 @@ jobs:
             --test tests/test_retention_policy.py \
             --test tests/test_retention_policy_edges.py \
             --test tests/test_retention_audit_diligence.py \
+            --test tests/test_retention_diligence_markdown_safety.py \
             --test tests/test_retention_audit_release_contract.py \
             --test tests/test_module_coverage_gate_contract.py
