@@ -3,13 +3,13 @@
 ## Added
 
 - Added the HIGH `javascript-auth-scrypt-unvalidated-password-type` detector family for source-derived `hashPassword` and `verifyPassword` functions that pass an unvalidated password parameter directly to Node.js `scryptSync`.
-- Added exact vulnerable and reviewed fixed ScopeWeave Git-blob fixtures and production scanner regressions.
-- Added negative coverage for string normalization, pre-sink type validation, and unrelated key-derivation helpers.
+- Added exact vulnerable and reviewed fixed ScopeWeave Git-blob fixtures, commit/path-to-blob provenance verification, and production scanner regressions.
+- Added negative coverage for string normalization, fail-closed pre-sink type validation, and unrelated key-derivation helpers, plus positive coverage for TypeScript parameters, nested blocks, and non-terminating type comparisons.
 
 ## Security
 
-- Classifies the missing input-type boundary primarily as CWE-1287 and records the uncaught-exception consequence as CWE-248 rather than treating generic workflow cancellation or generic resource consumption as vulnerability proof.
-- Keeps the multiline patterns function/character bounded and guarded by parser-safe prefilters.
+- Classifies the missing input-type boundary as CWE-1287. The detector does not claim CWE-248 because it does not prove whether a `scryptSync` exception is caught or uncaught, and it does not treat generic workflow cancellation or generic resource consumption as vulnerability proof.
+- Keeps the multiline patterns function/character bounded and guarded by parser-safe prefilters, while suppressing only the explicitly supported immediate `return`/`throw` string-type rejection shape.
 
 ## Documentation
 
