@@ -9,11 +9,33 @@ implying that retention controls were verified.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Any
 
-from appguardrail_core.reports import ReportContext, render_buyer_diligence_report
+from appguardrail_core.reports import (
+    ReportContext,
+    _md_prose,
+    render_buyer_diligence_report,
+)
 from appguardrail_core.retention_diligence import RetentionAuditPosture
+
+_MARKDOWN_LINK_TARGET = re.compile(r"(?<=\\\])\(([^)\n]*)\)")
+
+
+def _markdown_literal(value: Any) -> str:
+    """Return arbitrary identifier text without active HTML or Markdown markup.
+
+    Buyer evidence identifiers are bounded but may legitimately contain markup
+    metacharacters. HTML is neutralized with the report renderer's canonical
+    prose helper, then Markdown backslashes, code spans, bracket links, and
+    simple inline-link targets are escaped while ordinary identifier text stays
+    readable.
+    """
+    safe = _md_prose(value)
+    safe = safe.replace("\\", "\\\\")
+    safe = safe.replace("`", "\\`").replace("[", "\\[").replace("]", "\\]")
+    return _MARKDOWN_LINK_TARGET.sub(r"\\(\1\\)", safe)
 
 
 def render_buyer_retention_diligence_report(
@@ -75,7 +97,7 @@ def render_retention_audit_posture(
     else:
         lines.append(
             "- Last purge: "
-            f"{last_purge['receipt_id']} at {last_purge['executed_at']} "
+            f"{_markdown_literal(last_purge['receipt_id'])} at {last_purge['executed_at']} "
             f"(policy revision {last_purge['policy_revision']}, "
             f"legal-hold revision {last_purge['legal_hold_revision']})"
         )
