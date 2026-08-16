@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-16
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| automatic scanner detection of mutable Spring MultipartFile byte-array aliasing | built-in `java-multipart-mutable-byte-array-exposure` rule | PR #971 active-PR; exact Clearfolio vulnerable/fixed Git objects, independent one-sided variants, and production scanner regression |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,21 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Mutable multipart integrity traceability contract
+
+For Java multipart wrappers backed by mutable arrays, trace separately:
+
+1. the caller-to-constructor ownership boundary;
+2. the object-to-caller getter boundary;
+3. validation and content-identity operations that assume stable bytes;
+4. the exact vulnerable source object;
+5. the reviewed defensive-copy source object;
+6. independent positives for each one-sided aliasing failure;
+7. equivalent safe-copy negatives;
+8. production scanner finding evidence and exact-head security/review gates.
+
+AppGuardrail issue #551 is collector provenance only. PR #971 binds detector truth to the exact Clearfolio source transition and does not infer a vulnerability merely from the cancelled Strix workflow outcome.
 
 ## Standards/research
 
