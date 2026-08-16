@@ -1,5 +1,7 @@
 """Regression contracts for dashboard findings-file selection."""
 
+from pathlib import Path
+
 from scanner.cli.appguardrail import dashboard_index_path
 
 
@@ -55,3 +57,17 @@ def test_file_input_resets_only_after_a_selection_change() -> None:
     assert "const selectedFile = fileInput.files?.[0];" in html
     assert "fileInput.value = '';" in html
     assert 'onclick="this.value=null"' not in html
+
+
+def test_upload_proxy_has_release_note_fragment() -> None:
+    """Buyer-visible upload behavior must remain discoverable in release notes."""
+    changelog_fragment = (
+        Path(__file__).resolve().parents[1]
+        / "CHANGELOG.d"
+        / "969-dashboard-upload-proxy.md"
+    )
+
+    assert changelog_fragment.is_file()
+    text = changelog_fragment.read_text(encoding="utf-8")
+    assert "Upload findings file" in text
+    assert "same file" in text.lower()
