@@ -31,3 +31,36 @@ rules:
       include:
         - ".github/workflows/*.yml"
         - ".github/workflows/*.yaml"
+
+  # String inputs supplied to workflow_call or workflow_dispatch are caller-
+  # controlled. GitHub expands `${{ ... }}` expressions before handing a run
+  # program to its interpreter, so direct interpolation turns input bytes into
+  # shell source. The matcher binds one declared string input to the same input
+  # used inside an inline, literal, or folded run block. Environment-variable
+  # indirection and action `with:` values remain outside this detector slice.
+
+  - id: github-actions-workflow-input-command-injection
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]+["\x27]?workflow_(?:call|dispatch)["\x27]?[ \t]*:(?=[\s\S]{0,6000}?^[ \t]+["\x27]?inputs["\x27]?[ \t]*:[ \t]*(?:\#[^\n]*)?\n(?:[ \t]+[^\n]*\n){0,80}?^(?P<input_indent>[ \t]+)["\x27]?(?P<input_name>[A-Za-z_][A-Za-z0-9_-]*)["\x27]?[ \t]*:[ \t]*(?:\#[^\n]*)?\n(?:(?P=input_indent)[ \t]+[^\n]*\n){0,8}?(?P=input_indent)[ \t]+["\x27]?type["\x27]?[ \t]*:[ \t]*["\x27]?string["\x27]?[ \t]*(?:\#[^\n]*)?$)[\s\S]{0,20000}?(?:^(?P<block_indent>[ \t]+)(?:-[ \t]+)?["\x27]?run["\x27]?[ \t]*:[ \t]*[|>][^\n]*\n(?:(?P=block_indent)[ \t]+[^\n]*\n){0,79}?(?P=block_indent)[ \t]+[^\n]*\$\{\{[^}\n]{0,160}?\binputs[ \t]*(?:\.[ \t]*(?P=input_name)|\[[ \t]*["\x27](?P=input_name)["\x27][ \t]*\])[^}\n]{0,160}?\}\}[^\n]*|^[ \t]+(?:-[ \t]+)?["\x27]?run["\x27]?[ \t]*:[^\n]*\$\{\{[^}\n]{0,160}?\binputs[ \t]*(?:\.[ \t]*(?P=input_name)|\[[ \t]*["\x27](?P=input_name)["\x27][ \t]*\])[^}\n]{0,160}?\}\}[^\n]*)'
+    message: |
+      A caller-controlled string input from workflow_call or workflow_dispatch is
+      interpolated directly into a GitHub Actions run program. Expression
+      expansion happens before the shell or script interpreter runs, so quotes,
+      command separators, substitutions, or newlines supplied by the caller can
+      become executable code and may expose workflow secrets or repository
+      credentials. Bind the expression to a step-level environment variable,
+      validate it when the operation needs a restricted grammar, and reference
+      the environment variable using the interpreter's native syntax. Do not use
+      `${{ env.NAME }}` inside run because that is still expression interpolation.
+      [CWE-78 - Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')]
+      [CWE-94 - Improper Control of Generation of Code ('Code Injection')]
+      [OWASP A03:2021 - Injection]
+    severity: CRITICAL
+    languages: [generic]
+    prefilter: ["workflow_", "inputs", "type: string", "run:", "${{"]
+    cwe: [CWE-78, CWE-94]
+    owasp: [A03:2021]
+    paths:
+      include:
+        - ".github/workflows/*.yml"
+        - ".github/workflows/*.yaml"
