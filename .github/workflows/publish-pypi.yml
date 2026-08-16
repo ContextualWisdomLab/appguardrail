@@ -35,7 +35,26 @@ jobs:
             exit 1
           fi
 
-          project_version="$(python -c 'import re; from pathlib import Path; source = Path("scanner/cli/appguardrail.py").read_text(encoding="utf-8"); match = re.search(r"^__version__ = \\\"([^\\\"]+)\\\"$", source, re.MULTILINE); assert match is not None, "missing __version__"; print(match.group(1))')"
+          project_version="$(
+            python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          tree = ast.parse(Path("scanner/cli/appguardrail.py").read_text(encoding="utf-8"))
+          for node in tree.body:
+              if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                  continue
+              targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+              if any(isinstance(target, ast.Name) and target.id == "__version__" for target in targets):
+                  value = ast.literal_eval(node.value)
+                  if not isinstance(value, str) or not value:
+                      raise SystemExit("__version__ must be a non-empty string")
+                  print(value)
+                  break
+          else:
+              raise SystemExit("missing __version__")
+          PY
+          )"
           case "$GITHUB_EVENT_NAME" in
             workflow_dispatch)
               if [ "$GITHUB_REF" != "refs/heads/develop" ]; then
