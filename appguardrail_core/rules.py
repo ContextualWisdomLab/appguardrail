@@ -105,7 +105,12 @@ class RuleMetadata:
 
 
 def extract_public_references(message: str) -> tuple[str, ...]:
-    """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
+    """Extract bracketed OWASP, CWE, and CVE IDs already written in rule copy.
+
+    Only ``[OWASP …]``, ``[CWE-…]``, and ``[CVE-…]`` forms are kept. Plain-text
+    mentions are ignored so a finding report stays limited to the IDs the rule
+    author already published. Messages without ``[`` skip the regex scanner.
+    """
     if not message or "[" not in message:
         return ()
     return tuple(

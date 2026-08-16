@@ -77,6 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-## 2026-11-20 - Fast-path check for regex evaluations
-**Learning:** Checking for substrings using native string operations (e.g. `if "[" not in string:`) before dispatching to a regular expression (like `re.finditer`) avoids significant overhead associated with C-level regular expression object instantiation and subsequent iterator creation. For inputs without the substring, the fast-path results in huge CPU savings.
-**Action:** Always wrap expensive string operations and regular expressions inside a fast-path substring check if applicable to quickly reject irrelevant strings.
+## 2026-08-16 - Fast-path check for regex evaluations
+**Learning:** `REFERENCE_RE` is compiled at import. The remaining cost on messages with no public IDs is `finditer` scanner allocation. A native `"[" not in message` check skips that work because every valid match must start with `[`. Switching the CWE branch from `if` to `elif` is exclusive classification only: `OWASP ` and `CWE-` cannot both match the same reference, so it is not a 15–20% metadata speedup.
+**Action:** Guard compiled regex scans with a cheap required-substring check. Do not claim wall-clock improvement for exclusive `elif` classification unless a production-path benchmark is attached.
