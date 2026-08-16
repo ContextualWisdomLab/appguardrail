@@ -82,8 +82,8 @@ def render_retention_audit_posture(
             f"- Policy revision: {evidence['policy_revision']}",
             "- Retention windows: "
             + ", ".join(
-                f"{category}={retention_days[category]} days"
-                for category in sorted(retention_days)
+                f"{category}={days} days"
+                for category, days in retention_days.items()
             ),
             f"- Active legal holds: {evidence['legal_hold_count']}",
             "- Audit chain: "
