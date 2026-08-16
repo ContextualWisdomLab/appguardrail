@@ -27,4 +27,5 @@ jobs:
         run: |
           python -m scripts.ci.verify_module_coverage \
             --module appguardrail_core/scan_assurance.py \
-            --test tests/test_scan_assurance.py
+            --test tests/test_scan_assurance.py \
+            --test tests/test_scan_assurance_module_entrypoint.py
