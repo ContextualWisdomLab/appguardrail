@@ -52,7 +52,7 @@ The digest is a direct byte-level binding to the findings artifact, not a SLSA p
 
 ## Verification
 
-`tests/test_scan_assurance.py` exercises the public API and standalone command with clean, finding-bearing, incomplete, failed, stale, future-dated, wrong-repository, wrong-commit, digest-mismatch, malformed, oversized, missing-file, and invalid-shape fixtures. The focused production module is designed for exact 100% statement and branch coverage through the repository's standard `scripts.ci.verify_module_coverage` gate.
+`tests/test_scan_assurance.py` exercises the public API and command contract with clean, finding-bearing, incomplete, failed, stale, future-dated, wrong-repository, wrong-commit, digest-mismatch, malformed, oversized, missing-file, and invalid-shape fixtures. `tests/test_scan_assurance_module_entrypoint.py` executes the shipped module as `__main__` against real temporary findings/evidence files so packaging-only code remains observable. The dedicated `Scan assurance coverage` workflow runs these tests with Coverage.py branch measurement and fails below exact 100% statement or branch coverage for `appguardrail_core/scan_assurance.py`; the suite also asserts that every production function has a readable docstring.
 
 ## References (APA 7th)
 
