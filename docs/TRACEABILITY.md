@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-16
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -16,6 +16,7 @@
 | CycloneDX SBOM | SBOM module | implemented-main |
 | organization buyer evidence | org evidence aggregator | implemented-main |
 | RCA-first feasibility scheduler | CI/agent policy | implemented-main |
+| PyPI release source/artifact integrity | exact protected-`develop` source gate plus clean installed-wheel smoke in `publish-pypi.yml` | PR #967 active-PR; RED policy contract plus exact-head CI required |
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
