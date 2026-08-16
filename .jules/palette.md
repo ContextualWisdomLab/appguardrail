@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-16 - Visual Parity for ARIA States
+**Learning:** Adding ARIA states like `aria-busy="true"` or semantic states like `:disabled` without corresponding visual styles leaves sighted users unaware of the background network request or disabled state, creating a disconnect between the visual UI and the accessibility tree.
+**Action:** Always map ARIA states (like `aria-busy="true"`) and semantic states (like `:disabled`) to CSS visual styles (e.g., `opacity`, `cursor: not-allowed`, or `pointer-events: none`) to ensure visual parity with the accessibility tree.

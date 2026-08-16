@@ -23,6 +23,10 @@ def test_console_exposes_loading_busy_and_error_states():
     """Loading and failure states must remain perceivable to assistive technology."""
     html = _console_html()
 
+    assert (
+        ':disabled, [aria-busy="true"]{opacity:.6;cursor:not-allowed;pointer-events:none}'
+        in html
+    )
     assert 'tr.setAttribute("aria-busy","true");' in html
     assert 'aria-live="polite" class="muted">Loading scan details...' in html
     assert 'role="alert" class="err">Error loading details:' in html
