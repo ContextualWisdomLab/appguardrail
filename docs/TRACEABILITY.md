@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-17
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -16,6 +16,7 @@
 | CycloneDX SBOM | SBOM module | implemented-main |
 | organization buyer evidence | org evidence aggregator | implemented-main |
 | RCA-first feasibility scheduler | CI/agent policy | implemented-main |
+| dashboard findings-file upload exposes one native, tokenized, keyboard-operable control whose visible label is its accessible name | `scanner/dashboard/index.html`, `tests/test_dashboard_file_upload_contract.py` | PR #969 active-PR; WCAG 2.2 SC 2.5.3 evidence |
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
@@ -50,6 +51,10 @@ Current protected-branch evidence keeps those controls distinct: PR #924 supplie
 ## Standards/research
 
 Existing repository docs/doctoring/security evidence remain the bibliography/source-of-truth for standards such as SARIF, CycloneDX, GitHub security interfaces, and applicable OWASP/CWE classes. Material new detector classes should add authoritative standard/CWE/OWASP references and APA 7 citations in doctoring where research/standards materially drive implementation.
+
+For the dashboard upload-control contract in PR #969, WCAG 2.2 Success Criterion 2.5.3 requires a control's accessible name to contain its visible label text. The implementation uses the native button text `Upload findings file` directly as the accessible name rather than overriding it with a divergent `aria-label`.
+
+World Wide Web Consortium Web Accessibility Initiative. (2026, April 5). *Understanding Success Criterion 2.5.3: Label in Name*. https://www.w3.org/WAI/WCAG22/Understanding/label-in-name
 
 ## Change rule
 
