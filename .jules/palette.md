@@ -82,6 +82,6 @@
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
 
-## 2026-08-16 - Visual Parity for ARIA States
-**Learning:** Adding ARIA states like `aria-busy="true"` or semantic states like `:disabled` without corresponding visual styles leaves sighted users unaware of the background network request or disabled state, creating a disconnect between the visual UI and the accessibility tree.
-**Action:** Always map ARIA states (like `aria-busy="true"`) and semantic states (like `:disabled`) to CSS visual styles (e.g., `opacity`, `cursor: not-allowed`, or `pointer-events: none`) to ensure visual parity with the accessibility tree.
+## 2026-08-16 - Busy and unavailable state parity
+**Learning:** `aria-busy="true"` communicates that an element is being updated; it does not itself mean the control is unavailable. Styling every busy element as disabled can create pointer/keyboard inconsistencies and misleading accessibility semantics.
+**Action:** Give busy elements a distinct progress visual. When an interaction must be temporarily unavailable, expose `aria-disabled="true"` (or native `disabled` where applicable), guard both pointer and keyboard activation, and clear busy and disabled states together when the request finishes.
