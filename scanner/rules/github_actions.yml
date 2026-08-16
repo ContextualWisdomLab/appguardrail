@@ -41,7 +41,7 @@ rules:
 
   - id: github-actions-workflow-input-command-injection
     patterns:
-      - pattern-regex: '(?msx)^[ \t]+["\x27]?workflow_(?:call|dispatch)["\x27]?[ \t]*:(?=[\s\S]{0,6000}?^[ \t]+["\x27]?inputs["\x27]?[ \t]*:[ \t]*(?:\#[^\n]*)?\n(?:[ \t]+[^\n]*\n){0,80}?^(?P<input_indent>[ \t]+)["\x27]?(?P<input_name>[A-Za-z_][A-Za-z0-9_-]*)["\x27]?[ \t]*:[ \t]*(?:\#[^\n]*)?\n(?:(?P=input_indent)[ \t]+[^\n]*\n){0,8}?(?P=input_indent)[ \t]+["\x27]?type["\x27]?[ \t]*:[ \t]*["\x27]?string["\x27]?[ \t]*(?:\#[^\n]*)?$)[\s\S]{0,20000}?(?:^(?P<block_indent>[ \t]+)(?:-[ \t]+)?["\x27]?run["\x27]?[ \t]*:[ \t]*[|>][^\n]*\n(?:(?P=block_indent)[ \t]+[^\n]*\n){0,79}?(?P=block_indent)[ \t]+[^\n]*\$\{\{[^}\n]{0,160}?\binputs[ \t]*(?:\.[ \t]*(?P=input_name)|\[[ \t]*["\x27](?P=input_name)["\x27][ \t]*\])[^}\n]{0,160}?\}\}[^\n]*|^[ \t]+(?:-[ \t]+)?["\x27]?run["\x27]?[ \t]*:[^\n]*\$\{\{[^}\n]{0,160}?\binputs[ \t]*(?:\.[ \t]*(?P=input_name)|\[[ \t]*["\x27](?P=input_name)["\x27][ \t]*\])[^}\n]{0,160}?\}\}[^\n]*)'
+      - pattern-regex: '(?msx)^[ \t]+["\x27]?workflow_(?:call|dispatch)["\x27]?[ \t]*:(?=[\s\S]{0,6000}?^[ \t]+["\x27]?inputs["\x27]?[ \t]*:[ \t]*(?:\#[^\n]*)?\n(?:[ \t]+[^\n]*\n){0,80}?^(?P<input_indent>[ \t]+)["\x27]?(?P<input_name>[A-Za-z_][A-Za-z0-9_-]*)["\x27]?[ \t]*:[ \t]*(?:\#[^\n]*)?\n(?:(?P=input_indent)[ \t]+[^\n]*\n|[ \t]*\n){0,8}?(?P=input_indent)[ \t]+["\x27]?type["\x27]?[ \t]*:[ \t]*["\x27]?string["\x27]?[ \t]*(?:\#[^\n]*)?$)[\s\S]{0,20000}?(?:^(?P<block_indent>[ \t]+)(?:-[ \t]+)?["\x27]?run["\x27]?[ \t]*:[ \t]*[|>][^\n]*\n(?:(?P=block_indent)[ \t]+[^\n]*\n|[ \t]*\n){0,79}?(?P=block_indent)[ \t]+[^\n]*\$\{\{[^}\n]{0,160}?\binputs[ \t]*(?:\.[ \t]*(?P=input_name)|\[[ \t]*["\x27](?P=input_name)["\x27][ \t]*\])[^}\n]{0,160}?\}\}[^\n]*|^[ \t]+(?:-[ \t]+)?["\x27]?run["\x27]?[ \t]*:[^\n]*\$\{\{[^}\n]{0,160}?\binputs[ \t]*(?:\.[ \t]*(?P=input_name)|\[[ \t]*["\x27](?P=input_name)["\x27][ \t]*\])[^}\n]{0,160}?\}\}[^\n]*)'
     message: |
       A caller-controlled string input from workflow_call or workflow_dispatch is
       interpolated directly into a GitHub Actions run program. Expression
@@ -57,7 +57,7 @@ rules:
       [OWASP A03:2021 - Injection]
     severity: CRITICAL
     languages: [generic]
-    prefilter: ["workflow_", "inputs", "type: string", "run:", "${{"]
+    prefilter: ["workflow_", "inputs", "string", "run", "${{"]
     cwe: [CWE-78, CWE-94]
     owasp: [A03:2021]
     paths:
