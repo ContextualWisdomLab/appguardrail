@@ -15,7 +15,7 @@
     --bg:#F4F5F7; --surface:#FFFFFF; --text:#1A1D24; --muted:#5B6472;
     --border:#D6DAE0; --divider:#E7EAEF; --primary:#256EF4; --on-primary:#fff;
     --crit:#D93B3B; --high:#E06C00; --warn:#B7791F; --info:#5B6472; --ok:#1E874B;
-    --radius:12px;
+    --radius:12px; --busy-opacity:.6;
   }
   *{box-sizing:border-box}
   body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
@@ -37,8 +37,8 @@
   tr.scan{cursor:pointer}
   tr.scan:hover{background:var(--bg)}
   input:focus-visible, button:focus-visible, tr.scan:focus-visible, .bar:focus-visible, #detail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  :disabled, [aria-disabled="true"]{opacity:.6;cursor:not-allowed;pointer-events:none}
-  [aria-busy="true"]{opacity:.6;cursor:progress}
+  button:disabled, tr.scan[aria-disabled="true"]{opacity:var(--busy-opacity);cursor:not-allowed;pointer-events:none}
+  #connect[aria-busy="true"], tr.scan[aria-busy="true"]{opacity:var(--busy-opacity);cursor:progress}
   .close-btn{float:right;border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--muted);padding:0 4px;margin-top:-2px}
   .close-btn:hover{color:var(--text)}
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
