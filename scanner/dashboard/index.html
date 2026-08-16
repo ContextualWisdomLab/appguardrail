@@ -65,6 +65,8 @@
   .dlg-head button{border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.2s, color 0.2s}
   .dlg-head button:hover{background:var(--bg);color:var(--text)}
   .dlg-head button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .clear-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s}
+  .clear-btn:hover{background:var(--divider)}
   .dlg-body{padding:6px 22px 22px}
   .sec{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px 16px;margin-top:14px}
   .sec h3{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
@@ -78,8 +80,6 @@
   .empty code{background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--text)}
   .primary-action{min-height:44px;padding:10px 16px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer;font:inherit;font-weight:700}
   .primary-action:hover{filter:brightness(.94)}
-  .clear-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s, filter 0.2s}
-  .clear-btn:hover{filter:brightness(0.95)}
   .drop{margin-top:14px}
   body.drag-active::after{content:"Drop findings.json here";position:fixed;inset:0;z-index:99;background:rgba(37,110,244,.08);border:4px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--primary);pointer-events:none;backdrop-filter:blur(2px)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -122,12 +122,12 @@ function formatFindingCount(count){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));}
 function safeUrl(u){
-  if (typeof u !== 'string') return '#';
-  const candidate = u.trim();
-  if (/^[\\/]{2}/.test(candidate)) return '#';
+  if (typeof u === 'string' && u.startsWith('//')) {
+    return '#';
+  }
   try {
-    const parsed = new URL(candidate, window.location.href);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
+    const parsed = new URL(u, window.location.href);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return u;
   } catch(e){}
   return '#';
 }
@@ -237,7 +237,7 @@ function render(){
           <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
           <tbody>${rows||`<tr><td colspan="5" style="padding:32px 24px;text-align:center">
           <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:8px">No findings match the filter</div>
-          <button type="button" class="clear-btn" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();">Clear filters</button>
+          <button type="button" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();" class="clear-btn">Clear filters</button>
         </td></tr>`}</tbody>
         </table></div>
       </div>
