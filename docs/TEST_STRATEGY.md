@@ -65,7 +65,8 @@ Adapters distinguish tool unavailable, tool failed, clean, and findings. Normali
 - webhook config URL validation and execution safety;
 - API-key bootstrap/revocation/logging;
 - idempotency/concurrency where endpoints can be retried;
-- SQLite migration/upgrade/backup/recovery for changed persistent state.
+- SQLite migration/upgrade/backup/recovery for changed persistent state;
+- console busy versus unavailable token/selector split, shared activation gate, and close-path attribute clear.
 
 ## Remediation tests
 

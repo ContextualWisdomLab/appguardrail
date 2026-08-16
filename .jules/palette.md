@@ -84,4 +84,10 @@
 
 ## 2026-08-16 - Busy and unavailable state parity
 **Learning:** `aria-busy="true"` communicates that an element is being updated; it does not itself mean the control is unavailable. Styling every busy element as disabled can create pointer/keyboard inconsistencies and misleading accessibility semantics.
-**Action:** Give busy elements a distinct progress visual. When an interaction must be temporarily unavailable, expose `aria-disabled="true"` (or native `disabled` where applicable), guard both pointer and keyboard activation, and clear busy and disabled states together when the request finishes.
+**Action:** Give busy elements a distinct progress visual. When an interaction must be temporarily unavailable, expose `aria-disabled="true"` (or native `disabled` where applicable), guard both pointer and keyboard activation, and clear busy and disabled states together when the request finishes. Keep `--busy-opacity` as the shared token and never apply `pointer-events: none` to a busy-only selector. Next: reuse the same token list from `docs/storybook-inventory.md` when adding a Storybook story; do not introduce a build step into `console.html`.
+
+### References (APA 7th)
+
+World Wide Web Consortium. (2023). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/wai-aria-1.2/
+
+World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*. https://www.w3.org/TR/WCAG22/

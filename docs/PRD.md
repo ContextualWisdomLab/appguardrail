@@ -94,6 +94,10 @@ Buyer/agency/founder/fix-pack/org evidence SHALL be derived from normalized find
 
 AppGuardrail SHALL produce deterministic component inventory with lockfile provenance where available and preserve tool/source/version evidence required for review or acquisition diligence.
 
+### PRD-FR-010 Console interaction states
+
+The organization console SHALL distinguish in-flight updates (`aria-busy`) from temporarily unavailable controls (`aria-disabled` or native `disabled`), keep pointer and keyboard activation on one gate, and clear both states on success, failure, and close. Shared visual values SHALL live in named design tokens documented in the Storybook inventory. A Storybook package MAY consume that inventory later; it SHALL NOT become a runtime dependency of the standalone console.
+
 ## 7. Security/privacy requirements
 
 - scan targets and their source may contain PII/secrets; minimize retention/disclosure rather than blindly copying findings/context;
