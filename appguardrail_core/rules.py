@@ -123,6 +123,25 @@ def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
     return fallback
 
 
+def _missing_category_references(
+    references: tuple[str, ...], category: str
+) -> tuple[str, ...]:
+    """Return only category defaults for taxonomy families not explicitly declared."""
+    defaults = CATEGORY_REFERENCE_DEFAULTS.get(category, ())
+    if not references:
+        return defaults
+    has_owasp = any(reference.startswith("OWASP ") for reference in references)
+    has_cwe = any(reference.startswith("CWE-") for reference in references)
+    return tuple(
+        reference
+        for reference in defaults
+        if not (
+            (reference.startswith("OWASP ") and has_owasp)
+            or (reference.startswith("CWE-") and has_cwe)
+        )
+    )
+
+
 def build_rule_metadata(
     rule_id: str,
     severity: str,
@@ -136,7 +155,7 @@ def build_rule_metadata(
     category = _category_for_references(public_references, category)
     references = _merge_references(
         public_references,
-        CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
+        _missing_category_references(public_references, category),
     )
     owasp_list, cwe_list = [], []
     for ref in references:
