@@ -2,16 +2,23 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any, cast
 
 import pytest
 
 from appguardrail_core.audit_events import GENESIS_EVENT_HASH, create_audit_event
-from appguardrail_core.reports import ReportContext, render_buyer_diligence_report
+from appguardrail_core.reports import ReportContext
 from appguardrail_core.retention_diligence import (
     RetentionAuditPosture,
     build_retention_audit_posture,
 )
+from appguardrail_core.retention_diligence_report import (
+    render_buyer_retention_diligence_report,
+    render_retention_audit_posture,
+)
 from appguardrail_core.retention_policy import (
+    MAX_RETENTION_DAYS,
+    MIN_RETENTION_DAYS,
     RETENTION_CATEGORIES,
     PurgeReceipt,
     RetentionPolicy,
@@ -43,6 +50,31 @@ def receipt(*, tenant_id: int = 41) -> PurgeReceipt:
         held_counts={category: 1 for category in RETENTION_CATEGORIES},
         executed_at="2026-08-16T00:00:00Z",
         audit_event_id="audit-purge-001",
+    )
+
+
+def empty_verified_posture() -> RetentionAuditPosture:
+    """Return a verified empty-chain posture for public-constructor edge tests."""
+    return build_retention_audit_posture(
+        policy(),
+        legal_hold_count=0,
+        audit_event_count=0,
+        audit_chain_status="verified",
+        audit_head_hash=GENESIS_EVENT_HASH,
+        verified_at=STAMP,
+    )
+
+
+def verified_posture_with_receipt() -> RetentionAuditPosture:
+    """Return a verified non-empty posture containing safe purge metadata."""
+    return build_retention_audit_posture(
+        policy(),
+        legal_hold_count=2,
+        audit_event_count=8,
+        audit_chain_status="verified",
+        audit_head_hash="d" * 64,
+        verified_at=STAMP,
+        last_purge_receipt=receipt(),
     )
 
 
@@ -106,7 +138,7 @@ def test_unverified_or_failed_chain_fails_closed_for_diligence() -> None:
 
 
 def test_posture_rejects_cross_tenant_receipts_and_ambiguous_evidence() -> None:
-    """Diligence aggregation cannot mix tenant receipts or accept malformed counters/hashes."""
+    """Diligence aggregation cannot mix tenant receipts or accept malformed evidence."""
     with pytest.raises(ValueError, match="tenant"):
         build_retention_audit_posture(
             policy(tenant_id=41),
@@ -124,7 +156,7 @@ def test_posture_rejects_cross_tenant_receipts_and_ambiguous_evidence() -> None:
         {"audit_head_hash": "short"},
         {"verified_at": "yesterday"},
     ):
-        values = {
+        values: dict[str, Any] = {
             "legal_hold_count": 0,
             "audit_event_count": 1,
             "audit_chain_status": "verified",
@@ -136,40 +168,93 @@ def test_posture_rejects_cross_tenant_receipts_and_ambiguous_evidence() -> None:
             build_retention_audit_posture(policy(), **values)
 
 
+def test_posture_rejects_wrong_domain_object_types() -> None:
+    """Public aggregation refuses lookalike policies and purge receipts."""
+    common = {
+        "legal_hold_count": 0,
+        "audit_event_count": 0,
+        "audit_chain_status": "verified",
+        "audit_head_hash": GENESIS_EVENT_HASH,
+        "verified_at": STAMP,
+    }
+    with pytest.raises(ValueError, match="policy must be"):
+        build_retention_audit_posture(cast(Any, object()), **common)
+    with pytest.raises(ValueError, match="last_purge_receipt must be"):
+        build_retention_audit_posture(
+            policy(),
+            **common,
+            last_purge_receipt=cast(Any, object()),
+        )
+
+
 def test_posture_dataclass_revalidates_public_construction() -> None:
     """Direct dataclass construction cannot bypass the public evidence boundary."""
-    posture = build_retention_audit_posture(
-        policy(),
-        legal_hold_count=0,
-        audit_event_count=0,
-        audit_chain_status="verified",
-        audit_head_hash=GENESIS_EVENT_HASH,
-        verified_at=STAMP,
+    posture = empty_verified_posture()
+    category = RETENTION_CATEGORIES[0]
+
+    invalid_days = dict(posture.retention_days)
+    invalid_days[category] = MIN_RETENTION_DAYS - 1
+    missing_days = dict(posture.retention_days)
+    missing_days.pop(category)
+
+    invalid_changes = (
+        {"policy_revision": 0},
+        {"retention_days": cast(Any, [])},
+        {"retention_days": missing_days},
+        {"retention_days": invalid_days},
+        {"legal_hold_count": -1},
+        {"audit_head_hash": "not-a-hash"},
+        {"verified_at": "not-a-timestamp"},
+        {"last_purge_executed_at": STAMP},
     )
-    with pytest.raises(ValueError):
-        replace(posture, audit_head_hash="not-a-hash")
+    for changes in invalid_changes:
+        with pytest.raises(ValueError):
+            replace(posture, **changes)
+
+
+def test_posture_rejects_impossible_verified_chain_shapes() -> None:
+    """Verified evidence must bind the event count to the genesis/non-genesis hash shape."""
+    posture = empty_verified_posture()
+    with pytest.raises(ValueError, match="empty audit chain"):
+        replace(posture, audit_head_hash="e" * 64)
+    with pytest.raises(ValueError, match="non-empty audit chain"):
+        replace(posture, audit_event_count=1)
+
+
+def test_posture_revalidates_present_purge_metadata() -> None:
+    """Supplied purge metadata retains bounded identifiers, timestamps, and revisions."""
+    posture = verified_posture_with_receipt()
+    invalid_changes = (
+        {"last_purge_receipt_id": "\x01bad"},
+        {"last_purge_executed_at": "tomorrow"},
+        {"last_purge_policy_revision": 0},
+        {"last_purge_legal_hold_revision": -1},
+    )
+    for changes in invalid_changes:
+        with pytest.raises(ValueError):
+            replace(posture, **changes)
+
+
+def test_posture_accepts_retention_bounds_exactly() -> None:
+    """Public construction accepts both documented inclusive retention boundaries."""
+    posture = empty_verified_posture()
+    for days in (MIN_RETENTION_DAYS, MAX_RETENTION_DAYS):
+        bounded = {category: days for category in RETENTION_CATEGORIES}
+        assert replace(posture, retention_days=bounded).retention_days == bounded
 
 
 def test_buyer_report_surfaces_posture_and_next_action_without_customer_data() -> None:
-    """Buyer report includes the posture while never carrying raw tenant evidence."""
-    posture = build_retention_audit_posture(
-        policy(),
-        legal_hold_count=2,
-        audit_event_count=8,
-        audit_chain_status="verified",
-        audit_head_hash="d" * 64,
-        verified_at=STAMP,
-        last_purge_receipt=receipt(),
-    )
-    report = render_buyer_diligence_report(
+    """Buyer report includes posture while never carrying raw tenant evidence."""
+    report = render_buyer_retention_diligence_report(
         [],
         ReportContext(
             repository="ContextualWisdomLab/appguardrail",
             commit="abc123",
             generated_at=STAMP,
-            retention_audit_posture=posture,
         ),
+        retention_audit_posture=verified_posture_with_receipt(),
     )
+    assert "# AppGuardrail Buyer Diligence Report" in report
     assert "## Retention And Audit Posture" in report
     assert "Evidence status: Verified" in report
     assert "Policy revision: 1" in report
@@ -182,11 +267,27 @@ def test_buyer_report_surfaces_posture_and_next_action_without_customer_data() -
 
 
 def test_buyer_report_marks_missing_posture_as_not_supplied() -> None:
-    """Default reports make missing retention evidence explicit instead of implying compliance."""
-    report = render_buyer_diligence_report(
+    """Missing retention evidence is explicit instead of implying compliance."""
+    report = render_buyer_retention_diligence_report(
         [],
         ReportContext(generated_at=STAMP),
     )
     assert "## Retention And Audit Posture" in report
     assert "Evidence status: Not supplied" in report
     assert "Next action: supply a current tenant retention/audit posture snapshot before relying on deletion or audit claims." in report
+
+
+def test_incomplete_report_has_no_purge_and_gives_recovery_action() -> None:
+    """Incomplete audit evidence tells a buyer what must be verified next."""
+    posture = build_retention_audit_posture(
+        policy(),
+        legal_hold_count=0,
+        audit_event_count=4,
+        audit_chain_status="failed",
+        audit_head_hash="f" * 64,
+        verified_at=STAMP,
+    )
+    section = render_retention_audit_posture(posture)
+    assert "Evidence status: Incomplete" in section
+    assert "Last purge: No completed purge receipt supplied" in section
+    assert "investigate the incomplete audit-chain evidence" in section
