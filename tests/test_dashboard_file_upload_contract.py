@@ -69,5 +69,6 @@ def test_upload_proxy_has_release_note_fragment() -> None:
 
     assert changelog_fragment.is_file()
     text = changelog_fragment.read_text(encoding="utf-8")
+    assert text.startswith("### Changed\n\n")
     assert "Upload findings file" in text
     assert "same file" in text.lower()
