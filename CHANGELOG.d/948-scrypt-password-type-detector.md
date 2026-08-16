@@ -1,10 +1,11 @@
-# Issue #948 — Node scrypt password input-type detector
+# PR #952 — Node scrypt password input-type detector
 
 ## Added
 
 - Added the HIGH `javascript-auth-scrypt-unvalidated-password-type` detector family for source-derived `hashPassword` and `verifyPassword` functions that pass an unvalidated password parameter directly to Node.js `scryptSync`.
 - Added exact vulnerable and reviewed fixed ScopeWeave Git-blob fixtures, commit/path-to-blob provenance verification, and production scanner regressions.
 - Added negative coverage for string normalization, fail-closed pre-sink type validation, and unrelated key-derivation helpers, plus positive coverage for TypeScript parameters, nested blocks, and non-terminating type comparisons.
+- Kept this helper-local sink detector distinct from route-level PR #945. Closed duplicate issue #948 is not re-opened or re-claimed by this slice, and cancelled collector issues #729/#732 remain provenance-only records rather than merge-close targets.
 
 ## Security
 
