@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from appguardrail_core import scan_assurance
 from appguardrail_core.scan_assurance import (
     ASSURANCE_SCHEMA,
     EVIDENCE_SCHEMA,
@@ -417,8 +418,6 @@ def test_all_production_functions_are_documented() -> None:
     """Every function in the owned production module carries a readable docstring."""
     import ast
     import inspect
-
-    import appguardrail_core.scan_assurance as scan_assurance
 
     tree = ast.parse(inspect.getsource(scan_assurance))
     functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
