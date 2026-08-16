@@ -2,8 +2,8 @@
 
 import hashlib
 import json
-from pathlib import Path
 import urllib.request
+from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
@@ -117,7 +117,9 @@ def _github_path_blob_sha(head_sha: str) -> str:
         for entry in tree_payload["tree"]
         if entry.get("path") == _SOURCE_PATH and entry.get("type") == "blob"
     ]
-    assert matches == [matches[0]], f"expected exactly one {_SOURCE_PATH} blob"
+    assert len(matches) == 1, (
+        f"expected exactly one {_SOURCE_PATH} blob, found {len(matches)}"
+    )
     return matches[0]
 
 
