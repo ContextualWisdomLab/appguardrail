@@ -23,7 +23,7 @@ The lightweight detector requires the following evidence in one Java source file
 
 The detector reports either trust-boundary failure independently. Copying constructor input does not make a direct getter return safe, and returning a copy does not make retention of caller-owned input safe.
 
-The rule is protected by the file-level prefilters `implements MultipartFile`, `private final byte[]`, and `getBytes`. These avoid evaluating the multiline expression for unrelated Java files.
+The rule is protected by the file-level tokens `MultipartFile` and `getBytes`. These tokens remain present when the interface is fully qualified, the `implements` clause spans lines, or legal whitespace is used around Java array brackets. The structural expression—not a restrictive literal prefilter—then verifies the direct interface, field, constructor, and getter shape.
 
 ## Source-authoritative evidence corpus
 
@@ -33,13 +33,15 @@ The rule is protected by the file-level prefilters `implements MultipartFile`, `
 - the exact reviewed defensive-copy blob;
 - a constructor-alias-only positive;
 - a direct-getter-only positive;
+- fully qualified and line-broken `MultipartFile` interface positives;
+- a legal `byte []` field-declaration positive;
 - an equivalent `clone()`-based safe implementation;
 - an unrelated byte-array holder outside the `MultipartFile` boundary;
 - a `getBytes()` method that returns newly allocated bytes;
 - immutable source repository, head, and blob identifiers;
 - the production `_scan_file` finding envelope, including line, severity, confidence, CWE, and OWASP metadata.
 
-The initial branch commit contained the tests and exact fixtures without the production rule. Exact-head Python 3.11 and 3.13 workflows failed only because the detector was absent, preserving an executable RED state before the GREEN rule commit.
+The initial branch commit contained the tests and exact fixtures without the production rule. Exact-head Python 3.11 and 3.13 workflows failed only because the detector was absent, preserving an executable RED state before the GREEN rule commit. A later CodeRabbit review identified invalid inline-YAML punctuation and grammar-restrictive prefilters. A second RED commit proved five failures: the unsafe YAML source contract, the loaded prefilter tuple, fully qualified interface names, line-broken interface clauses, and spaced array declarations.
 
 ## Remediation boundary
 
