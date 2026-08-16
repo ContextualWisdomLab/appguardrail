@@ -23,8 +23,11 @@ def test_console_exposes_loading_busy_and_error_states():
     """Busy and unavailable semantics must stay distinct and keyboard-consistent."""
     html = _console_html()
 
-    assert ':disabled, [aria-disabled="true"]{opacity:.6;cursor:not-allowed;pointer-events:none}' in html
-    assert '[aria-busy="true"]{opacity:.6;cursor:progress}' in html
+    assert "--busy-opacity:.6;" in html
+    assert 'button:disabled, tr.scan[aria-disabled="true"]' in html
+    assert '#connect[aria-busy="true"], tr.scan[aria-busy="true"]' in html
+    assert "opacity:var(--busy-opacity)" in html
+    assert "pointer-events:none" in html
     assert 'tr.setAttribute("aria-busy","true");' in html
     assert 'tr.setAttribute("aria-disabled","true");' in html
     assert 'if(tr&&tr.getAttribute("aria-disabled")==="true")return;' in html
