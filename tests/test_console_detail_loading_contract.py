@@ -85,6 +85,26 @@ def test_console_close_buttons_explain_the_escape_shortcut():
     assert html.count('aria-label="Close details" title="Close (Esc)"') == 2
 
 
+def test_console_detail_close_control_is_wired_and_focused_on_every_result() -> None:
+    """Success and error detail paths must focus their actionable close control."""
+    html = _console_html()
+    success_path = html.split('const s=await api("/api/v1/scans/"+id);', 1)[1].split(
+        "}catch(e){", 1
+    )[0]
+    error_path = html.split("}catch(e){", 1)[1].split("}finally{", 1)[0]
+
+    for result_path in (success_path, error_path):
+        assert 'class="close-btn" aria-label="Close details"' in result_path
+        assert (
+            'd.querySelector(".close-btn").addEventListener("click",closeDetail);'
+            in result_path
+        )
+        assert (
+            'd.querySelector(".close-btn").focus({preventScroll:true});' in result_path
+        )
+        assert "d.focus({preventScroll:true});" not in result_path
+
+
 def test_console_hover_feedback_excludes_disabled_controls():
     """Hover feedback must not imply that a disabled control can be activated."""
     html = _console_html()
