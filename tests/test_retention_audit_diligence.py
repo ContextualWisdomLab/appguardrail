@@ -262,8 +262,11 @@ def test_buyer_report_surfaces_posture_and_next_action_without_customer_data() -
     assert "Audit chain: Verified (8 events)" in report
     assert "Last purge: purge-20260816-001 at 2026-08-16T00:00:00Z" in report
     assert "Next action: re-verify this posture against the current tenant state before acquisition reliance." in report
-    assert "tenant_id" not in report.lower()
-    assert "authorization" not in report.lower()
+    lowered = report.lower()
+    assert "tenant_id" not in lowered
+    assert "bearer secret-token" not in lowered
+    assert "owner-17" not in lowered
+    assert "req-871" not in lowered
 
 
 def test_buyer_report_marks_missing_posture_as_not_supplied() -> None:
