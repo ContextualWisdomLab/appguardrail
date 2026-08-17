@@ -193,7 +193,7 @@ function render(){
 
   const filtered = ALL
     .map((f,i)=>({f,i}))
-    .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
+    .filter(({f})=> (!filterSev || (filterSev === 'BLOCKING' ? isDeployBlocking(f) : String(f.severity).toUpperCase()===filterSev)))
     .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
     .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
   const allFindingsText = formatFindingCount(ALL.length);
@@ -219,7 +219,7 @@ function render(){
     <h1>Dashboard</h1>
     <p class="sub">${findingsText} · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
     <div class="cards">${cards}
-      <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
+      <div class="card" role="button" tabindex="0" aria-label="Filter by Deploy-blocking: ${blocking}" aria-pressed="${filterSev==='BLOCKING'}" onclick="document.getElementById('sev').value='${filterSev==='BLOCKING' ? '' : 'BLOCKING'}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${filterSev==='BLOCKING' ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;'}"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
     </div>
     <div class="grid2">
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
@@ -229,6 +229,7 @@ function render(){
           <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
             ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
+            <option value="BLOCKING" ${filterSev==='BLOCKING'?'selected':''}>Deploy-blocking</option>
           </select>
         </div>
         <div class="panel"><table>
