@@ -24,7 +24,8 @@
   h1{font-size:16px;margin:0;font-weight:700}
   main{max-width:1000px;margin:0 auto;padding:20px}
   input{font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-width:280px}
-  button{font:inherit;font-weight:600;padding:8px 14px;border:0;border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer}
+  button{font:inherit;font-weight:600;padding:8px 14px;border:0;border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer;transition:filter 0.2s, opacity 0.2s}
+  button:hover:not(:disabled){filter:brightness(.94)}
   button.ghost{background:var(--surface);color:var(--primary);border:1px solid var(--border)}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
   .stats{display:flex;gap:12px;flex-wrap:wrap}
@@ -38,7 +39,7 @@
   tr.scan:hover{background:var(--bg)}
   input:focus-visible, button:focus-visible, tr.scan:focus-visible, .bar:focus-visible, #detail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   button:disabled{opacity:0.5;cursor:not-allowed}
-  tr.scan[aria-busy="true"]{opacity:0.6;pointer-events:none}
+  tr.scan[aria-busy="true"]{opacity:0.7;cursor: wait; pointer-events: none}
   .close-btn{float:right;border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--muted);padding:0 4px;margin-top:-2px}
   .close-btn:hover{color:var(--text)}
   .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
