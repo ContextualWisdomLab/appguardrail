@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2024-05-15 - Dashboard File Input Accessibility
+**Learning:** Native `<input type="file">` elements offer poor customizability and inconsistent UX/accessibility across browsers, especially in zero-build vanilla frontends. Directly hiding them causes loss of accessibility context, but exposing them ruins UI contracts.
+**Action:** Always visually hide native `<input type="file">` elements using `class="sr-only"` rather than `display: none` to retain screen reader focusability, then provide a styled proxy `<button>` with the `aria-label` to trigger the hidden input. This maintains both visual consistency and accessibility without duplicate accessible naming.
