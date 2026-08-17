@@ -1,0 +1,1 @@
+- `scanner/dashboard/index.html`: 화면 판독기 사용자가 새 탭으로 열리는 링크(외부 참조 링크)의 컨텍스트 전환을 미리 인지할 수 있도록 `aria-label`에 "(opens in a new tab)" 경고를 추가하여 접근성을 개선했습니다.
