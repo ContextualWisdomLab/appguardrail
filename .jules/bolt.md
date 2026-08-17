@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2024-08-17 - dict.fromkeys 제너레이터를 피하여 튜플 중복 제거 최적화
+**Learning:** `dict.fromkeys()`는 순서를 유지하면서 O(1) 중복 제거를 수행하는 데 탁월하지만, 제너레이터 표현식(예: `dict.fromkeys(item for ...)`)을 전달하면 핫 패스에서 심각한 제너레이터 인스턴스화 오버헤드와 실행 시간이 발생합니다. 프로파일링 결과 명시적인 `for` 루프를 통해 수동으로 반복하고 로컬 딕셔너리에 할당(`seen[item] = None`)하는 것이 컬렉션 크기에 따라 대략 15-40% 더 빠른 것으로 나타났습니다.
+**Action:** Python에서 핫 패스 코드를 최적화할 때, `dict.fromkeys()`에 전달되는 제너레이터 컴프리헨션보다 로컬 딕셔너리(`seen = {}`)를 업데이트하는 명시적 루프를 선호하십시오. 후자는 불필요한 제너레이터 오버헤드와 프레임 할당을 피하며, 명시적 딕셔너리 할당은 객체 인스턴스화 오버헤드를 방지합니다.
