@@ -1,0 +1,105 @@
+name: Repair PR 983 nested subprocess contract
+
+on:
+  push:
+    branches:
+      - sentinel-fix-python-command-injection-regex-727217014950515043
+    paths:
+      - .github/workflows/repair-pr-983-nested.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-pr-983-nested-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.repository == 'ContextualWisdomLab/appguardrail' &&
+      github.ref == 'refs/heads/sentinel-fix-python-command-injection-regex-727217014950515043'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      EXPECTED_PARENT_SHA: b97ab9f32831d3290ea62c186934e4999bc9f34c
+      TARGET_BRANCH: sentinel-fix-python-command-injection-regex-727217014950515043
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify exact repair boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+      - name: Apply bounded nested-call support and RED regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          scanner_path = Path("scanner/cli/appguardrail.py")
+          scanner = scanner_path.read_text(encoding="utf-8")
+          old_pattern = (
+              '            r"(?i)(?:os\\.(?:system|popen)\\s*\\(|subprocess\\.'
+              '(?:Popen|run|call|check_call|check_output)\\s*\\([^)]*shell\\s*=\\s*True)"\n'
+          )
+          new_pattern = (
+              '            r"(?is)(?:os\\.(?:system|popen)\\s*\\(|subprocess\\.'
+              '(?:Popen|run|call|check_call|check_output)\\s*\\('
+              '(?:[^()]|\\([^()]*\\))*shell\\s*=\\s*True)"\n'
+          )
+          if scanner.count(old_pattern) != 1:
+              raise SystemExit("python command-injection pattern boundary drifted")
+          scanner_path.write_text(
+              scanner.replace(old_pattern, new_pattern, 1), encoding="utf-8"
+          )
+
+          test_path = Path("tests/test_python_command_injection_rule.py")
+          tests = test_path.read_text(encoding="utf-8")
+          old_case = (
+              '        ("subprocess_shell.py", '
+              '"subprocess.call(command, shell=True)\\n"),\n'
+          )
+          new_case = old_case + (
+              '        (\n'
+              '            "subprocess_nested_shell.py",\n'
+              '            "subprocess.call(build_command(user_input), shell=True)\\n",\n'
+              '        ),\n'
+              '        (\n'
+              '            "subprocess_nested_twice_shell.py",\n'
+              '            "subprocess.run(build(one(user_input)), shell=True)\\n",\n'
+              '        ),\n'
+          )
+          if tests.count(old_case) != 1:
+              raise SystemExit("focused command-injection test boundary drifted")
+          test_path.write_text(tests.replace(old_case, new_case, 1), encoding="utf-8")
+          PY
+      - name: Install hash-locked test dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Verify focused and complete GREEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_python_command_injection_rule.py tests/test_appguardrail.py::test_scan_file_detects_strix_derived_patterns
+          python -m pytest -q tests
+          git diff --check
+      - name: Publish verified repair and remove temporary authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-pr-983-nested.yml
+          git add -A
+          git config user.name "CWL One-shot Repair"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(sast): detect nested subprocess shell calls"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
