@@ -20,9 +20,9 @@ jobs:
       github.repository == 'ContextualWisdomLab/appguardrail' &&
       github.ref == 'refs/heads/sentinel-fix-python-command-injection-regex-727217014950515043'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
-      EXPECTED_PARENT_SHA: b97ab9f32831d3290ea62c186934e4999bc9f34c
+      EXPECTED_PARENT_SHA: 12350c8ba577ad17be4c3b7f926f46575ef86657
       TARGET_BRANCH: sentinel-fix-python-command-injection-regex-727217014950515043
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,49 +37,239 @@ jobs:
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT_SHA"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git branch --show-current)" = "$TARGET_BRANCH"
-      - name: Apply bounded nested-call support and RED regressions
+      - name: Apply AST-backed subprocess detection and regressions
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           scanner_path = Path("scanner/cli/appguardrail.py")
           scanner = scanner_path.read_text(encoding="utf-8")
+
+          import_anchor = "import argparse\n"
+          if scanner.count(import_anchor) != 1 or "import ast\n" in scanner:
+              raise SystemExit("AST import boundary drifted")
+          scanner = scanner.replace(import_anchor, import_anchor + "import ast\n", 1)
+
           old_pattern = (
               '            r"(?i)(?:os\\.(?:system|popen)\\s*\\(|subprocess\\.'
               '(?:Popen|run|call|check_call|check_output)\\s*\\([^)]*shell\\s*=\\s*True)"\n'
           )
-          new_pattern = (
-              '            r"(?is)(?:os\\.(?:system|popen)\\s*\\(|subprocess\\.'
-              '(?:Popen|run|call|check_call|check_output)\\s*\\('
-              '(?:[^()]|\\([^()]*\\))*shell\\s*=\\s*True)"\n'
-          )
+          new_pattern = '            r"(?i)os\\.(?:system|popen)\\s*\\("\n'
           if scanner.count(old_pattern) != 1:
-              raise SystemExit("python command-injection pattern boundary drifted")
+              raise SystemExit("python command-injection regex boundary drifted")
+          scanner = scanner.replace(old_pattern, new_pattern, 1)
+
+          helper = dedent(
+              '''
+              _PYTHON_SUBPROCESS_SHELL_APIS = frozenset(
+                  {"Popen", "run", "call", "check_call", "check_output"}
+              )
+
+
+              def _python_subprocess_shell_findings(
+                  content: str,
+                  file_path: Path,
+                  context: ScanPathContext,
+              ):
+                  """Find parsed Python subprocess calls that explicitly enable a shell."""
+                  try:
+                      tree = ast.parse(content)
+                  except (SyntaxError, TypeError, ValueError, RecursionError):
+                      return []
+
+                  module_aliases = {"subprocess"}
+                  function_aliases = set()
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.Import):
+                          for alias in node.names:
+                              if alias.name == "subprocess":
+                                  module_aliases.add(alias.asname or alias.name)
+                      elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+                          for alias in node.names:
+                              if alias.name in _PYTHON_SUBPROCESS_SHELL_APIS:
+                                  function_aliases.add(alias.asname or alias.name)
+
+                  relative_path = _sanitize_terminal_output(
+                      _display_path(context.relative_candidate(file_path))
+                  )
+                  source_lines = content.splitlines()
+                  findings = []
+                  for node in ast.walk(tree):
+                      if not isinstance(node, ast.Call):
+                          continue
+                      function = node.func
+                      is_subprocess_call = (
+                          isinstance(function, ast.Attribute)
+                          and isinstance(function.value, ast.Name)
+                          and function.value.id in module_aliases
+                          and function.attr in _PYTHON_SUBPROCESS_SHELL_APIS
+                      ) or (
+                          isinstance(function, ast.Name)
+                          and function.id in function_aliases
+                      )
+                      if not is_subprocess_call:
+                          continue
+                      shell_keyword = next(
+                          (
+                              keyword
+                              for keyword in node.keywords
+                              if keyword.arg == "shell"
+                          ),
+                          None,
+                      )
+                      if not (
+                          shell_keyword is not None
+                          and isinstance(shell_keyword.value, ast.Constant)
+                          and shell_keyword.value.value is True
+                      ):
+                          continue
+                      line_number = max(getattr(node, "lineno", 1), 1)
+                      snippet = (
+                          source_lines[line_number - 1].strip()[:120]
+                          if line_number <= len(source_lines)
+                          else "subprocess shell call"
+                      )
+                      findings.append(
+                          _build_finding(
+                              "appguardrail-python-ast",
+                              "python-command-injection",
+                              "CRITICAL",
+                              "Potential command injection detected: os.system/os.popen execute through a shell, or a subprocess API was invoked with shell=True. [OWASP A03:2021 - Injection]",
+                              relative_path,
+                              line_number,
+                              snippet,
+                          )
+                      )
+                  return findings
+
+
+              '''
+          )
+          function_anchor = "def _scan_file(\n"
+          if scanner.count(function_anchor) != 1 or "_PYTHON_SUBPROCESS_SHELL_APIS" in scanner:
+              raise SystemExit("Python AST helper insertion boundary drifted")
+          scanner = scanner.replace(function_anchor, helper + function_anchor, 1)
+
+          content_anchor = (
+              "            if not content:\n"
+              "                return findings\n"
+              "            count_newlines = content.count\n"
+          )
+          content_replacement = (
+              "            if not content:\n"
+              "                return findings\n"
+              "            if ext == \".py\":\n"
+              "                findings.extend(\n"
+              "                    _python_subprocess_shell_findings(\n"
+              "                        content, file_path, context\n"
+              "                    )\n"
+              "                )\n"
+              "            count_newlines = content.count\n"
+          )
+          if scanner.count(content_anchor) != 1:
+              raise SystemExit("scan integration boundary drifted")
           scanner_path.write_text(
-              scanner.replace(old_pattern, new_pattern, 1), encoding="utf-8"
+              scanner.replace(content_anchor, content_replacement, 1),
+              encoding="utf-8",
           )
 
-          test_path = Path("tests/test_python_command_injection_rule.py")
-          tests = test_path.read_text(encoding="utf-8")
-          old_case = (
-              '        ("subprocess_shell.py", '
-              '"subprocess.call(command, shell=True)\\n"),\n'
+          Path("tests/test_python_command_injection_rule.py").write_text(
+              dedent(
+                  '''\
+                  """Focused contracts for Python shell-spawning command injection."""
+
+                  import pytest
+
+                  from scanner.cli.appguardrail import _scan_file
+
+
+                  EXPECTED_MESSAGE = (
+                      "Potential command injection detected: os.system/os.popen execute through "
+                      "a shell, or a subprocess API was invoked with shell=True. "
+                      "[OWASP A03:2021 - Injection]"
+                  )
+
+
+                  @pytest.mark.parametrize(
+                      ("filename", "source"),
+                      [
+                          ("os_system.py", "os.system('id')\n"),
+                          ("os_popen.py", "os.popen(command)\n"),
+                          ("subprocess_shell.py", "subprocess.call(command, shell=True)\n"),
+                          (
+                              "subprocess_nested_shell.py",
+                              "subprocess.call(build_command(user_input), shell=True)\n",
+                          ),
+                          (
+                              "subprocess_deep_shell.py",
+                              "subprocess.run(build(one(two(user_input))), shell=True)\n",
+                          ),
+                          (
+                              "subprocess_module_alias.py",
+                              "import subprocess as sp\nsp.run(command, shell=True)\n",
+                          ),
+                          (
+                              "subprocess_function_alias.py",
+                              "from subprocess import check_output as invoke\n"
+                              "invoke(command, shell=True)\n",
+                          ),
+                      ],
+                  )
+                  def test_python_shell_spawning_apis_are_detected_independently(
+                      tmp_path, filename, source
+                  ):
+                      """Require each supported shell-spawning API shape to trigger alone."""
+                      source_path = tmp_path / filename
+                      source_path.write_text(source, encoding="utf-8")
+
+                      matches = [
+                          finding
+                          for finding in _scan_file(source_path, tmp_path)
+                          if finding["rule_id"] == "python-command-injection"
+                      ]
+
+                      assert len(matches) == 1
+                      assert matches[0]["message"] == EXPECTED_MESSAGE
+
+
+                  @pytest.mark.parametrize(
+                      "source",
+                      [
+                          "subprocess.call(['id'], shell=False)\n",
+                          "subprocess.run(['id'])\n",
+                          "import subprocess as sp\nsp.run(['id'], shell=False)\n",
+                      ],
+                  )
+                  def test_python_subprocess_without_literal_shell_true_is_not_reported(
+                      tmp_path, source
+                  ):
+                      """Keep non-shell subprocess execution outside this detector."""
+                      source_path = tmp_path / "safe_subprocess.py"
+                      source_path.write_text(source, encoding="utf-8")
+
+                      rule_ids = {
+                          finding["rule_id"]
+                          for finding in _scan_file(source_path, tmp_path)
+                      }
+
+                      assert "python-command-injection" not in rule_ids
+
+
+                  def test_malformed_python_does_not_crash_the_scanner(tmp_path):
+                      """Treat an incomplete Python file as unparsed evidence, not a scanner crash."""
+                      source_path = tmp_path / "incomplete.py"
+                      source_path.write_text(
+                          "subprocess.run(command, shell=True\n", encoding="utf-8"
+                      )
+
+                      assert isinstance(_scan_file(source_path, tmp_path), list)
+                  '''
+              ),
+              encoding="utf-8",
           )
-          new_case = old_case + (
-              '        (\n'
-              '            "subprocess_nested_shell.py",\n'
-              '            "subprocess.call(build_command(user_input), shell=True)\\n",\n'
-              '        ),\n'
-              '        (\n'
-              '            "subprocess_nested_twice_shell.py",\n'
-              '            "subprocess.run(build(one(user_input)), shell=True)\\n",\n'
-              '        ),\n'
-          )
-          if tests.count(old_case) != 1:
-              raise SystemExit("focused command-injection test boundary drifted")
-          test_path.write_text(tests.replace(old_case, new_case, 1), encoding="utf-8")
           PY
       - name: Install hash-locked test dependencies
         run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
@@ -89,6 +279,7 @@ jobs:
           set -euo pipefail
           python -m pytest -q tests/test_python_command_injection_rule.py tests/test_appguardrail.py::test_scan_file_detects_strix_derived_patterns
           python -m pytest -q tests
+          python -m compileall -q appguardrail_core scanner tests
           git diff --check
       - name: Publish verified repair and remove temporary authority
         env:
@@ -100,6 +291,6 @@ jobs:
           git add -A
           git config user.name "CWL One-shot Repair"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix(sast): detect nested subprocess shell calls"
+          git commit -m "fix(sast): parse nested subprocess shell calls"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
