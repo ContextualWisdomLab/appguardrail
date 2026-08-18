@@ -457,7 +457,7 @@ SCAN_RULES = [
             r"(?i)(?:os\.(?:system|popen)\s*\(|subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^)]*shell\s*=\s*True)"
         ),
         "severity": "CRITICAL",
-        "message": "Potential Command Injection detected: shell=True used in Python subprocess/os command. [OWASP A03:2021 - Injection]",
+        "message": "Potential command injection detected: os.system/os.popen execute through a shell, or a subprocess API was invoked with shell=True. [OWASP A03:2021 - Injection]",
         "extensions": [".py"],
     },
     {
