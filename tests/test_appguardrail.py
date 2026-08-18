@@ -231,6 +231,10 @@ def test_scan_file_detects_strix_derived_patterns(tmp_path):
             "content": 'subprocess.run(f"ffmpeg -i {source_path}")\n',
             "ids": {"python-subprocess-string-command"},
         },
+        "cmd_injection.py": {
+            "content": "os.system(user_input)\nos.popen(cmd)\nsubprocess.call(cmd, shell=True)\n",
+            "ids": {"python-command-injection"},
+        },
         "api.py": {
             "content": "raise HTTPException(status_code=500) from exc\n",
             "ids": {"http-exception-chains-internal-error"},
