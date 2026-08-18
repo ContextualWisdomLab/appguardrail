@@ -295,6 +295,12 @@ def test_dashboard_dialog_close_button_has_tooltip():
     )
 
 
+def test_dashboard_external_links_have_accessible_labels():
+    """External links (target="_blank") must inform screen reader users of the context switch."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert '<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}<span class="sr-only"> (opens in a new tab)</span></a>' in html
+
+
 def test_dashboard_search_escape_clears_input():
     """Search input must expose an Escape keybind to quickly clear filters."""
     html = dashboard_index_path().read_text(encoding="utf-8")
