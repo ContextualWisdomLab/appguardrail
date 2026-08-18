@@ -81,6 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-## 2026-08-16 - Proxy Button for Native File Input
-**Learning:** When replacing a native file input with a proxy button for better UX/consistency, visually hiding the input with `sr-only` and proxying the click via a button improves interaction without breaking accessibility contract tests, as long as `aria-label` is preserved on the new button. Furthermore, resetting `fileInput.value = ''` inside the change handler is crucial in SPAs to allow the user to select the same file consecutively.
-**Action:** Always maintain the original `aria-label` on proxy elements and handle sequential file selection manually in vanilla JS SPA contexts.
