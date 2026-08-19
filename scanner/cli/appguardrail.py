@@ -454,10 +454,10 @@ SCAN_RULES = [
     {
         "id": "python-command-injection",
         "pattern": re.compile(
-            r"(?i)(?:os\.(?:system|popen)\s*\(|subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^)]*shell\s*=\s*True)"
+            r"(?is)(?:\bos\.(?:system|popen)\s*\(|\bsubprocess\.(?:Popen|run|call|check_call|check_output)\s*\((?:[^()]|\([^()]*\)){0,1200}\bshell\s*=\s*True)"
         ),
         "severity": "CRITICAL",
-        "message": "Potential Command Injection detected: shell=True used in Python subprocess/os command. [OWASP A03:2021 - Injection]",
+        "message": "Potential command injection sink detected: os.system/os.popen execute through a shell, and subprocess shell=True invokes a shell. Avoid shell execution, validate untrusted input, and use argument arrays where possible. [OWASP A03:2021 - Injection]",
         "extensions": [".py"],
     },
     {
