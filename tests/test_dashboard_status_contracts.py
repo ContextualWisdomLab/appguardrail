@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from html.parser import HTMLParser
 
 from scanner.cli.appguardrail import dashboard_index_path
@@ -70,8 +71,7 @@ def test_dashboard_escapes_double_quotes_with_complete_html_entity() -> None:
     html = _dashboard_html()
 
     expected_mapping = (
-        "{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"
-        "\"'\":'&#39;','`':'&#96;'}"
+        "{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'," "\"'\":'&#39;','`':'&#96;'}"
     )
     assert expected_mapping in html
 
@@ -90,3 +90,35 @@ def test_dashboard_distinguishes_unloaded_and_clean_scan_states() -> None:
     assert "Clean scan · 0 findings · deploy gate clear" in html
     assert "Load a different <code>findings.json</code> file" in html
     assert "🎉 Clean Scan" not in html
+
+
+class _AnchorAttributeParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.anchor_attrs: dict[str, str | None] = {}
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag == "a":
+            self.anchor_attrs = dict(attrs)
+
+
+def test_dashboard_external_links_warn_screen_readers() -> None:
+    """External links opening in new tabs must have accessible labels warning of context switch."""
+    html = _dashboard_html()
+
+    # Extract the literal anchor tag from the JS code
+    match = re.search(
+        r"const refs = [^`]+`(<a[^>]+>)\$\{esc\(r\)\}</a>`", html, re.DOTALL
+    )
+    assert match is not None
+    anchor_html = match.group(1) + "</a>"
+
+    parser = _AnchorAttributeParser()
+    parser.feed(anchor_html)
+
+    assert parser.anchor_attrs.get("target") == "_blank"
+    assert parser.anchor_attrs.get("aria-label") == "${esc(r)} (opens in a new tab)"
