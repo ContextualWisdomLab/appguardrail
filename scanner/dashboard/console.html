@@ -25,6 +25,7 @@
   main{max-width:1000px;margin:0 auto;padding:20px}
   input{font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-width:280px}
   button{font:inherit;font-weight:600;padding:8px 14px;border:0;border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer}
+  button:disabled,button[aria-busy="true"]{opacity:0.6;cursor:not-allowed}
   button.ghost{background:var(--surface);color:var(--primary);border:1px solid var(--border)}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
   .stats{display:flex;gap:12px;flex-wrap:wrap}
