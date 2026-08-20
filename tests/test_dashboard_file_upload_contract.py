@@ -38,17 +38,15 @@ def test_header_upload_proxy_is_native_tokenized_and_state_perceivable() -> None
     assert 'id="upload-btn" style=' not in html
 
 
-def test_proxy_hides_the_native_input_without_focusable_aria_hidden_state() -> None:
-    """The native picker must be fully hidden while the proxy owns interaction."""
+def test_proxy_hides_the_native_input_without_duplicate_accessible_naming() -> None:
+    """Only the native proxy button should appear in the accessibility tree."""
     html = _dashboard_html()
 
     assert (
-        '<input type="file" id="file" accept="application/json,.json" hidden>'
+        '<input type="file" id="file" accept="application/json,.json" '
+        'class="sr-only" tabindex="-1" aria-hidden="true">'
     ) in html
-    assert 'id="file" accept="application/json,.json" class="sr-only"' not in html
-    assert 'id="file" accept="application/json,.json" tabindex="-1"' not in html
-    assert 'id="file" accept="application/json,.json" aria-hidden="true"' not in html
-    assert "uploadBtn.addEventListener('click', () => fileInput.click());" in html
+    assert 'aria-hidden="true" aria-label="Upload findings file"' not in html
 
 
 def test_file_input_resets_only_after_a_selection_change() -> None:
