@@ -24,13 +24,13 @@ jobs:
     permissions:
       contents: write
     env:
-      EXPECTED_PARENT_SHA: b0dfcb6449eae02bab5a77c773b49c131850ebe9
+      EXPECTED_PARENT_SHA: ac599203a95c139fac3eeabdf028607b64e15ad3
       TARGET_BRANCH: sentinel-fix-python-command-injection-regex-727217014950515043
     steps:
       - name: Check out exact repair trigger
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: sentinel-fix-python-command-injection-regex-727217014950515043
           fetch-depth: 2
           persist-credentials: false
 
