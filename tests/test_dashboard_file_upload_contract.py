@@ -35,6 +35,9 @@ def test_header_upload_proxy_is_native_tokenized_and_state_perceivable() -> None
     assert ".upload-action{" in html
     assert ".upload-action:hover{" in html
     assert ".upload-action:disabled{" in html
+    assert "--busy-opacity:.6;" in html
+    assert ".upload-action:disabled{opacity:var(--busy-opacity);" in html
+    assert ".upload-action:disabled{opacity:0.6;" not in html
     assert 'id="upload-btn" style=' not in html
 
 
