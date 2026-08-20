@@ -206,7 +206,7 @@ function render(){
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
+    return `<tr data-i="${esc(i)}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -217,9 +217,9 @@ function render(){
 
   app.innerHTML = `
     <h1>Dashboard</h1>
-    <p class="sub">${findingsText} · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
+    <p class="sub">${esc(findingsText)} · <strong>${esc(blocking)}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
     <div class="cards">${cards}
-      <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
+      <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${esc(blocking)}</div></div>
     </div>
     <div class="grid2">
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
