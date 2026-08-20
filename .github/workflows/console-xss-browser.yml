@@ -1,0 +1,56 @@
+name: Console XSS Browser
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - scanner/dashboard/console.html
+      - tests/test_console_xss_contract.py
+      - tests/test_console_xss_browser.py
+      - .github/workflows/console-xss-browser.yml
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - scanner/dashboard/console.html
+      - tests/test_console_xss_contract.py
+      - tests/test_console_xss_browser.py
+      - .github/workflows/console-xss-browser.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rendered-browser:
+    name: Render hostile payloads in Chrome
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Set up Chrome for Testing
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+      - name: Install immutable test dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Record browser identity
+        env:
+          APPGUARDRAIL_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: '"${APPGUARDRAIL_CHROME_PATH}" --version'
+      - name: Run source and rendered-browser XSS regressions
+        env:
+          APPGUARDRAIL_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: >-
+          python -m pytest -q
+          tests/test_console_xss_contract.py
+          tests/test_console_xss_browser.py
+      - name: Compile browser regression
+        run: python -m compileall -q tests/test_console_xss_contract.py tests/test_console_xss_browser.py
