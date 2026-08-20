@@ -110,14 +110,17 @@ def extract_public_references(message: str) -> tuple[str, ...]:
     Only ``[OWASP …]``, ``[CWE-…]``, and ``[CVE-…]`` forms are kept. Plain-text
     mentions are ignored so a finding report stays limited to the IDs the rule
     author already published. Messages without ``[`` skip the regex scanner.
+    First-seen order is retained without allocating a generator frame for each
+    finding.
     """
     if not message or "[" not in message:
         return ()
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split()) for match in REFERENCE_RE.finditer(message)
-        )
-    )
+
+    seen: dict[str, None] = {}
+    for match in REFERENCE_RE.finditer(message):
+        normalized = " ".join(match.group(1).split())
+        seen.setdefault(normalized, None)
+    return tuple(seen)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -180,6 +183,10 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(reference for group in groups for reference in group if reference)
-    )
+    """Merge non-empty reference groups in first-seen order without generators."""
+    seen: dict[str, None] = {}
+    for group in groups:
+        for reference in group:
+            if reference:
+                seen.setdefault(reference, None)
+    return tuple(seen)
