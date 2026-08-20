@@ -25,6 +25,7 @@ from appguardrail_core.issueops import (
     seen_key,
     title,
 )
+from appguardrail_core.source_evidence import acquire_workflow_evidence
 
 API = "https://api.github.com"
 UA = "appguardrail-org-security-failure-collector"
@@ -179,6 +180,26 @@ def build_finding(
     }
 
 
+def build_source_bound_finding(
+    repo: str,
+    run: dict[str, Any],
+    job: dict[str, Any],
+    *,
+    now: dt.datetime | None = None,
+    seen_artifact_refs: set[str] = frozenset(),
+) -> dict[str, Any]:
+    """Attach source-authoritative evidence to the legacy collector envelope."""
+    finding = build_finding(repo, run, job)
+    finding["source_evidence"] = acquire_workflow_evidence(
+        repo,
+        run,
+        job,
+        now=now if now is not None else utc_now(),
+        seen_artifact_refs=seen_artifact_refs,
+    )
+    return finding
+
+
 def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
     """Collect failed security workflow jobs across the configured organization."""
     if args.run_url:
@@ -194,8 +215,10 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
             if r.get("full_name") and not r.get("archived") and not r.get("fork")
         ]
         fixed_runs = {}
-    cutoff = utc_now() - dt.timedelta(hours=args.lookback_hours)
+    collection_now = utc_now()
+    cutoff = collection_now - dt.timedelta(hours=args.lookback_hours)
     findings: list[dict[str, Any]] = []
+    seen_artifact_refs: set[str] = set()
     for repo_info in repos:
         repo = repo_info["full_name"]
         if not repo.startswith(f"{args.owner}/"):
@@ -217,7 +240,19 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
                 ) and is_security_name(
                     run.get("name"), job.get("workflow_name"), job.get("name")
                 ):
-                    findings.append(build_finding(repo, run, job))
+                    finding = build_source_bound_finding(
+                        repo,
+                        run,
+                        job,
+                        now=collection_now,
+                        seen_artifact_refs=seen_artifact_refs,
+                    )
+                    findings.append(finding)
+                    artifact_ref = finding["source_evidence"]["source_identity"].get(
+                        "artifact_ref"
+                    )
+                    if artifact_ref:
+                        seen_artifact_refs.add(artifact_ref)
     return findings
 
 

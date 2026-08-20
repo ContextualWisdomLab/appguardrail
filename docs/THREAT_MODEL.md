@@ -31,6 +31,7 @@ flowchart LR
 | Threat | Impact | Controls |
 |---|---|---|
 | detector fixture asserts its own answer | false issue-coverage confidence | independent inventory + answer-free evidence + actual detector execution |
+| workflow metadata or caller assertion masquerades as detector truth | false SAST/DAST or issue-coverage assurance | pinned REST acquisition, generated source identity, SHA-256 bounded artifact, fixed probe/acquirer refs, typed fail-closed unknown |
 | unsupported structural rule presented as built-in | false negative/marketing error | explicit built-in vs external-engine capability/maturity |
 | scanner/tool unavailable treated as clean | false security assurance | explicit unavailable/inconclusive classification |
 | secret extraction/reflection | credential disclosure | redacted/fingerprinted findings; bounded logs/reports |
@@ -52,6 +53,12 @@ A URL may be safe syntactically but unsafe after DNS resolution, redirect, or la
 ## Issue-coverage abuse case
 
 A retained historical issue can tempt an audit to “cover” itself by mapping an issue to metadata that already states the expected outcome. That is circular assurance. The evidence producer must be independent enough that the detector adapter derives the result from bounded evidence, and workflow incidents require authenticated repository/run/job/head provenance.
+
+The source-bound workflow adapter treats a failed security job as a failed
+security control only. It never upgrades that result to a confirmed
+vulnerability, and it does not persist raw logs. Missing identity, stale or
+duplicate artifacts, malformed payloads, ambiguous cause order, unavailable
+sources, and unknown detector families remain `unknown`.
 
 ## Residual risk
 

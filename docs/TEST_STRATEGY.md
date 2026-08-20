@@ -35,6 +35,19 @@ The issue/claim inventory must be independently generated or authenticated and t
 
 PR #911 is active-PR evidence; until merged, no-exclusions issue coverage is not a protected-branch claim.
 
+## Source-bound workflow evidence
+
+The GitHub Actions detector contract uses answer-free source fixtures and the
+same collector entrypoint used by the CLI. Tests cover a true failed security
+job, a true successful job, malformed and unavailable payloads, unknown
+detector family, stale/future timestamps, duplicate artifact identity,
+ambiguous cause order, repository/run/job/head mismatches, caller assertion
+injection, source-artifact SHA-256 mutation, raw-log omission, IssueOps
+publication, and control-plane scan-detail persistence. The independent oracle
+asserts the typed status/reason and provenance fields; it is not read from the
+fixture. Mutation checks change the acquired conclusion and source metadata to
+prove that detector output changes only with source evidence.
+
 ## SSRF tests
 
 Cover direct and stored variants:

@@ -1,0 +1,22 @@
+{
+  "run": {
+    "id": 28492006631,
+    "name": "Strix Security Scan",
+    "head_sha": "2222222222222222222222222222222222222222",
+    "head_branch": "develop",
+    "event": "pull_request",
+    "conclusion": "success",
+    "updated_at": "2026-08-20T00:00:00Z",
+    "pull_requests": []
+  },
+  "job": {
+    "id": 84450511794,
+    "run_id": 28492006631,
+    "name": "strix",
+    "workflow_name": "Strix Security Scan",
+    "conclusion": "success",
+    "status": "completed",
+    "completed_at": "2026-08-20T00:00:00Z",
+    "steps": [{"number": 1, "conclusion": "success"}]
+  }
+}
