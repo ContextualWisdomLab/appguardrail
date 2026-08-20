@@ -1,1 +1,0 @@
-{"schema": "appguardrail.findings.v1", "findings": [{"rule_id": "xss-test", "message": "Test finding", "file": "test.txt", "line": 1, "severity": "CRITICAL", "context": "app-code"}]}
