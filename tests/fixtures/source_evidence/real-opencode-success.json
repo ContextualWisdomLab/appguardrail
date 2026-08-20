@@ -1,0 +1,26 @@
+{
+  "run": {
+    "id": 30769144488,
+    "name": "OpenCode Review Dispatch ContextualWisdomLab/.github#701@3a15867168d39a248b92c14f6db0e63584e8dc22",
+    "head_branch": "main",
+    "head_sha": "2a83043b0239ba827153c934f87e469dba4f96f0",
+    "event": "repository_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "created_at": "2026-08-02T22:00:40Z",
+    "updated_at": "2026-08-02T22:58:27Z"
+  },
+  "job": {
+    "id": 91553108105,
+    "run_id": 30769144488,
+    "name": "validate-pr-metadata",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {"number": 1, "name": "Set up job", "conclusion": "success"},
+      {"number": 2, "name": "Exchange OpenCode app token for target repository metadata reads", "conclusion": "skipped"},
+      {"number": 3, "name": "Bind workflow inputs to live organization pull request metadata", "conclusion": "success"},
+      {"number": 4, "name": "Complete job", "conclusion": "success"}
+    ]
+  }
+}

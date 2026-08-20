@@ -43,6 +43,11 @@ retained only for compatibility. A failed job is a control failure and cannot
 be promoted to a confirmed application vulnerability without an independent
 detector/source.
 
+The efficacy corpus includes a public historical replay of Issue #815:
+GitHub Actions run `30769144488`, failed `opencode-review` job `91553355284`,
+and its successful `validate-pr-metadata` sibling. The expected statuses are
+authored in tests from the acquired conclusions, not stored in the fixtures.
+
 ## Issue #911 traceability contract
 
 When PR #911 is accepted, the authoritative obligation system should preserve issue number/claim identity, detector family, evidence fixture/workflow provenance, execution result, and detector rule/finding evidence. Deduplicating equivalent incidents into one detector family is allowed; dropping a retained claim through an exclusion/waiver list is not.

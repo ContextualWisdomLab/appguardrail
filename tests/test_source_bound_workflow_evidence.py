@@ -65,6 +65,42 @@ def test_success_fixture_is_a_clean_result_from_the_same_path():
     assert evidence["assessment"]["confirmed_vulnerability"] is False
 
 
+def test_public_historical_failure_fixture_is_source_authoritative():
+    """Replay the public #815 source run with an independently authored oracle."""
+    run, job = fixture("real-opencode-failure.json")
+
+    evidence = acquire_workflow_evidence(
+        "ContextualWisdomLab/.github",
+        run,
+        job,
+        now=datetime(2026, 8, 2, 23, 0, tzinfo=UTC),
+    )
+
+    assert evidence["assessment"] == {
+        "status": "detected",
+        "reason": "security-workflow-job-failure",
+        "confirmed_vulnerability": False,
+    }
+    assert evidence["source_identity"]["artifact_ref"] == (
+        "github-actions://ContextualWisdomLab/.github/runs/30769144488/jobs/91553355284"
+    )
+
+
+def test_public_historical_success_job_is_a_true_negative_for_the_same_run():
+    """A successful sibling job remains clean despite the workflow run failing elsewhere."""
+    run, job = fixture("real-opencode-success.json")
+
+    evidence = acquire_workflow_evidence(
+        "ContextualWisdomLab/.github",
+        run,
+        job,
+        now=datetime(2026, 8, 2, 23, 0, tzinfo=UTC),
+    )
+
+    assert evidence["assessment"]["status"] == "clean"
+    assert evidence["assessment"]["reason"] == "security-workflow-job-success"
+
+
 @pytest.mark.parametrize(
     ("label", "run_change", "job_change", "expected_reason"),
     [
@@ -258,6 +294,9 @@ def test_source_conclusion_mutation_changes_typed_result():
 def test_collector_binds_source_evidence_and_issueops_renders_only_compact_proof():
     """The production collector path carries evidence through IssueOps."""
     run, job = fixture("strix-failure.json")
+    run["assessment"] = {"status": "clean"}
+    job["assessment"] = {"status": "clean"}
+    job["source_artifact_sha256"] = "caller-asserted-digest"
     item = collector.build_source_bound_finding(
         "ContextualWisdomLab/naruon", run, job, now=NOW
     )
