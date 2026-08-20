@@ -281,6 +281,7 @@ class _DevToolsWebSocket:
         try:
             self._send_frame(0x08, b"")
         except (OSError, ValueError):
+            # Teardown may race a closed/reset socket; local close still runs.
             pass
         self._socket.close()
 
