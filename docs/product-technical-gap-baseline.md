@@ -92,9 +92,9 @@ this snapshot is not a substitute for that query.
 - The scanner, control plane, remediation, and assurance planes are described
   separately, but the source-authoritative evidence contract is not yet proven
   end to end by one production detector.
-- `docs/ARCHITECTURE.md` should become the concise navigation document for the
-  existing PRD/TRD/UML/ERD/threat/test/operability contracts; do not duplicate
-  those documents until a boundary changes.
+- `ARCHITECTURE.md` is the concise navigation document for the existing
+  PRD/TRD/UML/ERD/threat/test/operability contracts; keep it synchronized when
+  a boundary changes and do not duplicate those documents.
 - External tools remain capability-dependent. Missing, queued, failed, and
   unavailable evidence must remain typed states rather than becoming a clean
   result or a built-in AppGuardrail finding.
