@@ -1,7 +1,7 @@
 rules:
   - id: java-spring-admin-discarded-tenant-context
     patterns:
-      - pattern-regex: '(?ms)@(?:Get|Post|Put|Patch|Delete|Request)Mapping\s*\(\s*"[^"\n]*/admin/[^"\n]*"[^)]*\)(?:(?!\n\s*@(?>Get|Post|Put|Patch|Delete|Request)Mapping\b).){0,2500}?^[ \t]*tenantAccessService\.require(?:Signed)?\s*\((?:(?!\)\s*;).){0,600}?TenantPermissions\.ADMIN_(?:READ|WRITE)(?:(?!\)\s*;).){0,600}?\)\s*;(?:(?!\n\s*@(?>Get|Post|Put|Patch|Delete|Request)Mapping\b).){0,2500}?\bconversionService\.(?:getAllJobs|deleteJob|retryDeadLettered)\s*\('
+      - pattern-regex: '(?ms)@(?:Get|Post|Put|Patch|Delete|Request)Mapping\s*\(\s*"[^"\n]*/admin/[^"\n]*"[^)]*\)\n(?:(?![ \t]*@(?:Get|Post|Put|Patch|Delete|Request)Mapping\b)(?![ \t]*tenantAccessService\.require(?:Signed)?\s*\()[^\n]*\n)*+^[ \t]*tenantAccessService\.require(?:Signed)?\s*\((?:[^\n]*\n){0,8}?[^\n]*TenantPermissions\.ADMIN_(?:READ|WRITE)[^\n]*\n?[ \t]*\);\n(?:(?![ \t]*@(?:Get|Post|Put|Patch|Delete|Request)Mapping\b)(?![^\n]*\bconversionService\.(?:getAllJobs|deleteJob|retryDeadLettered)\s*\()[^\n]*\n)*+[^\n]*\bconversionService\.(?:getAllJobs|deleteJob|retryDeadLettered)\s*\('
     message: |
       A Spring admin endpoint checks a tenant permission but discards the
       returned tenant authorization context before a tenant-sensitive service

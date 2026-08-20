@@ -185,6 +185,20 @@ def test_rule_does_not_cross_spring_mapping_boundaries() -> None:
     assert not _rule()["pattern"].search(_ADJACENT_METHODS_SOURCE)
 
 
+def test_rule_handles_large_admin_handler_without_unbounded_backtracking() -> None:
+    """Keep unrelated long handler text from creating a regex denial of service."""
+    source = (
+        '@GetMapping("/api/v1/admin/convert/jobs")\n'
+        "public AdminJobListResponse getAllJobs() {\n"
+        + "".join(
+            f'    String value_{index} = "unrelated";\n'
+            for index in range(3000)
+        )
+        + "}\n"
+    )
+    assert not _rule()["pattern"].search(source)
+
+
 def test_rule_declares_bounded_prefilters() -> None:
     """Avoid multiline evaluation unless the observed tenant-admin signals are present."""
     assert _rule()["required_substrings"] == (
