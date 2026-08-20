@@ -200,8 +200,8 @@ def acquire_workflow_evidence(
     job_id = _positive_int(job.get("id"))
     if run_id is None or job_id is None:
         return _unknown(repository, acquired_at, "malformed-source-evidence")
-    job_run_id = job.get("run_id")
-    if job_run_id is not None and job_run_id != run_id:
+    job_run_id = _positive_int(job.get("run_id"))
+    if job_run_id != run_id:
         return _unknown(repository, acquired_at, "malformed-source-evidence")
     revision = _text(run.get("head_sha"))
     if revision is None:
@@ -223,7 +223,7 @@ def acquire_workflow_evidence(
             repository, None, "malformed-source-evidence", revision=revision
         )
     raw_timestamp = (
-        run.get("updated_at") or job.get("completed_at") or run.get("created_at")
+        job.get("completed_at") or run.get("updated_at") or run.get("created_at")
     )
     observed = _timestamp(raw_timestamp)
     if observed is None:

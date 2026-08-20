@@ -108,6 +108,7 @@ def test_public_historical_success_job_is_a_true_negative_for_the_same_run():
         ("missing-sha", {"head_sha": ""}, {}, "missing-source-identity"),
         ("invalid-sha", {"head_sha": "not-a-sha"}, {}, "malformed-source-evidence"),
         ("run-job-mismatch", {}, {"run_id": 999}, "malformed-source-evidence"),
+        ("missing-run-id", {}, {"run_id": None}, "malformed-source-evidence"),
         (
             "ambiguous-cause",
             {},
@@ -236,6 +237,17 @@ def test_non_list_steps_are_malformed_source_evidence():
 def test_stale_and_duplicate_artifacts_are_unknown():
     """Freshness and deduplication are part of source authority."""
     run, job = fixture("strix-failure.json")
+    future_run, future_job = fixture("strix-failure.json")
+    future_job["completed_at"] = "2026-08-20T02:00:00Z"
+    future = acquire_workflow_evidence(
+        "ContextualWisdomLab/naruon", future_run, future_job, now=NOW
+    )
+    delayed_run, delayed_job = fixture("strix-failure.json")
+    delayed_run["updated_at"] = "2026-08-20T02:00:00Z"
+    delayed_job["completed_at"] = "2026-08-20T00:00:00Z"
+    delayed = acquire_workflow_evidence(
+        "ContextualWisdomLab/naruon", delayed_run, delayed_job, now=NOW
+    )
     stale = acquire_workflow_evidence(
         "ContextualWisdomLab/naruon",
         run,
@@ -252,6 +264,9 @@ def test_stale_and_duplicate_artifacts_are_unknown():
         seen_artifact_refs={fresh["source_identity"]["artifact_ref"]},
     )
 
+    assert future["assessment"]["status"] == "unknown"
+    assert future["assessment"]["reason"] == "stale-source-evidence"
+    assert delayed["assessment"]["status"] == "detected"
     assert stale["assessment"]["reason"] == "stale-source-evidence"
     assert duplicate["assessment"]["reason"] == "duplicate-source-artifact"
     assert duplicate["assessment"]["status"] == "unknown"
@@ -259,6 +274,10 @@ def test_stale_and_duplicate_artifacts_are_unknown():
 
 def test_source_hash_is_derived_and_changes_with_source_content():
     """Caller assertions cannot replace the hash of the acquired source fields."""
+    baseline_run, baseline_job = fixture("strix-failure.json")
+    baseline = acquire_workflow_evidence(
+        "ContextualWisdomLab/naruon", baseline_run, baseline_job, now=NOW
+    )
     run, job = fixture("strix-failure.json")
     job["assessment"] = {"status": "clean"}
     job["source_artifact_sha256"] = "attacker-provided-hash"
@@ -270,6 +289,10 @@ def test_source_hash_is_derived_and_changes_with_source_content():
     )
 
     assert first["source_identity"]["artifact_sha256"] != "attacker-provided-hash"
+    assert (
+        first["source_identity"]["artifact_sha256"]
+        == baseline["source_identity"]["artifact_sha256"]
+    )
     assert (
         first["source_identity"]["artifact_sha256"]
         != second["source_identity"]["artifact_sha256"]
@@ -346,6 +369,33 @@ def test_collector_uses_source_bound_path_for_run_collection(monkeypatch):
     assert (
         findings[0]["source_evidence"]["source_identity"]["revision"] == run["head_sha"]
     )
+
+
+def test_collector_does_not_publish_inconclusive_source_evidence(monkeypatch):
+    """Unknown source results never enter the security-failure issue path."""
+    run, job = fixture("strix-failure.json")
+    job.pop("run_id")
+
+    class Client:
+        """Return one malformed source job from the collection boundary."""
+
+        def pages(self, path, params=None):
+            """Return the repository, run, and malformed job pages."""
+            if path == "/installation/repositories":
+                return [{"full_name": "ContextualWisdomLab/naruon"}]
+            if path.endswith(f"/actions/runs/{run['id']}/jobs"):
+                return [job]
+            if path.endswith("/actions/runs"):
+                return [run]
+            return []
+
+    monkeypatch.setattr(collector, "utc_now", lambda: NOW)
+    findings = collector.collect_findings(
+        Client(),
+        Namespace(run_url=None, owner="ContextualWisdomLab", lookback_hours=48),
+    )
+
+    assert findings == []
 
 
 def test_control_plane_persists_source_evidence_in_scan_detail():

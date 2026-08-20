@@ -189,14 +189,18 @@ def build_source_bound_finding(
     seen_artifact_refs: set[str] = frozenset(),
 ) -> dict[str, Any]:
     """Attach source-authoritative evidence to the legacy collector envelope."""
-    finding = build_finding(repo, run, job)
-    finding["source_evidence"] = acquire_workflow_evidence(
+    evidence = acquire_workflow_evidence(
         repo,
         run,
         job,
         now=now if now is not None else utc_now(),
         seen_artifact_refs=seen_artifact_refs,
     )
+    assessment = evidence.get("assessment")
+    if not isinstance(assessment, dict) or assessment.get("status") != "detected":
+        return {"source_evidence": evidence}
+    finding = build_finding(repo, run, job)
+    finding["source_evidence"] = evidence
     return finding
 
 
@@ -247,6 +251,11 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
                         now=collection_now,
                         seen_artifact_refs=seen_artifact_refs,
                     )
+                    assessment = finding.get("source_evidence", {}).get(
+                        "assessment", {}
+                    )
+                    if assessment.get("status") != "detected":
+                        continue
                     findings.append(finding)
                     artifact_ref = finding["source_evidence"]["source_identity"].get(
                         "artifact_ref"

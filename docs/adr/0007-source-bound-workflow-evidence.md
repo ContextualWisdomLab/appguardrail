@@ -35,7 +35,10 @@ persisted or copied to the target issue/control plane.
 The existing IssueOps and SQLite control-plane envelopes preserve canonical
 evidence as nested data. The source-bound path is exercised by the collector
 CLI, IssueOps publication, and control-plane scan detail; legacy records remain
-readable without being promoted to canonical source-bound evidence.
+readable without being promoted to canonical source-bound evidence. The
+collector publishes only `detected` assessments; malformed, stale, duplicate,
+unavailable, or otherwise `unknown` evidence is excluded from the security
+failure issue path rather than being treated as a finding.
 
 ## Consequences
 
