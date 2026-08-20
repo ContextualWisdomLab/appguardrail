@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2026-08-14 - Header File Upload UX Improvement
+**Learning:** Native `<input type="file">` elements are hard to style consistently across browsers, and standardizing their appearance via visually hidden native inputs and proxy buttons creates a more seamless UX. When doing so, applying shared classes like `.upload-action` to the proxy button maintains styling consistency across the app.
+**Action:** Replace direct `<input type="file">` interactions with proxy buttons using `.upload-action` styling, ensuring the native input is visually hidden (`.sr-only`) but properly linked via event listeners for accessibility and functionality.
