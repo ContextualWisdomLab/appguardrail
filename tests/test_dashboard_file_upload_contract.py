@@ -44,9 +44,10 @@ def test_proxy_hides_the_native_input_without_duplicate_accessible_naming() -> N
 
     assert (
         '<input type="file" id="file" accept="application/json,.json" '
-        'class="sr-only" tabindex="-1">'
+        'class="sr-only" hidden tabindex="-1">'
     ) in html
     assert 'id="file" aria-hidden="true"' not in html
+    assert 'id="file" tabindex="0"' not in html
 
 
 def test_file_input_resets_only_after_a_selection_change() -> None:
