@@ -1,0 +1,122 @@
+name: Repair console DOM XSS successor
+
+on:
+  push:
+    branches:
+      - security/console-dom-xss-browser-992
+    paths:
+      - .github/workflows/repair-console-dom-xss-successor.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-console-dom-xss-successor-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.repository == 'ContextualWisdomLab/appguardrail' &&
+      github.ref == 'refs/heads/security/console-dom-xss-browser-992'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      contents: write
+    env:
+      EXPECTED_PARENT_SHA: a0b4056dd3f80eeb87f5a93f4179a89fd2a1fc7b
+      TARGET_BRANCH: security/console-dom-xss-browser-992
+    steps:
+      - name: Check out exact repair trigger
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify exact single-writer boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT_SHA"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test "$(git status --porcelain)" = ""
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install immutable test toolchain
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+
+      - name: Confirm exact RED pill sink
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path("scanner/dashboard/console.html").read_text(encoding="utf-8")
+          raw = 'style="background:${color}">${n}</span>'
+          encoded = 'style="background:${color}">${esc(n)}</span>'
+          if text.count(raw) != 1 or encoded in text:
+              raise SystemExit("expected the one raw pill sink before repair")
+          PY
+
+      - name: Apply bounded sink and evidence repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          console_path = Path("scanner/dashboard/console.html")
+          console = console_path.read_text(encoding="utf-8")
+          raw = 'style="background:${color}">${n}</span>'
+          encoded = 'style="background:${color}">${esc(n)}</span>'
+          if console.count(raw) != 1:
+              raise SystemExit("pill sink boundary drifted")
+          console_path.write_text(console.replace(raw, encoded, 1), encoding="utf-8")
+
+          sentinel_path = Path(".jules/sentinel.md")
+          sentinel = sentinel_path.read_text(encoding="utf-8")
+          old = '''## 2025-05-30 - Fix DOM XSS via unescaped scan statistics in dashboard
+          **Vulnerability:** DOM XSS via unescaped scan attributes like `total`, `id`, `l`, and `n` string interpolated into `innerHTML` in `scanner/dashboard/console.html`.
+          **Learning:** Variables that originate from untrusted or external JSON (e.g. scan results, count summaries) must be escaped when dynamically building HTML, even if they appear to be numerical or safe IDs. An attacker who controls the findings input can achieve XSS by providing malicious strings.
+          **Prevention:** Always use the `esc()` sanitizer for any dynamically rendered property from JSON payloads, regardless of expected schema types, when constructing HTML to be injected via `innerHTML`.'''
+          new = '''## 2026-08-20 - Fix DOM XSS at organization-console HTML sinks
+          **Vulnerability:** Scan-list and scan-detail values from control-plane JSON reached `innerHTML` templates without consistent sink encoding, including summary values, opaque scan identifiers, history totals, and pill text.
+          **Learning:** Schema expectations such as “numeric count” or “opaque identifier” are not an output-encoding boundary. Every value entering an HTML string must be encoded for that context, while fixed design-token values remain caller-owned.
+          **Prevention:** Keep every dynamic HTML interpolation behind `esc()`, retain source-level sink contracts, and execute the hostile script/image payload corpus in a real browser before accepting the exact head. Prefer `textContent` or explicit DOM construction for new surfaces.'''
+          if sentinel.count(old) != 1:
+              raise SystemExit("sentinel evidence boundary drifted")
+          sentinel_path.write_text(sentinel.replace(old, new, 1), encoding="utf-8")
+
+          commit_message = Path("commit_message.txt")
+          if not commit_message.is_file():
+              raise SystemExit("expected generated commit_message.txt to remove")
+          commit_message.unlink()
+          PY
+
+      - name: Verify focused and complete GREEN
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_console_xss_contract.py tests/test_console_xss_browser.py
+          python -m pytest -q
+          python -m compileall -q appguardrail_core scanner tests
+          git diff --check
+
+      - name: Publish verified repair and remove temporary authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-console-dom-xss-successor.yml
+          git add -A
+          git config user.name "CWL One-shot Repair"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(console): close every DOM XSS sink"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
+          git -c http."https://github.com/".extraheader="${auth_header}" \
+            push origin "HEAD:refs/heads/${TARGET_BRANCH}"
