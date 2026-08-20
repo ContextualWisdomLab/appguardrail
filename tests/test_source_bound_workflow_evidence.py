@@ -371,6 +371,41 @@ def test_collector_uses_source_bound_path_for_run_collection(monkeypatch):
     )
 
 
+def test_run_url_replay_uses_configured_freshness_window(monkeypatch):
+    """Historical replay follows the explicit lookback freshness bound."""
+    run, job = fixture("strix-failure.json")
+    run["updated_at"] = "2026-08-18T00:00:00Z"
+    job["completed_at"] = "2026-08-18T00:00:00Z"
+
+    class Client:
+        """Return one deliberately older run through the run URL path."""
+
+        def pages(self, path, params=None):
+            """Return the acquired job page."""
+            if path.endswith(f"/actions/runs/{run['id']}/jobs"):
+                return [job]
+            return []
+
+        def request(self, method, path, data=None, params=None):
+            """Return the acquired run requested by the replay URL."""
+            assert method == "GET"
+            assert path.endswith(f"/actions/runs/{run['id']}")
+            return run
+
+    monkeypatch.setattr(collector, "utc_now", lambda: NOW)
+    findings = collector.collect_findings(
+        Client(),
+        Namespace(
+            run_url=f"https://github.com/ContextualWisdomLab/naruon/actions/runs/{run['id']}",
+            owner="ContextualWisdomLab",
+            lookback_hours=72,
+        ),
+    )
+
+    assert len(findings) == 1
+    assert findings[0]["source_evidence"]["assessment"]["status"] == "detected"
+
+
 def test_collector_does_not_publish_inconclusive_source_evidence(monkeypatch):
     """Unknown source results never enter the security-failure issue path."""
     run, job = fixture("strix-failure.json")

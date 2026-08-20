@@ -187,6 +187,7 @@ def build_source_bound_finding(
     *,
     now: dt.datetime | None = None,
     seen_artifact_refs: set[str] = frozenset(),
+    max_age_hours: int = DEFAULT_LOOKBACK_HOURS,
 ) -> dict[str, Any]:
     """Attach source-authoritative evidence to the legacy collector envelope."""
     evidence = acquire_workflow_evidence(
@@ -195,6 +196,7 @@ def build_source_bound_finding(
         job,
         now=now if now is not None else utc_now(),
         seen_artifact_refs=seen_artifact_refs,
+        max_age_hours=max_age_hours,
     )
     assessment = evidence.get("assessment")
     if not isinstance(assessment, dict) or assessment.get("status") != "detected":
@@ -250,6 +252,7 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
                         job,
                         now=collection_now,
                         seen_artifact_refs=seen_artifact_refs,
+                        max_age_hours=args.lookback_hours,
                     )
                     assessment = finding.get("source_evidence", {}).get(
                         "assessment", {}
@@ -527,6 +530,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--lookback-hours",
         type=int,
         default=int(os.getenv("LOOKBACK_HOURS", DEFAULT_LOOKBACK_HOURS)),
+        help="Bound run selection and source freshness, including --run-url replays.",
     )
     parser.add_argument(
         "--run-url", help="Collect one GitHub Actions run URL for dry-run validation."
