@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,9 @@ import pytest
 from appguardrail_core.python_shell_detector import (
     PYTHON_COMMAND_INJECTION_MESSAGE,
     PythonShellCall,
+    _DeclarationCollector,
+    _Scope,
+    _ShellCallVisitor,
     find_python_shell_calls,
 )
 from scanner.cli.appguardrail import _scan_file
@@ -146,6 +150,118 @@ def test_find_python_shell_calls_fails_closed_on_unparseable_source(
 ) -> None:
     """Treat malformed or non-text work-in-progress input as no proven call."""
     assert find_python_shell_calls(source) == ()  # type: ignore[arg-type]
+
+
+def test_scope_and_visitor_cover_python_binding_edges() -> None:
+    """Exercise binding forms that protect the detector from false positives."""
+    module = _Scope(None, kind="module")
+    outer = _Scope(module, kind="function", local_names={"shared"})
+    inner = _Scope(
+        outer,
+        kind="function",
+        global_names={"global_name"},
+        nonlocal_names={"shared", "missing"},
+    )
+    module.bind("global_name", ("os-function", "os.system"))
+
+    assert inner.lookup("global_name") == ("os-function", "os.system")
+    assert inner.lookup("shared") == ("other", None)
+    assert inner.lookup("missing") == ("other", None)
+    assert module.lookup("unknown") == ("other", None)
+    inner.bind("global_name", ("os-function", "os.popen"))
+    inner.bind("shared", ("subprocess-function", "subprocess.run"))
+    inner.bind("missing", ("other", None))
+    assert module.lookup("global_name") == ("os-function", "os.popen")
+    assert outer.lookup("shared") == ("subprocess-function", "subprocess.run")
+
+    source = textwrap.dedent(
+        """
+        from package import *
+        import os, subprocess as child, json as ignored
+        from os import system as invoke, popen
+        from subprocess import run as launch, check_call as verify
+        from package import unknown
+
+        @decorator(invoke)
+        class Container(Base, metaclass=Meta):
+            callback = lambda value=invoke, *args, option=launch, **kwargs: value
+            plain = lambda value: value
+            required = lambda value, *, required: value
+
+            def method(self, value=invoke, *args, option=launch, **kwargs) -> child:
+                return child.run(value, shell=True)
+
+        def outer(value=invoke, *args, option=launch, **kwargs) -> child:
+            global invoke
+            from os import system as invoke
+            from package import unknown, other
+            import subprocess as local_child, os as local_os, json as local_ignored
+            from subprocess import check_call as local_check
+            annotation_only: int
+            assigned: int = local_child.run(value, shell=True)
+            assigned += 1
+            (first, *rest) = values
+            (named := local_check(value, shell=True))
+            del assigned
+            callback = lambda argument=invoke: argument
+            required_callback = lambda argument, *, required: argument
+            values_now = [local_child.run(value, shell=True) for item in values]
+            values_set = {local_child.call(value, shell=True) for item in values}
+            values_gen = (local_child.Popen(value, shell=True) for item in values)
+            values_dict = {item: local_check(value, shell=True) for item in values}
+            values_multi = [local_child.run(value, shell=True) for left in values for right in values if right]
+            obj.field = value
+
+            @decorator(invoke)
+            class Nested(Base, metaclass=Meta):
+                method = lambda argument: argument
+            for item in local_child:
+                local_os.system(value)
+            else:
+                local_os.popen(value)
+            with manager as resource, manager_two:
+                local_check(value, shell=True)
+            try:
+                local_child.run(value, shell=True)
+            except ValueError as error:
+                local_os.system(value)
+            except:
+                local_os.popen(value)
+
+            async def worker(item, *worker_args, **worker_kwargs):
+                nonlocal assigned
+                async for entry in stream:
+                    local_child.run(value, shell=True)
+                async with manager as async_resource:
+                    local_check(value, shell=True)
+
+            def sync_worker(item=invoke):
+                return local_child.call(item, shell=True)
+
+            @decorator(invoke)
+            def decorated(value=invoke, *, required):
+                return local_child.call(value, shell=True)
+
+            return factory().run(value), local_child.run(value, shell=True, enabled=flag)
+        """
+    )
+
+    calls = find_python_shell_calls(source)
+    assert len(calls) >= 15
+    assert all(call.api.startswith(("os.", "subprocess.")) for call in calls)
+    assert find_python_shell_calls("import subprocess\nsubprocess.run(value, shell=True)\n")
+
+    visitor = _ShellCallVisitor("value = 1")
+    empty_comp = ast.ListComp(elt=ast.Constant(value=1), generators=[])
+    visitor._visit_comprehension(empty_comp)
+    collector = _DeclarationCollector()
+    collector.visit_ImportFrom(
+        ast.ImportFrom(
+            module="package",
+            names=[ast.alias(name="*")],
+            level=0,
+        )
+    )
 
 
 def test_scanner_emits_one_normalized_ast_finding(tmp_path: Path) -> None:

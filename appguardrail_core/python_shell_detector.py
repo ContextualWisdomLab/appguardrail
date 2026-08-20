@@ -242,6 +242,12 @@ class _ShellCallVisitor(ast.NodeVisitor):
         """Initialize the module scope and source-line cache."""
         self.source_lines = source.splitlines()
         self.scope = _Scope(None, kind="module")
+        self.scope.bindings.update(
+            {
+                "os": _OS_MODULE_BINDING,
+                "subprocess": _SUBPROCESS_MODULE_BINDING,
+            }
+        )
         self.calls: list[PythonShellCall] = []
 
     def _bind_target(self, target: ast.AST) -> None:
