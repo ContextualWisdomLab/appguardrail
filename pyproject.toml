@@ -31,7 +31,9 @@ classifiers = [
   "Topic :: Security",
   "Topic :: Software Development :: Quality Assurance"
 ]
-dependencies = []
+dependencies = [
+    "playwright>=1.62.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/ContextualWisdomLab/appguardrail"
