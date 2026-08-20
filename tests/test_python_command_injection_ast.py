@@ -138,6 +138,26 @@ def test_find_python_shell_calls_returns_ordered_distinct_calls() -> None:
 
 
 @pytest.mark.parametrize(
+    ("source", "expected_api"),
+    [
+        ("import os.path\nos.system(value)\n", "os.system"),
+        (
+            "import subprocess.helpers\nsubprocess.run(value, shell=True)\n",
+            "subprocess.run",
+        ),
+    ],
+)
+def test_find_python_shell_calls_resolves_unaliased_dotted_modules(
+    source: str,
+    expected_api: str,
+) -> None:
+    """Treat unaliased dotted imports as their Python root module binding."""
+    calls = find_python_shell_calls(source)
+
+    assert [(call.line, call.api) for call in calls] == [(2, expected_api)]
+
+
+@pytest.mark.parametrize(
     "source",
     [
         "import subprocess\nsubprocess.run(command, shell=True\n",
@@ -247,7 +267,27 @@ def test_scope_and_visitor_cover_python_binding_edges() -> None:
     )
 
     calls = find_python_shell_calls(source)
-    assert len(calls) >= 15
+    assert [(call.line, call.api) for call in calls] == [
+        (15, "subprocess.run"),
+        (24, "subprocess.run"),
+        (27, "subprocess.check_call"),
+        (31, "subprocess.run"),
+        (32, "subprocess.call"),
+        (33, "subprocess.Popen"),
+        (34, "subprocess.check_call"),
+        (35, "subprocess.run"),
+        (42, "os.system"),
+        (44, "os.popen"),
+        (46, "subprocess.check_call"),
+        (48, "subprocess.run"),
+        (50, "os.system"),
+        (52, "os.popen"),
+        (57, "subprocess.run"),
+        (59, "subprocess.check_call"),
+        (62, "subprocess.call"),
+        (66, "subprocess.call"),
+        (68, "subprocess.run"),
+    ]
     assert all(call.api.startswith(("os.", "subprocess.")) for call in calls)
     assert find_python_shell_calls("import subprocess\nsubprocess.run(value, shell=True)\n")
 

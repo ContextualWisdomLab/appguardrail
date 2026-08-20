@@ -8,6 +8,7 @@ on:
       - scanner/cli/appguardrail.py
       - tests/test_python_command_injection_ast.py
       - requirements-python-shell-coverage.txt
+      - requirements-test.txt
       - .github/workflows/python-shell-ast-coverage.yml
   pull_request:
     branches: [develop, main]
@@ -16,6 +17,7 @@ on:
       - scanner/cli/appguardrail.py
       - tests/test_python_command_injection_ast.py
       - requirements-python-shell-coverage.txt
+      - requirements-test.txt
       - .github/workflows/python-shell-ast-coverage.yml
 
 permissions:

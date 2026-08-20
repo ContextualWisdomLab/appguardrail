@@ -336,10 +336,12 @@ class _ShellCallVisitor(ast.NodeVisitor):
     def visit_Import(self, node: ast.Import) -> None:
         """Bind supported modules and shadow every other imported name."""
         for alias in node.names:
-            name = alias.asname or alias.name.split(".", 1)[0]
-            if alias.name == "os":
+            root = alias.name.split(".", 1)[0]
+            name = alias.asname or root
+            resolved = alias.name if alias.asname else root
+            if resolved == "os":
                 binding = _OS_MODULE_BINDING
-            elif alias.name == "subprocess":
+            elif resolved == "subprocess":
                 binding = _SUBPROCESS_MODULE_BINDING
             else:
                 binding = _OTHER_BINDING

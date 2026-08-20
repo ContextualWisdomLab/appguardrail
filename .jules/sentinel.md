@@ -130,4 +130,4 @@
 ## 2026-08-05 - Missing os.system command injection detection
 **Vulnerability:** The static analysis scanner's `python-command-injection` rule failed to detect command injections via `os.system` and `os.popen`.
 **Learning:** The previous regular expression assumed `os.system` and `os.popen` accepted a `shell=True` argument similar to `subprocess.run`, leading to false negatives as they execute via the shell implicitly and don't accept `shell=True`.
-**Prevention:** Ensure static analysis regex rules handling different APIs group them accurately according to their respective signatures rather than merging them under a single mandatory condition (like `shell=True`). Added tests to prevent regression.
+**Prevention:** Keep `python-command-injection` on the AST detector. Preserve API-specific binding resolution for implicit-shell `os` calls and literal `shell=True` in supported `subprocess` APIs. Keep regression tests for both positive and negative cases.
