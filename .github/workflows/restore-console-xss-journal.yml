@@ -1,0 +1,84 @@
+name: Restore console XSS journal scope
+
+on:
+  push:
+    branches:
+      - security/console-dom-xss-browser-992
+    paths:
+      - .github/workflows/restore-console-xss-journal.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-console-xss-journal-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    if: >-
+      github.repository == 'ContextualWisdomLab/appguardrail' &&
+      github.ref == 'refs/heads/security/console-dom-xss-browser-992'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      EXPECTED_PARENT_SHA: 7ddeac7e80b87e70504604dbc379d10d73fffecf
+      TARGET_BRANCH: security/console-dom-xss-browser-992
+    steps:
+      - name: Check out exact repair trigger
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact single-writer boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT_SHA"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test "$(git status --porcelain)" = ""
+
+      - name: Restore generated journal from protected base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin develop
+          git checkout origin/develop -- .jules/sentinel.md
+          git diff --check
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install immutable test toolchain
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+
+      - name: Verify focused and complete GREEN
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_console_xss_contract.py tests/test_console_xss_browser.py
+          python -m pytest -q
+          python -m compileall -q appguardrail_core scanner tests
+
+      - name: Publish verified cleanup and remove temporary authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/restore-console-xss-journal.yml
+          git add -A
+          git config user.name "CWL One-shot Cleanup"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(security): keep console XSS evidence in doctoring"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
+          git -c http."https://github.com/".extraheader="${auth_header}" \
+            push origin "HEAD:refs/heads/${TARGET_BRANCH}"
