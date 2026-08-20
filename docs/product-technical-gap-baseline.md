@@ -73,6 +73,22 @@ protected-branch truth.
 | Issue #927 | open product gap | buyer cannot distinguish zero findings from completed trusted coverage | evidence-qualified outcome model and accessible dashboard/report parity |
 | Issue #928 | open product gap | remediation evidence cannot yet move safely through CSP-compatible agent handoff | CSP-safe listeners, exact text copy, fallback, provenance schema, and UX tests |
 
+### Current queue refresh (2026-08-21)
+
+The following exact-head refresh supplements the historical 2026-08-20
+snapshot above. It records observed queue state only; `queued`, `in progress`,
+and robot `COMMENTED`/`CHANGES_REQUESTED` states are not approvals or protected
+merge evidence.
+
+| Work | Exact-head observed state | Product meaning | Required next proof |
+| --- | --- | --- | --- |
+| PR #1000, source-bound workflow evidence, head `b1ec29b` | open, `develop` target; no failed Checks observed; `coverage-source-tree` queued; review required; qualifying approval absent | Bind GitHub workflow failure evidence to source, revision, artifact, freshness, and typed assessment | terminal exact-head Checks, current qualifying approval, protected merge |
+| PR #1002, dashboard DOM-XSS hardening, head `9932510` | open, `develop` target; required repository/security Checks queued; no failed Check observed; review required; qualifying approval absent | Escape untrusted numeric and identifier properties before dashboard `innerHTML` rendering | terminal SAST/security/browser evidence, current qualifying approval, protected merge |
+| PR #1001, console busy-state styling, head `71c4251` | open, `develop` target; required Checks queued; no failed Check observed; review required; qualifying approval absent | Keep disabled and `aria-busy` button state perceivable to visual and assistive users | terminal accessibility Checks, current qualifying approval, protected merge |
+| PR #983, Python shell-spawning detector, head `3f9db72` | open, `develop` target; same-tree follow-up head; required Checks queued; predecessor-bound review state remains; qualifying approval absent | Distinguish implicit `os.system`/`os.popen` shell execution from `subprocess(..., shell=True)` | exact-head terminal Checks and current review evidence, qualifying approval, protected merge |
+| PR #973, workflow-input command-injection detector, head `89deac8` | open, `develop` target; `coverage-evidence` queued; no failed Check observed; current review decision not yet recorded | Detect caller-controlled string workflow inputs interpolated into shell run blocks | terminal SAST/coverage/security evidence, current qualifying approval, protected merge |
+| PR #963, tenant authorization-scope detector, head `9cbba72` | open, `develop` target; `coverage-evidence` queued; no failed Check observed; predecessor-bound review state remains | Detect discarded tenant authorization context before Spring admin reads or mutations | terminal exact-head Checks and current review evidence, qualifying approval, protected merge |
+
 The live queue contains additional open PRs and security-failure coordination
 issues. The hourly loop must re-read them from GitHub before selecting work;
 this snapshot is not a substitute for that query.
