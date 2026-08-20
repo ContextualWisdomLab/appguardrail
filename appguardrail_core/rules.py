@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+from itertools import chain
+import re
 from typing import Any
 
 REFERENCE_RE = re.compile(r"\[(OWASP [^\]]+|CWE-\d+[^\]]*|CVE-\d{4}-\d+[^\]]*)\]")
@@ -110,17 +111,16 @@ def extract_public_references(message: str) -> tuple[str, ...]:
     Only ``[OWASP …]``, ``[CWE-…]``, and ``[CVE-…]`` forms are kept. Plain-text
     mentions are ignored so a finding report stays limited to the IDs the rule
     author already published. Messages without ``[`` skip the regex scanner.
-    First-seen order is retained without allocating a generator frame for each
-    finding.
+    First-seen order is retained while normalization uses a bounded temporary
+    list rather than one generator frame per call.
     """
     if not message or "[" not in message:
         return ()
 
-    seen: dict[str, None] = {}
-    for match in REFERENCE_RE.finditer(message):
-        normalized = " ".join(match.group(1).split())
-        seen.setdefault(normalized, None)
-    return tuple(seen)
+    normalized_references = [
+        " ".join(match.group(1).split()) for match in REFERENCE_RE.finditer(message)
+    ]
+    return tuple(dict.fromkeys(normalized_references))
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -184,9 +184,4 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
     """Merge non-empty reference groups in first-seen order without generators."""
-    seen: dict[str, None] = {}
-    for group in groups:
-        for reference in group:
-            if reference:
-                seen.setdefault(reference, None)
-    return tuple(seen)
+    return tuple(dict.fromkeys(filter(None, chain.from_iterable(groups))))
