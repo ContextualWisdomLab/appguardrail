@@ -140,9 +140,10 @@ def build_rule_metadata(
     )
     owasp_list, cwe_list = [], []
     for ref in references:
+        # 상호 배타적인 조건이므로 불필요한 문자열 평가를 피하기 위해 elif를 사용합니다.
         if ref.startswith("OWASP "):
             owasp_list.append(ref)
-        if ref.startswith("CWE-"):
+        elif ref.startswith("CWE-"):
             cwe_list.append(ref)
 
     return RuleMetadata(
@@ -175,7 +176,5 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
+        dict.fromkeys(reference for group in groups for reference in group if reference)
     )

@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2026-08-04 - Optimize consecutive if statements in hot paths
+**Learning:** When evaluating mutually exclusive conditions (such as checking string prefixes like `ref.startswith("OWASP ")` and `ref.startswith("CWE-")`) in performance-critical areas, using consecutive `if` statements guarantees that all conditions are evaluated, adding unnecessary overhead (e.g. string evaluation).
+**Action:** Use `elif` instead of consecutive `if` statements for mutually exclusive conditions to ensure the program can short-circuit the evaluations once a match is found, saving execution time.
