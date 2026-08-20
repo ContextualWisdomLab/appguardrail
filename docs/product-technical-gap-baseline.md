@@ -41,9 +41,9 @@ inconclusive tests, preserved external provenance, explicit tenant and egress
 boundaries, and a `Clean Scan` result only after the selected evidence sources
 complete successfully. `docs/PRD.md`, `docs/TRD.md`, `docs/UML.md`,
 `docs/TRACEABILITY.md`, `docs/THREAT_MODEL.md`, `docs/TEST_STRATEGY.md`, and
-`docs/OPERABILITY.md` are the current source documents. A standalone
-`docs/ARCHITECTURE.md` is still absent; its boundary is currently distributed
-across those documents and ADRs.
+`docs/OPERABILITY.md` are the current source documents. The root
+`ARCHITECTURE.md` is the concise navigation document for these contracts; do
+not create a duplicate `docs/ARCHITECTURE.md`.
 
 ## Live PR and issue evidence
 
