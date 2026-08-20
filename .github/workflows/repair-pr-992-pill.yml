@@ -1,0 +1,82 @@
+name: Repair PR 992 escaped pill values
+
+on:
+  push:
+    branches:
+      - sentinel-xss-console-11100301982132123366
+    paths:
+      - .github/workflows/repair-pr-992-pill.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-pr-992-pill-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.repository == 'ContextualWisdomLab/appguardrail' &&
+      github.ref == 'refs/heads/sentinel-xss-console-11100301982132123366'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      EXPECTED_PARENT_SHA: 1a8499d20c093d3da2221be60eef42606b312dc7
+      TARGET_BRANCH: sentinel-xss-console-11100301982132123366
+    steps:
+      - name: Check out exact repair trigger
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify exact single-writer boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT_SHA"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test "$(git status --porcelain)" = ""
+      - name: Escape numeric-looking pill values at the sink
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scanner/dashboard/console.html")
+          source = path.read_text(encoding="utf-8")
+          old = 'function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}'
+          new = 'function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${esc(n)}</span>`:`<span class="muted">0</span>`;}'
+          if source.count(old) != 1:
+              raise SystemExit("console pill boundary drifted")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Install immutable test dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r requirements-test.txt
+      - name: Verify focused and complete GREEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_console_xss_contract.py
+          python -m pytest -q
+          python -m compileall -q appguardrail_core scanner tests
+          git diff --check
+      - name: Publish verified repair and remove temporary authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-pr-992-pill.yml
+          git add -A
+          git config user.name "CWL One-shot Repair"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(security): escape console pill values"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="${auth_header}" push origin "HEAD:refs/heads/${TARGET_BRANCH}"
