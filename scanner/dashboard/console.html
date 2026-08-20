@@ -103,7 +103,7 @@ async function api(path){
   if(!r.ok)throw new Error("Request failed ("+r.status+").");
   return r.json();
 }
-function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${esc(n)}</span>`:`<span class="muted">0</span>`;}
+function pill(n,color){return n>0?`<span class="pill" style="background:${color}">${n}</span>`:`<span class="muted">0</span>`;}
 function scrollDetailIntoView(element){
   if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){
     element.scrollIntoView();
