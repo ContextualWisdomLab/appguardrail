@@ -147,6 +147,8 @@ def build_evidence_handoff(
     if safe_assurance is not None:
         payload["assurance"] = safe_assurance
     payload["bundle_sha256"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
+    if len(_canonical_bytes(payload)) > MAX_HANDOFF_BYTES:
+        raise ValueError(f"Handoff payload exceeds {MAX_HANDOFF_BYTES} bytes.")
     return payload
 
 

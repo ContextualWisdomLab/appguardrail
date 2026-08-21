@@ -144,3 +144,9 @@ def test_verify_rejects_oversized_and_invalid_mapping_inputs() -> None:
 
     payload = build_evidence_handoff([])
     assert verify_evidence_handoff(json.loads(serialize_evidence_handoff([]))) == payload
+
+
+def test_builder_rejects_oversized_output() -> None:
+    """The producer never emits a wire artifact the verifier must reject."""
+    with pytest.raises(ValueError, match="exceeds"):
+        serialize_evidence_handoff([{"rule_id": "r", "message": "x"}] * 10_000)
