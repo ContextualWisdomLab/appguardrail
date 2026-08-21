@@ -1740,6 +1740,23 @@ def test_load_assurance_json_rejects_missing_and_oversized_files(tmp_path):
         _load_assurance_json(path)
 
 
+def test_load_assurance_json_rejects_missing_findings_binding(tmp_path):
+    """A report cannot bind assurance when its findings artifact disappeared."""
+    assurance_path = tmp_path / "assurance.json"
+    assurance_path.write_text(
+        json.dumps(
+            {
+                "schema": "appguardrail.scan-assurance.v1",
+                "scan_outcome_code": "clean",
+                "reasons": [],
+            }
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="Cannot read findings JSON"):
+        _load_assurance_json(assurance_path, tmp_path / "missing-findings.json")
+
+
 def test_cmd_report_rejects_invalid_findings_shape(tmp_path, capsys):
     findings_file = tmp_path / "findings.json"
     findings_file.write_text(json.dumps({"findings": "not-a-list"}))
