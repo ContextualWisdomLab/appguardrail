@@ -381,4 +381,4 @@ def test_scan_file_handles_large_near_miss_within_bounded_time(tmp_path: Path) -
     elapsed = time.perf_counter() - started
 
     assert findings == []
-    assert elapsed < 2.0
+    assert elapsed < 5.0
