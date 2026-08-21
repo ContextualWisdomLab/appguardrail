@@ -40,7 +40,6 @@ Options:
 """
 
 import argparse
-import ast
 import fnmatch
 import functools
 import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
@@ -2389,48 +2388,6 @@ def _build_finding(
     return finding
 
 
-def _python_command_injection_offsets(content: str) -> list[int] | None:
-    """Return line-start offsets for Python shell-spawning calls.
-
-    ``None`` means the source could not be parsed and the regex rule should
-    remain the safe fallback for incomplete files.
-    """
-    try:
-        tree = ast.parse(content)
-    except (SyntaxError, ValueError, RecursionError):
-        return None
-
-    line_starts = [0]
-    for line in content.splitlines(keepends=True):
-        line_starts.append(line_starts[-1] + len(line))
-
-    offsets = {
-        line_starts[node.lineno - 1]
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and (
-            (
-                node.func.value.id == "os"
-                and node.func.attr in {"system", "popen"}
-            )
-            or (
-                node.func.value.id == "subprocess"
-                and node.func.attr
-                in {"Popen", "run", "call", "check_call", "check_output"}
-                and any(
-                    keyword.arg == "shell"
-                    and isinstance(keyword.value, ast.Constant)
-                    and keyword.value.value is True
-                    for keyword in node.keywords
-                )
-            )
-        )
-    }
-    return sorted(offsets)
-
-
 def _is_deploy_blocking(finding: dict) -> bool:
     """Return whether a finding should fail the deploy gate."""
     return core_is_deploy_blocking(finding)
@@ -3008,9 +2965,6 @@ def _scan_file(
             count_newlines = content.count
             find_newline = content.find
             rfind_newline = content.rfind
-            python_command_offsets = (
-                _python_command_injection_offsets(content) if ext == ".py" else None
-            )
 
             for (
                 rule_id,
@@ -3040,18 +2994,13 @@ def _scan_file(
                 current_line = 1
                 current_pos = 0
 
-                match_starts = (
-                    python_command_offsets
-                    if rule_id == "python-command-injection"
-                    and python_command_offsets is not None
-                    else (match.start() for match in finditer(content))
-                )
-
-                for start_idx in match_starts:
+                for match in finditer(content):
                     if rel_path_str is None:
                         rel_path_str = _sanitize_terminal_output(
                             _display_path(context.relative_candidate(file_path))
                         )
+
+                    start_idx = match.start()
 
                     if start_idx >= current_pos:
                         current_line += count_newlines("\n", current_pos, start_idx)

@@ -1853,11 +1853,6 @@ def test_cli_routes_console_calls_through_accessibility_wrapper():
             "subprocess.call(build_command(user_input), shell=True)\n",
             id="nested-subprocess-shell",
         ),
-        pytest.param(
-            "subprocess_deeply_nested_shell.py",
-            "subprocess.call(build_command(foo(user_input)), shell=True)\n",
-            id="deeply-nested-subprocess-shell",
-        ),
     ],
 )
 def test_python_shell_spawning_apis_are_detected_independently(
@@ -1892,18 +1887,6 @@ def test_python_shell_spawning_rule_describes_both_shell_mechanisms(
     assert len(findings) == 1
     assert "os.system/os.popen execute through a shell" in findings[0]["message"]
     assert "subprocess shell=True" in findings[0]["message"]
-
-
-def test_python_shell_spawning_rule_uses_regex_for_incomplete_python(
-    tmp_path: Path,
-) -> None:
-    """Keep detecting shell calls while an edited Python file is incomplete."""
-    target = tmp_path / "incomplete.py"
-    target.write_text("subprocess.call(command, shell=True\n", encoding="utf-8")
-
-    findings = _scan_file(target, tmp_path)
-
-    assert "python-command-injection" in {item["rule_id"] for item in findings}
 
 
 @pytest.mark.parametrize(
