@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -120,6 +121,20 @@ def test_verify_rejects_oversized_and_invalid_mapping_inputs() -> None:
     """Large wire payloads and unsupported in-memory inputs are rejected."""
     with pytest.raises((TypeError, ValueError)):
         verify_evidence_handoff(b"x" * (MAX_HANDOFF_BYTES + 1))
+    oversized = build_evidence_handoff([])
+    oversized["unknown"] = "x" * MAX_HANDOFF_BYTES
+    unsigned = {key: value for key, value in oversized.items() if key != "bundle_sha256"}
+    oversized["bundle_sha256"] = hashlib.sha256(
+        (json.dumps(unsigned, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n").encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    with pytest.raises(TypeError, match="bounded"):
+        verify_evidence_handoff(oversized)
+    unserializable = build_evidence_handoff([])
+    unserializable["unknown"] = object()
+    with pytest.raises(TypeError, match="JSON-serializable"):
+        verify_evidence_handoff(unserializable)
     with pytest.raises((TypeError, ValueError)):
         verify_evidence_handoff(1)  # type: ignore[arg-type]
 

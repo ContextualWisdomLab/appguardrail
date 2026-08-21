@@ -178,6 +178,12 @@ def verify_evidence_handoff(data: bytes | str | Mapping[str, Any]) -> dict[str, 
             raise ValueError("Handoff payload is not valid UTF-8 JSON.") from exc
     if not isinstance(payload, dict):
         raise TypeError("Handoff payload must be a JSON object.")
+    try:
+        canonical_payload = _canonical_bytes(payload)
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise TypeError("Handoff payload must be JSON-serializable.") from exc
+    if len(canonical_payload) > MAX_HANDOFF_BYTES:
+        raise TypeError("Handoff payload must be bounded bytes or text.")
     if payload.get("schema") != HANDOFF_SCHEMA or payload.get("version") != HANDOFF_VERSION:
         raise ValueError("Handoff schema or version is invalid.")
     if not isinstance(payload.get("findings"), list) or not isinstance(payload.get("provenance"), dict):
