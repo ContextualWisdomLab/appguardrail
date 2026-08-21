@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import textwrap
+import time
 from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
@@ -239,6 +240,20 @@ def test_packaged_rule_ignores_env_indirection() -> None:
     assert not _rule()["pattern"].search(source)
 
 
+def test_packaged_rule_ignores_expression_in_sibling_env_after_run_block() -> None:
+    """Do not consume a step-level env mapping as literal run content."""
+    source = _workflow(
+        """
+          run: |
+            printf '%s\\n' constant
+          env:
+            RELEASE_NAME: ${{ inputs.release_name }}
+        """
+    )
+
+    assert not _rule()["pattern"].search(source)
+
+
 def test_packaged_rule_ignores_action_with_input() -> None:
     """Do not classify an action input as inline shell source."""
     source = _workflow(
@@ -342,3 +357,28 @@ def test_scan_file_respects_workflow_path_scope(tmp_path: Path) -> None:
     assert _RULE_ID not in {
         finding["rule_id"] for finding in _scan_file(documentation, tmp_path)
     }
+
+
+def test_scan_file_handles_large_near_miss_within_bounded_time(tmp_path: Path) -> None:
+    """Bound regex work for long run blocks whose input expression is outside them."""
+    repeated_lines = "".join(
+        f"            printf '%s' constant-{index:04d}\n"
+        for index in range(400)
+    )
+    source = _workflow(
+        """
+          run: |
+        """.rstrip()
+        + "\n"
+        + repeated_lines
+        + """          env:
+            RELEASE_NAME: ${{ inputs.release_name }}
+        """
+    )
+
+    started = time.perf_counter()
+    findings = _scan(source, tmp_path, name="large-near-miss.yml")
+    elapsed = time.perf_counter() - started
+
+    assert findings == []
+    assert elapsed < 2.0
