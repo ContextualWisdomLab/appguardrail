@@ -82,11 +82,15 @@ def test_builder_omits_malformed_optional_provenance() -> None:
     """Malformed optional identifiers never become agent-facing claims."""
     payload = build_evidence_handoff(
         [{"rule_id": "r", "severity": "INFO", "message": "ok"}],
-        provenance={"commit": "not-a-sha", "artifact_sha256": "not-a-digest"},
+        provenance={
+            "revision": "a" * 40,
+            "commit": "not-a-sha",
+            "artifact_sha256": "not-a-digest",
+        },
         assurance={"scan_outcome_code": "unknown", "reasons": "bad"},
     )
 
-    assert payload["provenance"] == {}
+    assert payload["provenance"] == {"revision": "a" * 40}
     assert "assurance" not in payload
 
 

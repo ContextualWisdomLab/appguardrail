@@ -63,10 +63,10 @@ def _safe_provenance(value: Any) -> dict[str, str]:
             if identifier is not None:
                 result[field] = identifier
                 break
-    revision = result.get("revision") or result.get("commit")
-    if revision is not None and not _COMMIT_RE.fullmatch(revision):
-        result.pop("revision", None)
-        result.pop("commit", None)
+    for key in ("revision", "commit"):
+        candidate = result.get(key)
+        if candidate is not None and not _COMMIT_RE.fullmatch(candidate):
+            result.pop(key, None)
     return dict(sorted(result.items()))
 
 
