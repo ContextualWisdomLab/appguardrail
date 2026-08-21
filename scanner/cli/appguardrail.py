@@ -2271,7 +2271,6 @@ _SENSITIVE_RULE_TOKENS = (
     "private-key",
     "anthropic",
     "google",
-    "github",
     "api-key",
     "slack",
     "twilio",

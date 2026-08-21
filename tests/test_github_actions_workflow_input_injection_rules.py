@@ -7,7 +7,7 @@ import textwrap
 import time
 from pathlib import Path
 
-from scanner.cli.appguardrail import SCAN_RULES, _scan_file
+from scanner.cli.appguardrail import SCAN_RULES, _build_finding, _scan_file
 
 _RULE_ID = "github-actions-workflow-input-command-injection"
 _SOURCE_REPOSITORY = "ContextualWisdomLab/.github"
@@ -335,6 +335,32 @@ def test_scan_file_emits_normalized_critical_finding(tmp_path: Path) -> None:
         "CWE-74 - Injection",
     )
     assert finding["owasp"] == ("OWASP A03:2021 - Injection",)
+
+
+def test_workflow_detector_preserves_actionable_snippets_without_leaking_secrets() -> None:
+    """Redact secret rules while retaining evidence for structural GitHub rules."""
+    finding = _build_finding(
+        "appguardrail-rule",
+        _RULE_ID,
+        "CRITICAL",
+        "workflow input reaches a shell",
+        ".github/workflows/deploy.yml",
+        42,
+        'run: echo "${{ inputs.release_name }}"',
+    )
+    secret_finding = _build_finding(
+        "appguardrail-rule",
+        "github-actions-secrets-github-token",
+        "CRITICAL",
+        "workflow token exposed",
+        ".github/workflows/deploy.yml",
+        43,
+        "REVIEW_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    )
+
+    assert finding["category"] == "injection"
+    assert finding["snippet"] == 'run: echo "${{ inputs.release_name }}"'
+    assert secret_finding["snippet"] == "[REDACTED: sensitive match suppressed]"
 
 
 def test_scan_file_keeps_reviewed_fix_clean(tmp_path: Path) -> None:
