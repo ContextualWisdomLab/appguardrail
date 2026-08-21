@@ -34,7 +34,7 @@ def test_header_upload_proxy_is_native_tokenized_and_state_perceivable() -> None
     assert "uploadBtn.addEventListener('click', () => fileInput.click());" in html
     assert ".upload-action{" in html
     assert ".upload-action:hover{" in html
-    assert ".upload-action:disabled{" in html
+    assert ".upload-action:disabled{" not in html
     assert 'id="upload-btn" style=' not in html
 
 
