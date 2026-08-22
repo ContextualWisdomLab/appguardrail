@@ -1328,9 +1328,38 @@ def _detect_scan_languages(files):
     return detect_language_axes(files)
 
 
+def _secure_which(name: str) -> str | None:
+    """Safely resolve an executable path within trusted system directories."""
+    executable = shutil.which(name)
+    if not executable:
+        return None
+
+    try:
+        resolved_path = Path(executable).resolve()
+        trusted_roots = (
+            Path("/usr/bin").resolve(),
+            Path("/usr/local/bin").resolve(),
+            Path("/bin").resolve(),
+            Path("/sbin").resolve(),
+            Path("/opt/homebrew/bin").resolve(),
+            Path(sys.executable).parent.resolve()
+            if sys.executable
+            else Path("/opt/homebrew/bin"),
+        )
+        for root in trusted_roots:
+            if str(resolved_path).startswith(str(root) + "/") or str(
+                resolved_path
+            ) == str(root):
+                return str(resolved_path)
+    except Exception:
+        pass
+
+    return None
+
+
 def _external_tool_available(name: str, version_args=("--version",)):
     """Return a runnable external tool path, or None for missing/broken tools."""
-    executable = shutil.which(name)
+    executable = _secure_which(name)
     if not executable:
         return None
     try:
@@ -2506,10 +2535,10 @@ def _trivy_findings(report: dict, base_path: Path):
 
 def _run_trivy_fs(scan_path: Path):
     """Run Trivy filesystem scanning and return normalized findings."""
-    trivy = shutil.which("trivy")
+    trivy = _secure_which("trivy")
     if not trivy:
         raise RuntimeError(
-            "trivy executable not found. Install Trivy or run without --trivy."
+            "trivy executable not found in trusted directories. Install Trivy securely or run without --trivy."
         )
 
     try:
@@ -2581,9 +2610,9 @@ def _bandit_findings(report: dict, base_path: Path):
 
 def _run_bandit_scan(scan_path: Path):
     """Run Bandit Python SAST and return normalized findings."""
-    bandit = shutil.which("bandit")
+    bandit = _secure_which("bandit")
     if not bandit:
-        raise RuntimeError("bandit executable not found.")
+        raise RuntimeError("bandit executable not found in trusted directories.")
 
     command = [bandit, "-f", "json", "-q"]
     if scan_path.is_dir():
@@ -2652,9 +2681,9 @@ def _ruff_findings(report: list, base_path: Path):
 
 def _run_ruff_security_scan(scan_path: Path):
     """Run Ruff's Bandit-compatible security rules and return findings."""
-    ruff = shutil.which("ruff")
+    ruff = _secure_which("ruff")
     if not ruff:
-        raise RuntimeError("ruff executable not found.")
+        raise RuntimeError("ruff executable not found in trusted directories.")
 
     try:
         process = subprocess.run(  # noqa: S603 - Ruff path resolved with shutil.which
@@ -2736,9 +2765,9 @@ def _semgrep_findings(report: dict, base_path: Path):
 
 def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
     """Run Semgrep multi-language SAST and return normalized findings."""
-    semgrep = shutil.which("semgrep")
+    semgrep = _secure_which("semgrep")
     if not semgrep:
-        raise RuntimeError("semgrep executable not found.")
+        raise RuntimeError("semgrep executable not found in trusted directories.")
 
     config = config or "auto"
     try:
@@ -2819,9 +2848,11 @@ def _run_zap_baseline(target_url: str):
         raise RuntimeError(
             "Refusing to run ZAP baseline against a local or unsafe network destination (SSRF protection)."
         )
-    zap = shutil.which("zap-baseline.py")
+    zap = _secure_which("zap-baseline.py")
     if not zap:
-        raise RuntimeError("zap-baseline.py executable not found.")
+        raise RuntimeError(
+            "zap-baseline.py executable not found in trusted directories."
+        )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
@@ -2899,10 +2930,10 @@ def _run_codegraph_command(command, cwd: Path, action: str):
 
 def _run_codegraph_index(scan_path: Path):
     """Initialize or sync the CodeGraph index for the scanned path."""
-    codegraph = shutil.which("codegraph")
+    codegraph = _secure_which("codegraph")
     if not codegraph:
         raise RuntimeError(
-            "codegraph executable not found. Install CodeGraph before using --codegraph."
+            "codegraph executable not found in trusted directories. Install CodeGraph before using --codegraph."
         )
 
     workdir = scan_path if scan_path.is_dir() else scan_path.parent
