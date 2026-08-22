@@ -1346,8 +1346,12 @@ def _secure_which(name: str) -> str | None:
         if sys.executable:
             trusted_roots.append(Path(sys.executable).parent.resolve())
 
-        if "RUNNER_TEMP" in os.environ:
-            trusted_roots.append(Path(os.environ["RUNNER_TEMP"]).resolve())
+        # CI environments often inject shim scripts (like codegraph) via runner environment directories
+        if "GITHUB_ACTIONS" in os.environ:
+            if "RUNNER_TEMP" in os.environ:
+                trusted_roots.append(Path(os.environ["RUNNER_TEMP"]).resolve())
+            if "RUNNER_TOOL_CACHE" in os.environ:
+                trusted_roots.append(Path(os.environ["RUNNER_TOOL_CACHE"]).resolve())
 
         for root in trusted_roots:
             if str(resolved_path).startswith(str(root) + "/") or str(
