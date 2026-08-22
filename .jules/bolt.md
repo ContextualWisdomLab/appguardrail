@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-20 - Unrolling any() with generator expressions
+**Learning:** Using generator expressions inside `any()` (e.g., `any(token in string for token in (...))`) carries significant allocation and iterator overhead in Python. In performance-critical hot paths (like repeatedly classifying findings or evaluating scanner rules), this overhead compounds, making it much slower than simple explicit boolean statements.
+**Action:** Unroll `any()` generator loops into explicit `or` chains (e.g., `'a' in string or 'b' in string`) to bypass C-level generator overhead when performance is critical. Also ensure these micro-optimizations include inline comments explaining their purpose so they are not refactored back by future developers.

@@ -58,7 +58,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
-from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
@@ -1045,9 +1044,7 @@ def _compile_yaml_regex_rule(rule):
                 "extensions": extensions,
                 "include_paths": rule.get("include_paths") or [],
                 "exclude_paths": rule.get("exclude_paths") or [],
-                "required_substrings": tuple(
-                    rule.get("required_substrings") or ()
-                ),
+                "required_substrings": tuple(rule.get("required_substrings") or ()),
             }
         )
     return compiled_rules
@@ -1725,9 +1722,7 @@ def _push_findings(url, findings):
 
     base_path = parsed.path.rstrip("/")
     endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
-    endpoint = urllib.parse.urlunsplit(
-        ("https", parsed.netloc, endpoint_path, "", "")
-    )
+    endpoint = urllib.parse.urlunsplit(("https", parsed.netloc, endpoint_path, "", ""))
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
@@ -2285,7 +2280,32 @@ _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 def _is_sensitive_rule(rule_id: str) -> bool:
     """Return whether a rule id is likely to expose secret material."""
     lowered = (rule_id or "").lower()
-    return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
+    # ⚡ Bolt: Unrolled `any()` loop with explicit inline `or` conditions.
+    # Generator expressions in `any()` carry allocation and iterator overhead.
+    # In hot paths evaluating thousands of files, explicit `or` chains are
+    # significantly faster by avoiding C-level generator overhead.
+    return (
+        "secret" in lowered
+        or "password" in lowered
+        or "token" in lowered
+        or "jwt" in lowered
+        or "database-url" in lowered
+        or "db-url" in lowered
+        or "dsn" in lowered
+        or "credential" in lowered
+        or "stripe" in lowered
+        or "openai" in lowered
+        or "supabase-service-role" in lowered
+        or "aws" in lowered
+        or "private-key" in lowered
+        or "anthropic" in lowered
+        or "google" in lowered
+        or "github" in lowered
+        or "api-key" in lowered
+        or "slack" in lowered
+        or "twilio" in lowered
+        or "sendgrid" in lowered
+    )
 
 
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
@@ -2322,31 +2342,36 @@ def _finding_category(rule_id: str) -> str:
         return "dependency"
     if "jwt-decode" in rule:
         return "authz"
-    if any(
-        token in rule
-        for token in (
-            "secret",
-            "jwt",
-            "password",
-            "database-url",
-            "credential",
-            "api-key",
-            "token",
-            "openai",
-        )
+    # ⚡ Bolt: Unrolled `any()` loop with explicit inline `or` conditions to eliminate
+    # generator allocation and function call overhead in this hot path.
+    if (
+        "secret" in rule
+        or "jwt" in rule
+        or "password" in rule
+        or "database-url" in rule
+        or "credential" in rule
+        or "api-key" in rule
+        or "token" in rule
+        or "openai" in rule
     ):
         return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    if any(
-        token in rule for token in ("auth", "session", "admin", "route-without-auth")
+    if (
+        "auth" in rule
+        or "session" in rule
+        or "admin" in rule
+        or "route-without-auth" in rule
     ):
         return "authz"
-    if any(
-        token in rule
-        for token in ("eval", "sql", "command", "subprocess", "path-traversal")
+    if (
+        "eval" in rule
+        or "sql" in rule
+        or "command" in rule
+        or "subprocess" in rule
+        or "path-traversal" in rule
     ):
         return "injection"
     return "misconfig"
