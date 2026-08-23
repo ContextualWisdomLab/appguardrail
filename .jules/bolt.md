@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-21 - Avoiding Generator Overhead with dict.fromkeys()
+**Learning:** Passing a generator comprehension to `dict.fromkeys(generator)` incurs significant performance overhead in Python due to generator object instantiation and frame allocation. When deduplicating strings while preserving order in hot paths, this is significantly slower than using explicit `for` loops.
+**Action:** When optimizing code for hot paths in Python, replace generator comprehensions passed to `dict.fromkeys()` (e.g. `dict.fromkeys(item for ...)`) with explicit loops that update a local dictionary (`seen = {}`). The explicit dictionary assignment avoids object instantiation overhead.
