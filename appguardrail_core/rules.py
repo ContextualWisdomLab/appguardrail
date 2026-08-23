@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-REFERENCE_RE = re.compile(r"\[(OWASP [^\]]+|CWE-\d+[^\]]*|CVE-\d{4}-\d+[^\]]*)\]")
+REFERENCE_RE = re.compile(r"\[(OWASP [^\]]+|CWE-\d+[^\]]*?|CVE-\d{4}-\d+[^\]]*?)\]")
 
 CATEGORY_REFERENCE_DEFAULTS = {
     "authz": (

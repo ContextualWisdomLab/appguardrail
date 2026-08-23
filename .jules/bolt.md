@@ -81,3 +81,7 @@
 ## 2024-11-21 - Avoiding Generator Overhead with dict.fromkeys()
 **Learning:** Passing a generator comprehension to `dict.fromkeys(generator)` incurs significant performance overhead in Python due to generator object instantiation and frame allocation. When deduplicating strings while preserving order in hot paths, this is significantly slower than using explicit `for` loops.
 **Action:** When optimizing code for hot paths in Python, replace generator comprehensions passed to `dict.fromkeys()` (e.g. `dict.fromkeys(item for ...)`) with explicit loops that update a local dictionary (`seen = {}`). The explicit dictionary assignment avoids object instantiation overhead.
+
+## 2026-08-23 - ReDoS vulnerability due to greedy quantifiers
+**Learning:** In regular expressions used for security scanning, using greedy quantifiers (like `*`) inside optional subgroups (like `(A|B)*`) can lead to catastrophic backtracking if a closing character is missing. This creates a Regular Expression Denial of Service (ReDoS) vulnerability.
+**Action:** When writing or modifying regular expressions for security rules, especially those parsing external input, ensure that quantifiers within subgroups are non-greedy (like `*?`) to prevent exponential backtracking and potential CPU exhaustion.
