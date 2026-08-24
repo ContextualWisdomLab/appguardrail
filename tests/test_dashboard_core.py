@@ -302,3 +302,30 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+
+def test_dashboard_external_links_have_screen_reader_warning():
+    """External links must warn screen reader users of the context switch."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    class _LinkAttributeParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.links = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "a":
+                self.links.append(dict(attrs))
+
+    # Use the verified regex that correctly captures the anchor tag
+    markup_match = re.search(r"map\(r=>`(?P<markup><a [^>]+>)", html)
+    assert markup_match is not None
+
+    parser = _LinkAttributeParser()
+    parser.feed(markup_match.group("markup"))
+
+    assert any(
+        link.get("target") == "_blank" and
+        link.get("aria-label") == "${esc(r)} (opens in a new tab)"
+        for link in parser.links
+    )
