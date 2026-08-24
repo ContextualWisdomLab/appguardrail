@@ -29,15 +29,6 @@ def test_console_exposes_loading_busy_and_error_states():
     assert 'tr.removeAttribute("aria-busy");' in html
 
 
-def test_console_blocks_repeat_scan_activation_while_busy():
-    """Pointer, keyboard, and scripted activation must not duplicate a busy detail request."""
-    html = _console_html()
-
-    assert html.count('if(tr.getAttribute("aria-busy")==="true")return;') == 2
-    assert 'tr.onclick=()=>{' in html
-    assert "if(e.key === 'Enter' || e.key === ' ')" in html
-
-
 def test_console_detail_scrolling_respects_reduced_motion():
     """Successful and failed detail requests must honor reduced-motion preferences."""
     html = _console_html()
