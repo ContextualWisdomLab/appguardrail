@@ -81,7 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-08-25 - Visual Parity for ARIA Disabled and Loading States
-**Learning:** Frontend UI elements that are semantically disabled via `:disabled` or loading via `aria-busy="true"` must have corresponding CSS styles (like `opacity`, `cursor: not-allowed`, and `pointer-events: none`). Unlike the `:disabled` attribute, `aria-busy="true"` does not natively prevent mouse click events. When styling loading states, always explicitly apply `pointer-events: none` in CSS for elements with `aria-busy="true"` to prevent duplicate form submissions or actions.
-**Action:** Always add visual styles representing disabled and busy states, matching `:disabled` and `[aria-busy="true"]` attributes respectively, and ensure `pointer-events: none` is applied to prevent interactions on loading elements.
+## 2024-05-19 - Accessibility for UI states and links
+**Learning:** Adding ARIA-labels for "opens in a new tab" to external links significantly helps screen reader context. Using `aria-busy` along with visual styling (`opacity`, `pointer-events`) accurately represents loading rows in non-framework components. Extracting inline styles to CSS classes is necessary when adding hover/focus states to elements like buttons. Modifying programmatic focus flow (e.g. `element.focus()`) can unintentionally break implicit keyboard accessibility tests; adding shortcut tooltips (`title`) or ARIA labels is safer for incremental a11y improvements.
+**Action:** Consistently apply `aria-label` to external links, `aria-busy` to loading states, and extract inline button styles to CSS for interactive pseudo-classes, but avoid touching `focus()` lines on components unless specifically refactoring the focus flow.
