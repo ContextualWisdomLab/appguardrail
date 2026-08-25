@@ -82,6 +82,6 @@
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
 
-## 2026-08-13 - Visual Parity for ARIA Disabled and Loading States
-**Learning:** Frontend UI elements that are semantically disabled via `:disabled` or loading via `aria-busy="true"` must have corresponding CSS styles (like `opacity`, `cursor: not-allowed`, and `pointer-events: none`). Without explicit styles mapping these states, the UI may not accurately reflect the element's actual state in the accessibility tree, leading to confusion for sighted users clicking dead buttons or not knowing when an action is in progress.
-**Action:** Always add visual styles representing disabled and busy states, matching `:disabled` and `[aria-busy="true"]` attributes respectively, to ensure visual parity with the accessibility tree.
+## 2026-08-25 - Visual Parity for ARIA Disabled and Loading States
+**Learning:** Frontend UI elements that are semantically disabled via `:disabled` or loading via `aria-busy="true"` must have corresponding CSS styles (like `opacity`, `cursor: not-allowed`, and `pointer-events: none`). Unlike the `:disabled` attribute, `aria-busy="true"` does not natively prevent mouse click events. When styling loading states, always explicitly apply `pointer-events: none` in CSS for elements with `aria-busy="true"` to prevent duplicate form submissions or actions.
+**Action:** Always add visual styles representing disabled and busy states, matching `:disabled` and `[aria-busy="true"]` attributes respectively, and ensure `pointer-events: none` is applied to prevent interactions on loading elements.
