@@ -456,7 +456,7 @@ This project is open-source and welcomes contributions of:
 - Fix prompts for common vulnerability patterns
 - Scanner detection rules
 
-Please read [docs/responsible-testing.md](docs/responsible-testing.md) before contributing scanner rules.
+Please read [docs/responsible-testing.md](docs/responsible-testing.md) before contributing scanner rules. Architecture decisions are recorded in [`docs/adr/`](docs/adr/).
 
 ---
 
