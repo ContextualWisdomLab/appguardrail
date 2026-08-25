@@ -59,7 +59,7 @@ def test_dashboard_centralizes_finding_count_pluralization() -> None:
     html = _dashboard_html()
 
     assert "function formatFindingCount(count)" in html
-    assert "return `${count} ${count === 1 ? 'finding' : 'findings'}`;" in html
+    assert "return `${esc(count)} ${count === 1 ? 'finding' : 'findings'}`;" in html
     assert "formatFindingCount(ALL.length)" in html
     assert "formatFindingCount(findings.length)" in html
     assert html.count("? 'finding' : 'findings'") == 1
