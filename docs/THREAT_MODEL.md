@@ -46,6 +46,8 @@ flowchart LR
 | hostile remediation text reaches an agent as executable content | prompt/script injection or secret disclosure | inert text serialization, IssueOps redaction, bounded fields, no dynamic code handlers |
 | handoff payload is altered or malformed in transit | agent consumes false remediation/provenance | schema/version/size validation and recomputed bundle digest |
 | autonomous model self-approval | governance bypass | developer/reviewer/merge/release authority separation |
+| malicious shared skill (homoglyph name, injected instructions, exfiltration directive) | agent hijack and secret exfiltration | deny-listed skill sync with exact alias matching; catalog/skill text treated as untrusted data, never instructions (#1031) |
+| placeholder template published as an installable skill | discovery pollution and broken installs | reject unresolved placeholder names at sync; workspace state kept out of skill roots (#1031) |
 
 ## Stored SSRF abuse case
 
