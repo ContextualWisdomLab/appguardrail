@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-26 - Blocking Keyboard Events with aria-busy
+**Learning:** `aria-busy="true"` combined with CSS `pointer-events: none` successfully blocks mouse clicks, but fails to prevent keyboard interactions (like Enter or Space) on non-button elements (like `<tr>` with `role="button"`).
+**Action:** When using `aria-busy` to disable interactions, always add explicit JavaScript event guards (e.g., `if (el.getAttribute('aria-busy') === 'true') return;`) to both click and keydown listeners to ensure complete interaction blocking.
