@@ -302,3 +302,31 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+class _LinkAttributeParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            self.links.append(dict(attrs))
+
+
+def test_dashboard_external_links_have_screen_reader_warning():
+    """External links must warn screen reader users of the context switch."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    refs_markup = re.search(
+        r"const refs = \(f\.references\|\|\[\]\)\.map\(r=>`(?P<markup>.*?)`\)",
+        html,
+        flags=re.DOTALL,
+    )
+    assert refs_markup is not None
+
+    parser = _LinkAttributeParser()
+    parser.feed(refs_markup.group("markup"))
+
+    assert any(
+        attributes.get("target") == "_blank"
+        and attributes.get("aria-label") == "${esc(r)} (opens in a new tab)"
+        for attributes in parser.links
+    )
