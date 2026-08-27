@@ -156,7 +156,8 @@ function render(){
     </div>`;
     const browseFindings = document.getElementById('browse-findings');
     const fileInput = document.getElementById('file');
-browseFindings.addEventListener('click', () => fileInput.click());
+document.getElementById('upload-proxy').addEventListener('click', () => fileInput.click());
+    browseFindings.addEventListener('click', () => fileInput.click());
     return;
   }
   if(ALL.length === 0){
@@ -169,7 +170,8 @@ browseFindings.addEventListener('click', () => fileInput.click());
     </div>`;
     const browseFindings = document.getElementById('browse-findings');
     const fileInput = document.getElementById('file');
-browseFindings.addEventListener('click', () => fileInput.click());
+document.getElementById('upload-proxy').addEventListener('click', () => fileInput.click());
+    browseFindings.addEventListener('click', () => fileInput.click());
     return;
   }
   const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
@@ -284,9 +286,9 @@ browseFindings.addEventListener('click', () => fileInput.click());
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
-  const refs = (Array.isArray(f.references)?f.references:[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
-  const owasp = (Array.isArray(f.owasp)?f.owasp:[]).join(', ');
-  const cwe = (Array.isArray(f.cwe)?f.cwe:[]).join(', ');
+  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
+  const owasp = (f.owasp||[]).join(', ');
+  const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
 
   d.innerHTML = `
