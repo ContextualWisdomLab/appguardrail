@@ -191,11 +191,19 @@ function render(){
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
     `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
 
-  const filtered = ALL
-    .map((f,i)=>({f,i}))
-    .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
-    .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
-    .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+  // ⚡ Bolt: Optimize array method chaining during high-frequency renders.
+  // Impact: Replaces 3 array passes + multiple allocations with a single pass
+  // and O(1) sort lookups, preventing jank during rapid keystrokes.
+  const SEV_IDX = { CRITICAL: 0, HIGH: 1, WARNING: 2, INFO: 3 };
+  const filtered = [];
+  for (let i = 0; i < ALL.length; i++) {
+    const f = ALL[i];
+    const s = String(f.severity).toUpperCase();
+    if (filterSev && s !== filterSev) continue;
+    if (query && !(String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query)) continue;
+    filtered.push({f, i});
+  }
+  filtered.sort((a,b)=> (SEV_IDX[String(a.f.severity).toUpperCase()] ?? 3) - (SEV_IDX[String(b.f.severity).toUpperCase()] ?? 3));
   const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
     ? allFindingsText
