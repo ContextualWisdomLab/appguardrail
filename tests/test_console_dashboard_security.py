@@ -8,6 +8,13 @@ CONSOLE_PATH = (
 )
 
 
+def test_console_esc_function_escapes_backticks() -> None:
+    """The esc function must sanitize backticks to prevent template literal injection."""
+    html = CONSOLE_PATH.read_text(encoding="utf-8")
+    assert "replace(/[&<>\"'`]/g" in html
+    assert "\"`\":\"&#96;\"" in html
+
+
 def test_trend_accessibility_attributes_escape_blocking_count() -> None:
     """Untrusted scan counts must not escape innerHTML attribute values."""
     html = CONSOLE_PATH.read_text(encoding="utf-8")
