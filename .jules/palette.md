@@ -81,6 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-## $(date +%Y-%m-%d) - External Links Target Blank Accessibility
+## 2024-11-20 - External Links Target Blank Accessibility
 **Learning:** `target="_blank"` links cause a sudden context switch, which is confusing for screen reader users if they are not forewarned.
 **Action:** When creating external links with `target="_blank"`, explicitly add an `aria-label` appending `(opens in a new tab)` or provide visually hidden text to warn users beforehand.
