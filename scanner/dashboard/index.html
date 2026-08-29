@@ -199,7 +199,10 @@ function render(){
     const sev = String(f.severity).toUpperCase();
     if (filterSev && sev !== filterSev) continue;
     if (query && !(String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query)) continue;
-    filtered.push({f, i, order: SEV_ORDER_MAP[sev] ?? 99});
+
+    // Ensure unknown severities sort to top (-1) exactly like indexOf to preserve behavior
+    const order = SEV_ORDER_MAP[sev] !== undefined ? SEV_ORDER_MAP[sev] : -1;
+    filtered.push({f, i, order});
   }
   filtered.sort((a,b) => a.order - b.order);
   const allFindingsText = formatFindingCount(ALL.length);

@@ -78,5 +78,5 @@
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
 ## 2024-08-30 - Optimize dashboard finding filtering
-**Learning:** Chaining multiple array methods (`.map().filter().sort()`) on large datasets triggered by high-frequency events causes redundant memory allocations and iteration overhead.
-**Action:** Use a single `for` loop with early returns and O(1) object lookups for sorting priorities to minimize execution passes.
+**Learning:** Chaining multiple array methods (`.map().filter().sort()`) on large datasets triggered by high-frequency events causes redundant memory allocations and iteration overhead. When refactoring `indexOf` lookups to O(1) object maps, strictly preserve original sorting behavior (e.g., unknown elements sorting to `-1`) to prevent regressions in dependent consumers.
+**Action:** Use a single `for` loop with early returns and O(1) object lookups for sorting priorities to minimize execution passes, ensuring exact behavioral parity for missing keys.
