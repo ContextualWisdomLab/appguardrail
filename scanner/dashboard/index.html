@@ -106,7 +106,7 @@ const SEV = {
   WARNING:{color:'var(--warn)'}, INFO:{color:'var(--info)'}
 };
 const SEV_ORDER = ['CRITICAL','HIGH','WARNING','INFO'];
-const SEV_ORDER_MAP = Object.fromEntries(SEV_ORDER.map((s, i) => [s, i]));
+const SEV_ORDER_MAP = { 'CRITICAL': 0, 'HIGH': 1, 'WARNING': 2, 'INFO': 3 };
 const NON_BLOCKING = new Set(['doc','test','example','scanner-fixture']);
 const BLOCKING_SEV = new Set(['CRITICAL','HIGH']);
 
@@ -202,7 +202,7 @@ function render(){
 
     // Ensure unknown severities sort to top (-1) exactly like indexOf to preserve behavior
     const order = SEV_ORDER_MAP[sev] !== undefined ? SEV_ORDER_MAP[sev] : -1;
-    filtered.push({f, i, order});
+    filtered.push({f: f, i: i, order: order});
   }
   filtered.sort((a,b) => a.order - b.order);
   const allFindingsText = formatFindingCount(ALL.length);
