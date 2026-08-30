@@ -191,11 +191,19 @@ function render(){
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
     `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
 
-  const filtered = ALL
-    .map((f,i)=>({f,i}))
-    .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
-    .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
-    .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+  // ⚡ Bolt: 대규모 데이터셋(ALL)에 대해 여러 번의 map/filter 체이닝이 키 입력마다 실행되는 것을 방지합니다.
+  // 단일 for 루프 안에서 조건 검사를 먼저 수행(early return)하여 O(N) 순회를 1회로 줄였으며, 정렬 비용 최소화를 위해 O(1) 객체 조회 방식을 사용합니다.
+  const SEV_ORDER_MAP = Object.fromEntries(SEV_ORDER.map((s, i) => [s, i]));
+  const filtered = [];
+  for (let i = 0; i < ALL.length; i++) {
+    const f = ALL[i];
+    const sev = String(f.severity).toUpperCase();
+    if (filterSev && sev !== filterSev) continue;
+    if (query && !(String(f.message) + ' ' + String(f.file) + ' ' + String(f.rule_id) + ' ' + String(f.category)).toLowerCase().includes(query)) continue;
+    filtered.push({f, i, sev});
+  }
+  filtered.sort((a, b) => (SEV_ORDER_MAP[a.sev] ?? 99) - (SEV_ORDER_MAP[b.sev] ?? 99));
+
   const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
     ? allFindingsText
