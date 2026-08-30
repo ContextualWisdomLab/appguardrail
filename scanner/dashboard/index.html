@@ -202,7 +202,10 @@ function render(){
     if (query && !(String(f.message) + ' ' + String(f.file) + ' ' + String(f.rule_id) + ' ' + String(f.category)).toLowerCase().includes(query)) continue;
     filtered.push({f, i, sev});
   }
-  filtered.sort((a, b) => (SEV_ORDER_MAP[a.sev] ?? 99) - (SEV_ORDER_MAP[b.sev] ?? 99));
+  filtered.sort((a, b) =>
+    (SEV_ORDER_MAP[a.sev] !== undefined ? SEV_ORDER_MAP[a.sev] : -1) -
+    (SEV_ORDER_MAP[b.sev] !== undefined ? SEV_ORDER_MAP[b.sev] : -1)
+  );
 
   const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
