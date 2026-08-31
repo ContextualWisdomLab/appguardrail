@@ -9,7 +9,7 @@ Candidate bounded detector contract for a source-authoritative NewsDOM authentic
 - Source repository: `ContextualWisdomLab/newsdom-api`
 - Vulnerable source head: `04491c0e9ac38b9f793029683cebfb8210ccfadd`
 - Vulnerable `src/newsdom_api/main.py` blob: `4efdad56ed78ed5c0158cdf0d746aedfe72604fe`
-- Authoritative reviewed fix: merged PR `#539`, head `e22bb76bcf821dfa21eb83938a474c6cf3e7c1e8`
+- Authoritative reviewed fix: merged PR `#539`, head `e22bb76bcf821dfa21deb83938a474c6cf3e7c1e8`
 - Protected merge commit: `76417bd240398c1a4bf2f6c65d693ea523b179d0`
 - Fixed `src/newsdom_api/main.py` blob: `f61aafc2d6592f4a84c7b02b50cfe4a972623463`
 
@@ -26,11 +26,13 @@ Rule `python-auth-secret-missing-fail-open` reports only the bounded Python sour
 1. the function name begins with `require`, `verify`, `check`, or `validate` and includes `authorization`, `authentication`, or `auth`;
 2. local variable `token` is assigned from a `get_*token(...)` getter or an object `.token` / `.api_token` attribute;
 3. `if token is None:` is followed by a bare `return` or `return None`; and
-4. the same function contains a `Bearer` authentication signal.
+4. executable authentication code assigns a `Bearer` value to an authentication-related local such as `expected`, `authorization`, `header`, `scheme`, or `credentials`.
 
-The multiline expression is bounded by the next function definition and finite character windows. The scanner additionally prefilters files for `token is None` and `Bearer` before evaluating the rule. This intentionally trades recall for a narrow, auditable source-backed contract.
+The multiline expression is bounded by the next function or class definition and finite character windows. A comment, log-only string, or later class name containing `Bearer` is not sufficient evidence. The scanner additionally prefilters files for `token is None` and `Bearer` before evaluating the rule. This intentionally trades recall for a narrow, auditable source-backed contract.
 
 The finding is `HIGH`, high-confidence, and maps to `CWE-306 - Missing Authentication for Critical Function`. CWE 4.20 explicitly allows vulnerability mapping for CWE-306. OWASP Top 10:2025 `A07:2025 - Authentication Failures` includes CWE-306 among its mapped weaknesses. OWASP API Security Top 10:2023 API2 likewise treats unauthenticated access to a microservice that should require authentication as a broken-authentication condition.
+
+Normalized product metadata classifies this rule with the authentication/authorization control family rather than hardcoded-secret exposure. Buyer-facing remediation therefore directs the operator to configure the required server credential and fail closed when it is unavailable; it does not tell the operator to remove or rotate a credential that is absent.
 
 ## Remediation
 
@@ -45,6 +47,7 @@ The finding is `HIGH`, high-confidence, and maps to `CWE-306 - Missing Authentic
 This is not a general Python authentication or interprocedural taint analyzer. It intentionally does not claim to detect:
 
 - authentication functions whose names or token variable differ from the bounded contract;
+- authentication code that constructs or validates Bearer credentials without one of the bounded authentication-related assignment names;
 - token acquisition hidden behind aliases, destructuring, dictionaries, or cross-function helpers;
 - missing authentication at the route/decorator level where no matching guard exists;
 - optional/public endpoints whose product policy legitimately permits unauthenticated access;
