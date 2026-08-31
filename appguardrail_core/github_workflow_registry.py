@@ -106,6 +106,11 @@ def _normalize_repository(value: str) -> str:
     return repository
 
 
+def _same_repository(value: Any, repository: str) -> bool:
+    """Compare GitHub repository identities without case-sensitive aliases."""
+    return isinstance(value, str) and value.casefold() == repository.casefold()
+
+
 def _normalize_verified_at(value: str | None) -> str:
     """Require one canonical UTC audit timestamp."""
     verified_at = str(value or "").strip()
@@ -240,7 +245,9 @@ def build_workflow_inventory(
     """
     repository = _normalize_repository(repository)
     verified_at = _normalize_verified_at(verified_at)
-    if not isinstance(repository_payload, dict) or repository_payload.get("full_name") != repository:
+    if not isinstance(repository_payload, dict) or not _same_repository(
+        repository_payload.get("full_name"), repository
+    ):
         return _incomplete_inventory(repository, verified_at, "repository_identity_mismatch")
     default_branch = repository_payload.get("default_branch")
     if not isinstance(default_branch, str) or not default_branch.strip():
@@ -305,12 +312,25 @@ def build_workflow_inventory(
             default_branch_sha=str(branch_sha),
             tree_sha=str(tree_sha),
         )
+    if any(
+        not isinstance(entry, dict)
+        or entry.get("type") not in {"blob", "tree", "commit"}
+        or not isinstance(entry.get("path"), str)
+        or not entry["path"]
+        for entry in tree_entries
+    ):
+        return _incomplete_inventory(
+            repository,
+            verified_at,
+            "invalid_tree_entry",
+            default_branch=default_branch,
+            default_branch_sha=str(branch_sha),
+            tree_sha=str(tree_sha),
+        )
     tree_paths = frozenset(
         entry["path"]
         for entry in tree_entries
-        if isinstance(entry, dict)
-        and entry.get("type") == "blob"
-        and isinstance(entry.get("path"), str)
+        if entry["type"] == "blob"
     )
 
     pages = list(workflow_pages)
@@ -654,6 +674,33 @@ def _workflow_pages(
     raise EvidenceCollectionError("pagination_limit_exceeded")
 
 
+def _workflow_evidence_snapshot(pages: Iterable[Any]) -> tuple[str, ...] | None:
+    """Return a stable multiset of classification-relevant registry fields."""
+    records: list[Any] = []
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get("workflows"), list):
+            return None
+        records.extend(page["workflows"])
+    if any(not isinstance(record, dict) for record in records):
+        return None
+    return tuple(
+        sorted(
+            json.dumps(
+                [
+                    record.get("id"),
+                    record.get("name"),
+                    record.get("path"),
+                    record.get("state"),
+                    record.get("html_url"),
+                ],
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            for record in records
+        )
+    )
+
+
 def collect_workflow_inventory(
     repository: str,
     *,
@@ -735,6 +782,16 @@ def collect_workflow_inventory(
             token=token,
             timeout=timeout,
         )
+        verification_pages = _workflow_pages(
+            repository,
+            opener=opener,
+            token=token,
+            timeout=timeout,
+        )
+        if _workflow_evidence_snapshot(pages) != _workflow_evidence_snapshot(
+            verification_pages
+        ):
+            raise EvidenceCollectionError("registry_moved_during_collection")
         final_repository_payload, _ = _request_json(
             base_url,
             repository=repository,
@@ -751,7 +808,7 @@ def collect_workflow_inventory(
         )
         if (
             not isinstance(final_repository_payload, dict)
-            or final_repository_payload.get("full_name") != repository
+            or not _same_repository(final_repository_payload.get("full_name"), repository)
             or final_repository_payload.get("default_branch") != default_branch
             or not isinstance(final_branch_payload, dict)
             or final_branch_payload.get("name") != default_branch

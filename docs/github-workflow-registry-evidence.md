@@ -33,8 +33,8 @@ The source sequence is deliberately ordered:
 1. `GET /repos/{owner}/{repo}` supplies the repository identity and current default branch.
 2. `GET /repos/{owner}/{repo}/branches/{branch}` must identify that same branch as protected and supplies the exact commit SHA plus tree SHA.
 3. `GET /repos/{owner}/{repo}/git/trees/{tree_sha}?recursive=1` supplies the source paths. `truncated: false` is mandatory for a complete result.
-4. `GET /repos/{owner}/{repo}/actions/workflows?per_page=100` supplies the registry. Further pages are followed only from GitHub's `Link` header and only when they stay on the fixed `api.github.com` origin and same repository path.
-5. The page `total_count` must remain stable and equal the number of collected records. Duplicate workflow IDs, unsupported record shapes, or future unknown states prevent a clean inventory.
+4. `GET /repos/{owner}/{repo}/actions/workflows?per_page=100` supplies the registry. Further pages are followed only from GitHub's `Link` header and only when they stay on the fixed `api.github.com` origin and same repository path. A second bounded pagination pass must reproduce the same ID/name/path/state/URL multiset before classification.
+5. The page `total_count` must remain stable and equal the number of collected records. Same-count movement between the two passes, duplicate workflow IDs, unsupported record shapes, or future unknown states prevent a clean inventory.
 6. Active source-backed records are compared with the exact tree. Validated `dynamic/...` records owned by GitHub services remain explicitly `dynamic_managed`; they are not repository files and therefore are not source-orphan candidates. Disabled records remain explicitly disabled. Unknown registry states remain unresolved.
 7. Repository and protected-branch metadata are fetched again after registry pagination. A changed default branch, commit SHA, tree SHA, protection state, or repository identity makes the inventory incomplete.
 
@@ -58,7 +58,7 @@ AppGuardrail refuses to infer a clean state when any material evidence boundary 
 - repository identity or default branch does not match the requested repository;
 - the current default branch is not reported as protected;
 - commit or tree SHA is missing or malformed;
-- the recursive tree is truncated, has the wrong SHA, or has an unsupported shape;
+- the recursive tree is truncated, has the wrong SHA, or contains an unsupported entry shape;
 - workflow pages are absent, malformed, count-inconsistent, duplicated, or incomplete;
 - HTTP 403/404/5xx, DNS/transport failure, timeout, non-JSON response, malformed JSON, or oversized response occurs;
 - a redirect or pagination URL leaves the fixed GitHub API origin/repository boundary;
@@ -111,7 +111,9 @@ The regression suite in `tests/test_github_workflow_registry.py` exercises the p
 - default-branch or protected commit movement during pagination;
 - recursive-tree truncation;
 - changing or incomplete workflow counts;
+- same-count registry replacement or reordering across two bounded passes;
 - duplicate workflow IDs and malformed records;
+- malformed recursive-tree entries that could hide a live workflow path;
 - HTTP 403, 404, 500, DNS/transport failures;
 - non-JSON, malformed JSON, and oversized responses;
 - hostile, malformed, cyclic, and overlong pagination;

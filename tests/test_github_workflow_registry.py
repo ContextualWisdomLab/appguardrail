@@ -106,6 +106,29 @@ def test_incomplete_or_ambiguous_source_evidence_fails_closed(kwargs: dict[str, 
     assert inventory.reason == reason
 
 
+def test_malformed_tree_entry_cannot_create_a_false_orphan() -> None:
+    """An uninterpretable blob entry makes source absence unprovable."""
+    malformed_tree = tree(LIVE)
+    malformed_tree["tree"] = [{"type": "blob", "sha": "c" * 40}]
+    inventory = build(t=malformed_tree)
+    assert not inventory.complete
+    assert inventory.reason == "invalid_tree_entry"
+    assert inventory.entries == ()
+
+
+def test_repository_identity_comparison_is_case_insensitive() -> None:
+    """GitHub's canonical repository casing remains equivalent to a lowercase request."""
+    inventory = m.build_workflow_inventory(
+        repository=REPO.lower(),
+        verified_at=STAMP,
+        repository_payload=repo(),
+        branch_payload=branch(),
+        tree_payload=tree(LIVE),
+        workflow_pages=[page(workflow(1, LIVE))],
+    )
+    assert inventory.complete
+
+
 def test_unknown_registry_state_is_unresolved_and_actionable() -> None:
     """Unknown future GitHub states remain explicit rather than guessed."""
     inventory = build(pages=[page(workflow(1, LIVE, state="mystery"))])
@@ -180,8 +203,45 @@ def test_collector_follows_link_pagination_and_pins_headers() -> None:
     opener = transport(second_page=True)
     inventory = m.collect_workflow_inventory(REPO, token="token-value", opener=opener, verified_at=STAMP)  # noqa: S106
     assert inventory.complete and [e.status for e in inventory.entries] == ["present", "orphaned_deleted"]
-    assert len(opener.requests) == 7
+    assert len(opener.requests) == 9
     assert all(h["x-github-api-version"] == m.API_VERSION and h["authorization"] == "Bearer token-value" for _, h in opener.requests)
+
+
+def test_collector_accepts_github_canonical_repository_casing() -> None:
+    """Collector identity rechecks accept GitHub's canonical owner/repository spelling."""
+    requested = REPO.lower()
+    base = f"{m.API_ORIGIN}/repos/{requested}"
+    branch_url = f"{base}/branches/develop"
+    tree_url = f"{base}/git/trees/{TREE_SHA}?recursive=1"
+    workflows_url = f"{base}/actions/workflows?per_page=100"
+    opener = Opener(
+        {
+            base: Response(repo()),
+            branch_url: Response(branch()),
+            tree_url: Response(tree(LIVE)),
+            workflows_url: Response(page(workflow(1, LIVE))),
+        }
+    )
+    assert m.collect_workflow_inventory(
+        requested, opener=opener, verified_at=STAMP
+    ).complete
+
+
+def test_collector_fails_closed_when_registry_changes_between_passes() -> None:
+    """Same-count pagination cannot mix two different workflow registry snapshots."""
+    assert m._workflow_evidence_snapshot(["bad"]) is None
+    assert m._workflow_evidence_snapshot([{"workflows": ["bad"]}]) is None
+    base = f"{m.API_ORIGIN}/repos/{REPO}"
+    first_page = f"{base}/actions/workflows?per_page=100"
+    second_page = f"{first_page}&page=2"
+    opener = transport(second_page=True)
+    opener.responses[second_page] = [
+        Response(page(workflow(2, ".github/workflows/orphan.yml"), total=2)),
+        Response(page(workflow(3, ".github/workflows/replacement.yml"), total=2)),
+    ]
+    inventory = m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP)
+    assert not inventory.complete
+    assert inventory.reason == "registry_moved_during_collection"
 
 
 @pytest.mark.parametrize("movement", ["repository", "branch"])
