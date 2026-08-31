@@ -4,7 +4,7 @@
 
 ### 거버넌스
 - GitHub Actions 레지스트리 감사가 Copilot, Dependabot, CodeQL의 검증된 `dynamic/...` workflow를 소스 삭제 오탐으로 처리하지 않으며, 페이지 수집 중 기본 브랜치·커밋·트리가 바뀌면 fail-closed 처리합니다.
-- 문자열 경로의 언어 감지가 `pathlib.Path`와 같은 확장자 규칙을 사용해 점으로만 시작하는 파일을 Python으로 오인하지 않습니다.
+- 문자열 경로의 언어 감지가 Python 버전별 `pathlib` 차이와 무관하게 `.py`로 끝나는 파일을 Python 보안 검사에 포함합니다.
 
 ### 사용자 경험 (UX)
 - 검색창 포커스 전체 키보드 단축키(`/`) 추가 — 단축키가 `<input>`, `<textarea>`, `<select>` 및 `isContentEditable` 요소 외부에서만 작동하도록 제한하여 입력 간섭을 방지하고, 접근성을 위한 힌트 속성(`title`, `aria-keyshortcuts`)을 추가했습니다.

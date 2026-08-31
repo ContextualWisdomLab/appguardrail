@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Iterable
 
@@ -102,7 +101,8 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
             idx = max(file_path.rfind("/"), file_path.rfind("\\"))
             name = file_path[idx + 1 :] if idx != -1 else file_path
 
-            suffix = os.path.splitext(name)[1].lower()
+            dot_idx = name.rfind(".")
+            suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
 
         language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
