@@ -32,6 +32,18 @@ REFERENCE_CATEGORY_OVERRIDES = {
     "CWE-918": "ssrf",
 }
 
+RULE_CATEGORY_OVERRIDES = {
+    "python-auth-secret-missing-fail-open": "authz",
+}
+
+RULE_REMEDIATION_OVERRIDES = {
+    "python-auth-secret-missing-fail-open": (
+        "Configure the required server-side authentication credential and fail closed "
+        "when it is unavailable; never treat a missing credential as authentication "
+        "being disabled."
+    ),
+}
+
 SAMM_BY_CATEGORY = {
     "authz": "Implementation / Secure Build",
     "dependency": "Implementation / Secure Build",
@@ -152,6 +164,7 @@ def build_rule_metadata(
 ) -> RuleMetadata:
     """Build a stable metadata envelope for a scanner finding."""
     public_references = extract_public_references(message)
+    category = RULE_CATEGORY_OVERRIDES.get(rule_id, category)
     category = _category_for_references(public_references, category)
     references = _merge_references(
         public_references,
@@ -173,9 +186,12 @@ def build_rule_metadata(
         owasp=tuple(owasp_list),
         cwe=tuple(cwe_list),
         samm_practice=SAMM_BY_CATEGORY.get(category, "Verification / Security Testing"),
-        remediation=REMEDIATION_BY_CATEGORY.get(
-            category,
-            "Review the finding, fix the unsafe pattern, and rerun AppGuardrail.",
+        remediation=RULE_REMEDIATION_OVERRIDES.get(
+            rule_id,
+            REMEDIATION_BY_CATEGORY.get(
+                category,
+                "Review the finding, fix the unsafe pattern, and rerun AppGuardrail.",
+            ),
         ),
     )
 
