@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### 거버넌스
-- GitHub Actions 레지스트리 감사가 Copilot, Dependabot, CodeQL의 검증된 `dynamic/...` workflow를 소스 삭제 오탐으로 처리하지 않습니다. 두 번의 bounded pagination 결과 또는 기본 브랜치·커밋·트리가 달라지거나 tree entry가 불완전하면 fail-closed 처리하며, GitHub 저장소 이름의 대소문자 alias는 같은 identity로 검증합니다.
+- GitHub Actions 레지스트리 감사가 Copilot, Dependabot, CodeQL의 검증된 `dynamic/...` workflow를 소스 삭제 오탐으로 처리하지 않습니다. 두 번의 bounded pagination 모두 안정적인 `total_count`와 완전한 record 수를 요구하고, 결과 또는 기본 브랜치·커밋·트리가 달라지거나 tree entry가 불완전하면 fail-closed 처리하며, GitHub 저장소 이름의 대소문자 alias는 같은 identity로 검증합니다.
 - 문자열 경로의 언어 감지가 Python 버전별 `pathlib` 차이와 무관하게 `.py`로 끝나는 파일을 Python 보안 검사에 포함합니다.
 
 ### 사용자 경험 (UX)

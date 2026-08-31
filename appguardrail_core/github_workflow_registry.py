@@ -677,11 +677,23 @@ def _workflow_pages(
 def _workflow_evidence_snapshot(pages: Iterable[Any]) -> tuple[str, ...] | None:
     """Return a stable multiset of classification-relevant registry fields."""
     records: list[Any] = []
+    expected_total: int | None = None
     for page in pages:
         if not isinstance(page, dict) or not isinstance(page.get("workflows"), list):
             return None
+        total_count = page.get("total_count")
+        if (
+            not isinstance(total_count, int)
+            or isinstance(total_count, bool)
+            or total_count < 0
+            or (expected_total is not None and total_count != expected_total)
+        ):
+            return None
+        expected_total = total_count
         records.extend(page["workflows"])
-    if any(not isinstance(record, dict) for record in records):
+    if expected_total != len(records) or any(
+        not isinstance(record, dict) for record in records
+    ):
         return None
     return tuple(
         sorted(
@@ -788,9 +800,9 @@ def collect_workflow_inventory(
             token=token,
             timeout=timeout,
         )
-        if _workflow_evidence_snapshot(pages) != _workflow_evidence_snapshot(
-            verification_pages
-        ):
+        snapshot = _workflow_evidence_snapshot(pages)
+        verification_snapshot = _workflow_evidence_snapshot(verification_pages)
+        if snapshot is None or snapshot != verification_snapshot:
             raise EvidenceCollectionError("registry_moved_during_collection")
         final_repository_payload, _ = _request_json(
             base_url,

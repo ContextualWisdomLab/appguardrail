@@ -244,6 +244,29 @@ def test_collector_fails_closed_when_registry_changes_between_passes() -> None:
     assert inventory.reason == "registry_moved_during_collection"
 
 
+@pytest.mark.parametrize(
+    "verification_page",
+    [
+        {"total_count": True, "workflows": [workflow(1, LIVE)]},
+        page(workflow(1, LIVE), total=2),
+    ],
+)
+def test_collector_rejects_incomplete_verification_pass(
+    verification_page: dict[str, object],
+) -> None:
+    """The verification pass must be a complete registry inventory itself."""
+    base = f"{m.API_ORIGIN}/repos/{REPO}"
+    workflows_url = f"{base}/actions/workflows?per_page=100"
+    opener = transport()
+    opener.responses[workflows_url] = [
+        Response(page(workflow(1, LIVE))),
+        Response(verification_page),
+    ]
+    inventory = m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP)
+    assert not inventory.complete
+    assert inventory.reason == "registry_moved_during_collection"
+
+
 @pytest.mark.parametrize("movement", ["repository", "branch"])
 def test_collector_fails_closed_when_source_moves_during_collection(movement: str) -> None:
     """A repository default-branch or exact branch movement cannot yield clean evidence."""
