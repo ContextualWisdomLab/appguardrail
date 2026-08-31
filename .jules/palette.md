@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-13 - CSP Compliance and Dynamic Event Listeners
+**Learning:** Using inline script handlers (like `onclick=...`) violates CSP rules and tightly couples behavior with markup. When removing inline handlers in a zero-build file that relies heavily on full DOM replacement (via `innerHTML`), the event listeners must be re-attached dynamically.
+**Action:** Always assign a static ID to the interactive element and attach the event listener explicitly inside the rendering function (e.g., `render()`) to ensure event bindings survive DOM regeneration without causing duplicate listener stacking on static elements outside the rendering scope.
