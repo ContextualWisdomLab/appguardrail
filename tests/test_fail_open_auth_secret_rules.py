@@ -140,6 +140,19 @@ class BearerPolicy:
     pass
 '''
 
+_NESTED_CLASS_VULNERABLE_SOURCE = '''
+def require_authorization(authorization: str | None = None) -> None:
+    class AuditContext:
+        pass
+
+    token = get_api_token()
+    if token is None:
+        return
+    expected = f"Bearer {token}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+'''
+
 
 def _rule() -> dict:
     """Return the packaged missing-auth-secret fail-open rule."""
@@ -245,6 +258,11 @@ def test_rule_ignores_bearer_text_in_log_message() -> None:
 def test_rule_does_not_cross_class_boundary_for_bearer_signal() -> None:
     """Do not borrow a Bearer class name from code after the guarded function."""
     assert not _rule()["pattern"].search(_LATER_CLASS_BEARER_SOURCE)
+
+
+def test_rule_detects_guard_with_nested_class_before_bearer_check() -> None:
+    """Keep nested class declarations inside the enclosing authentication function."""
+    assert _rule()["pattern"].search(_NESTED_CLASS_VULNERABLE_SOURCE)
 
 
 def test_scan_file_emits_normalized_missing_authentication_finding(tmp_path: Path) -> None:
