@@ -56,6 +56,23 @@ def test_classification_is_exact_case_sensitive_and_state_aware() -> None:
     assert [e.writer_like for e in inventory.entries[:3]] == [True, True, False]
 
 
+def test_github_managed_dynamic_workflows_are_not_source_orphans() -> None:
+    """GitHub-owned dynamic workflows remain explicit without requiring tree files."""
+    assert not m._valid_workflow_path(None)
+    dynamic_paths = (
+        "dynamic/agents/copilot-pull-request-reviewer",
+        "dynamic/copilot-swe-agent/copilot",
+        "dynamic/dependabot/dependabot-updates",
+        "dynamic/github-code-scanning/codeql",
+    )
+    inventory = build(
+        pages=[page(*(workflow(index, path) for index, path in enumerate(dynamic_paths, 1)))]
+    )
+    assert inventory.complete
+    assert [entry.status for entry in inventory.entries] == ["dynamic_managed"] * 4
+    assert m.inventory_to_findings(inventory) == ()
+
+
 @pytest.mark.parametrize(
     ("kwargs", "reason"),
     [
@@ -127,7 +144,7 @@ class Response:
 
 class Opener:
     """Deterministic URL-to-response opener for collector tests."""
-    def __init__(self, responses: dict[str, Response | Exception]) -> None:
+    def __init__(self, responses: dict[str, Response | Exception | list[Response]]) -> None:
         self.responses = responses
         self.requests: list[tuple[str, dict[str, str]]] = []
     def open(self, request: object, *, timeout: float) -> Response:
@@ -135,6 +152,8 @@ class Opener:
         url = request.full_url
         self.requests.append((url, {k.lower(): v for k, v in request.header_items()}))
         result = self.responses[url]
+        if isinstance(result, list):
+            result = result.pop(0)
         if isinstance(result, Exception):
             raise result
         return result
@@ -161,8 +180,27 @@ def test_collector_follows_link_pagination_and_pins_headers() -> None:
     opener = transport(second_page=True)
     inventory = m.collect_workflow_inventory(REPO, token="token-value", opener=opener, verified_at=STAMP)  # noqa: S106
     assert inventory.complete and [e.status for e in inventory.entries] == ["present", "orphaned_deleted"]
-    assert len(opener.requests) == 5
+    assert len(opener.requests) == 7
     assert all(h["x-github-api-version"] == m.API_VERSION and h["authorization"] == "Bearer token-value" for _, h in opener.requests)
+
+
+@pytest.mark.parametrize("movement", ["repository", "branch"])
+def test_collector_fails_closed_when_source_moves_during_collection(movement: str) -> None:
+    """A repository default-branch or exact branch movement cannot yield clean evidence."""
+    base = f"{m.API_ORIGIN}/repos/{REPO}"
+    branch_url = f"{base}/branches/develop"
+    opener = transport()
+    if movement == "repository":
+        opener.responses[base] = [Response(repo()), Response({**repo(), "default_branch": "main"})]
+    else:
+        moved = branch()
+        moved["commit"] = {"sha": "c" * 40, "commit": {"tree": {"sha": "d" * 40}}}
+        opener.responses[branch_url] = [Response(branch()), Response(moved)]
+    inventory = m.collect_workflow_inventory(REPO, opener=opener, verified_at=STAMP)
+    assert not inventory.complete
+    assert inventory.reason == "source_moved_during_collection"
+    assert inventory.default_branch_sha == BRANCH_SHA
+    assert inventory.tree_sha == TREE_SHA
 
 
 @pytest.mark.parametrize(
@@ -242,6 +280,16 @@ def test_default_transport_timestamp_and_source_short_circuits(monkeypatch: pyte
     bad_branch = branch()
     bad_branch["commit"] = {"sha": BRANCH_SHA, "commit": {"tree": {"sha": "short"}}}
     assert m.collect_workflow_inventory(REPO, opener=Opener({base: Response(repo()), f"{base}/branches/develop": Response(bad_branch)}), verified_at=STAMP).reason == "invalid_tree_sha"
+    assert m.collect_workflow_inventory(
+        REPO,
+        opener=Opener(
+            {
+                base: Response(repo()),
+                f"{base}/branches/develop": Response(branch(protected=False)),
+            }
+        ),
+        verified_at=STAMP,
+    ).reason == "default_branch_unprotected"
 
 
 def test_identity_inputs_and_cli_exit_contract(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

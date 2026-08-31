@@ -42,8 +42,8 @@ For retained GitHub Actions workflow identities, trace separately:
 1. repository identity and current default branch;
 2. protected default-branch commit SHA and exact recursive tree SHA;
 3. completeness of the recursive tree (`truncated: false` required);
-4. complete paginated workflow registry and stable `total_count`;
-5. exact case-sensitive workflow path membership in that tree;
+4. complete paginated workflow registry, stable `total_count`, and unchanged repository/protected-branch identity after pagination;
+5. exact case-sensitive workflow path membership in that tree for source-backed records, with validated GitHub-managed `dynamic/...` records classified separately;
 6. registry state (`active`, disabled states, or explicitly unresolved future states);
 7. workflow ID, path, state, verification timestamp, and read-only remediation;
 8. trusted-operator workflow disablement and post-integration live inventory, which remain operational actions rather than scanner-side mutations.

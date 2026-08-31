@@ -35,7 +35,8 @@ The source sequence is deliberately ordered:
 3. `GET /repos/{owner}/{repo}/git/trees/{tree_sha}?recursive=1` supplies the source paths. `truncated: false` is mandatory for a complete result.
 4. `GET /repos/{owner}/{repo}/actions/workflows?per_page=100` supplies the registry. Further pages are followed only from GitHub's `Link` header and only when they stay on the fixed `api.github.com` origin and same repository path.
 5. The page `total_count` must remain stable and equal the number of collected records. Duplicate workflow IDs, unsupported record shapes, or future unknown states prevent a clean inventory.
-6. Active records are compared with the exact tree. Disabled records remain explicitly disabled. Unknown registry states remain unresolved.
+6. Active source-backed records are compared with the exact tree. Validated `dynamic/...` records owned by GitHub services remain explicitly `dynamic_managed`; they are not repository files and therefore are not source-orphan candidates. Disabled records remain explicitly disabled. Unknown registry states remain unresolved.
+7. Repository and protected-branch metadata are fetched again after registry pagination. A changed default branch, commit SHA, tree SHA, protection state, or repository identity makes the inventory incomplete.
 
 ## Classification contract
 
@@ -43,6 +44,7 @@ The source sequence is deliberately ordered:
 |---|---|---|---|
 | `active` | present | `present` | no finding |
 | `active` | absent | `orphaned_deleted` | WARNING with exact workflow/source provenance |
+| `active` with validated `dynamic/...` path | not applicable | `dynamic_managed` | no source-orphan finding |
 | state beginning with `disabled` | present or absent | `disabled` | no orphan finding |
 | unknown/future state | any | `unresolved` | WARNING plus incomplete-inventory finding |
 | incomplete or untrusted source evidence | unknown | inventory incomplete | WARNING; never clean |
@@ -62,6 +64,7 @@ AppGuardrail refuses to infer a clean state when any material evidence boundary 
 - a redirect or pagination URL leaves the fixed GitHub API origin/repository boundary;
 - pagination cycles or exceeds the bounded page limit;
 - GitHub introduces a workflow state that this version does not understand.
+- repository/default-branch/protected-branch identity changes during collection.
 
 A 404 is therefore evidence unavailability in the collector, not proof that the entire inventory or repository is clean. Likewise, a truncated recursive tree cannot be used to declare that a workflow path is absent.
 
@@ -73,7 +76,7 @@ The detector is read-only by construction. Its production module contains no wor
 
 ## False-positive and false-negative boundaries
 
-**False-positive controls.** Exact case-sensitive source membership is authoritative for classification. A workflow name containing `once` or another writer-like word is not sufficient to alert when its file is present. Disabled registry records are not reported as active orphans. Historical commits are not used to override the current protected default-branch tree.
+**False-positive controls.** Exact case-sensitive source membership is authoritative for source-backed classification. GitHub-managed records use validated `dynamic/<owner>/<workflow>` paths and are reported separately rather than compared with repository files. A workflow name containing `once` or another writer-like word is not sufficient to alert when its file is present. Disabled registry records are not reported as active orphans. Historical commits are not used to override the current protected default-branch tree.
 
 **False-negative controls.** Missing permissions, transient GitHub failures, tree truncation, pagination defects, default-branch movement, unknown states, and malformed payloads all become unresolved/incomplete rather than clean. This detector covers GitHub Actions workflow registry identities only; it does not claim visibility into external schedulers, GitHub Apps, cloud cron systems, or automation outside the repository's Actions registry.
 
@@ -103,7 +106,9 @@ The regression suite in `tests/test_github_workflow_registry.py` exercises the p
 - active deleted workflow;
 - disabled orphan;
 - path case difference;
+- GitHub-managed Copilot, Dependabot, and CodeQL dynamic workflow paths;
 - protected/default-branch identity movement;
+- default-branch or protected commit movement during pagination;
 - recursive-tree truncation;
 - changing or incomplete workflow counts;
 - duplicate workflow IDs and malformed records;

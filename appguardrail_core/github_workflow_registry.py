@@ -39,6 +39,9 @@ USER_AGENT = "appguardrail-workflow-registry/1"
 _SHA_RE = re.compile(r"\A[0-9a-fA-F]{40}\Z")
 _REPOSITORY_RE = re.compile(r"\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 _UTC_TIMESTAMP_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
+_DYNAMIC_WORKFLOW_RE = re.compile(
+    r"\Adynamic/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\Z"
+)
 _WRITER_HINTS = ("once", "apply", "finalize", "repair", "bootstrap", "writer")
 
 
@@ -155,7 +158,11 @@ def _valid_sha(value: Any) -> bool:
 
 def _valid_workflow_path(value: Any) -> bool:
     """Return whether ``value`` is a normalized workflow file path."""
-    if not isinstance(value, str) or not value.startswith(".github/workflows/"):
+    if not isinstance(value, str):
+        return False
+    if _DYNAMIC_WORKFLOW_RE.fullmatch(value):
+        return True
+    if not value.startswith(".github/workflows/"):
         return False
     if value.startswith("/") or ".." in value.split("/"):
         return False
@@ -197,7 +204,10 @@ def _parse_workflow_record(
     path = str(path)
     state = state.strip()
     if state == "active":
-        status = "present" if path in tree_paths else "orphaned_deleted"
+        if path.startswith("dynamic/"):
+            status = "dynamic_managed"
+        else:
+            status = "present" if path in tree_paths else "orphaned_deleted"
     elif state.startswith("disabled"):
         status = "disabled"
     else:
@@ -700,11 +710,7 @@ def collect_workflow_inventory(
             and branch_payload.get("protected") is True
             and _valid_sha(branch_sha)
         )
-        if branch_identity_valid:
-            default_branch_sha = str(branch_sha)
-            if _valid_sha(tree_sha_value):
-                tree_sha = str(tree_sha_value)
-        if not _valid_sha(tree_sha_value):
+        if not branch_identity_valid or not _valid_sha(tree_sha_value):
             return build_workflow_inventory(
                 repository=repository,
                 verified_at=verified_at,
@@ -713,6 +719,8 @@ def collect_workflow_inventory(
                 tree_payload={},
                 workflow_pages=[],
             )
+        default_branch_sha = str(branch_sha)
+        tree_sha = str(tree_sha_value)
         tree_url = f"{base_url}/git/trees/{tree_sha_value}?recursive=1"
         tree_payload, _ = _request_json(
             tree_url,
@@ -727,6 +735,32 @@ def collect_workflow_inventory(
             token=token,
             timeout=timeout,
         )
+        final_repository_payload, _ = _request_json(
+            base_url,
+            repository=repository,
+            opener=opener,
+            token=token,
+            timeout=timeout,
+        )
+        final_branch_payload, _ = _request_json(
+            branch_url,
+            repository=repository,
+            opener=opener,
+            token=token,
+            timeout=timeout,
+        )
+        if (
+            not isinstance(final_repository_payload, dict)
+            or final_repository_payload.get("full_name") != repository
+            or final_repository_payload.get("default_branch") != default_branch
+            or not isinstance(final_branch_payload, dict)
+            or final_branch_payload.get("name") != default_branch
+            or final_branch_payload.get("protected") is not True
+            or _nested_value(final_branch_payload, "commit", "sha") != branch_sha
+            or _nested_value(final_branch_payload, "commit", "commit", "tree", "sha")
+            != tree_sha_value
+        ):
+            raise EvidenceCollectionError("source_moved_during_collection")
     except EvidenceCollectionError as exc:
         return _incomplete_inventory(
             repository,
