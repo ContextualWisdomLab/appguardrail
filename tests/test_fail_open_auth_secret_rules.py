@@ -111,6 +111,35 @@ def require_authorization(authorization: str | None = None) -> None:
         raise HTTPException(status_code=401)
 '''
 
+_COMMENT_ONLY_BEARER_SOURCE = '''
+def require_authorization(authorization: str | None = None) -> None:
+    token = get_api_token()
+    if token is None:
+        return
+    # Bearer authentication is performed by an upstream proxy.
+    audit_request()
+'''
+
+_LOG_ONLY_BEARER_SOURCE = '''
+def verify_authentication(authorization: str | None = None) -> None:
+    token = get_api_token()
+    if token is None:
+        return
+    logger.info("Bearer authentication is configured elsewhere")
+'''
+
+_LATER_CLASS_BEARER_SOURCE = '''
+def check_authentication(authorization: str | None = None) -> None:
+    token = get_api_token()
+    if token is None:
+        return
+    audit_request()
+
+
+class BearerPolicy:
+    pass
+'''
+
 
 def _rule() -> dict:
     """Return the packaged missing-auth-secret fail-open rule."""
@@ -149,6 +178,13 @@ def test_rule_file_declares_non_executable_detection_data_boundary() -> None:
         "# Vulnerable source shapes below describe detection targets, not AppGuardrail runtime code."
         in source
     )
+
+
+def test_rule_file_has_one_taxonomy_source_of_truth() -> None:
+    """Keep public taxonomy references in message metadata parsed by the loader."""
+    source = _RULE_PATH.read_text(encoding="utf-8")
+    assert "\n    cwe:" not in source
+    assert "\n    owasp:" not in source
 
 
 def test_rule_detects_missing_secret_that_returns_from_authentication() -> None:
@@ -196,6 +232,21 @@ def test_rule_does_not_cross_adjacent_function_boundary() -> None:
     assert not _rule()["pattern"].search(_ADJACENT_FUNCTION_SOURCE)
 
 
+def test_rule_ignores_bearer_text_in_comment() -> None:
+    """Do not turn explanatory Bearer comments into deploy-blocking evidence."""
+    assert not _rule()["pattern"].search(_COMMENT_ONLY_BEARER_SOURCE)
+
+
+def test_rule_ignores_bearer_text_in_log_message() -> None:
+    """Require authentication logic rather than a string-only logging mention."""
+    assert not _rule()["pattern"].search(_LOG_ONLY_BEARER_SOURCE)
+
+
+def test_rule_does_not_cross_class_boundary_for_bearer_signal() -> None:
+    """Do not borrow a Bearer class name from code after the guarded function."""
+    assert not _rule()["pattern"].search(_LATER_CLASS_BEARER_SOURCE)
+
+
 def test_scan_file_emits_normalized_missing_authentication_finding(tmp_path: Path) -> None:
     """Exercise the production scanner and normalized authentication metadata."""
     findings = _scan(_VULNERABLE_SOURCE, tmp_path)
@@ -204,6 +255,12 @@ def test_scan_file_emits_normalized_missing_authentication_finding(tmp_path: Pat
     assert finding["severity"] == "HIGH"
     assert finding["source"] == "appguardrail-rule"
     assert finding["confidence"] == "high"
+    assert finding["category"] == "authz"
+    assert finding["remediation"] == (
+        "Configure the required server-side authentication credential and fail closed "
+        "when it is unavailable; never treat a missing credential as authentication "
+        "being disabled."
+    )
     assert finding["cwe"] == (
         "CWE-306 - Missing Authentication for Critical Function",
     )
