@@ -28,7 +28,7 @@ Rule `python-auth-secret-missing-fail-open` reports only the bounded Python sour
 3. `if token is None:` is followed by a bare `return` or `return None`; and
 4. executable authentication code assigns a `Bearer` value to an authentication-related local such as `expected`, `authorization`, `header`, `scheme`, or `credentials`.
 
-The multiline expression is bounded by the next function or class definition and finite character windows. A comment, log-only string, or later class name containing `Bearer` is not sufficient evidence. The scanner additionally prefilters files for `token is None` and `Bearer` before evaluating the rule. This intentionally trades recall for a narrow, auditable source-backed contract.
+The multiline expression captures the enclosing function indentation and accepts evidence only on lines indented inside that function. Nested classes therefore remain part of the function body, while sibling or outer definitions terminate eligible evidence. Finite line windows bound each lookahead. A comment, log-only string, or later class name containing `Bearer` is not sufficient evidence. The scanner additionally prefilters files for `token is None` and `Bearer` before evaluating the rule. This intentionally trades recall for a narrow, auditable source-backed contract.
 
 The finding is `HIGH`, high-confidence, and maps to `CWE-306 - Missing Authentication for Critical Function`. CWE 4.20 explicitly allows vulnerability mapping for CWE-306. OWASP Top 10:2025 `A07:2025 - Authentication Failures` includes CWE-306 among its mapped weaknesses. OWASP API Security Top 10:2023 API2 likewise treats unauthenticated access to a microservice that should require authentication as a broken-authentication condition.
 
