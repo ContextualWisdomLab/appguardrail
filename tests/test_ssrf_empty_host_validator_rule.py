@@ -31,6 +31,23 @@ def _scan_source(tmp_path, source: str):
     ]
 
 
+def _same_line_guard_source(condition: str) -> str:
+    """Build a validator whose empty-host guard shares one condition line."""
+    return f"""\
+def is_safe_url(url, enforce):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    if {condition}:
+        return False
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+
+
 def test_packaged_rule_declares_bounded_ssrf_contract():
     """Expose stable severity and cheap source prefilters for the detector."""
     rule = _rule()
@@ -76,6 +93,18 @@ def is_safe_url(url, enforce):
     return True
 """
     assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_same_line_and_guards_do_not_hide_fail_open_path(tmp_path):
+    """An empty-host check joined by AND is conditional, not dominating."""
+    for condition in ("not host and enforce", 'host == "" and enforce'):
+        assert len(_scan_source(tmp_path, _same_line_guard_source(condition))) == 1
+
+
+def test_same_line_or_guards_are_unconditional_for_empty_hosts(tmp_path):
+    """An empty-host check joined by OR still rejects every empty host."""
+    for condition in ("not host or enforce", 'host == "" or enforce'):
+        assert not _scan_source(tmp_path, _same_line_guard_source(condition))
 
 
 def test_fail_closed_dns_error_is_not_flagged(tmp_path):
