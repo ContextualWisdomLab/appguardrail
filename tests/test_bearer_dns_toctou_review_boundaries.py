@@ -49,6 +49,21 @@ def deliver(url, api_key):
     assert not _scan_source(tmp_path, source)
 
 
+def test_nested_headers_inside_data_are_not_request_header_evidence(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        data=encode(headers={"Authorization": f"Bearer {api_key}"}),
+    )
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
 def test_fixed_request_url_cannot_borrow_endpoint_from_other_header(tmp_path):
     source = """\
 def deliver(url, api_key):
@@ -166,6 +181,61 @@ def deliver(url, api_key, disable):
     if disable:
         req.remove_header("Authorization")
     else:
+        return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_nested_same_branch_unauthenticated_request_replacement_breaks_path(tmp_path):
+    source = """\
+def deliver(url, api_key, replace):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    if replace:
+        req = urllib.request.Request("https://fixed.example/api/v1/scans")
+        return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_opposite_branch_request_replacement_does_not_sanitize_dispatch(tmp_path):
+    source = """\
+def deliver(url, api_key, replace):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    if replace:
+        req = urllib.request.Request("https://fixed.example/api/v1/scans")
+    else:
+        return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_nested_same_branch_bearer_request_replacement_remains_vulnerable(tmp_path):
+    source = """\
+def deliver(url, api_key, replace):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    if replace:
+        req = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {api_key}"})
         return urllib.request.urlopen(req, timeout=5)
     return None
 """
