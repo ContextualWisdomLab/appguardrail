@@ -76,6 +76,23 @@ def test_reviewed_empty_host_guard_fixture_is_not_flagged(tmp_path):
     )
 
 
+def test_nonempty_hostname_fallbacks_are_not_flagged(tmp_path):
+    """A nonempty fallback cannot enter the empty-host failure path."""
+    for fallback in ('"localhost"', '"example.com"'):
+        source = f"""\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or {fallback}).lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+        assert not _scan_source(tmp_path, source)
+
+
 def test_conditional_empty_host_guard_does_not_hide_fail_open_path(tmp_path):
     """A nested guard is not a dominating rejection when its parent can be false."""
     source = """\
