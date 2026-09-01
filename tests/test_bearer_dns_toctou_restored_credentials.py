@@ -190,3 +190,19 @@ def deliver(url, api_key, rotate):
     return None
 """
     assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_late_bearer_restore_is_the_actual_credential_source(tmp_path):
+    source = """\
+def deliver(url, api_key, rotate):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint, data=b"{}")
+    if rotate:
+        req.remove_header("Authorization")
+        req.add_header("Authorization", f"Bearer {api_key}")
+        return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
