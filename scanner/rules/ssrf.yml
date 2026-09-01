@@ -12,3 +12,19 @@ rules:
     prefilter: [set_webhook]
     cwe: [CWE-918]
     owasp: [A10:2021]
+  - id: python-bearer-preflight-dns-toctou
+    patterns:
+      - pattern-regex: '(?imsx)^[ \t]*(?:async\s+)?def\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\)\s*:\s*\n(?:(?!^[ \t]*(?:async\s+)?def\b|^[ \t]*class\b).){0,6000}?if\s+not\s+_is_safe_url\s*\(\s*(?P<url>[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*:(?:(?!^[ \t]*(?:async\s+)?def\b|^[ \t]*class\b).){0,3000}?(?P<endpoint>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P=url)\.rstrip\s*\([^\n]*\)[^\n]*(?:(?!^[ \t]*(?:async\s+)?def\b|^[ \t]*class\b).){0,3000}?(?P<req>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*urllib\.request\.Request\s*\(\s*(?P=endpoint)\b(?:(?!^[ \t]*(?:async\s+)?def\b|^[ \t]*class\b).){0,2000}?["\x27]Authorization["\x27]\s*:\s*f?["\x27]Bearer\s+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27](?:(?!^[ \t]*(?:async\s+)?def\b|^[ \t]*class\b).){0,3000}?(?:urllib\.request\.urlopen\s*\(\s*(?P=req)\b|[A-Za-z_][A-Za-z0-9_]*\.open\s*\(\s*(?P=req)\b)'
+    message: |
+      A bearer-authenticated urllib request is sent after a separate URL-safety
+      preflight. The network client can resolve the hostname again after validation,
+      creating a DNS-rebinding TOCTOU path for credential-bearing traffic. Connect
+      through the already-validated address set, or enforce an equivalent egress
+      boundary while preserving TLS hostname verification.
+      [CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition]
+      [CWE-918 - Server-Side Request Forgery]
+    severity: HIGH
+    languages: [python]
+    prefilter: [_is_safe_url, urllib.request.Request, Authorization, Bearer]
+    cwe: [CWE-367, CWE-918]
+    owasp: [A10:2021]
