@@ -261,7 +261,7 @@ def test_confidence():
 def test_is_deploy_blocking():
     assert _is_deploy_blocking({"severity": "CRITICAL", "context": "app-code"})
     assert _is_deploy_blocking({"severity": "HIGH", "context": "app-code"})
-    assert not _is_deploy_blocking({"severity": "MEDIUM", "context": "app-code"})
+    assert _is_deploy_blocking({"severity": "MEDIUM", "context": "app-code"})
     assert not _is_deploy_blocking({"severity": "CRITICAL", "context": "test"})
 
 
