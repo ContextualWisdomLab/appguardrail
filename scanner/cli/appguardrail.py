@@ -2285,7 +2285,10 @@ _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 def _is_sensitive_rule(rule_id: str) -> bool:
     """Return whether a rule id is likely to expose secret material."""
     lowered = (rule_id or "").lower()
-    return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
+    for token in _SENSITIVE_RULE_TOKENS:
+        if token in lowered:
+            return True
+    return False
 
 
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
@@ -2322,33 +2325,28 @@ def _finding_category(rule_id: str) -> str:
         return "dependency"
     if "jwt-decode" in rule:
         return "authz"
-    if any(
-        token in rule
-        for token in (
-            "secret",
-            "jwt",
-            "password",
-            "database-url",
-            "credential",
-            "api-key",
-            "token",
-            "openai",
-        )
+    for token in (
+        "secret",
+        "jwt",
+        "password",
+        "database-url",
+        "credential",
+        "api-key",
+        "token",
+        "openai",
     ):
-        return "secrets"
+        if token in rule:
+            return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    if any(
-        token in rule for token in ("auth", "session", "admin", "route-without-auth")
-    ):
-        return "authz"
-    if any(
-        token in rule
-        for token in ("eval", "sql", "command", "subprocess", "path-traversal")
-    ):
-        return "injection"
+    for token in ("auth", "session", "admin", "route-without-auth"):
+        if token in rule:
+            return "authz"
+    for token in ("eval", "sql", "command", "subprocess", "path-traversal"):
+        if token in rule:
+            return "injection"
     return "misconfig"
 
 
