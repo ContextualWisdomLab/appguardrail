@@ -159,7 +159,7 @@ def deliver(url, api_key, disable):
     if not _is_safe_url(url):
         return None
     endpoint = url.rstrip("/") + "/api/v1/scans"
-    req = urllib.request.Request.Request(
+    req = urllib.request.Request(
         endpoint,
         headers={"Authorization": f"Bearer {api_key}"},
     )
