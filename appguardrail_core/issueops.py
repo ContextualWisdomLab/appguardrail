@@ -33,7 +33,17 @@ WORKFLOW_DISPATCH_SUFFIX_RE = re.compile(
 _LINE_SEPARATOR_TRANSLATION = str.maketrans(
     {
         separator: "\n"
-        for separator in ("\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+        for separator in (
+            "\r",
+            "\v",
+            "\f",
+            "\x1c",
+            "\x1d",
+            "\x1e",
+            "\x85",
+            "\u2028",
+            "\u2029",
+        )
     }
 )
 SECRET_RE = [
@@ -59,6 +69,8 @@ PRIMARY_LOG_RE = [
         r"\bhigh\b",
         r"ratelimiterror",
         r"unable to map strix findings",
+        r"strix could not complete",
+        r"strix scan failed",
         r"\btimeout\b|\btimed out\b",
     )
 ]
