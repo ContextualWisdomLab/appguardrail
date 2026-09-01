@@ -153,6 +153,31 @@ def require_authorization(authorization: str | None = None) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 '''
 
+_NESTED_FUNCTION_OPTIONAL_TOKEN_SOURCE = '''
+def require_authorization(authorization: str | None = None) -> None:
+    def load_optional_token() -> str | None:
+        token = get_api_token()
+        if token is None:
+            return
+        expected = f"Bearer {token}"
+        return expected
+
+    deny_request()
+'''
+
+_NESTED_CLASS_OPTIONAL_TOKEN_SOURCE = '''
+def verify_authentication(authorization: str | None = None) -> None:
+    class OptionalToken:
+        def resolve(self) -> str | None:
+            token = get_api_token()
+            if token is None:
+                return
+            expected = f"Bearer {token}"
+            return expected
+
+    deny_request()
+'''
+
 
 def _rule() -> dict:
     """Return the packaged missing-auth-secret fail-open rule."""
@@ -263,6 +288,16 @@ def test_rule_does_not_cross_class_boundary_for_bearer_signal() -> None:
 def test_rule_detects_guard_with_nested_class_before_bearer_check() -> None:
     """Keep nested class declarations inside the enclosing authentication function."""
     assert _rule()["pattern"].search(_NESTED_CLASS_VULNERABLE_SOURCE)
+
+
+def test_scan_file_ignores_optional_token_inside_nested_function(tmp_path: Path) -> None:
+    """Do not attribute a nested helper's optional-token flow to its safe outer guard."""
+    assert _scan(_NESTED_FUNCTION_OPTIONAL_TOKEN_SOURCE, tmp_path) == []
+
+
+def test_scan_file_ignores_optional_token_inside_nested_class(tmp_path: Path) -> None:
+    """Do not attribute a nested class helper's optional-token flow to its outer guard."""
+    assert _scan(_NESTED_CLASS_OPTIONAL_TOKEN_SOURCE, tmp_path) == []
 
 
 def test_scan_file_emits_normalized_missing_authentication_finding(tmp_path: Path) -> None:
