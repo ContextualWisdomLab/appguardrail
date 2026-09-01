@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| automatic scanner detection of lazy XML block ReDoS source shape | built-in `javascript-xml-lazy-dotall-block-redos` rule | active detector PR for the tested ScopeWeave PR #386 JavaScript/TypeScript XML-like lazy block collection shape; promote only after protected-head merge evidence |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -47,9 +48,24 @@ For stored webhook/callback SSRF, trace separately:
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
 
+## JavaScript XML ReDoS traceability contract
+
+For lazy regular-expression XML block extraction, trace separately:
+
+1. the source repository, PR, vulnerable base head/blob, and reviewed fixed head/blob;
+2. the exact unbounded lazy `[\s\S]*?` XML-like block collector;
+3. the reviewed monotonic `indexOf` / `slice` scanner negative oracle;
+4. a small explicit input-bound negative oracle;
+5. the packaged detector rule and bounded prefilter;
+6. production `_scan_file` execution with CWE-1333 evidence;
+7. explicit limitations for alternate regex shapes and cross-function bounds;
+8. exact-head security, review, and merge evidence.
+
+The active detector branch for ScopeWeave PR #386 is deliberately tied to the source change rather than to collected workflow conclusions. Cancelled or failed workflow metadata records provenance but is not itself proof of ReDoS efficacy.
+
 ## Standards/research
 
-Existing repository docs/doctoring/security evidence remain the bibliography/source-of-truth for standards such as SARIF, CycloneDX, GitHub security interfaces, and applicable OWASP/CWE classes. Material new detector classes should add authoritative standard/CWE/OWASP references and APA 7 citations in doctoring where research/standards materially drive implementation.
+Existing repository docs/doctoring/security evidence remain the bibliography/source-of-truth for standards such as SARIF, CycloneDX, GitHub security interfaces, and applicable OWASP/CWE classes. Material new detector classes should add authoritative standard/CWE/OWASP references and APA 7 citations in doctoring where research/standards materially drive implementation. The JavaScript XML ReDoS detector references and remediation boundary are recorded in `docs/detectors/javascript-lazy-xml-redos.md`.
 
 ## Change rule
 
