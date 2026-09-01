@@ -2,7 +2,12 @@
 
 from datetime import datetime, timedelta, timezone
 
-from appguardrail_core.github_actions_evidence import verify_actions_job
+import pytest
+
+from appguardrail_core.github_actions_evidence import (
+    EvidenceValidationError,
+    verify_actions_job,
+)
 
 
 RUN_ID = 30_769_144_488
@@ -13,9 +18,9 @@ REQUESTED_REPOSITORY = "contextualwisdomlab/.github"
 OBSERVED_AT = datetime(2026, 8, 3, 0, 0, tzinfo=timezone.utc)
 
 
-def test_repository_identity_accepts_github_canonical_case_urls() -> None:
-    """Treat repository identity as case-insensitive while binding exact IDs."""
-    run = {
+def _source_payloads() -> tuple[dict[str, object], dict[str, object]]:
+    """Return one exact authoritative run/job pair using GitHub canonical casing."""
+    run: dict[str, object] = {
         "id": RUN_ID,
         "name": "OpenCode Review Dispatch",
         "html_url": f"https://github.com/{CANONICAL_REPOSITORY}/actions/runs/{RUN_ID}",
@@ -27,7 +32,7 @@ def test_repository_identity_accepts_github_canonical_case_urls() -> None:
         "updated_at": "2026-08-02T23:44:00Z",
         "pull_requests": [],
     }
-    job = {
+    job: dict[str, object] = {
         "id": JOB_ID,
         "run_id": RUN_ID,
         "name": "opencode-review",
@@ -47,6 +52,12 @@ def test_repository_identity_accepts_github_canonical_case_urls() -> None:
             }
         ],
     }
+    return run, job
+
+
+def test_repository_identity_accepts_github_canonical_case_urls() -> None:
+    """Treat requested identity as case-insensitive while binding exact IDs."""
+    run, job = _source_payloads()
 
     evidence = verify_actions_job(
         REQUESTED_REPOSITORY,
@@ -56,6 +67,29 @@ def test_repository_identity_accepts_github_canonical_case_urls() -> None:
         max_age=timedelta(hours=48),
     )
 
+    assert evidence.repository == CANONICAL_REPOSITORY
     assert evidence.run_id == RUN_ID
     assert evidence.job_id == JOB_ID
     assert evidence.detector_state == "failure"
+
+
+def test_repository_case_variants_cannot_bypass_source_digest_deduplication() -> None:
+    """Canonicalize equivalent requested casing before hashing source evidence."""
+    run, job = _source_payloads()
+    first = verify_actions_job(
+        CANONICAL_REPOSITORY,
+        run,
+        job,
+        observed_at=OBSERVED_AT,
+        max_age=timedelta(hours=48),
+    )
+
+    with pytest.raises(EvidenceValidationError, match="duplicate source evidence digest"):
+        verify_actions_job(
+            REQUESTED_REPOSITORY,
+            run,
+            job,
+            observed_at=OBSERVED_AT,
+            max_age=timedelta(hours=48),
+            seen_source_digests=[first.source_digest_sha256],
+        )
