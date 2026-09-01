@@ -14,17 +14,77 @@ rules:
     owasp: [A10:2021]
   - id: python-bearer-preflight-dns-toctou
     patterns:
-      - pattern-regex: '(?imsx)^(?P<defindent>[ \t]*)(?:async[ \t]+)?def[ \t]+[A-Za-z_][A-Za-z0-9_]*[^\n]*:[ \t]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).)*?^(?P<bodyindent>(?P=defindent)[ \t]+)if[ \t]+not[ \t]+_is_safe_url[ \t]*\([ \t]*(?P<url>[A-Za-z_][A-Za-z0-9_]*)[ \t]*\)[ \t]*:[^\n]*\n(?:(?:^(?P=bodyindent)[ \t]+\#[^\n]*\n)|(?:^[ \t]*\n)){0,8}^(?P=bodyindent)[ \t]+(?:return|raise)\b[^\n]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b)(?!^(?P=bodyindent)(?:return|raise)\b)[^\n]*\n)*?^(?P=bodyindent)(?P<endpoint>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?P=url)\.rstrip[ \t]*\([^\n]*\)[^\n]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b)(?!^(?P=bodyindent)(?:return|raise)\b)(?!^(?P=bodyindent)(?P=endpoint)[ \t]*=[ \t]*(?![^"\x27\n#]*\b(?:(?P=endpoint)|(?P=url))\b))[^\n]*\n)*?^(?P=bodyindent)(?P<req>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*urllib\.request\.Request[ \t]*\([ \t]*(?:(?=[^\n]*\b(?P=endpoint)\b)(?=[^\n\#]*["\x27]Authorization["\x27][ \t]*:[ \t]*(?:f?["\x27]Bearer[ \t]+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*[A-Za-z_][A-Za-z0-9_]*))[^\n]*\)[ \t]*(?:\#[^\n]*)?$|(?:\n[ \t]+)?(?:url[ \t]*=[ \t]*)?(?P=endpoint)\b[^\n]*\n(?:(?!^(?P=bodyindent)\)[ \t]*(?:\#[^\n]*)?$)(?!^[ \t]*\#)[^\n]*\n){0,30}?^(?![ \t]*\#)[^\n]*["\x27]Authorization["\x27][ \t]*:[ \t]*(?:f?["\x27]Bearer[ \t]+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*[A-Za-z_][A-Za-z0-9_]*)[^\n]*\n(?:(?!^(?P=bodyindent)\)[ \t]*(?:\#[^\n]*)?$)[^\n]*\n){0,30}?^(?P=bodyindent)\)[ \t]*(?:\#[^\n]*)?$)\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b)(?!^(?P=bodyindent)(?:return|raise)\b)(?!^(?P=bodyindent)(?P=req)[ \t]*=[ \t]*(?![^"\x27\n#]*\b(?P=req)\b))(?!^(?P=bodyindent)(?:(?P=req)\.remove_header[ \t]*\([ \t]*["\x27]Authorization["\x27][ \t]*\)|(?P=req)\.headers\.pop[ \t]*\([ \t]*["\x27]Authorization["\x27][^\n]*\)|del[ \t]+(?P=req)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\])).){0,3000}?(?:^(?P=bodyindent)(?P<opener1>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*urllib\.request\.build_opener[ \t]*\([ \t]*SafeRedirectHandler[ \t]*\([ \t]*\)[ \t]*\)[ \t]*[^\n]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b)(?!^(?P=bodyindent)(?:return|raise)\b)(?!^(?P=bodyindent)(?P=req)[ \t]*=[ \t]*(?![^"\x27\n#]*\b(?P=req)\b))(?!^(?P=bodyindent)(?:(?P=req)\.remove_header[ \t]*\([ \t]*["\x27]Authorization["\x27][ \t]*\)|(?P=req)\.headers\.pop[ \t]*\([ \t]*["\x27]Authorization["\x27][^\n]*\)|del[ \t]+(?P=req)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\])).){0,1000}?^(?P=bodyindent)[ \t]*(?:return[ \t]+|[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*)?(?P=opener1)\.open[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b|^(?P=bodyindent)try[ \t]*:[^\n]*\n^(?P<tryindent3>(?P=bodyindent)[ \t]+)(?P<opener2>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*urllib\.request\.build_opener[ \t]*\([ \t]*SafeRedirectHandler[ \t]*\([ \t]*\)[ \t]*\)[ \t]*[^\n]*\n(?:(?!^(?P=bodyindent)(?:except|finally)\b).){0,1200}?^[ \t]+(?:return[ \t]+|[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*)?(?P=opener2)\.open[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b|^(?P=bodyindent)[ \t]*(?:return[ \t]+|[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*)?urllib\.request\.urlopen[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b|^(?P=bodyindent)[ \t]*with[ \t]+urllib\.request\.urlopen[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b|^(?P=bodyindent)try[ \t]*:[^\n]*\n^(?P<urltryindent3>(?P=bodyindent)[ \t]+)(?:return[ \t]+|[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*)?urllib\.request\.urlopen[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b|^(?P=bodyindent)try[ \t]*:[^\n]*\n^(?P<withtryindent3>(?P=bodyindent)[ \t]+)with[ \t]+urllib\.request\.urlopen[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b)'
-    message: |
-      A bearer-authenticated urllib request is sent after a separate URL-safety
-      preflight. The network client can resolve the hostname again after validation,
-      creating a DNS-rebinding TOCTOU path for credential-bearing traffic. Connect
-      through the already-validated address set, or enforce an equivalent egress
-      boundary while preserving TLS hostname verification.
-      [CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition]
-      [CWE-918 - Server-Side Request Forgery]
-    severity: HIGH
-    languages: [python]
-    prefilter: [_is_safe_url, urllib.request.Request, Authorization, Bearer]
-    cwe: [CWE-367, CWE-918]
-    owasp: [A10:2021]
+      - pattern-regex: '(?imsx)^(?P<defindent>[ \t]*)(?:async[ \t]+)?def[ \t]+[A-Za-z_][A-Za-z0-9_]*[^\n]*:[ \t]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).)*?^(?P<bodyindent>(?P=defindent)[ \t]+)if[ \t]+not[ \t]+_is_safe_url[ \t]*\([ \t]*(?P<url>[A-Za-z_][A-Za-z0-9_]*)[ \t]*\)[ \t]*:[^\n]*\n(?:(?:^(?P=bodyindent)[ \t]+\#[^\n]*\n)|(?:^[ \t]*\n)){0,8}^(?P=bodyindent)[ \t]+(?:return|raise)\b[^\n]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b)(?!^(?P=bodyindent)(?:return|raise)\b)(?!^(?P=bodyindent)(?P=url)[ \t]*=[ \t]*(?![^"\x27\n#]*\b(?P=url)\b))[^\n]*\n)*?^(?P=bodyindent)(?P<endpoint>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?P=url)\.rstrip[ \t]*\([^\n]*\)[^\n]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b)(?!^(?P=bodyindent)(?:return|raise)\b)(?!^(?P=bodyindent)(?P=endpoint)[ \t]*=[ \t]*(?![^"\x27\n#]*\b(?:(?P=endpoint)|(?P=url))\b))[^\n]*\n)*?^(?P=bodyindent)(?P<req>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*urllib\.request\.Request[ \t]*\([ \t]*(?:(?:url[ \t]*=[ \t]*)?(?P=endpoint)\b(?=[^\n\#]*\bheaders[ \t]*=[ \t]*\{[^\n\#}]*["\x27]Authorization["\x27][ \t]*:[ \t]*(?:f?["\x27]Bearer[ \t]+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*[A-Za-z_][A-Za-z0-9_]*))[^\n]*\)[ \t]*(?:\#[^\n]*)?$
+Î—–ÈJÊOÊÎ\›ÈJVÈJŠOÊÔY[™Ú[
+W–×——J—ŠÏJÎŠÈWŠÔX›ÙZ[™[
+W
+VÈJŠÎ—Ö×——JŠOÉ
+KŠ^ÌMLO×ŠÈVÈJ—ÊV×——J—šXY\œÖÈJVÈJ—ÊÎŠÈWJKŠ^ÌLOÖÈ—×P]]Üš^˜][Û–È—×VÈJ–ÈJŠÎ™ÖÈ—×P™X\™\–ÈJ×ÏÖĞKV˜K^—×VĞKV˜K^ŒNW×J—OÖ×ˆ—×—J–È—×_È—×P™X\™\–ÈJÖÈ—×VÈJ—
+ÖÈJ–ĞKV˜K^—×VĞKV˜K^ŒNW×JŠJJÎŠÈWŠÔX›ÙZ[™[
+W
+VÈJŠÎ—Ö×——JŠOÉ
+JÈW–ÈJ—ÊV×——J—Š^ÌÌO×ŠÈVÈJ—ÊV×——J–È—×P]]Üš^˜][Û–È—×VÈJ–ÈJŠÎ™ÖÈ—×P™X\™\–ÈJ×ÏÖĞKV˜K^—×VĞKV˜K^ŒNW×J—OÖ×ˆ—×—J–È—×_È—×P™X\™\–ÈJÖÈ—×VÈJ—
+ÖÈJ–ĞKV˜K^—×VĞKV˜K^ŒNW×JŠV×——J—ŠÎŠÈWŠÔX›ÙZ[™[
+W
+VÈJŠÎ—Ö×——JŠOÉ
+V×——J—Š^ÌÌO×ŠÔX›ÙZ[™[
+W
+VÈJŠÎ—Ö×——JŠOÉ
+WŠÈJÎŠÈWŠÔYYš[™[
+JÎ˜\Ş[˜ÖÈJÊOÙY—ŸŠÔYYš[™[
+XÛ\Ü×ŠKŠ^ÌÌO×ŠÔ]]™[[İ™Z[™[ŠÔX›ÙZ[™[
+VÈJÊJÎŠÔ\™\JWœ™[[İ™WÚXY\–ÈJ—
+ÈJ–È—×P]]Üš^˜][Û–È—×VÈJ—
+_
+Ô\™\JWšXY\œ×œÜÈJ—
+ÈJ–È—×P]]Üš^˜][Û–È—×V×——J—
+_[ÈJÊÔ\™\JWšXY\œÖÈJ—ÖÈJ–È—×P]]Üš^˜][Û–È—×VÈJ—JV×——J—ŠÎŠÈWŠÔX›ÙZ[™[
+WÊKŠ^ÌMLO×ŠÔX]]™[[İ™Z[™[
+JÎœ™]\›–ÈJßĞKV˜K^—×VĞKV˜K^ŒNW×J–ÈJVÈJŠOİ\›X—œ™\]Y\İ\›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŠJÎŠÈWŠÔYYš[™[
+JÎ˜\Ş[˜ÖÈJÊOÙY—ŸŠÔYYš[™[
+XÛ\Ü×ŠJÈWŠÔX›ÙZ[™[
+JÎœ™]\›Ÿ˜Z\ÙJWŠJÈWŠÔX›ÙZ[™[
+JÔ\™\JVÈJVÈJŠÈV×ˆ—×ˆ×J—ŠÔ\™\JWŠJJÈWŠÔX›ÙZ[™[
+JÎŠÔ\™\JWœ™[[İ™WÚXY\–ÈJ—
+ÈJ–È—×P]]Üš^˜][Û–È—×VÈJ—
+_
+Ô\™\JWšXY\œ×œÜÈJ—
+ÈJ–È—×P]]Üš^˜][Û–È—×V×——J—
+_[ÈJÊÔ\™\JWšXY\œÖÈJ—ÖÈJ–È—×P]]Üš^˜][Û–È—×VÈJ—JJKŠ^ÌÌOÊÎ—ŠÔX›ÙZ[™[
+JÔÜ[™\ŒO–ĞKV˜K^—×VĞKV˜K^ŒNW×JŠVÈJVÈJ\›X—œ™\]Y\İ˜Z[ÛÜ[™\–ÈJ—
+ÈJ”ØY™T™Y\™Xİ[™\–ÈJ—
+ÈJ—
+VÈJ—
+VÈJ–×——J—ŠÎŠÈWŠÔYYš[™[
+JÎ˜\Ş[˜ÖÈJÊOÙY—ŸŠÔYYš[™[
+XÛ\Ü×ŠJÈWŠÔX›ÙZ[™[
+JÎœ™]\›Ÿ˜Z\ÙJWŠJÈWŠÔX›ÙZ[™[
+JÔ\™\JVÈJVÈJŠÈV×ˆ—×ˆ×J—ŠÔ\™\JWŠJJÈWŠÔX›ÙZ[™[
+JÎŠÔ\™\JWœ™[[İ™WÚXY\–ÈJ—
+ÈJ–È—×P]]Üš^˜][Û–È—×VÈJ—
+_
+Ô\™\JWšXY\œ×œÜÈJ—
+ÈJ–È—×P]]Üš^˜][Û–È—×V×——J—
+_[ÈJÊÔ\™\JWšXY\œÖÈJ—ÖÈJ–È—×P]]Üš^˜][Û–È—×VÈJ—JJKŠ^ÌLO×ŠÔX›ÙZ[™[
+VÈJŠÎœ™]\›–ÈJßĞKV˜K^—×VĞKV˜K^ŒNW×J–ÈJVÈJŠOÊÔ[Ü[™\ŒJW›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŸŠÔX›ÙZ[™[
+]VÈJ–×——J——ŠÔZ[™[ÏŠÔX›ÙZ[™[
+VÈJÊJÔÜ[™\Œ–ĞKV˜K^—×VĞKV˜K^ŒNW×JŠVÈJVÈJ\›X—œ™\]Y\İ˜Z[ÛÜ[™\–ÈJ—
+ÈJ”ØY™T™Y\™Xİ[™\–ÈJ—
+ÈJ—
+VÈJ—
+VÈJ–×——J—ŠÎŠÈWŠÔX›ÙZ[™[
+JÎ™^Ù\š[˜[JWŠKŠ^ÌLŒO×–ÈJÊÎœ™]\›–ÈJßĞKV˜K^—×VĞKV˜K^ŒNW×J–ÈJVÈJŠOÊÔ[Ü[™\ŒŠW›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŸŠÔX›ÙZ[™[
+VÈJŠÎœ™]\›–ÈJßĞKV˜K^—×VĞKV˜K^ŒNW×J–ÈJVÈJŠOİ\›X—œ™\]Y\İ\›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŸŠÔX›ÙZ[™[
+VÈJÚ]ÈJİ\›X—œ™\]Y\İ\›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŸŠÔX›ÙZ[™[
+]VÈJ–×——J——ŠÔ\›Z[™[ÏŠÔX›ÙZ[™[
+VÈJÊJÎœ™]\›–ÈJßĞKV˜K^—×VĞKV˜K^ŒNW×J–ÈJVÈJŠOİ\›X—œ™\]Y\İ\›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŸŠÔX›ÙZ[™[
+]VÈJ–×——J——ŠÔÚ]Z[™[ÏŠÔX›ÙZ[™[
+VÈJÊ]Ú]ÈJİ\›X—œ™\]Y\İ\›Ü[–ÈJ—
+ÈJŠÎ—–ÈJÊOÊÔ\™\JWŠIÂˆY\ÜØYÙNˆˆH™X\™\‹X]][XØ]Y\›Xˆ™\]Y\İ\ÈÙ[Y\ˆHÙ\\˜]HT“\ØY™]Bˆ™Y›YÚˆH™]ÛÜšÈÛY[Ø[ˆ™\ÛÛ™HHÜİ˜[YHYØZ[ˆY\ˆ˜[Y][Û‹ˆÜ™X][™ÈH”Ë\™Xš[™[™ÈĞÕÕH]›ÜˆÜ™Y[X[X™X\š[™È˜Y™šXËˆÛÛ›™Xİˆ›İYÚH[™XYK]˜[Y]YY™\ÜÈÙ]Üˆ[™›Ü˜ÙH[ˆ\]Z]˜[[YÜ™\ÜÂˆ›İ[™\HÚ[H™\Ù\š[™ÈÈÜİ˜[YH™\šYšXØ][Û‹‚ˆĞÕÑKLÍÈH[YK[Ù‹XÚXÚÈ[YK[Ù‹]\ÙH
+ĞÕÕJH˜XÙHÛÛ™][Û—BˆĞÕÑKNLNHÙ\™\‹TÚYH™\]Y\İ›Ü™Ù\WBˆÙ]™\š]NˆQÒˆ[™İXYÙ\ÎˆÜ]Û—Bˆ™Yš[\ˆ×Ú\×ÜØY™Wİ\›\›X‹œ™\]Y\İ”™\]Y\İ]]Üš^˜][Û‹™X\™\—BˆİÙNˆĞÕÑKLÍËÕÑKNLNBˆİØ\ÜˆĞLLŒŒŒWB
