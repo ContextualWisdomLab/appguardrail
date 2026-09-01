@@ -28,10 +28,10 @@ The CLI can emit normalized findings and SARIF for GitHub code scanning and othe
 
 ## Documentation
 
-- [README and quick start](../README.md)
+- [README and quick start](https://github.com/ContextualWisdomLab/appguardrail#quick-start)
 - [Release automation](release-automation.md)
-- [Security policy](../SECURITY.md)
-- [Contributing](../CONTRIBUTING.md)
+- [Security policy](https://github.com/ContextualWisdomLab/appguardrail/blob/develop/SECURITY.md)
+- [Contributing](https://github.com/ContextualWisdomLab/appguardrail#contributing)
 
 Product plans, threat-model material, detector doctoring, operational guidance, and evidence stay versioned with the source so security claims can be reviewed alongside implementation changes.
 
