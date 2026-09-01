@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2024-11-20 - Fast-path native string checks for re.finditer
+**Learning:** Checking a regex pattern using `re.finditer` invokes regex engine overhead and allocates iterator objects even when the string doesn't contain any potential matches. For regexes relying on specific characters (like `[` for embedded references), a native python string check (e.g., `"[" not in message`) is orders of magnitude faster.
+**Action:** When evaluating regex patterns on strings that are frequently called or are mostly expected to not match, introduce a fast-path pre-check using native C-level string operations (like `in`) to bypass the regex engine completely for strings that cannot possibly match.
