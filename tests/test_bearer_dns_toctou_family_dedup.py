@@ -97,3 +97,24 @@ def deliver(url, api_key):
 """
     findings = _family_findings(tmp_path, source)
     assert [finding["rule_id"] for finding in findings] == [_MUTATION]
+
+
+def test_removal_in_if_does_not_combine_with_else_bearer_update(tmp_path):
+    source = """\
+def deliver(url, api_key, rotate):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    if rotate:
+        req.remove_header("Authorization")
+    else:
+        req.add_header("Authorization", f"Bearer {api_key}")
+        return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    findings = _family_findings(tmp_path, source)
+    assert [finding["rule_id"] for finding in findings] == [_PRIMARY]
