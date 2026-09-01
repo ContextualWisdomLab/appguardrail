@@ -58,6 +58,8 @@
   .file{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;border:1px solid var(--border);font-size:11px;color:var(--muted)}
   .tag.block{border-color:var(--crit);color:var(--crit);font-weight:600}
+  .upload-action{margin-left:12px;padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s}
+  .upload-action:hover{background:var(--bg)}
   dialog{border:none;border-radius:14px;padding:0;max-width:720px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.25)}
   dialog::backdrop{background:rgba(20,23,30,.5)}
   .dlg-head{display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--divider)}
@@ -93,7 +95,8 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
+  <button type="button" id="upload-proxy" class="upload-action">Upload findings file</button>
+  <input type="file" id="file" accept="application/json,.json" hidden>
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app" tabindex="-1"></main>
@@ -153,6 +156,7 @@ function render(){
     </div>`;
     const browseFindings = document.getElementById('browse-findings');
     const fileInput = document.getElementById('file');
+document.getElementById('upload-proxy').addEventListener('click', () => fileInput.click());
     browseFindings.addEventListener('click', () => fileInput.click());
     return;
   }
@@ -166,6 +170,7 @@ function render(){
     </div>`;
     const browseFindings = document.getElementById('browse-findings');
     const fileInput = document.getElementById('file');
+document.getElementById('upload-proxy').addEventListener('click', () => fileInput.click());
     browseFindings.addEventListener('click', () => fileInput.click());
     return;
   }
@@ -325,6 +330,7 @@ function load(data, srcLabel){
 }
 
 const fileInput = document.getElementById('file');
+document.getElementById('upload-proxy').addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   const selectedFile = fileInput.files?.[0];
   fileInput.value = '';
