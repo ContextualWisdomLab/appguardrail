@@ -10,6 +10,7 @@
 | [0004](0004-tenant-network-boundaries.md) | Tenant authority and outbound destinations are explicit security boundaries | Accepted |
 | [0005](0005-remediation-authority.md) | Deterministic autofix is limited to proven semantics-preserving transforms | Accepted |
 | [0006](0006-automation-authority.md) | Autonomous development remains separate from independent merge/release authority | Accepted |
+| [0007](0007-source-bound-workflow-evidence.md) | Workflow detector results require acquired source identity and typed fail-closed assessment | Accepted |
 
 ## ADR triggers
 

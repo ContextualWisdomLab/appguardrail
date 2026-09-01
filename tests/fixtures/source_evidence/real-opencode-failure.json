@@ -1,0 +1,42 @@
+{
+  "run": {
+    "id": 30769144488,
+    "name": "OpenCode Review Dispatch ContextualWisdomLab/.github#701@3a15867168d39a248b92c14f6db0e63584e8dc22",
+    "head_branch": "main",
+    "head_sha": "2a83043b0239ba827153c934f87e469dba4f96f0",
+    "event": "repository_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "created_at": "2026-08-02T22:00:40Z",
+    "updated_at": "2026-08-02T22:58:27Z"
+  },
+  "job": {
+    "id": 91553355284,
+    "run_id": 30769144488,
+    "name": "opencode-review",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": [
+      {"number": 1, "name": "Set up job", "conclusion": "success"},
+      {"number": 2, "name": "Resolve trusted OpenCode source ref", "conclusion": "success"},
+      {"number": 3, "name": "Checkout trusted OpenCode review workflow", "conclusion": "success"},
+      {"number": 4, "name": "Validate pull request head repository trust", "conclusion": "success"},
+      {"number": 5, "name": "Exchange OpenCode app token for target repository review reads", "conclusion": "success"},
+      {"number": 6, "name": "Materialize pull request head for OpenCode review data", "conclusion": "success"},
+      {"number": 7, "name": "Configure git identity for OpenCode action", "conclusion": "success"},
+      {"number": 8, "name": "Install OpenCode CLI", "conclusion": "success"},
+      {"number": 9, "name": "Detect central review-process scope", "conclusion": "success"},
+      {"number": 10, "name": "Initialize CodeGraph index for OpenCode", "conclusion": "success"},
+      {"number": 11, "name": "Prepare bounded OpenCode review evidence", "conclusion": "success"},
+      {"number": 12, "name": "Seal current-run OpenCode artifact provenance", "conclusion": "success"},
+      {"number": 13, "name": "Prepare isolated OpenCode review workspace", "conclusion": "success"},
+      {"number": 14, "name": "Run OpenCode PR Review model pool", "conclusion": "success"},
+      {"number": 15, "name": "Publish bounded OpenCode review comment", "conclusion": "success"},
+      {"number": 16, "name": "Publish central OpenCode fast approval", "conclusion": "skipped"},
+      {"number": 17, "name": "Publish OpenCode review outcome", "conclusion": "success"},
+      {"number": 18, "name": "Publish repository-dispatch OpenCode status", "conclusion": "failure"},
+      {"number": 19, "name": "Dispatch Noema after current-head OpenCode approval", "conclusion": "success"},
+      {"number": 20, "name": "Run merge scheduler after approval", "conclusion": "skipped"}
+    ]
+  }
+}
