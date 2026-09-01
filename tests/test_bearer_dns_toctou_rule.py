@@ -69,6 +69,35 @@ def deliver(url, api_key):
     assert len(_scan_source(tmp_path, source)) == 1
 
 
+def test_one_line_bearer_request_with_trailing_comment_is_detected(tmp_path):
+    """A trailing Request comment cannot erase executable bearer evidence."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {api_key}"})  # authenticated push
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_concatenated_bearer_header_is_detected(tmp_path):
+    """String concatenation is the same credential-bearing request semantics."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": "Bearer " + api_key},
+    )  # request is still executable
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
 def test_comment_before_fail_closed_guard_return_is_detected(tmp_path):
     """A harmless guard comment must not make the vulnerable delivery invisible."""
     source = """\
@@ -166,6 +195,22 @@ def deliver(url, api_key):
     req = urllib.request.Request(
         endpoint,
         # headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_commented_concatenated_bearer_header_is_not_evidence(tmp_path):
+    """The new concatenation form still cannot be sourced from a comment."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        # headers={"Authorization": "Bearer " + api_key},
     )
     return urllib.request.urlopen(req, timeout=5)
 """
