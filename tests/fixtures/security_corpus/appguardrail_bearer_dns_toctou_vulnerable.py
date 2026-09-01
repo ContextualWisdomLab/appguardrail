@@ -3,6 +3,8 @@
 
 def push_scan(url, payload, api_key):
     """Validate once, then let urllib resolve again while carrying a bearer token."""
+    if not api_key:
+        return None
     if not _is_safe_url(url):
         return None
 
@@ -16,5 +18,11 @@ def push_scan(url, payload, api_key):
             "Authorization": f"Bearer {api_key}",
         },
     )
-    opener = urllib.request.build_opener(SafeRedirectHandler())
-    return opener.open(req, timeout=15)
+    try:
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        with (
+            opener.open(req, timeout=15) as response
+        ):
+            return response.read()
+    except urllib.error.URLError:
+        return None
