@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| automatic scanner detection of validated-then-autofollowed urllib SSRF redirect bypass | built-in `python-ssrf-redirect-autofollow-after-validation` rule | active-PR; source-authoritative AppGuardrail vulnerable/fixed replay on `feat/ssrf-redirect-autofollow-detector` |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,12 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+### Redirect-autofollow family
+
+The redirect-bypass family is source-backed by `ContextualWisdomLab/appguardrail` commit `5a7cb7e7237532ffb4366b4d4dc758d0df8993fc`, `appguardrail_core/controlplane.py` blob `07300b0f0df3b7c61c9304812836a4b541a67e6b`, where `_is_safe_url(url)` guarded only the initial destination before `urllib.request.urlopen(...)`. The reviewed repair is commit `814e8bf982c27d5aba10ba7ab28b2540ce601c3e`, blob `bf74784ecd168685153700150020648e4ee4e806`, which adds `SafeRedirectHandler` and revalidates `newurl` on every redirect request.
+
+Collector issues tied to the superseded redirect-fix branches are provenance events, not independent vulnerability proofs. The detector family consolidates those duplicate workflow events while preserving their issue identities in the PR description and changelog. Efficacy evidence comes from the vulnerable/fixed source pair, focused positive/negative rules, and production `_scan_file` replay.
 
 ## Standards/research
 
