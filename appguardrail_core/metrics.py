@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, cast
 
 
 @dataclass(frozen=True)
@@ -24,7 +24,7 @@ class SaleReadinessInputs:
     buyer_diligence_exports: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class MetricResult:
     """One KPI result with semantic owned names and compatibility accessors."""
 
@@ -34,6 +34,66 @@ class MetricResult:
     target_threshold: str
     target_passed: bool
     readiness_pillar: str
+
+    def __init__(
+        self,
+        metric_id: str | None = None,
+        metric_label: str | None = None,
+        metric_value: float | int | bool | None = None,
+        target_threshold: str | None = None,
+        target_passed: bool | None = None,
+        readiness_pillar: str | None = None,
+        **legacy_fields: object,
+    ) -> None:
+        """Construct from semantic fields or the legacy exported keyword names."""
+        resolved_metric_id = metric_id
+        if resolved_metric_id is None:
+            resolved_metric_id = cast(str | None, legacy_fields.pop("id", None))
+        resolved_metric_label = metric_label
+        if resolved_metric_label is None:
+            resolved_metric_label = cast(str | None, legacy_fields.pop("label", None))
+        resolved_metric_value = metric_value
+        if resolved_metric_value is None:
+            resolved_metric_value = cast(
+                float | int | bool | None,
+                legacy_fields.pop("value", None),
+            )
+        resolved_target_threshold = target_threshold
+        if resolved_target_threshold is None:
+            resolved_target_threshold = cast(
+                str | None,
+                legacy_fields.pop("target", None),
+            )
+        resolved_target_passed = target_passed
+        if resolved_target_passed is None:
+            resolved_target_passed = cast(
+                bool | None,
+                legacy_fields.pop("passed", None),
+            )
+        resolved_readiness_pillar = readiness_pillar
+        if resolved_readiness_pillar is None:
+            resolved_readiness_pillar = cast(
+                str | None,
+                legacy_fields.pop("pillar", None),
+            )
+        if legacy_fields:
+            unexpected_names = ", ".join(sorted(legacy_fields))
+            raise TypeError(f"unexpected MetricResult fields: {unexpected_names}")
+        if (
+            resolved_metric_id is None
+            or resolved_metric_label is None
+            or resolved_metric_value is None
+            or resolved_target_threshold is None
+            or resolved_target_passed is None
+            or resolved_readiness_pillar is None
+        ):
+            raise TypeError("MetricResult requires all metric contract fields")
+        object.__setattr__(self, "metric_id", resolved_metric_id)
+        object.__setattr__(self, "metric_label", resolved_metric_label)
+        object.__setattr__(self, "metric_value", resolved_metric_value)
+        object.__setattr__(self, "target_threshold", resolved_target_threshold)
+        object.__setattr__(self, "target_passed", resolved_target_passed)
+        object.__setattr__(self, "readiness_pillar", resolved_readiness_pillar)
 
     @property
     def id(self) -> str:
@@ -66,7 +126,7 @@ class MetricResult:
         return self.readiness_pillar
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class SaleReadinessScore:
     """Aggregate readiness score with semantic owned fields and legacy accessors."""
 
@@ -76,10 +136,65 @@ class SaleReadinessScore:
     pass_rate: float
     metric_results: tuple[MetricResult, ...]
 
+    def __init__(
+        self,
+        readiness_status: str | None = None,
+        passed_metric_count: int | None = None,
+        total_metric_count: int | None = None,
+        pass_rate: float | None = None,
+        metric_results: tuple[MetricResult, ...] | None = None,
+        **legacy_fields: object,
+    ) -> None:
+        """Construct from semantic fields or the legacy exported keyword names."""
+        resolved_readiness_status = readiness_status
+        if resolved_readiness_status is None:
+            resolved_readiness_status = cast(
+                str | None,
+                legacy_fields.pop("status", None),
+            )
+        resolved_passed_metric_count = passed_metric_count
+        if resolved_passed_metric_count is None:
+            resolved_passed_metric_count = cast(
+                int | None,
+                legacy_fields.pop("passed", None),
+            )
+        resolved_total_metric_count = total_metric_count
+        if resolved_total_metric_count is None:
+            resolved_total_metric_count = cast(
+                int | None,
+                legacy_fields.pop("total", None),
+            )
+        resolved_metric_results = metric_results
+        if resolved_metric_results is None:
+            resolved_metric_results = cast(
+                tuple[MetricResult, ...] | None,
+                legacy_fields.pop("metrics", None),
+            )
+        if legacy_fields:
+            unexpected_names = ", ".join(sorted(legacy_fields))
+            raise TypeError(f"unexpected SaleReadinessScore fields: {unexpected_names}")
+        if (
+            resolved_readiness_status is None
+            or resolved_passed_metric_count is None
+            or resolved_total_metric_count is None
+            or pass_rate is None
+            or resolved_metric_results is None
+        ):
+            raise TypeError("SaleReadinessScore requires all readiness score fields")
+        object.__setattr__(self, "readiness_status", resolved_readiness_status)
+        object.__setattr__(self, "passed_metric_count", resolved_passed_metric_count)
+        object.__setattr__(self, "total_metric_count", resolved_total_metric_count)
+        object.__setattr__(self, "pass_rate", pass_rate)
+        object.__setattr__(self, "metric_results", resolved_metric_results)
+
     @property
     def unmet_metrics(self) -> tuple[MetricResult, ...]:
         """Return metric results that have not met their target threshold."""
-        return tuple(metric for metric in self.metric_results if not metric.target_passed)
+        return tuple(
+            metric_result
+            for metric_result in self.metric_results
+            if not metric_result.target_passed
+        )
 
     @property
     def status(self) -> str:
