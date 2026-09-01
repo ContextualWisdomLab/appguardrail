@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2025-02-28 - [Button Aria-Label Redundancy]
+**Learning:** Native visually hidden elements correctly mapped with proxy buttons should not duplicate accessible names when the visible text already matches the intention. Using a redundant `aria-label` on the styled proxy button caused strict accessibility contract tests to fail in this UI.
+**Action:** Always rely on the visible text of proxy elements (e.g. 'Upload') for accessibility, or if needed to match a contract, ensure it replaces instead of duplicates the aria-label from the hidden native element.
