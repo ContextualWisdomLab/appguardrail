@@ -26,40 +26,96 @@ class SaleReadinessInputs:
 
 @dataclass(frozen=True)
 class MetricResult:
-    """One KPI result with enough context for dashboards and reports."""
+    """One KPI result with semantic owned names and compatibility accessors."""
 
-    id: str
-    label: str
-    value: float | int | bool
-    target: str
-    passed: bool
-    pillar: str
+    metric_id: str
+    metric_label: str
+    metric_value: float | int | bool
+    target_threshold: str
+    target_passed: bool
+    readiness_pillar: str
+
+    @property
+    def id(self) -> str:
+        """Return the legacy public metric identifier accessor."""
+        return self.metric_id
+
+    @property
+    def label(self) -> str:
+        """Return the legacy public metric label accessor."""
+        return self.metric_label
+
+    @property
+    def value(self) -> float | int | bool:
+        """Return the legacy public metric value accessor."""
+        return self.metric_value
+
+    @property
+    def target(self) -> str:
+        """Return the legacy public target-threshold accessor."""
+        return self.target_threshold
+
+    @property
+    def passed(self) -> bool:
+        """Return the legacy public target-pass result accessor."""
+        return self.target_passed
+
+    @property
+    def pillar(self) -> str:
+        """Return the legacy public readiness-pillar accessor."""
+        return self.readiness_pillar
 
 
 @dataclass(frozen=True)
 class SaleReadinessScore:
-    """Aggregate product-readiness score and unmet KPI list."""
+    """Aggregate readiness score with semantic owned fields and legacy accessors."""
 
-    status: str
-    passed: int
-    total: int
+    readiness_status: str
+    passed_metric_count: int
+    total_metric_count: int
     pass_rate: float
-    metrics: tuple[MetricResult, ...]
+    metric_results: tuple[MetricResult, ...]
+
+    @property
+    def unmet_metrics(self) -> tuple[MetricResult, ...]:
+        """Return metric results that have not met their target threshold."""
+        return tuple(metric for metric in self.metric_results if not metric.target_passed)
+
+    @property
+    def status(self) -> str:
+        """Return the legacy public readiness-status accessor."""
+        return self.readiness_status
+
+    @property
+    def passed(self) -> int:
+        """Return the legacy public passed-metric count accessor."""
+        return self.passed_metric_count
+
+    @property
+    def total(self) -> int:
+        """Return the legacy public total-metric count accessor."""
+        return self.total_metric_count
+
+    @property
+    def metrics(self) -> tuple[MetricResult, ...]:
+        """Return the legacy public metric-results accessor."""
+        return self.metric_results
 
     @property
     def unmet(self) -> tuple[MetricResult, ...]:
-        return tuple(metric for metric in self.metrics if not metric.passed)
+        """Return the legacy public unmet-metrics accessor."""
+        return self.unmet_metrics
 
 
 def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
     """Score AppGuardrail against the current sale-readiness KPI contract."""
-    metrics = (
+    metric_results = (
         _metric(
             "time_to_first_finding",
             "Time from install to first useful finding",
             inputs.install_to_first_finding_minutes,
             "< 5 minutes",
-            lambda value: value < 5,
+            lambda metric_value: metric_value < 5,
             "activation",
         ),
         _metric(
@@ -67,7 +123,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "First scans requiring no language/profile flags",
             inputs.zero_config_scan_rate,
             "> 95%",
-            lambda value: value > 0.95,
+            lambda metric_value: metric_value > 0.95,
             "activation",
         ),
         _metric(
@@ -75,7 +131,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Scans with an actionable next step",
             inputs.actionable_output_rate,
             "> 95%",
-            lambda value: value > 0.95,
+            lambda metric_value: metric_value > 0.95,
             "activation",
         ),
         _metric(
@@ -83,7 +139,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Built-in fixture precision for deploy blockers",
             inputs.fixture_precision_rate,
             "> 90%",
-            lambda value: value > 0.90,
+            lambda metric_value: metric_value > 0.90,
             "quality",
         ),
         _metric(
@@ -91,7 +147,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Duplicate CI failure issue suppression on replay",
             inputs.duplicate_issue_suppression_rate,
             "> 99%",
-            lambda value: value > 0.99,
+            lambda metric_value: metric_value > 0.99,
             "quality",
         ),
         _metric(
@@ -99,7 +155,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Token/JWT/Authorization redaction regression pass rate",
             inputs.redaction_regression_pass_rate,
             "100%",
-            lambda value: value >= 1.0,
+            lambda metric_value: metric_value >= 1.0,
             "quality",
         ),
         _metric(
@@ -115,7 +171,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Pilot organizations or internal equivalents scanned weekly",
             inputs.pilot_organizations,
             ">= 3",
-            lambda value: value >= 3,
+            lambda metric_value: metric_value >= 3,
             "commercial",
         ),
         _metric(
@@ -123,7 +179,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Active repositories under monitoring",
             inputs.active_repositories,
             ">= 20",
-            lambda value: value >= 20,
+            lambda metric_value: metric_value >= 20,
             "commercial",
         ),
         _metric(
@@ -131,7 +187,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Recurring security failures grouped into issues",
             inputs.recurring_failures_grouped,
             ">= 50",
-            lambda value: value >= 50,
+            lambda metric_value: metric_value >= 50,
             "commercial",
         ),
         _metric(
@@ -139,7 +195,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Founder-friendly reports generated from real scans",
             inputs.founder_reports_generated,
             ">= 10",
-            lambda value: value >= 10,
+            lambda metric_value: metric_value >= 10,
             "commercial",
         ),
         _metric(
@@ -147,41 +203,45 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
             "Buyer-diligence exports generated without manual editing",
             inputs.buyer_diligence_exports,
             ">= 5",
-            lambda value: value >= 5,
+            lambda metric_value: metric_value >= 5,
             "commercial",
         ),
     )
-    passed = sum(1 for metric in metrics if metric.passed)
-    total = len(metrics)
-    pass_rate = passed / total if total else 0.0
+    passed_metric_count = sum(
+        1 for metric_result in metric_results if metric_result.target_passed
+    )
+    total_metric_count = len(metric_results)
+    pass_rate = (
+        passed_metric_count / total_metric_count if total_metric_count else 0.0
+    )
     return SaleReadinessScore(
-        status=_status(pass_rate, metrics),
-        passed=passed,
-        total=total,
+        readiness_status=_status(pass_rate, metric_results),
+        passed_metric_count=passed_metric_count,
+        total_metric_count=total_metric_count,
         pass_rate=pass_rate,
-        metrics=metrics,
+        metric_results=metric_results,
     )
 
 
 def _metric(
-    id: str,
-    label: str,
-    value: float | int | bool,
-    target: str,
-    predicate: Callable[[float | int | bool], bool],
-    pillar: str,
+    metric_id: str,
+    metric_label: str,
+    metric_value: float | int | bool,
+    target_threshold: str,
+    target_predicate: Callable[[float | int | bool], bool],
+    readiness_pillar: str,
 ) -> MetricResult:
     return MetricResult(
-        id=id,
-        label=label,
-        value=value,
-        target=target,
-        passed=predicate(value),
-        pillar=pillar,
+        metric_id=metric_id,
+        metric_label=metric_label,
+        metric_value=metric_value,
+        target_threshold=target_threshold,
+        target_passed=target_predicate(metric_value),
+        readiness_pillar=readiness_pillar,
     )
 
 
-def _status(pass_rate: float, metrics: tuple[MetricResult, ...]) -> str:
+def _status(pass_rate: float, metric_results: tuple[MetricResult, ...]) -> str:
     critical_unmet = {
         "time_to_first_finding",
         "zero_config_scan_rate",
@@ -189,9 +249,13 @@ def _status(pass_rate: float, metrics: tuple[MetricResult, ...]) -> str:
         "redaction_regression_pass_rate",
         "buyer_diligence_exports",
     }
-    unmet_ids = {metric.id for metric in metrics if not metric.passed}
+    unmet_metric_ids = {
+        metric_result.metric_id
+        for metric_result in metric_results
+        if not metric_result.target_passed
+    }
     if pass_rate == 1.0:
         return "sale-ready"
-    if pass_rate >= 0.75 and not (unmet_ids & critical_unmet):
+    if pass_rate >= 0.75 and not (unmet_metric_ids & critical_unmet):
         return "pilot-ready"
     return "not-ready"
