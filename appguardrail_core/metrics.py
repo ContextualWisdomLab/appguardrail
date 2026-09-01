@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, cast
+from dataclasses import InitVar, dataclass
+from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class SaleReadinessInputs:
 
 @dataclass(frozen=True, init=False)
 class MetricResult:
-    """One KPI result with semantic owned names and compatibility accessors."""
+    """One KPI result with semantic stored fields and legacy adapters."""
 
     metric_id: str
     metric_label: str
@@ -34,6 +34,13 @@ class MetricResult:
     target_threshold: str
     target_passed: bool
     readiness_pillar: str
+
+    id: InitVar[str | None] = None
+    label: InitVar[str | None] = None
+    value: InitVar[float | int | bool | None] = None
+    target: InitVar[str | None] = None
+    passed: InitVar[bool | None] = None
+    pillar: InitVar[str | None] = None
 
     def __init__(
         self,
@@ -43,42 +50,21 @@ class MetricResult:
         target_threshold: str | None = None,
         target_passed: bool | None = None,
         readiness_pillar: str | None = None,
-        **legacy_fields: object,
+        *,
+        id: str | None = None,
+        label: str | None = None,
+        value: float | int | bool | None = None,
+        target: str | None = None,
+        passed: bool | None = None,
+        pillar: str | None = None,
     ) -> None:
-        """Construct from semantic fields or the legacy exported keyword names."""
-        resolved_metric_id = metric_id
-        if resolved_metric_id is None:
-            resolved_metric_id = cast(str | None, legacy_fields.pop("id", None))
-        resolved_metric_label = metric_label
-        if resolved_metric_label is None:
-            resolved_metric_label = cast(str | None, legacy_fields.pop("label", None))
-        resolved_metric_value = metric_value
-        if resolved_metric_value is None:
-            resolved_metric_value = cast(
-                float | int | bool | None,
-                legacy_fields.pop("value", None),
-            )
-        resolved_target_threshold = target_threshold
-        if resolved_target_threshold is None:
-            resolved_target_threshold = cast(
-                str | None,
-                legacy_fields.pop("target", None),
-            )
-        resolved_target_passed = target_passed
-        if resolved_target_passed is None:
-            resolved_target_passed = cast(
-                bool | None,
-                legacy_fields.pop("passed", None),
-            )
-        resolved_readiness_pillar = readiness_pillar
-        if resolved_readiness_pillar is None:
-            resolved_readiness_pillar = cast(
-                str | None,
-                legacy_fields.pop("pillar", None),
-            )
-        if legacy_fields:
-            unexpected_names = ", ".join(sorted(legacy_fields))
-            raise TypeError(f"unexpected MetricResult fields: {unexpected_names}")
+        """Construct semantic state while accepting legacy exported keywords."""
+        resolved_metric_id = id if id is not None else metric_id
+        resolved_metric_label = label if label is not None else metric_label
+        resolved_metric_value = value if value is not None else metric_value
+        resolved_target_threshold = target if target is not None else target_threshold
+        resolved_target_passed = passed if passed is not None else target_passed
+        resolved_readiness_pillar = pillar if pillar is not None else readiness_pillar
         if (
             resolved_metric_id is None
             or resolved_metric_label is None
@@ -95,46 +81,36 @@ class MetricResult:
         object.__setattr__(self, "target_passed", resolved_target_passed)
         object.__setattr__(self, "readiness_pillar", resolved_readiness_pillar)
 
-    @property
-    def id(self) -> str:
-        """Return the legacy public metric identifier accessor."""
-        return self.metric_id
-
-    @property
-    def label(self) -> str:
-        """Return the legacy public metric label accessor."""
-        return self.metric_label
-
-    @property
-    def value(self) -> float | int | bool:
-        """Return the legacy public metric value accessor."""
-        return self.metric_value
-
-    @property
-    def target(self) -> str:
-        """Return the legacy public target-threshold accessor."""
-        return self.target_threshold
-
-    @property
-    def passed(self) -> bool:
-        """Return the legacy public target-pass result accessor."""
-        return self.target_passed
-
-    @property
-    def pillar(self) -> str:
-        """Return the legacy public readiness-pillar accessor."""
-        return self.readiness_pillar
+    def __getattribute__(self, attribute_name: str) -> object:
+        """Translate legacy read aliases without storing generic field names."""
+        legacy_aliases = {
+            "id": "metric_id",
+            "label": "metric_label",
+            "value": "metric_value",
+            "target": "target_threshold",
+            "passed": "target_passed",
+            "pillar": "readiness_pillar",
+        }
+        semantic_name = legacy_aliases.get(attribute_name)
+        if semantic_name is not None:
+            return object.__getattribute__(self, semantic_name)
+        return object.__getattribute__(self, attribute_name)
 
 
 @dataclass(frozen=True, init=False)
 class SaleReadinessScore:
-    """Aggregate readiness score with semantic owned fields and legacy accessors."""
+    """Aggregate readiness score with semantic stored fields and legacy adapters."""
 
     readiness_status: str
     passed_metric_count: int
     total_metric_count: int
     pass_rate: float
     metric_results: tuple[MetricResult, ...]
+
+    status: InitVar[str | None] = None
+    passed: InitVar[int | None] = None
+    total: InitVar[int | None] = None
+    metrics: InitVar[tuple[MetricResult, ...] | None] = None
 
     def __init__(
         self,
@@ -143,36 +119,17 @@ class SaleReadinessScore:
         total_metric_count: int | None = None,
         pass_rate: float | None = None,
         metric_results: tuple[MetricResult, ...] | None = None,
-        **legacy_fields: object,
+        *,
+        status: str | None = None,
+        passed: int | None = None,
+        total: int | None = None,
+        metrics: tuple[MetricResult, ...] | None = None,
     ) -> None:
-        """Construct from semantic fields or the legacy exported keyword names."""
-        resolved_readiness_status = readiness_status
-        if resolved_readiness_status is None:
-            resolved_readiness_status = cast(
-                str | None,
-                legacy_fields.pop("status", None),
-            )
-        resolved_passed_metric_count = passed_metric_count
-        if resolved_passed_metric_count is None:
-            resolved_passed_metric_count = cast(
-                int | None,
-                legacy_fields.pop("passed", None),
-            )
-        resolved_total_metric_count = total_metric_count
-        if resolved_total_metric_count is None:
-            resolved_total_metric_count = cast(
-                int | None,
-                legacy_fields.pop("total", None),
-            )
-        resolved_metric_results = metric_results
-        if resolved_metric_results is None:
-            resolved_metric_results = cast(
-                tuple[MetricResult, ...] | None,
-                legacy_fields.pop("metrics", None),
-            )
-        if legacy_fields:
-            unexpected_names = ", ".join(sorted(legacy_fields))
-            raise TypeError(f"unexpected SaleReadinessScore fields: {unexpected_names}")
+        """Construct semantic state while accepting legacy exported keywords."""
+        resolved_readiness_status = status if status is not None else readiness_status
+        resolved_passed_metric_count = passed if passed is not None else passed_metric_count
+        resolved_total_metric_count = total if total is not None else total_metric_count
+        resolved_metric_results = metrics if metrics is not None else metric_results
         if (
             resolved_readiness_status is None
             or resolved_passed_metric_count is None
@@ -187,6 +144,20 @@ class SaleReadinessScore:
         object.__setattr__(self, "pass_rate", pass_rate)
         object.__setattr__(self, "metric_results", resolved_metric_results)
 
+    def __getattribute__(self, attribute_name: str) -> object:
+        """Translate legacy read aliases without storing generic field names."""
+        legacy_aliases = {
+            "status": "readiness_status",
+            "passed": "passed_metric_count",
+            "total": "total_metric_count",
+            "metrics": "metric_results",
+            "unmet": "unmet_metrics",
+        }
+        semantic_name = legacy_aliases.get(attribute_name)
+        if semantic_name is not None:
+            return object.__getattribute__(self, semantic_name)
+        return object.__getattribute__(self, attribute_name)
+
     @property
     def unmet_metrics(self) -> tuple[MetricResult, ...]:
         """Return metric results that have not met their target threshold."""
@@ -195,31 +166,6 @@ class SaleReadinessScore:
             for metric_result in self.metric_results
             if not metric_result.target_passed
         )
-
-    @property
-    def status(self) -> str:
-        """Return the legacy public readiness-status accessor."""
-        return self.readiness_status
-
-    @property
-    def passed(self) -> int:
-        """Return the legacy public passed-metric count accessor."""
-        return self.passed_metric_count
-
-    @property
-    def total(self) -> int:
-        """Return the legacy public total-metric count accessor."""
-        return self.total_metric_count
-
-    @property
-    def metrics(self) -> tuple[MetricResult, ...]:
-        """Return the legacy public metric-results accessor."""
-        return self.metric_results
-
-    @property
-    def unmet(self) -> tuple[MetricResult, ...]:
-        """Return the legacy public unmet-metrics accessor."""
-        return self.unmet_metrics
 
 
 def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
