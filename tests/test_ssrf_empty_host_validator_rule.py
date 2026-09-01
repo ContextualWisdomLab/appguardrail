@@ -107,6 +107,12 @@ def test_same_line_or_guards_are_unconditional_for_empty_hosts(tmp_path):
         assert not _scan_source(tmp_path, _same_line_guard_source(condition))
 
 
+def test_parenthesized_empty_host_guards_are_not_flagged(tmp_path):
+    """Parentheses do not make an unconditional empty-host rejection unsafe."""
+    for condition in ("(not host)", '(host == "")', "(not host or enforce)"):
+        assert not _scan_source(tmp_path, _same_line_guard_source(condition))
+
+
 def test_fail_closed_dns_error_is_not_flagged(tmp_path):
     """A resolver failure that rejects the URL cannot create this fail-open path."""
     source = """\
