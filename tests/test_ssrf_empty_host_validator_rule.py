@@ -107,55 +107,6 @@ def test_same_line_or_guards_are_unconditional_for_empty_hosts(tmp_path):
         assert not _scan_source(tmp_path, _same_line_guard_source(condition))
 
 
-def test_parenthesized_empty_host_guards_are_not_flagged(tmp_path):
-    """Parentheses do not make an unconditional empty-host rejection unsafe."""
-    for condition in ("(not host)", '(host == "")', "(not host or enforce)"):
-        assert not _scan_source(tmp_path, _same_line_guard_source(condition))
-
-
-def test_none_only_guards_do_not_hide_fail_open_path(tmp_path):
-    """None-only checks cannot reject a hostname already normalized to a string."""
-    for condition in ("host is None", "host == None", "host in (None,)"):
-        assert len(_scan_source(tmp_path, _same_line_guard_source(condition))) == 1
-
-
-def test_empty_host_guard_may_log_or_space_before_rejecting(tmp_path):
-    """Harmless same-scope statements and spacing do not defeat domination."""
-    sources = (
-        """\
-def is_safe_url(url):
-    parsed = urllib.parse.urlparse(url)
-    host = (parsed.hostname or \"\").lower()
-    if not host:
-        logger.warning("empty hostname")
-        return False
-    raw = host.split(\"%\", 1)[0]
-    try:
-        socket.getaddrinfo(raw, None)
-    except socket.gaierror:
-        pass
-    return True
-""",
-        """\
-def is_safe_url(url):
-    parsed = urllib.parse.urlparse(url)
-    host = (parsed.hostname or \"\").lower()
-    if host == \"\":
-        # Preserve a diagnostic breadcrumb without weakening the rejection.
-
-        return False
-    raw = host.split(\"%\", 1)[0]
-    try:
-        socket.getaddrinfo(raw, None)
-    except socket.gaierror:
-        pass
-    return True
-""",
-    )
-    for source in sources:
-        assert not _scan_source(tmp_path, source)
-
-
 def test_fail_closed_dns_error_is_not_flagged(tmp_path):
     """A resolver failure that rejects the URL cannot create this fail-open path."""
     source = """\

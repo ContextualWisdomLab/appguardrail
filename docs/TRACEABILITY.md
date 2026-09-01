@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-09-01
+**Last reviewed:** 2026-08-12
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,7 +19,6 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
-| automatic scanner detection of empty-host fail-open Python URL validation | built-in `python-ssrf-empty-host-fail-open` rule plus historical vulnerable/fixed corpus fixtures | PR #1068 active-PR; HIGH / CWE-918; bounded to same-function `(parsed.hostname or "")`-style normalization, `getaddrinfo`, fail-open `gaierror`, and later success |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -47,8 +46,6 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
-
-PR #1068 is a separate active-PR obligation for the historical empty-host fail-open validator path. Its runtime guard, built-in `python-ssrf-empty-host-fail-open` detector, vulnerable/fixed security-corpus fixtures, and production `_scan_file` regressions are independent evidence. The detector intentionally does not claim general interprocedural SSRF coverage; None-only checks after string normalization remain vulnerable positives, while unconditional empty-string guards may contain comments, blank lines, or same-scope non-control-flow diagnostics before rejecting.
 
 ## Standards/research
 
