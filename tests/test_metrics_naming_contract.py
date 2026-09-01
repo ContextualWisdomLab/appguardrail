@@ -49,6 +49,25 @@ def test_metric_result_accepts_legacy_constructor_and_replace_keywords() -> None
     assert updated_metric_result.target_passed is False
 
 
+def test_metric_result_preserves_explicit_semantic_replace_values() -> None:
+    """Let semantic replacements win instead of restoring copied legacy aliases."""
+    metric_result = MetricResult(
+        metric_id="fixture_precision_rate",
+        metric_label="Fixture precision",
+        metric_value=0.95,
+        target_threshold="> 90%",
+        target_passed=True,
+        readiness_pillar="quality",
+    )
+
+    assert replace(metric_result, metric_id="metric_zero").metric_id == "metric_zero"
+    assert replace(metric_result, metric_label="Updated precision").metric_label == "Updated precision"
+    assert replace(metric_result, metric_value=0).metric_value == 0
+    assert replace(metric_result, target_threshold=">= 0").target_threshold == ">= 0"
+    assert replace(metric_result, target_passed=False).target_passed is False
+    assert replace(metric_result, readiness_pillar="commercial").readiness_pillar == "commercial"
+
+
 def test_sale_readiness_score_owns_semantic_multiword_fields() -> None:
     """Name aggregate count, status, and metric fields by their readiness meaning."""
     field_names = {field.name for field in fields(SaleReadinessScore)}
@@ -87,3 +106,28 @@ def test_sale_readiness_score_accepts_legacy_constructor_and_replace_keywords() 
     assert updated_readiness_score.readiness_status == "sale-ready"
     assert updated_readiness_score.passed_metric_count == 1
     assert updated_readiness_score.total_metric_count == 1
+
+
+def test_sale_readiness_score_preserves_explicit_semantic_replace_values() -> None:
+    """Keep semantic score replacements authoritative, including zero values."""
+    metric_result = MetricResult(
+        metric_id="fixture_precision_rate",
+        metric_label="Fixture precision",
+        metric_value=0.95,
+        target_threshold="> 90%",
+        target_passed=True,
+        readiness_pillar="quality",
+    )
+    readiness_score = SaleReadinessScore(
+        readiness_status="pilot-ready",
+        passed_metric_count=1,
+        total_metric_count=1,
+        pass_rate=1.0,
+        metric_results=(metric_result,),
+    )
+
+    assert replace(readiness_score, readiness_status="not-ready").readiness_status == "not-ready"
+    assert replace(readiness_score, passed_metric_count=0).passed_metric_count == 0
+    assert replace(readiness_score, total_metric_count=0).total_metric_count == 0
+    assert replace(readiness_score, pass_rate=0.0).pass_rate == 0.0
+    assert replace(readiness_score, metric_results=()).metric_results == ()
