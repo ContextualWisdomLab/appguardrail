@@ -56,6 +56,53 @@ def test_historical_bearer_preflight_flow_is_detected(tmp_path):
     assert "CWE-918" in finding["cwe"]
 
 
+def test_one_line_bearer_request_is_detected(tmp_path):
+    """Formatting the Request on one line must not hide the DNS race."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {api_key}"})
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_comment_before_fail_closed_guard_return_is_detected(tmp_path):
+    """A harmless guard comment must not make the vulnerable delivery invisible."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        # Reject destinations that fail the public URL preflight.
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_with_urlopen_bearer_dispatch_is_detected(tmp_path):
+    """Context-manager urlopen still performs the second DNS-sensitive dispatch."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    with urllib.request.urlopen(req, timeout=5) as response:
+        return response.read()
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
 def test_isolated_pinned_opener_repair_is_not_flagged(tmp_path):
     """Changing only the connection primitive to a pinned opener is sufficient."""
     assert not _scan_source(
@@ -105,6 +152,22 @@ def deliver(url, payload, api_key):
     # )
     # return urllib.request.urlopen(req, timeout=5)
     return None
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_commented_bearer_header_cannot_authenticate_live_request(tmp_path):
+    """A comment inside a live Request call cannot donate bearer credentials."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        # headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req, timeout=5)
 """
     assert not _scan_source(tmp_path, source)
 
