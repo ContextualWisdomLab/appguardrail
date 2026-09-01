@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-09-01
+**Last reviewed:** 2026-08-12
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,7 +19,6 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
-| empty-host fail-open Python URL validator | built-in `python-ssrf-empty-host-fail-open` rule | PR #1068 active-PR; historical vulnerable/fixed fixtures plus production `_scan_file` boundary tests; promote only after protected integration |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -47,8 +46,6 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
-
-PR #1068 independently hardens the runtime validator against an empty parsed hostname and carries the candidate `python-ssrf-empty-host-fail-open` detector. Its detection contract is intentionally narrower than general SSRF analysis: within one Python function it requires a possibly-empty `.hostname or ""` value, direct or one-hop DNS resolution, a `socket.gaierror` handler that explicitly falls through, no dominating same-scope empty-host rejection before success, and a later `return True`. Conditional/nested guards do not suppress the finding; sibling-function evidence is not combined. Different resolver APIs, deeper interprocedural propagation, or materially different fail-open syntax remain separate detector obligations.
 
 ## Standards/research
 
