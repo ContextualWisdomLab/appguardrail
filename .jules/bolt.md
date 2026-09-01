@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-08-28 - Optimizing chained array operations in JS UI updates
+**Learning:** In frontend applications running inside web browsers, using chained array methods (like `.map().filter().sort()`) on large datasets (like 10,000+ security findings) during high-frequency events like keystrokes causes significant performance degradation. This is due to multiple iteration passes and redundant memory allocations for intermediate arrays.
+**Action:** Replace chained array methods with a single `for` loop using early returns (`continue`) and pre-calculated O(1) object lookups for sorting priorities. This minimizes execution passes and memory allocations, keeping the UI responsive during search and filter operations.
