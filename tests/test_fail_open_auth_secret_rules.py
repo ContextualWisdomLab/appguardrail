@@ -178,6 +178,28 @@ def verify_authentication(authorization: str | None = None) -> None:
     deny_request()
 '''
 
+_OVER_INDENTED_LEADING_COMMENT_SOURCE = '''
+def require_authorization(authorization: str | None = None) -> None:
+        # Comment-only lines do not establish a Python suite's indentation.
+    token = get_api_token()
+    if token is None:
+        return
+    expected = f"Bearer {token}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+'''
+
+_UNINDENTED_LEADING_COMMENT_SOURCE = '''
+def require_authorization(authorization: str | None = None) -> None:
+# Comment-only lines are ignored by Python's indentation tokenizer.
+    token = get_api_token()
+    if token is None:
+        return
+    expected = f"Bearer {token}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+'''
+
 
 def _rule() -> dict:
     """Return the packaged missing-auth-secret fail-open rule."""
@@ -298,6 +320,16 @@ def test_scan_file_ignores_optional_token_inside_nested_function(tmp_path: Path)
 def test_scan_file_ignores_optional_token_inside_nested_class(tmp_path: Path) -> None:
     """Do not attribute a nested class helper's optional-token flow to its outer guard."""
     assert _scan(_NESTED_CLASS_OPTIONAL_TOKEN_SOURCE, tmp_path) == []
+
+
+def test_scan_file_detects_guard_after_over_indented_comment(tmp_path: Path) -> None:
+    """Ignore comment-only indentation when locating the first suite statement."""
+    assert len(_scan(_OVER_INDENTED_LEADING_COMMENT_SOURCE, tmp_path)) == 1
+
+
+def test_scan_file_detects_guard_after_unindented_comment(tmp_path: Path) -> None:
+    """Ignore unindented comment-only lines before the first suite statement."""
+    assert len(_scan(_UNINDENTED_LEADING_COMMENT_SOURCE, tmp_path)) == 1
 
 
 def test_scan_file_emits_normalized_missing_authentication_finding(tmp_path: Path) -> None:
