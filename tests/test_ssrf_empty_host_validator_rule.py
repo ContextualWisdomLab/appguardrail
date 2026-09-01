@@ -93,6 +93,36 @@ def is_safe_url(url):
         assert not _scan_source(tmp_path, source)
 
 
+def test_direct_hostname_assignment_is_detected(tmp_path):
+    """A missing parsed hostname must not pass through DNS failure to success."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_empty_fallback_with_inline_comment_is_detected(tmp_path):
+    """A trailing comment must not hide an explicitly empty fallback."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname or ""  # Missing hosts remain empty.
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
 def test_conditional_empty_host_guard_does_not_hide_fail_open_path(tmp_path):
     """A nested guard is not a dominating rejection when its parent can be false."""
     source = """\
