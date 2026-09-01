@@ -285,3 +285,163 @@ def dispatch(req):
     return urllib.request.urlopen(req, timeout=5)
 """
     assert not _scan_source(tmp_path, source)
+
+
+def test_assigned_urlopen_dispatch_is_detected(tmp_path):
+    """Assignment form does not remove the second-resolution network sink."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    response = urllib.request.urlopen(
+        req,
+        timeout=5,
+    )
+    return response
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_assigned_reviewed_opener_dispatch_is_detected(tmp_path):
+    """Assignment through the reviewed urllib opener remains a vulnerable sink."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    response = opener.open(
+        req,
+        timeout=5,
+    )
+    return response
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_dead_sink_after_unconditional_return_is_not_flagged(tmp_path):
+    """Unreachable dispatch cannot complete the credential exfiltration path."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return None
+    response = urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_unrelated_request_replacement_is_not_flagged(tmp_path):
+    """Replacing the tracked request breaks the vulnerable request provenance."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    req = object()
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_unrelated_endpoint_replacement_is_not_flagged(tmp_path):
+    """Replacing the URL-derived endpoint before Request breaks destination flow."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/")
+    endpoint = "https://fixed.example/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_endpoint_self_derivation_remains_detected(tmp_path):
+    """A reassignment derived from the tracked endpoint preserves unsafe provenance."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/")
+    endpoint = endpoint + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_request_preserving_reassignment_remains_detected(tmp_path):
+    """A direct self-assignment cannot sanitize the tracked bearer request."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    req = req
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_endpoint_name_only_inside_replacement_string_is_not_flagged(tmp_path):
+    """Quoted identifier text is not executable provenance for endpoint flow."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/")
+    endpoint = choose("endpoint")
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_request_name_only_inside_replacement_string_is_not_flagged(tmp_path):
+    """Quoted identifier text is not executable provenance for request flow."""
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    req = choose("req")
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
