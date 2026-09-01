@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-21 - Avoiding dict.fromkeys with generators and consecutive if evaluations
+**Learning:** Using `dict.fromkeys(item for ...)` to deduplicate lists incurs significant generator overhead and frame allocation in hot paths. Additionally, consecutive `if` statements for mutually exclusive string prefix checks (like `startswith("OWASP ")` and `startswith("CWE-")`) cause unnecessary string evaluations.
+**Action:** Always prefer explicit loop assignment to a local dictionary (`seen = {}`) over generator comprehensions passed to `dict.fromkeys()`. Furthermore, use `elif` instead of consecutive `if` statements for mutually exclusive conditions to optimize string evaluations.
