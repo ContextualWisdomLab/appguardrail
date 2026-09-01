@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass
 from typing import Callable
 
 
@@ -35,13 +35,6 @@ class MetricResult:
     target_passed: bool
     readiness_pillar: str
 
-    id: InitVar[str | None] = None
-    label: InitVar[str | None] = None
-    value: InitVar[float | int | bool | None] = None
-    target: InitVar[str | None] = None
-    passed: InitVar[bool | None] = None
-    pillar: InitVar[str | None] = None
-
     def __init__(
         self,
         metric_id: str | None = None,
@@ -51,7 +44,7 @@ class MetricResult:
         target_passed: bool | None = None,
         readiness_pillar: str | None = None,
         *,
-        id: str | None = None,
+        id: str | None = None,  # noqa: A002 - compatibility keyword for exported API
         label: str | None = None,
         value: float | int | bool | None = None,
         target: str | None = None,
@@ -106,11 +99,6 @@ class SaleReadinessScore:
     total_metric_count: int
     pass_rate: float
     metric_results: tuple[MetricResult, ...]
-
-    status: InitVar[str | None] = None
-    passed: InitVar[int | None] = None
-    total: InitVar[int | None] = None
-    metrics: InitVar[tuple[MetricResult, ...] | None] = None
 
     def __init__(
         self,
