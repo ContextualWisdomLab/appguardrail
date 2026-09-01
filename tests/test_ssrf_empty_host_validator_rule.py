@@ -236,6 +236,76 @@ def is_safe_url(url):
     assert not _scan_source(tmp_path, source)
 
 
+def test_dns_error_pass_then_fail_closed_is_not_flagged(tmp_path):
+    """A diagnostic no-op before an unconditional handler rejection stays safe."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        pass
+        return False
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_nonterminating_dns_error_handlers_are_detected(tmp_path):
+    """Equivalent ignored resolver errors must remain deploy-blocking positives."""
+    for handler in (
+        'logger.warning("dns resolution failed")',
+        'diagnostic = "dns resolution failed"',
+        "...",
+    ):
+        source = f"""\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        {handler}
+    return True
+"""
+        assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_dns_error_diagnostics_then_raise_is_not_flagged(tmp_path):
+    """A diagnostic statement followed by an unconditional raise is fail closed."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        logger.warning("dns resolution failed")
+        raise
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dns_error_handler_direct_success_is_detected(tmp_path):
+    """Returning success directly from resolver failure is an explicit fail-open path."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        return True
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
 def test_equivalent_late_empty_host_guard_before_success_is_not_flagged(tmp_path):
     """Accept an equivalent unconditional rejection anywhere before success."""
     source = """\
