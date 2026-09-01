@@ -1,10 +1,13 @@
-"""Regression boundaries for restored Bearer credentials after DNS preflight."""
+"""Regression boundaries for Bearer credentials added after DNS preflight."""
 
 from pathlib import Path
 
 from scanner.cli.appguardrail import _scan_file
 
-_RULE_ID = "python-bearer-preflight-dns-toctou"
+_RULE_IDS = {
+    "python-bearer-preflight-dns-toctou",
+    "python-bearer-preflight-dns-toctou-header-mutation",
+}
 
 
 def _scan_source(tmp_path: Path, source: str):
@@ -13,8 +16,51 @@ def _scan_source(tmp_path: Path, source: str):
     return [
         finding
         for finding in _scan_file(source_file, tmp_path)
-        if finding["rule_id"] == _RULE_ID
+        if finding["rule_id"] in _RULE_IDS
     ]
+
+
+def test_direct_add_header_creates_bearer_path(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint, data=b"{}")
+    req.add_header("Authorization", f"Bearer {api_key}")
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _scan_source(tmp_path, source)
+    assert len(findings) == 1
+    assert findings[0]["rule_id"] == "python-bearer-preflight-dns-toctou-header-mutation"
+
+
+def test_direct_header_assignment_creates_bearer_path(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint)
+    req.headers["Authorization"] = "Bearer " + api_key
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _scan_source(tmp_path, source)
+    assert len(findings) == 1
+    assert findings[0]["rule_id"] == "python-bearer-preflight-dns-toctou-header-mutation"
+
+
+def test_direct_non_bearer_header_does_not_create_path(tmp_path):
+    source = """\
+def deliver(url):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint)
+    req.add_header("Authorization", "Basic fixed")
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
 
 
 def test_remove_then_add_header_restores_bearer_path(tmp_path):
