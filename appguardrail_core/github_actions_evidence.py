@@ -191,11 +191,14 @@ def verify_actions_job(
         raise EvidenceValidationError("job run id does not match run id")
 
     run_url = _required_text(run.get("html_url"), "run URL", 500)
-    if not _matches_actions_url(run_url, normalized_repository, run_id):
+    canonical_repository = _actions_url_repository(
+        run_url, normalized_repository, run_id
+    )
+    if canonical_repository is None:
         raise EvidenceValidationError("run id and run URL do not match")
 
     job_url = _required_text(job.get("html_url"), "job URL", 600)
-    if not _matches_actions_url(job_url, normalized_repository, run_id, job_id):
+    if not _matches_actions_url(job_url, canonical_repository, run_id, job_id):
         raise EvidenceValidationError("job URL does not match repository, run, and job ids")
 
     head_sha = _required_text(run.get("head_sha"), "head SHA", 40).lower()
@@ -236,7 +239,7 @@ def verify_actions_job(
     branch_name = _optional_text(run.get("head_branch"), 255)
     event_name = _required_text(run.get("event"), "event name", 100)
     source_projection = {
-        "repository": normalized_repository,
+        "repository": canonical_repository,
         "run": {
             "id": run_id,
             "name": workflow_name,
@@ -282,7 +285,7 @@ def verify_actions_job(
         schema_version=SCHEMA_VERSION,
         probe_ref=PROBE_REF,
         acquirer_ref=ACQUIRER_REF,
-        repository=normalized_repository,
+        repository=canonical_repository,
         workflow_name=workflow_name,
         job_name=job_name,
         run_id=run_id,
@@ -399,6 +402,30 @@ def _validate_repository(repository: Any) -> str:
     return repository
 
 
+def _actions_url_repository(
+    url: str,
+    repository: str,
+    run_id: int,
+    job_id: int | None = None,
+) -> str | None:
+    """Return authoritative repository spelling when an Actions URL binds exactly."""
+    match = re.fullmatch(
+        r"https://github\.com/([A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100})/actions/runs/([1-9][0-9]{0,19})(?:/job/([1-9][0-9]{0,19}))?",
+        url,
+    )
+    if match is None or match.group(1).casefold() != repository.casefold():
+        return None
+    if int(match.group(2)) != run_id:
+        return None
+    actual_job_id = match.group(3)
+    if job_id is None:
+        if actual_job_id is not None:
+            return None
+    elif actual_job_id is None or int(actual_job_id) != job_id:
+        return None
+    return match.group(1)
+
+
 def _matches_actions_url(
     url: str,
     repository: str,
@@ -406,18 +433,7 @@ def _matches_actions_url(
     job_id: int | None = None,
 ) -> bool:
     """Bind a GitHub Actions URL to a case-insensitive repository and exact IDs."""
-    match = re.fullmatch(
-        r"https://github\.com/([A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100})/actions/runs/([1-9][0-9]{0,19})(?:/job/([1-9][0-9]{0,19}))?",
-        url,
-    )
-    if match is None or match.group(1).casefold() != repository.casefold():
-        return False
-    if int(match.group(2)) != run_id:
-        return False
-    actual_job_id = match.group(3)
-    if job_id is None:
-        return actual_job_id is None
-    return actual_job_id is not None and int(actual_job_id) == job_id
+    return _actions_url_repository(url, repository, run_id, job_id) is not None
 
 
 def _positive_identifier(value: Any, label: str) -> int:
