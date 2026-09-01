@@ -116,7 +116,7 @@ function isDeployBlocking(f){
   return BLOCKING_SEV.has(sev) && !NON_BLOCKING.has(ctx);
 }
 function formatFindingCount(count){
-  return `${esc(count)} ${count === 1 ? 'finding' : 'findings'}`;
+  return `${count} ${count === 1 ? 'finding' : 'findings'}`;
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));}
 function safeUrl(u){
@@ -183,13 +183,13 @@ function render(){
     const isSelected = filterSev === s;
     const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
     return `
-    <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${esc(counts[s])}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
+    <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
       <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
-      <div class="n">${esc(counts[s])}</div>
+      <div class="n">${counts[s]}</div>
     </div>`;
   }).join('');
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
-    `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${esc(n)}</span></div>`).join('');
+    `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
 
   const filtered = ALL
     .map((f,i)=>({f,i}))
@@ -199,14 +199,14 @@ function render(){
   const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
     ? allFindingsText
-    : `${esc(filtered.length)} of ${allFindingsText}`;
-  const gateText = `${esc(blocking)} deploy-blocking (gate ${blocking?'active':'clear'})`;
+    : `${filtered.length} of ${allFindingsText}`;
+  const gateText = `${blocking} deploy-blocking (gate ${blocking?'active':'clear'})`;
   const summaryText = `${findingsText} · ${gateText}`;
 
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
     const block = isDeployBlocking(f);
-    return `<tr data-i="${esc(i)}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
+    return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
       <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
@@ -217,9 +217,9 @@ function render(){
 
   app.innerHTML = `
     <h1>Dashboard</h1>
-    <p class="sub">${findingsText} · <strong>${esc(blocking)}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
+    <p class="sub">${findingsText} · <strong>${blocking}</strong> deploy-blocking (gate ${blocking?'active':'clear'})</p>
     <div class="cards">${cards}
-      <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${esc(blocking)}</div></div>
+      <div class="card"><div class="lbl"><span class="dot" style="background:var(--primary)"></span>Deploy-blocking</div><div class="n">${blocking}</div></div>
     </div>
     <div class="grid2">
       <div class="panel"><h2>Findings by category</h2><div class="rowlist">${catRows||'<div class="r">—</div>'}</div></div>
