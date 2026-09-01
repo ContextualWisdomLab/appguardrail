@@ -1,7 +1,7 @@
 rules:
   - id: python-ssrf-empty-host-fail-open
     patterns:
-      - pattern-regex: '(?is)\b(?P<host>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\(?(?:[A-Za-z_][A-Za-z0-9_]*\.)?hostname\s+or\s*["\x27]["\x27]\)?(?:\.lower\s*\(\s*\))?(?!(?:(?!\bsocket\.getaddrinfo\b).){0,1200}\bif\s+(?:not\s+(?P=host)|(?P=host)\s*(?:==|is)\s*(?:None|["\x27]["\x27]))\s*:\s*(?:#[^\n]*\n[ \t]*)?(?:return\s+False|raise\b))(?:(?!\bsocket\.getaddrinfo\b).){0,1200}\bsocket\.getaddrinfo\s*\([^\)]*\)(?:(?!\bexcept\s+socket\.gaierror\b).){0,1600}\bexcept\s+socket\.gaierror\s*:\s*(?:#[^\n]*\n[ \t]*)*pass(?:(?!\breturn\s+True\b).){0,800}\breturn\s+True\b'
+      - pattern-regex: '(?is)\b(?P<host>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\(?(?:[A-Za-z_][A-Za-z0-9_]*\.)?hostname\s+or\s*["\x27]["\x27]\)?(?:\.lower\s*\(\s*\))?(?!(?:(?!\breturn\s+True\b).){0,3600}\bif\s+(?:not\s+(?P=host)|(?P=host)\s*(?:==|is)\s*(?:None|["\x27]["\x27]))\s*:\s*(?:#[^\n]*\n[ \t]*)?(?:return\s+False|raise\b))(?:(?!\bsocket\.getaddrinfo\b).){0,1200}\bsocket\.getaddrinfo\s*\([^\)]*\)(?:(?!\bexcept\s+socket\.gaierror\b).){0,1600}\bexcept\s+socket\.gaierror\s*:\s*(?:#[^\n]*\n[ \t]*)*pass(?:(?!\breturn\s+True\b).){0,800}\breturn\s+True\b'
     message: |
       URL validation derives a possibly empty hostname, treats DNS resolution failure
       as non-fatal, and can still return success. Reject an empty hostname before DNS
