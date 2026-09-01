@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2026-08-30 - Interactive Table Row Async Guards
+**Learning:** Depending solely on `pointer-events: none` via CSS to visually disable loading rows is an accessibility anti-pattern. While it stops mouse interactions, it fails to block keyboard (Enter/Space) events and removes the element's focusability for screen readers on mobile devices.
+**Action:** When mapping the semantic `aria-busy="true"` state to visual loading styles, always pair the CSS with explicit JavaScript event guards (`if (el.getAttribute('aria-busy') === 'true') return;`) in both the `click` and `keydown` event listeners to comprehensively prevent redundant interaction.
