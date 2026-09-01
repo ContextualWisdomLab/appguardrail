@@ -131,3 +131,7 @@
 **Vulnerability:** DOM Cross-Site Scripting (XSS) via unescaped metric outputs in `scanner/dashboard/console.html`.
 **Learning:** Variables such as statistics (e.g., scan id, counts) were populated dynamically into `innerHTML` tags without being sanitized by `esc()`. This omission permitted XSS vulnerabilities.
 **Prevention:** Continuously and uniformly wrap variables populated inside UI templating layers in escaping functions (e.g., `esc()`), no matter how ostensibly safe the underlying variable types appear to be (like scan totals or IDs).
+## 2026-08-28 - False Positive: DOM XSS in `console.html` interpolation
+**Vulnerability:** A detector flagged `s.id`, `s.total`, and dynamic statistical labels populated into `innerHTML` as DOM XSS.
+**Learning:** An `innerHTML` sink alone is insufficient to constitute DOM XSS. A detector or reviewer must prove that an *attacker-influenced string* can reach the HTML parsing context. In this case, `s.id` is a SQLite `lastrowid` (an integer), `s.total` and other metrics are integers computed server-side via `len()`/count operations, and the stats labels are static constants. None of these are attacker-controlled strings. The escaping applied is just defense-in-depth, not a fix for a reachable DOM-XSS path.
+**Prevention:** Do not classify `innerHTML` interpolations of server-generated integers or static constants as high-severity security defects. Only classify it as such if an attacker can manipulate the value into a payload (e.g. string reflection). Use this as a false-positive boundary example.
