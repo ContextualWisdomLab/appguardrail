@@ -108,6 +108,23 @@ def is_safe_url(url):
     assert len(_scan_source(tmp_path, source)) == 1
 
 
+def test_direct_hostname_none_guard_is_not_flagged(tmp_path):
+    """A direct hostname assignment is safe when missing None is rejected."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname
+    if host is None:
+        return False
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
+
+
 def test_empty_fallback_with_inline_comment_is_detected(tmp_path):
     """A trailing comment must not hide an explicitly empty fallback."""
     source = """\
