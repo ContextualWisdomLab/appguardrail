@@ -1,0 +1,16 @@
+rules:
+  - id: python-bearer-preflight-dns-toctou
+    patterns:
+      - pattern-regex: '(?imsx)^(?P<defindent>[ \t]*)(?:async[ \t]+)?def[ \t]+[A-Za-z_][A-Za-z0-9_]*[^\n]*:[ \t]*\n(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,6000}?if[ \t]+not[ \t]+_is_safe_url[ \t]*\([ \t]*(?P<url>[A-Za-z_][A-Za-z0-9_]*)[ \t]*\)[ \t]*:(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,3000}?(?P<endpoint>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?P=url)\.rstrip[ \t]*\([^\n]*\)(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,3000}?(?P<req>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*urllib\.request\.Request[ \t]*\((?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,2000}?(?P=endpoint)\b(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,2000}?headers[ \t]*=[ \t]*\{(?:(?!\}).){0,1000}?["\x27]Authorization["\x27][ \t]*:[ \t]*(?:f?["\x27]Bearer[ \t]+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*[A-Za-z_][A-Za-z0-9_]*)(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,3000}?(?:(?P=req)\.remove_header[ \t]*\([ \t]*["\x27]Authorization["\x27][ \t]*\)|(?P=req)\.headers\.pop[ \t]*\([ \t]*["\x27]Authorization["\x27][^\n]*\)|del[ \t]+(?P=req)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\])(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,1500}?(?:(?P=req)\.(?:add_header|add_unredirected_header)[ \t]*\([ \t]*["\x27]Authorization["\x27][ \t]*,[ \t]*(?:f?["\x27]Bearer[ \t]+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*[A-Za-z_][A-Za-z0-9_]*)|(?P=req)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\][ \t]*=[ \t]*(?:f?["\x27]Bearer[ \t]+\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"\x27\n]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*[A-Za-z_][A-Za-z0-9_]*))(?:(?!^(?P=defindent)(?:async[ \t]+)?def\b|^(?P=defindent)class\b).){0,1500}?urllib\.request\.urlopen[ \t]*\([ \t]*(?:\n[ \t]+)?(?P=req)\b'
+    message: |
+      A bearer-authenticated urllib request is dispatched after a separate URL-safety
+      preflight even though an Authorization header was removed and then restored.
+      Restoring the Bearer credential re-establishes the credential-bearing DNS
+      re-resolution path; connect through the already-validated address set instead.
+      [CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition]
+      [CWE-918 - Server-Side Request Forgery]
+    severity: HIGH
+    languages: [python]
+    prefilter: [_is_safe_url, urllib.request.Request, Authorization, Bearer, urllib.request.urlopen]
+    cwe: [CWE-367, CWE-918]
+    owasp: [A10:2021]
