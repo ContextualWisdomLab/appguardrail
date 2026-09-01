@@ -56,12 +56,79 @@ def test_historical_bearer_preflight_flow_is_detected(tmp_path):
     assert "CWE-918" in finding["cwe"]
 
 
-def test_reviewed_pinned_https_repair_is_not_flagged(tmp_path):
-    """The protected transport connects to the validated address set itself."""
+def test_isolated_pinned_opener_repair_is_not_flagged(tmp_path):
+    """Changing only the connection primitive to a pinned opener is sufficient."""
     assert not _scan_source(
         tmp_path,
         _fixture("appguardrail_bearer_dns_toctou_fixed.py"),
     )
+
+
+def test_protected_pinned_https_repair_is_not_flagged(tmp_path):
+    """Keep the actual protected PR #898 transport repair as a negative oracle."""
+    assert not _scan_source(
+        tmp_path,
+        _fixture("appguardrail_bearer_dns_toctou_protected.py"),
+    )
+
+
+def test_custom_pinned_opener_is_not_assumed_to_reresolve(tmp_path):
+    """An arbitrary opener is not evidence that the network layer repeats DNS."""
+    source = """\
+def deliver(url, payload, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    opener = DNSPinnedOpener(validated_url=url)
+    return opener.open(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_commented_request_and_dispatch_are_not_executable_evidence(tmp_path):
+    """Comments cannot donate a bearer request or second-resolution sink."""
+    source = """\
+def deliver(url, payload, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    # req = urllib.request.Request(
+    #     endpoint,
+    #     headers={"Authorization": f"Bearer {api_key}"},
+    # )
+    # return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_mutually_exclusive_request_and_dispatch_are_not_one_path(tmp_path):
+    """Evidence from opposite branches cannot form one executable vulnerable path."""
+    source = """\
+def deliver(url, payload, api_key, construct):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    if construct:
+        req = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+            },
+        )
+    else:
+        return urllib.request.urlopen(req, timeout=5)
+    return None
+"""
+    assert not _scan_source(tmp_path, source)
 
 
 def test_unauthenticated_urllib_delivery_is_not_flagged(tmp_path):
