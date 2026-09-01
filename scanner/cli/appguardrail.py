@@ -58,7 +58,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
-from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
@@ -1045,9 +1044,7 @@ def _compile_yaml_regex_rule(rule):
                 "extensions": extensions,
                 "include_paths": rule.get("include_paths") or [],
                 "exclude_paths": rule.get("exclude_paths") or [],
-                "required_substrings": tuple(
-                    rule.get("required_substrings") or ()
-                ),
+                "required_substrings": tuple(rule.get("required_substrings") or ()),
             }
         )
     return compiled_rules
@@ -1331,9 +1328,45 @@ def _detect_scan_languages(files):
     return detect_language_axes(files)
 
 
+def _secure_which(name: str) -> str | None:
+    """Safely resolve an executable path within trusted system directories."""
+    executable = shutil.which(name)
+    if not executable:
+        return None
+
+    try:
+        resolved_path = Path(executable).resolve()
+        trusted_roots = [
+            Path("/usr/bin").resolve(),
+            Path("/usr/local/bin").resolve(),
+            Path("/bin").resolve(),
+            Path("/sbin").resolve(),
+            Path("/opt/homebrew/bin").resolve(),
+        ]
+        if sys.executable:
+            trusted_roots.append(Path(sys.executable).parent.resolve())
+
+        # CI environments often inject shim scripts (like codegraph) via runner environment directories
+        if "GITHUB_ACTIONS" in os.environ:
+            if "RUNNER_TEMP" in os.environ:
+                trusted_roots.append(Path(os.environ["RUNNER_TEMP"]).resolve())
+            if "RUNNER_TOOL_CACHE" in os.environ:
+                trusted_roots.append(Path(os.environ["RUNNER_TOOL_CACHE"]).resolve())
+
+        for root in trusted_roots:
+            if str(resolved_path).startswith(str(root) + "/") or str(
+                resolved_path
+            ) == str(root):
+                return str(resolved_path)
+    except Exception:
+        pass
+
+    return None
+
+
 def _external_tool_available(name: str, version_args=("--version",)):
     """Return a runnable external tool path, or None for missing/broken tools."""
-    executable = shutil.which(name)
+    executable = _secure_which(name)
     if not executable:
         return None
     try:
@@ -1693,6 +1726,13 @@ def _push_findings(url, findings):
     """POST normalized findings through DNS-pinned public HTTPS."""
     import urllib.parse
 
+    if not _is_safe_url(url):
+        _console_print(
+            "❌ URL must be a public HTTPS URL without credentials, query parameters, or fragments.",
+            file=sys.stderr,
+        )
+        return
+
     api_key = os.environ.get("APPGUARDRAIL_API_KEY", "")
     if not api_key:
         _console_print(
@@ -1725,9 +1765,7 @@ def _push_findings(url, findings):
 
     base_path = parsed.path.rstrip("/")
     endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
-    endpoint = urllib.parse.urlunsplit(
-        ("https", parsed.netloc, endpoint_path, "", "")
-    )
+    endpoint = urllib.parse.urlunsplit(("https", parsed.netloc, endpoint_path, "", ""))
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
@@ -2504,10 +2542,10 @@ def _trivy_findings(report: dict, base_path: Path):
 
 def _run_trivy_fs(scan_path: Path):
     """Run Trivy filesystem scanning and return normalized findings."""
-    trivy = shutil.which("trivy")
+    trivy = _secure_which("trivy")
     if not trivy:
         raise RuntimeError(
-            "trivy executable not found. Install Trivy or run without --trivy."
+            "trivy executable not found in trusted directories. Install Trivy securely or run without --trivy."
         )
 
     try:
@@ -2579,9 +2617,9 @@ def _bandit_findings(report: dict, base_path: Path):
 
 def _run_bandit_scan(scan_path: Path):
     """Run Bandit Python SAST and return normalized findings."""
-    bandit = shutil.which("bandit")
+    bandit = _secure_which("bandit")
     if not bandit:
-        raise RuntimeError("bandit executable not found.")
+        raise RuntimeError("bandit executable not found in trusted directories.")
 
     command = [bandit, "-f", "json", "-q"]
     if scan_path.is_dir():
@@ -2650,9 +2688,9 @@ def _ruff_findings(report: list, base_path: Path):
 
 def _run_ruff_security_scan(scan_path: Path):
     """Run Ruff's Bandit-compatible security rules and return findings."""
-    ruff = shutil.which("ruff")
+    ruff = _secure_which("ruff")
     if not ruff:
-        raise RuntimeError("ruff executable not found.")
+        raise RuntimeError("ruff executable not found in trusted directories.")
 
     try:
         process = subprocess.run(  # noqa: S603 - Ruff path resolved with shutil.which
@@ -2734,9 +2772,9 @@ def _semgrep_findings(report: dict, base_path: Path):
 
 def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
     """Run Semgrep multi-language SAST and return normalized findings."""
-    semgrep = shutil.which("semgrep")
+    semgrep = _secure_which("semgrep")
     if not semgrep:
-        raise RuntimeError("semgrep executable not found.")
+        raise RuntimeError("semgrep executable not found in trusted directories.")
 
     config = config or "auto"
     try:
@@ -2813,9 +2851,15 @@ def _run_zap_baseline(target_url: str):
     """Run OWASP ZAP baseline scan against an explicit URL."""
     if not target_url or not re.match(r"^https?://", target_url):
         raise RuntimeError("--zap-baseline requires an http(s) URL.")
-    zap = shutil.which("zap-baseline.py")
+    if not _is_safe_url(target_url):
+        raise RuntimeError(
+            "Refusing to run ZAP baseline against a local or unsafe network destination (SSRF protection)."
+        )
+    zap = _secure_which("zap-baseline.py")
     if not zap:
-        raise RuntimeError("zap-baseline.py executable not found.")
+        raise RuntimeError(
+            "zap-baseline.py executable not found in trusted directories."
+        )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
@@ -2893,10 +2937,10 @@ def _run_codegraph_command(command, cwd: Path, action: str):
 
 def _run_codegraph_index(scan_path: Path):
     """Initialize or sync the CodeGraph index for the scanned path."""
-    codegraph = shutil.which("codegraph")
+    codegraph = _secure_which("codegraph")
     if not codegraph:
         raise RuntimeError(
-            "codegraph executable not found. Install CodeGraph before using --codegraph."
+            "codegraph executable not found in trusted directories. Install CodeGraph before using --codegraph."
         )
 
     workdir = scan_path if scan_path.is_dir() else scan_path.parent
