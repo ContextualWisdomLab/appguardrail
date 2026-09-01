@@ -128,7 +128,8 @@
 **Learning:** Network endpoints must explicitly validate the data type of user-provided configurations prior to execution or storage. Furthermore, webhooks configured by users should always be checked for SSRF when saved, as trusting them later assumes input has already been safely validated, bypassing downstream network guardrails.
 **Prevention:** Apply `_is_safe_url` checks directly upon ingestion (e.g., in `/api/v1/webhook`) and enforce type checks `if not isinstance(url, str): return False` prior to using library parsing functions like `urlparse`. Always return gracefully failing responses (like `400 Bad Request`) for unsafe URLs instead of allowing unhandled 500 server errors.
 
-## 2024-08-28 - [Escape Backticks in JS Sanitization]
-**Vulnerability:** The `esc` function in `scanner/dashboard/console.html` failed to escape backticks (`` ` ``), which can lead to XSS when rendering user input in template literals.
-**Learning:** Custom vanilla JS HTML escaping functions must explicitly encode backticks (as `&#96;`) and single quotes to provide defense-in-depth against XSS when contexts change.
-**Prevention:** Standardize HTML sanitization patterns to always include backticks and single quotes.
+
+## 2024-08-28 - [False Positive: Template Literal Injection via runtime interpolation]
+**Vulnerability:** A static analyzer or heuristic incorrectly flagged unescaped backticks in `esc()` as a DOM XSS vector during runtime template literal interpolation.
+**Learning:** `esc(value)` is evaluated as a JS expression *after* the template literal is already parsed. A backtick inside a returned runtime string cannot break out of that string. Thus, backticks do not need escaping for this specific sink to prevent XSS.
+**Prevention:** When writing security rules, distinguish between static source-code construction (where unescaped backticks are dangerous) and runtime interpolation values (where they are safe).
