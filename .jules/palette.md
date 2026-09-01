@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-05-18 - Replacing Native File Inputs with Styled Proxy Buttons
+**Learning:** Browsers natively suppress `change` events on `<input type="file">` if the user selects the same file path sequentially. Additionally, native file inputs can be difficult to style consistently. Using a visually hidden input (`hidden` attribute) combined with a styled proxy `<button>` solves these issues. When using a proxy button whose text perfectly describes the action (e.g., 'Upload findings file'), an additional `aria-label` is not needed due to the 'label-in-name' principle, preventing duplicate accessible names between the proxy and hidden input.
+**Action:** When working on file upload interactions, prefer the proxy pattern. Visually hide the native input using `hidden` and trigger it using a styled button via `addEventListener` for `click`. Ensure the input value is cleared `fileInput.value = ''` during the change event to allow re-uploading the same file.
