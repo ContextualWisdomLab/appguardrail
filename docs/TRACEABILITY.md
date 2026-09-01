@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-09-01
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| empty-host DNS-resolution fail-open SSRF validator | control-plane fail-closed guard plus built-in `python-ssrf-empty-host-fail-open` rule | PR #1068 active-PR; historical vulnerable/fixed fixtures and production `_scan_file` regression are review evidence until protected integration |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,8 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+PR #1068 extends the same prevention-versus-detection discipline to empty-host URL validation. Its source authority is protected base `develop@57f6cbdbc5df3efe3e6cb4f759c76c35558f5c5b`, where `appguardrail_core/controlplane.py` blob `576b990f13b61eda5c6b5ff3910e820498bfd923` allowed a missing parsed hostname to reach `socket.getaddrinfo`, ignored `socket.gaierror`, and could return success. The active PR adds the fail-closed runtime guard separately from the `python-ssrf-empty-host-fail-open` detector. Executable detector evidence is `tests/test_ssrf_empty_host_validator_rule.py`, using `tests/fixtures/security_corpus/appguardrail_empty_host_ssrf_vulnerable.py` as the positive oracle and `appguardrail_empty_host_ssrf_fixed.py` as the reviewed negative oracle. The detector is intentionally bounded to this Python hostname/getaddrinfo/gaierror control-flow family and does not claim general interprocedural SSRF analysis.
 
 ## Standards/research
 
