@@ -1,0 +1,34 @@
+rules:
+  - id: python-scim-put-tombstone-resurrection
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*@scim_router\.put\(\s*["'']/Users/\{user_id\}["'']\s*\)\s*^[ \t]*def\s+replace_user\s*\((?:(?!^[ \t]*\)).){0,1600}?\)\s*(?:->[^:]{0,200})?:\s*(?:(?!^[ \t]*(?:async\s+)?def\s|^[ \t]*@scim_router\.|get_user_attribute\s*\(|TOMBSTONE_ATTRIBUTE_KEY|merged_into_user_id).){0,5000}?account\s*=\s*_to_user_account\s*\(\s*resource\b(?:(?!^[ \t]*(?:async\s+)?def\s|^[ \t]*@scim_router\.|get_user_attribute\s*\(|TOMBSTONE_ATTRIBUTE_KEY|merged_into_user_id).){0,1500}?provisioner\.replace_user\s*\(\s*user_id\s*,\s*account\s*\)'
+    message: |
+      A SCIM full-replacement endpoint can overwrite a merged-account tombstone
+      without first checking the immutable merged state. Because a SCIM User
+      resource can default active state and PUT replaces mutable attributes, an
+      upstream synchronization can resurrect a decommissioned duplicate or erase
+      the survivor pointer. Reject replacement of tombstoned identities before
+      calling the provisioning replacement sink and serialize that check with the
+      merge operation.
+      [CWE-841 - Improper Enforcement of Behavioral Workflow]
+    severity: HIGH
+    languages: [python]
+    prefilter: ["@scim_router.put", "def replace_user", "_to_user_account(", "provisioner.replace_user("]
+    cwe: [CWE-841]
+
+  - id: python-healthcheck-unrestricted-url-scheme
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*def\s+main\s*\(\s*url\s*:\s*str\s*=\s*DEFAULT_URL\s*\)\s*(?:->[^:]{0,100})?:\s*(?:(?!^[ \t]*def\s|urlsplit\s*\(|_open_health_url\s*\().){0,3000}?urllib\.request\.urlopen\s*\(\s*url\b'
+    message: |
+      A configurable healthcheck URL is passed directly to Python's default
+      urllib opener without first restricting the scheme. The standard opener
+      can include handlers beyond HTTP(S), including local-file and FTP schemes.
+      Constrain the initial URL and redirects to the intended HTTP(S) protocols,
+      or use an opener that contains only the allowed protocol handlers. Treat
+      this as defense-in-depth unless the healthcheck URL is independently shown
+      to cross an untrusted product boundary.
+      [CWE-918 - Server-Side Request Forgery (SSRF)]
+    severity: MEDIUM
+    languages: [python]
+    prefilter: ["def main(url", "DEFAULT_URL", "urllib.request.urlopen(url"]
+    cwe: [CWE-918]
