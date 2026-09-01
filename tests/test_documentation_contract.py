@@ -87,8 +87,9 @@ def test_integrated_ssrf_controls_are_promoted_but_distinct() -> None:
     assert "scanner detection" in detector_claim
     assert "python-stored-ssrf-webhook-url" in detector_claim
 
-    active_issue_claim = _single_line_with(prd, "PR #911", "active-PR")
-    assert "no-exclusions registry" in active_issue_claim
+    historical_issue_claim = _single_line_with(prd, "PR #911", "closed unmerged")
+    assert "historical inventory/prototype evidence" in historical_issue_claim
+    assert "active-PR capability" in historical_issue_claim
 
     detector_trace = _single_line_with(
         traceability,
@@ -100,10 +101,11 @@ def test_integrated_ssrf_controls_are_promoted_but_distinct() -> None:
 
     issue_trace = _single_line_with(
         traceability,
-        "every retained issue claim mapped to executable detector obligation",
-        "PR #911 active-PR",
+        "broad every-issue executable obligation coverage",
+        "historical PR #911 closed as an inventory prototype",
     )
     assert "issue-detection audit" in issue_trace
+    assert "not implemented" in issue_trace
     assert "separate controls" in architecture
 
 

@@ -1,11 +1,11 @@
 # AppGuardrail Operability, Recovery, and Release Guide
 
 **Status:** Accepted operating baseline  
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-14
 
 ## Operating model
 
-AppGuardrail can run as a local/CI scanner, optional multi-tenant control plane, continuous GitHub monitor, and organization evidence aggregator. The product remains useful when optional external scanners or the control plane are absent; capability/unavailability must be explicit in evidence.
+AppGuardrail can run as a local/CI scanner, optional multi-tenant control plane, continuous GitHub monitor, source-authoritative evidence verifier, and organization evidence aggregator. The product remains useful when optional external scanners or the control plane are absent; capability/unavailability must be explicit in evidence.
 
 ## Scan health states
 
@@ -25,7 +25,10 @@ Do not collapse non-completion into “clean.”
 
 - scan completion/findings/blocker counts by engine/family;
 - detector false-positive/false-negative benchmark where maintained;
-- issue-obligation executable coverage after PR #911 integration;
+- source-authoritative acquisition pass/failure/inconclusive counts;
+- stale, duplicate, identity-mismatch, wrong-origin, and upstream API-error counts;
+- evidence age and acquisition latency by source repository;
+- detector-family executable obligation coverage after bounded vertical-slice integration;
 - engine unavailable/failure rate;
 - scan/control-plane latency and finding volume;
 - new blocker drift count;
@@ -40,6 +43,18 @@ Do not collapse non-completion into “clean.”
 ### Scanner
 
 Fix the first owning detector/adapter or input-classification boundary, add a regression, then rescan the exact target. Do not suppress a finding merely because a fix is inconvenient.
+
+### Source-authoritative GitHub Actions evidence
+
+Use the stable CLI exit code before deciding the next action:
+
+- `0`: persist the verified pass evidence and continue the protected workflow;
+- `1`: persist the verified failure evidence, block the affected gate, and open/update remediation;
+- `2`: treat the result as inconclusive; repair authentication, source identity, freshness, API availability, or malformed data and retry.
+
+For HTTP 403, confirm the token has Actions-read access to the exact private repository. For an identity mismatch, copy the run and job IDs from the same run and verify the owner/repository pair. For stale replay, increase `--max-age-hours` only to the approved historical interval; do not disable freshness. For duplicate digest, reuse the existing immutable evidence record. For API/proxy errors, preserve the bounded error code but never log the credential or response body.
+
+The acquirer intentionally has no internal retry loop. The caller may apply bounded retry only for transient transport or 5xx failures after distinguishing them from deterministic 4xx, identity, freshness, and validation failures. Every retry reacquires both run and job from the fixed API origin and revalidates the full contract.
 
 ### External engine
 
@@ -63,18 +78,18 @@ Webhook destination validation must be revisited when DNS resolution/redirect co
 
 ## Issue-to-detector audit operation
 
-After PR #911 merges, run the executable audit from authenticated retained issue inventory and closed evidence corpus. Fail if a detectable obligation lacks a detector family or detector execution is inconclusive. Historical issue count alone is not a success metric; obligation execution and evidence provenance are.
+Historical PR #911 remains an inventory prototype and must not be run as if it were protected-branch executable coverage. Issue #938/PR #939 establishes one bounded source-authoritative Actions evidence contract. Extend coverage only by adding a new authoritative acquirer/probe, independent oracle, mutation evidence, production entrypoint, and exact-head gates for each detector family.
 
 ## Upgrade and rollback
 
-1. review CHANGELOG/ADR/detector changes;
-2. run full detector/security/control-plane suite;
-3. compare finding set on representative benchmark repositories;
+1. review CHANGELOG/ADR/detector/acquirer changes;
+2. run full detector/security/control-plane and source-evidence suites;
+3. compare finding/evidence sets on representative benchmark repositories;
 4. rehearse persistent schema migration/rollback if changed;
 5. canary continuous monitor/control plane where deployed;
 6. retain previous package/image/db backup until new evidence is accepted;
-7. rollback software/config on regression and re-run the benchmark scan.
+7. rollback software/config on regression and re-run the benchmark scan and evidence replay.
 
 ## Release gate
 
-Release only from exact protected head with all required CI/security/review, 100% production coverage/docs, detector-obligation evidence, package/SBOM/provenance, persistent-state migration/recovery, control-plane auth/network security, CHANGELOG/version, and post-publish smoke. A merged detector PR is not a release by itself.
+Release only from exact protected head with all required CI/security/review, 100% production statement/branch coverage and docs, detector-obligation and source-authority evidence, package/SBOM/provenance, persistent-state migration/recovery, control-plane auth/network security, CHANGELOG/version, and post-publish smoke. A merged detector or acquirer PR is not a release by itself.
