@@ -17,11 +17,62 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+
+      - name: Verify protected release source
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin develop
+          protected_sha="$(git rev-parse origin/develop)"
+          if [ "$GITHUB_SHA" != "$protected_sha" ]; then
+            echo "::error::Release source $GITHUB_SHA is not the exact current protected develop tip $protected_sha."
+            exit 1
+          fi
+
+          project_version="$(
+            python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          tree = ast.parse(Path("scanner/cli/appguardrail.py").read_text(encoding="utf-8"))
+          for node in tree.body:
+              if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                  continue
+              targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+              if any(isinstance(target, ast.Name) and target.id == "__version__" for target in targets):
+                  value = ast.literal_eval(node.value)
+                  if not isinstance(value, str) or not value:
+                      raise SystemExit("__version__ must be a non-empty string")
+                  print(value)
+                  break
+          else:
+              raise SystemExit("missing __version__")
+          PY
+          )"
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              if [ "$GITHUB_REF" != "refs/heads/develop" ]; then
+                echo "::error::Manual publication must be dispatched from refs/heads/develop, not $GITHUB_REF."
+                exit 1
+              fi
+              ;;
+            push)
+              if [ "$GITHUB_REF" != "refs/tags/v${project_version}" ]; then
+                echo "::error::Release tag $GITHUB_REF does not match package version v${project_version}."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported release event: $GITHUB_EVENT_NAME"
+              exit 1
+              ;;
+          esac
 
       - name: Install build tooling
         run: |
@@ -38,6 +89,27 @@ jobs:
       - name: Check package distributions
         run: |
           python -m twine check dist/*
+
+      - name: Smoke test built wheel
+        run: |
+          set -euo pipefail
+          smoke_env="$RUNNER_TEMP/appguardrail-release-smoke"
+          python -m venv "$RUNNER_TEMP/appguardrail-release-smoke"
+          "$smoke_env/bin/python" -m pip install --disable-pip-version-check --no-deps dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$smoke_env/bin/appguardrail" --version
+          "$smoke_env/bin/python" - <<'PY'
+          from importlib.resources import files
+
+          rules = files("scanner.rules")
+          assert any(item.name.endswith(".yml") for item in rules.iterdir()), (
+              "packaged wheel is missing scanner rules"
+          )
+          scanner = files("scanner")
+          # scanner/dashboard resources are part of the published wheel contract.
+          assert (scanner / "dashboard" / "index.html").is_file()
+          assert (scanner / "dashboard" / "console.html").is_file()
+          PY
 
       - name: Generate release SBOM and provenance
         run: |
