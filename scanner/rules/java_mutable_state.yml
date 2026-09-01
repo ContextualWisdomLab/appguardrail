@@ -1,0 +1,18 @@
+rules:
+  - id: java-multipart-mutable-byte-array-exposure
+    patterns:
+      - pattern-regex: '(?isx)\b(?:public\s+)?(?:final\s+)?class\s+(?P<class>[A-Za-z_][A-Za-z0-9_]*)\s+implements[^{]{0,300}\bMultipartFile\b[^{]*\{(?:(?!\bclass\b).){0,6000}?private\s+final\s+byte\s*\[\s*\]\s+(?P<field>[A-Za-z_][A-Za-z0-9_]*)\s*;(?:(?:(?!\bclass\b).){0,8000}?public\s+(?P=class)\s*\((?:(?!\)).){0,1000}?byte\s*\[\s*\]\s+(?P<input>[A-Za-z_][A-Za-z0-9_]*)(?:(?!\)).)*\)\s*\{(?:(?!\}).){0,2000}?this\.(?P=field)\s*=\s*(?:(?P=input)|(?P=input)\s*==\s*null\s*\?\s*new\s+byte\s*\[\s*0\s*\]\s*:\s*(?P=input))\s*;|(?:(?!\bclass\b).){0,12000}?public\s+byte\s*\[\s*\]\s+getBytes\s*\(\s*\)(?:\s+throws[^{]+)?\s*\{(?:(?!\}).){0,400}?return\s+(?P=field)\s*;)'
+    message: |
+      A Spring MultipartFile implementation exposes mutable byte-array state by
+      retaining a caller-owned array without cloning it or by returning its private
+      byte-array field directly. Callers can alter bytes after validation or hashing,
+      violating upload integrity. Defensively copy mutable input in the constructor
+      and return a fresh copy from getBytes().
+      [CWE-374 - Passing Mutable Objects to an Untrusted Method]
+      [CWE-375 - Returning a Mutable Object to an Untrusted Caller]
+      [OWASP A08:2021 - Software and Data Integrity Failures]
+    severity: HIGH
+    languages: [java]
+    prefilter: ["MultipartFile", "getBytes"]
+    cwe: [CWE-374, CWE-375]
+    owasp: [A08:2021]
