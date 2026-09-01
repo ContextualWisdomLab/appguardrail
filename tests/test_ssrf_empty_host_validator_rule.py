@@ -1,0 +1,144 @@
+"""Regression tests for empty-host SSRF fail-open validator detection."""
+
+from pathlib import Path
+
+from scanner.cli.appguardrail import SCAN_RULES, _scan_file
+
+_RULE_ID = "python-ssrf-empty-host-fail-open"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "security_corpus"
+
+
+def _rule():
+    """Return the single packaged empty-host SSRF rule under test."""
+    matches = [rule for rule in SCAN_RULES if rule["id"] == _RULE_ID]
+    assert len(matches) == 1, f"expected one loaded rule for {_RULE_ID}"
+    return matches[0]
+
+
+def _fixture(name: str) -> str:
+    """Load one immutable security-corpus fixture."""
+    return (_FIXTURE_DIR / name).read_text(encoding="utf-8")
+
+
+def _scan_source(tmp_path, source: str):
+    """Run the production file scanner and isolate this detector's findings."""
+    source_file = tmp_path / "validator.py"
+    source_file.write_text(source, encoding="utf-8")
+    return [
+        finding
+        for finding in _scan_file(source_file, tmp_path)
+        if finding["rule_id"] == _RULE_ID
+    ]
+
+
+def test_packaged_rule_declares_bounded_ssrf_contract():
+    """Expose stable severity and cheap source prefilters for the detector."""
+    rule = _rule()
+    assert rule["severity"] == "HIGH"
+    assert rule["required_substrings"] == ("hostname", "getaddrinfo", "gaierror")
+
+
+def test_historical_vulnerable_fixture_is_detected_through_production_scan(tmp_path):
+    """Preserve the reviewed historical fail-open flow as a positive oracle."""
+    findings = _scan_source(
+        tmp_path,
+        _fixture("appguardrail_empty_host_ssrf_vulnerable.py"),
+    )
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding["severity"] == "HIGH"
+    assert finding["category"] == "ssrf"
+    assert "CWE-918 - Server-Side Request Forgery" in finding["cwe"]
+
+
+def test_reviewed_empty_host_guard_fixture_is_not_flagged(tmp_path):
+    """Do not flag the reviewed unconditional empty-host rejection."""
+    assert not _scan_source(
+        tmp_path,
+        _fixture("appguardrail_empty_host_ssrf_fixed.py"),
+    )
+
+
+def test_conditional_empty_host_guard_does_not_hide_fail_open_path(tmp_path):
+    """A nested guard is not a dominating rejection when its parent can be false."""
+    source = """\
+def is_safe_url(url, enforce):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    if enforce:
+        if not host:
+            return False
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_fail_closed_dns_error_is_not_flagged(tmp_path):
+    """A resolver failure that rejects the URL cannot create this fail-open path."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        return False
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_equivalent_late_empty_host_guard_before_success_is_not_flagged(tmp_path):
+    """Accept an equivalent unconditional rejection anywhere before success."""
+    source = """\
+def is_safe_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    raw = host.split(\"%\", 1)[0]
+    try:
+        socket.getaddrinfo(raw, None)
+    except socket.gaierror:
+        pass
+    if host == \"\":
+        return False
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_rule_does_not_cross_function_boundaries(tmp_path):
+    """Do not combine hostname parsing and DNS behavior from sibling functions."""
+    source = """\
+def parse_host(url):
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or \"\").lower()
+    return host
+
+
+def dns_probe(host):
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_unrelated_dns_probe_is_not_flagged(tmp_path):
+    """Generic DNS error handling without parsed-host validation is out of scope."""
+    source = """\
+def dns_probe(hostname):
+    try:
+        socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        pass
+    return True
+"""
+    assert not _scan_source(tmp_path, source)
