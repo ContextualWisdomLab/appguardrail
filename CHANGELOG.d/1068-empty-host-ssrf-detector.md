@@ -1,3 +1,0 @@
-- Harden Python URL validation against empty parsed hostnames before DNS/IP checks, closing the fail-open `socket.gaierror` path tracked by PR #1068.
-- Add HIGH built-in detector `python-ssrf-empty-host-fail-open` with historical vulnerable/fixed AppGuardrail fixtures and production-scanner positive/negative regression coverage.
-- Keep runtime prevention, CLI defense-in-depth, pinned HTTPS delivery, and scanner detection as separate evidence boundaries.
