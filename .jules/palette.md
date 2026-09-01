@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-09-01 - Redundant UI Events During Async Loading
+**Learning:** During asynchronous loading (e.g. `aria-busy="true"` on a clicked element), user clicks or keyboard interaction can repeatedly trigger event handlers unless explicitly prevented. CSS `pointer-events: none` only guards against mouse events, but keyboard (Enter, Space) or programmatic clicks still fire.
+**Action:** When an element is put into a loading/busy state, not only apply visual styles but also explicitly add a guard in all interaction listeners (e.g., `if (el.getAttribute("aria-busy") === "true") return;`) to ensure the request is not duplicated.
