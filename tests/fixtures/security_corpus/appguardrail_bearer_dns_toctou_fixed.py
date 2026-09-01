@@ -1,15 +1,20 @@
-"""Reviewed AppGuardrail repair for bearer-authenticated DNS rebinding."""
+"""Minimal repaired oracle for bearer-authenticated DNS rebinding TOCTOU."""
 
 
 def push_scan(url, payload, api_key):
-    """Dispatch through the transport that pins the validated address set."""
+    """Keep the vulnerable shape but make connection reuse validated addresses."""
+    if not _is_safe_url(url):
+        return None
+
     endpoint = url.rstrip("/") + "/api/v1/scans"
-    return post_json_pinned_https(
+    req = urllib.request.Request(
         endpoint,
-        payload,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
         },
-        timeout=15,
     )
+    opener = PinnedHTTPSOpener.from_validated_url(url)
+    return opener.open(req, timeout=15)
