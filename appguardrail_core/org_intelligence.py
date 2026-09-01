@@ -123,10 +123,24 @@ def build_org_inventory(
 ) -> OrgInventory:
     """Build a stable organization inventory from GitHub repo JSON."""
     repo_list = list(repos)
-    nonforks = [repo for repo in repo_list if not _truthy(repo.get("isFork"))]
-    forks = [repo for repo in repo_list if _truthy(repo.get("isFork"))]
-    primary_languages = Counter(_primary_language(repo) for repo in repo_list)
-    default_branches = Counter(_default_branch(repo) for repo in repo_list)
+    nonforks = []
+    forks = []
+    primary_languages = Counter()
+    default_branches = Counter()
+    private_repositories = 0
+
+    for repo in repo_list:
+        if _truthy(repo.get("isFork")):
+            forks.append(repo)
+        else:
+            nonforks.append(repo)
+
+        primary_languages[_primary_language(repo)] += 1
+        default_branches[_default_branch(repo)] += 1
+
+        if _truthy(repo.get("isPrivate")):
+            private_repositories += 1
+
     unsupported = sorted(
         {
             _primary_language(repo)
@@ -142,9 +156,7 @@ def build_org_inventory(
         total_repositories=len(repo_list),
         nonfork_repositories=len(nonforks),
         fork_repositories=len(forks),
-        private_repositories=sum(
-            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
-        ),
+        private_repositories=private_repositories,
         supported_nonfork_repositories=supported_nonforks,
         unsupported_nonfork_languages=tuple(unsupported),
         primary_language_counts=_sorted_counts(primary_languages),
