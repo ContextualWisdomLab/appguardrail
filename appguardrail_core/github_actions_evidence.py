@@ -191,15 +191,11 @@ def verify_actions_job(
         raise EvidenceValidationError("job run id does not match run id")
 
     run_url = _required_text(run.get("html_url"), "run URL", 500)
-    expected_run_url = (
-        f"https://github.com/{normalized_repository}/actions/runs/{run_id}"
-    )
-    if run_url != expected_run_url:
+    if not _matches_actions_url(run_url, normalized_repository, run_id):
         raise EvidenceValidationError("run id and run URL do not match")
 
     job_url = _required_text(job.get("html_url"), "job URL", 600)
-    expected_job_url = f"{expected_run_url}/job/{job_id}"
-    if job_url != expected_job_url:
+    if not _matches_actions_url(job_url, normalized_repository, run_id, job_id):
         raise EvidenceValidationError("job URL does not match repository, run, and job ids")
 
     head_sha = _required_text(run.get("head_sha"), "head SHA", 40).lower()
@@ -401,6 +397,27 @@ def _validate_repository(repository: Any) -> str:
     if owner in {".", ".."} or name in {".", ".."}:
         raise EvidenceValidationError("repository contains an invalid path segment")
     return repository
+
+
+def _matches_actions_url(
+    url: str,
+    repository: str,
+    run_id: int,
+    job_id: int | None = None,
+) -> bool:
+    """Bind a GitHub Actions URL to a case-insensitive repository and exact IDs."""
+    match = re.fullmatch(
+        r"https://github\.com/([A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100})/actions/runs/([1-9][0-9]{0,19})(?:/job/([1-9][0-9]{0,19}))?",
+        url,
+    )
+    if match is None or match.group(1).casefold() != repository.casefold():
+        return False
+    if int(match.group(2)) != run_id:
+        return False
+    actual_job_id = match.group(3)
+    if job_id is None:
+        return actual_job_id is None
+    return actual_job_id is not None and int(actual_job_id) == job_id
 
 
 def _positive_identifier(value: Any, label: str) -> int:
