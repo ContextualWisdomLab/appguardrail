@@ -44,3 +44,9 @@ def test_conditional_or_compound_falsy_returns_do_not_suppress_finding(tmp_path)
         "False or True",
     ):
         assert len(_scan_source(tmp_path, return_expression)) == 1
+
+
+def test_parenthesized_standalone_falsy_returns_are_fail_closed(tmp_path):
+    """Simple parentheses do not change a standalone falsy rejection."""
+    for return_expression in ("(None)", "(False)", "( None )", "( False )"):
+        assert not _scan_source(tmp_path, return_expression)
