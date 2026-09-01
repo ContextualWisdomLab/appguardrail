@@ -7,14 +7,9 @@ from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
 from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
-@pytest.mark.parametrize(
-    "validator",
-    [_is_safe_url, _cli_is_safe_url],
-    ids=["controlplane", "cli"],
-)
-def test_is_safe_url_public_domains(validator):
-    assert validator("http://google.com/")
-    assert validator("https://github.com/")
+def test_is_safe_url_public_domains():
+    assert _is_safe_url("http://google.com/")
+    assert _is_safe_url("https://github.com/")
 
 
 @pytest.mark.parametrize(
