@@ -7,9 +7,15 @@ from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
 from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
-def test_is_safe_url_public_domains():
-    assert _is_safe_url("http://google.com/")
-    assert _is_safe_url("https://github.com/")
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+def test_is_safe_url_public_domains(validator):
+    assert validator("http://google.com/")
+    assert validator("https://github.com/")
+
 
 @pytest.mark.parametrize(
     "validator",
@@ -86,10 +92,7 @@ def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
 
     _push_findings("http://127.0.0.1/", [])
     captured = capsys.readouterr()
-    assert (
-        "URL must be a public HTTPS URL"
-        in captured.err
-    )
+    assert "URL must be a public HTTPS URL" in captured.err
 
 
 def test_safe_redirect_handler_rejects_internal_target():
@@ -125,8 +128,12 @@ def test_safe_redirect_handler_allows_public_https(monkeypatch):
     )
     assert result is sentinel
 
-def test_is_safe_url_empty_hostname():
-    assert not _is_safe_url("http://")
-    assert not _is_safe_url("http://user@")
-    assert not _cli_is_safe_url("http://")
-    assert not _cli_is_safe_url("http://user@")
+
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+@pytest.mark.parametrize("url", ["http://", "http://user@"])
+def test_is_safe_url_empty_hostname(validator, url):
+    assert not validator(url)
