@@ -53,6 +53,20 @@ def deliver(url, api_key):
     assert [finding["rule_id"] for finding in findings] == [_PRIMARY]
 
 
+def test_spaced_one_line_initial_bearer_update_emits_one_primary_finding(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request( endpoint, headers={"Authorization": f"Bearer {api_key}"})
+    req.add_unredirected_header("Authorization", f"Bearer {api_key}")
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _family_findings(tmp_path, source)
+    assert [finding["rule_id"] for finding in findings] == [_PRIMARY]
+
+
 def test_initial_bearer_remove_then_restore_uses_mutation_finding(tmp_path):
     source = """\
 def deliver(url, api_key):
