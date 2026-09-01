@@ -53,6 +53,31 @@ def test_assigned_reviewed_opener_dispatch_is_detected(tmp_path):
     assert len(_scan_source(tmp_path, source)) == 1
 
 
+def test_endpoint_self_derivation_preserves_detection(tmp_path):
+    source = """\
+def push_scan(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/")
+    endpoint = endpoint + "/api/v1/scans"
+    req = urllib.request.Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    return urllib.request.urlopen(req)
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
+def test_request_preserving_reassignment_preserves_detection(tmp_path):
+    source = _prefix() + """\
+    req = req
+    response = urllib.request.urlopen(req)
+    return response
+"""
+    assert len(_scan_source(tmp_path, source)) == 1
+
+
 def test_unreachable_sink_after_body_return_is_not_flagged(tmp_path):
     source = _prefix() + """\
     return None
