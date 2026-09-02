@@ -1,0 +1,3 @@
+# Security
+
+- Add the packaged `github-actions-transport-only-poll-bound` detector for GitHub Actions review/control-plane polling loops whose retry budget covers only transport failures while the successful-no-result path can wait indefinitely. The regression corpus pins the verified `ContextualWisdomLab/.github` vulnerable predecessor `5c561a65cca3b925d533e4b40c5c3ac00f16524e` and protected wall-clock repair `e29302c05eade7da7b0bdbb453e53980bc9d577b`, with negative boundaries for total deadlines, finite total attempts, explicit job timeouts, comments, and non-workflow paths. See issue #1087.
