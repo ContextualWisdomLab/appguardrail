@@ -31,6 +31,18 @@ def test_homoglyph_detector_recognizes_minified_json_property_boundaries(tmp_pat
         assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
 
 
+def test_homoglyph_detector_does_not_treat_json_string_punctuation_as_key_boundary(
+    tmp_path,
+):
+    for payload in (
+        '{"description":"benign ,name: reаd_data prose"}',
+        '{"description":"benign {name: reаd_data} prose"}',
+    ):
+        manifest = tmp_path / "skill.json"
+        manifest.write_text(payload, encoding="utf-8")
+        assert HOMOGLYPH_RULE_ID not in _rule_ids(manifest, tmp_path)
+
+
 def test_homoglyph_detector_keeps_clean_json_name_negative(tmp_path):
     manifest = tmp_path / "skill.json"
     manifest.write_text(
