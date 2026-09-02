@@ -267,3 +267,32 @@ while :; do
 done
 """
     assert target not in _scan(tmp_path, shell)
+
+
+def test_unused_historical_transport_budget_is_not_transport_bound_evidence(
+    tmp_path: Path,
+) -> None:
+    """A named retry limit alone cannot fabricate the historical transport pattern."""
+    shell = """
+max_poll_transport_failures=3
+while :; do
+  if ! response="$(gh api repos/example/repo/pulls/7/reviews)"; then
+    continue
+  fi
+  sleep 30
+done
+"""
+    assert _HISTORICAL not in _scan(tmp_path, shell)
+
+
+def test_historical_transport_budget_requires_complete_counter_flow(tmp_path: Path) -> None:
+    """The source-incident counter/limit flow remains positive after precision repair."""
+    shell = f"""
+review_poll_failures=0
+max_poll_transport_failures=3
+while :; do
+{_historical_transport_branch()}
+  sleep 30
+done
+"""
+    assert _HISTORICAL in _scan(tmp_path, shell)
