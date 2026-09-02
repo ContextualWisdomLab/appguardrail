@@ -38,10 +38,10 @@ def test_provider_credentials_exist_only_at_the_trusted_sidecar_bootstrap() -> N
     post_model = _step_body(workflow, "Reject model credential disclosure")
 
     for secret_name in PROVIDER_SECRETS:
-        reference = f"secrets.{secret_name}"
-        assert workflow.count(reference) == 1
-        assert reference in sidecar
-        assert reference not in post_model
+        expression = "${{ secrets." + secret_name + " }}"
+        assert workflow.count(expression) == 1
+        assert expression in sidecar
+        assert expression not in post_model
 
 
 def test_post_model_disclosure_check_never_sources_control_plane_shell() -> None:
