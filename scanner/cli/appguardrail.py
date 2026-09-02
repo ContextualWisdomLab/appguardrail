@@ -1682,9 +1682,8 @@ def _is_safe_url(url: str) -> bool:
             if is_bad_ip(ip):
                 return False
     except socket.gaierror:
-        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
-        # This allows dummy domains in tests like `hook.example`.
-        pass
+        # Strict fail-closed on unresolvable domains
+        return False
     except ValueError:
         return False
 

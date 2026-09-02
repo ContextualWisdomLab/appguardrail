@@ -132,3 +132,7 @@
 **Vulnerability:** The `_is_safe_url` function did not explicitly check for empty hostnames (e.g. `http://` or `http://user@`).
 **Learning:** Python's `socket.getaddrinfo` throws a `socket.gaierror` when given an empty host, which the function caught and ignored to allow dummy domains, causing it to inadvertently return `True` for empty hosts.
 **Prevention:** Always explicitly fail validation when `hostname` is falsy before passing it to resolution functions.
+## 2026-09-02 - SSRF Empty Hostname Bypass and DNS Fail-Closed
+**Vulnerability:** The `_is_safe_url` validator failed open when provided an empty hostname (e.g., `http://`) because DNS resolution via `socket.getaddrinfo` threw a `socket.gaierror` which was silently caught and ignored.
+**Learning:** Exception handling intended to allow testing with unresolvable dummy domains unintentionally bypassed security checks for explicitly malicious payloads (like empty hostnames). Security boundaries must fail-closed on external network dependencies.
+**Prevention:** Validate inputs (like parsed hostnames) strictly *before* engaging external services (like DNS), and ensure network-related exceptions in security validators explicitly fail-closed (`return False`). Additionally, tests should use real routable IPs (like `8.8.8.8`) instead of dummy domains to allow validators to remain strict.

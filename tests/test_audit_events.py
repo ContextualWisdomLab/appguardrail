@@ -119,7 +119,7 @@ def test_secret_and_customer_evidence_fields_are_redacted_before_hashing() -> No
         {
             "api_key": "agk_super_secret",
             "authorization": "Bearer should-not-appear",
-            "webhook_url": "https://user:pass@hooks.example/x?token=hidden",
+            "webhook_url": "https://user:pass@8.8.8.8/x?token=hidden",
             "findings": [{"snippet": "customer secret"}],
             "safe": {
                 "role": "owner",
