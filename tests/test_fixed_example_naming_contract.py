@@ -3,7 +3,10 @@
 from pathlib import Path
 
 
-FIXED_EXAMPLE_README = Path("examples/fixed-vibe-app/README.md")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+FIXED_EXAMPLE_README = (
+    REPOSITORY_ROOT / "examples" / "fixed-vibe-app" / "README.md"
+)
 
 
 def test_fixed_example_uses_semantic_project_database_names() -> None:
@@ -17,7 +20,7 @@ def test_fixed_example_uses_semantic_project_database_names() -> None:
         "project_name TEXT NOT NULL",
         "project_payload JSONB",
         ".from('project_records')",
-        ".eq('project_id', params.projectId)",
+        ".eq('project_id', validatedProjectId)",
     )
     forbidden_owned_names = (
         "CREATE TABLE projects (",
@@ -33,3 +36,28 @@ def test_fixed_example_uses_semantic_project_database_names() -> None:
         assert semantic_name in example_text
     for generic_name in forbidden_owned_names:
         assert generic_name not in example_text
+
+
+def test_fixed_example_validates_protected_request_inputs() -> None:
+    """Require schema/parameter validation before protected sample operations."""
+    example_text = FIXED_EXAMPLE_README.read_text(encoding="utf-8")
+
+    required_validation_contracts = (
+        "projectIdSchema.safeParse(params.projectId)",
+        "checkoutRequestSchema.safeParse(",
+        "await httpRequest.json().catch(() => null)",
+        "adminRequestUrl.searchParams.keys()",
+        "Unexpected query parameters",
+    )
+    for validation_contract in required_validation_contracts:
+        assert validation_contract in example_text
+
+
+def test_fixed_example_preserves_existing_sample_api_surface() -> None:
+    """Naming repairs must not introduce unrelated sample API contract changes."""
+    example_text = FIXED_EXAMPLE_README.read_text(encoding="utf-8")
+
+    assert "return Response.json({ url: checkoutSession.url });" in example_text
+    assert "`app/api/admin/users/route.ts`" in example_text
+    assert "checkout_url" not in example_text
+    assert "`app/api/admin/user-accounts/route.ts`" not in example_text
