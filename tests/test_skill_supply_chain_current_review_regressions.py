@@ -31,6 +31,13 @@ def test_homoglyph_detector_recognizes_minified_json_property_boundaries(tmp_pat
         assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
 
 
+def test_homoglyph_detector_recognizes_line_start_flow_yaml_key(tmp_path):
+    manifest = tmp_path / "SKILL.md"
+    manifest.write_text("{name: reаd_data}\n", encoding="utf-8")
+
+    assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
+
+
 def test_homoglyph_detector_does_not_treat_json_string_punctuation_as_key_boundary(
     tmp_path,
 ):
