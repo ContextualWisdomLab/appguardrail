@@ -4,7 +4,7 @@
 
 See `../vulnerable-vibe-app/README.md` for the list of vulnerabilities that were fixed.
 
-The fixed example also follows the ContextualWisdomLab naming contract: organization-owned database objects and internal identifiers use bounded-context-specific multiword names. Vendor-owned fields such as NextAuth `session.user.id` and Supabase `auth.users(id)` remain unchanged at their adapter boundaries.
+The fixed example also follows the ContextualWisdomLab naming contract: organization-owned database objects and internal identifiers use bounded-context-specific multiword names. Vendor-owned fields such as NextAuth `session.user.id`, Zod parse-result `data`, and Supabase `auth.users(id)` remain unchanged at their adapter boundaries.
 
 ---
 
@@ -15,9 +15,12 @@ The fixed example also follows the ContextualWisdomLab naming contract: organiza
 `app/api/projects/[projectId]/route.ts`
 
 ```typescript
-// ✅ SECURE: Authentication + ownership verification
+// ✅ SECURE: Authentication + validated project identifier + ownership verification
 import { auth } from '@/auth';
 import { createClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const projectIdSchema = z.string().uuid();
 
 export async function GET(
   httpRequest: Request,
@@ -29,16 +32,23 @@ export async function GET(
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Step 2: Validate route input before using it in a database predicate.
+  const projectIdResult = projectIdSchema.safeParse(params.projectId);
+  if (!projectIdResult.success) {
+    return Response.json({ error: 'Invalid project identifier' }, { status: 400 });
+  }
+  const validatedProjectId = projectIdResult.data;
+
   const supabaseClient = createClient();
 
-  // Step 2: Fetch the project
+  // Step 3: Fetch the project
   const { data: projectRecord, error: projectQueryError } = await supabaseClient
     .from('project_records')
     .select('*')
-    .eq('project_id', params.projectId)
+    .eq('project_id', validatedProjectId)
     .single();
 
-  // Step 3: Verify ownership. `authSession.user.id` is NextAuth-owned.
+  // Step 4: Verify ownership. `authSession.user.id` is NextAuth-owned.
   if (
     projectQueryError ||
     !projectRecord ||
@@ -51,7 +61,7 @@ export async function GET(
 }
 ```
 
-**Fix:** Authentication check + server-side ownership verification. Returns 403 (not 404) on ownership violation.
+**Fix:** Authentication check + server-side UUID validation + ownership verification. Returns 403 (not 404) on ownership violation.
 
 ---
 
@@ -135,8 +145,16 @@ export async function POST(httpRequest: Request) {
 // ✅ SECURE: Price ID comes from environment, not the client
 import { auth } from '@/auth';
 import Stripe from 'stripe';
+import { z } from 'zod';
 
 const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+// Public request key `plan` is preserved; the validated internal name is `selectedPlan`.
+const checkoutRequestSchema = z
+  .object({
+    plan: z.enum(['pro_monthly', 'pro_annual']),
+  })
+  .strict();
 
 // Price IDs are defined server-side only
 const PRICE_IDS = {
@@ -150,13 +168,16 @@ export async function POST(httpRequest: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { plan: selectedPlan } = await httpRequest.json();
+  const checkoutRequestResult = checkoutRequestSchema.safeParse(
+    await httpRequest.json().catch(() => null)
+  );
+  if (!checkoutRequestResult.success) {
+    return Response.json({ error: 'Invalid checkout request' }, { status: 400 });
+  }
+  const selectedPlan = checkoutRequestResult.data.plan;
 
   // Look up the price server-side — never from client
-  const stripePriceId = PRICE_IDS[selectedPlan as keyof typeof PRICE_IDS];
-  if (!stripePriceId) {
-    return Response.json({ error: 'Invalid plan' }, { status: 400 });
-  }
+  const stripePriceId = PRICE_IDS[selectedPlan];
 
   const checkoutSession = await stripeClient.checkout.sessions.create({
     customer_email: authSession.user.email!,
@@ -166,7 +187,8 @@ export async function POST(httpRequest: Request) {
     cancel_url: `${process.env.NEXT_PUBLIC_URL}/pricing`,
   });
 
-  return Response.json({ checkout_url: checkoutSession.url });
+  // Preserve the sample's established public response key.
+  return Response.json({ url: checkoutSession.url });
 }
 ```
 
@@ -240,13 +262,19 @@ The example is a fresh illustrative schema rather than a migration of an existin
 
 ### 7. Admin Auth Check Added
 
-`app/api/admin/user-accounts/route.ts`
+`app/api/admin/users/route.ts`
 
 ```typescript
-// ✅ SECURE: Admin role verified server-side
+// ✅ SECURE: Admin role verified server-side and unsupported query input rejected
 import { auth } from '@/auth';
 
 export async function GET(httpRequest: Request) {
+  // This listing accepts no query parameters; fail closed on unexpected input.
+  const adminRequestUrl = new URL(httpRequest.url);
+  if ([...adminRequestUrl.searchParams.keys()].length > 0) {
+    return Response.json({ error: 'Unexpected query parameters' }, { status: 400 });
+  }
+
   const authSession = await auth();
 
   // Step 1: Require authentication
@@ -282,24 +310,35 @@ export async function GET(httpRequest: Request) {
 
 ## Security Tests
 
-Each fixed endpoint has corresponding tests:
+Each fixed endpoint has corresponding tests. Route fixtures use UUID-shaped project identifiers so identifier validation and ownership behavior are tested independently:
 
 ```typescript
 describe('GET /api/projects/[projectId]', () => {
+  const ownerUserId = '11111111-1111-4111-8111-111111111111';
+  const otherUserId = '22222222-2222-4222-8222-222222222222';
+  const ownerProjectId = '33333333-3333-4333-8333-333333333333';
+  const otherProjectId = '44444444-4444-4444-8444-444444444444';
+
   it('returns 401 when unauthenticated', async () => {
-    const httpResponse = await GET(request('/api/projects/test-id'));
+    const httpResponse = await GET(request(`/api/projects/${ownerProjectId}`));
     expect(httpResponse.status).toBe(401);
   });
 
+  it('returns 400 for an invalid project identifier', async () => {
+    mockSession({ user: { id: ownerUserId } });
+    const httpResponse = await GET(request('/api/projects/not-a-uuid'));
+    expect(httpResponse.status).toBe(400);
+  });
+
   it('returns 403 when accessing another user\\'s project', async () => {
-    mockSession({ user: { id: 'user-a' } });
-    const httpResponse = await GET(request('/api/projects/user-b-project-id'));
+    mockSession({ user: { id: ownerUserId } });
+    const httpResponse = await GET(request(`/api/projects/${otherProjectId}`));
     expect(httpResponse.status).toBe(403);
   });
 
   it('returns 200 for the project owner', async () => {
-    mockSession({ user: { id: 'user-a' } });
-    const httpResponse = await GET(request('/api/projects/user-a-project-id'));
+    mockSession({ user: { id: ownerUserId } });
+    const httpResponse = await GET(request(`/api/projects/${ownerProjectId}`));
     expect(httpResponse.status).toBe(200);
   });
 });
