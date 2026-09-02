@@ -1,3 +1,3 @@
 ### Changed
 
-- Increased the hourly NVIDIA OpenCode commercial-builder budget from 55 to 170 minutes so two-hour TDD, documentation, and full-verification slices can complete without weakening the PR-first, single-flight, default-branch, or independent-review boundaries.
+- Replaced the repository-authored 170-minute OpenCode job deadline with non-cancelling single-flight execution. Hourly runs remain serialized, but a later schedule tick no longer terminates an active reasoning or tool-execution slice solely because elapsed time crossed a local workflow budget; user, provider, platform, and administrative termination remain separate stop conditions.
