@@ -9,6 +9,7 @@ from scanner.cli.appguardrail import _scan_file
 
 _HISTORICAL_RULE = "github-actions-transport-only-poll-bound"
 _GENERIC_RULE = "github-actions-transport-failure-budget-poll-bound"
+_BREAK_ZERO_RULE = "github-actions-poll-invalid-break-zero"
 
 
 def _scan(tmp_path: Path, content: str) -> list[str]:
@@ -51,22 +52,24 @@ jobs:
 def test_historical_break_zero_remains_detectable(tmp_path: Path) -> None:
     """`break 0` is invalid shell syntax and cannot prove successful termination."""
     findings = _scan(tmp_path, _workflow(historical=True, termination="break 0"))
-    assert findings.count(_HISTORICAL_RULE) == 1
+    assert findings.count(_BREAK_ZERO_RULE) == 1
 
 
 def test_generic_break_zero_remains_detectable(tmp_path: Path) -> None:
-    """The renamed detector must not treat `break 0` as a finite healthy path."""
+    """The renamed family must retain a finding when `break 0` fails to terminate."""
     findings = _scan(tmp_path, _workflow(historical=False, termination="break 0"))
-    assert findings.count(_GENERIC_RULE) == 1
+    assert findings.count(_BREAK_ZERO_RULE) == 1
 
 
 def test_historical_positive_break_level_is_finite(tmp_path: Path) -> None:
     """A positive break level remains accepted as executable loop termination."""
     findings = _scan(tmp_path, _workflow(historical=True, termination="break 1"))
     assert _HISTORICAL_RULE not in findings
+    assert _BREAK_ZERO_RULE not in findings
 
 
 def test_generic_bare_break_is_finite(tmp_path: Path) -> None:
     """A bare break remains accepted as finite healthy-path termination."""
     findings = _scan(tmp_path, _workflow(historical=False, termination="break"))
     assert _GENERIC_RULE not in findings
+    assert _BREAK_ZERO_RULE not in findings
