@@ -1,3 +1,4 @@
+import socket
 import urllib.error
 import urllib.request
 
@@ -64,9 +65,13 @@ def test_is_safe_url_unsupported_schemes():
     assert not _is_safe_url("gopher://example.com")
 
 
-def test_is_safe_url_unresolvable_domain():
-    # An unresolvable domain is considered safe by _is_safe_url
-    assert _is_safe_url("http://this-domain-should-not-exist-12345.com/")
+def test_is_safe_url_unresolvable_domain_fails_closed(monkeypatch):
+    def _fail_resolution(*_args, **_kwargs):
+        raise socket.gaierror("synthetic unresolved host")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _fail_resolution)
+
+    assert not _is_safe_url("https://unresolved.example/hook")
 
 
 def test_is_safe_url_mapped_ips():
