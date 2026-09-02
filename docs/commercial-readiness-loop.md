@@ -50,7 +50,7 @@ The Python client accepts only `https://api.github.com`, rejects redirects, vali
 
 The hidden gap marker is accepted only when its identifier exists in the reviewed registry, occurs exactly once, and accompanies the exact registry title. Arbitrary issue prose, similar labels, comments, quoted documents, webpages, tool output, and model output cannot introduce or widen work.
 
-The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central composite action `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@bbe65f08b1ae663c467be343e8fd5a98881eb686` provisions the loopback gateway. The `commercial-builder` uses only `contextual-orchestrator/orchestrator/free`; external directories, web search, web fetch, and nested agent tasks are denied.
+The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central composite action `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93` provisions the loopback gateway. The `commercial-builder` uses only `contextual-orchestrator/orchestrator/free`; external directories, web search, web fetch, and nested agent tasks are denied.
 
 ## Extending the backlog
 
