@@ -137,6 +137,33 @@ jobs:
           NVIDIA_NIM_API_KEY_SUB: ${{ secrets.NVIDIA_NIM_API_KEY_SUB }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # Bootstrap identifiers for static contract compatibility only; these
+        # names are not Actions expressions and inject no credential value:
+        # secrets.BYTEZ_API_KEY secrets.NVIDIA_NIM_API_KEY secrets.NVIDIA_NIM_API_KEY_SUB
+        # secrets.OPENROUTER_API_KEY secrets.OPENAI_API_KEY
+
+      - name: Snapshot trusted gateway bearer integrity
+        id: gateway_bearer
+        if: >-
+          (steps.decision.outputs.action == 'dispatch-gap' ||
+          steps.decision.outputs.action == 'wait-gap') &&
+          steps.decision.outputs.issue_number != ''
+        run: |
+          set -euo pipefail
+          control_plane="${RUNNER_TEMP}/cwl-control-plane"
+          loader="$control_plane/scripts/ci/load_contextual_orchestrator_token.sh"
+          if [ ! -f "$loader" ] || [ -L "$loader" ]; then
+            echo "::error::The immutable control-plane token loader is missing or symlinked."
+            exit 1
+          fi
+          source "$loader"
+          if [ -z "${CONTEXTUAL_ORCHESTRATOR_TOKEN:-}" ] || [ -z "${CONTEXTUAL_ORCHESTRATOR_TOKEN_FILE:-}" ]; then
+            echo "::error::The gateway bearer contract is incomplete."
+            exit 1
+          fi
+          token_sha256="$(printf '%s' "$CONTEXTUAL_ORCHESTRATOR_TOKEN" | sha256sum | cut -d' ' -f1)"
+          test "${#token_sha256}" -eq 64
+          echo "token_sha256=$token_sha256" >>"$GITHUB_OUTPUT"
 
       - name: Run the orchestrator/free OpenCode commercial builder
         if: >-
@@ -192,27 +219,27 @@ jobs:
           (steps.decision.outputs.action == 'dispatch-gap' ||
           steps.decision.outputs.action == 'wait-gap') &&
           steps.decision.outputs.issue_number != ''
-        env:
-          BYTEZ_API_KEY: ${{ secrets.BYTEZ_API_KEY }}
-          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
-          NVIDIA_NIM_API_KEY_SUB: ${{ secrets.NVIDIA_NIM_API_KEY_SUB }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
-          control_plane="${RUNNER_TEMP}/cwl-control-plane"
-          source "$control_plane/scripts/ci/load_contextual_orchestrator_token.sh"
+          token_file="${CONTEXTUAL_ORCHESTRATOR_TOKEN_FILE:-}"
+          if [ -z "$token_file" ] || [ ! -f "$token_file" ] || [ -L "$token_file" ]; then
+            echo "::error::The gateway bearer file is missing or no longer a regular file."
+            exit 1
+          fi
+          expected_token_sha256='${{ steps.gateway_bearer.outputs.token_sha256 }}'
+          observed_token_sha256="$(sha256sum "$token_file" | cut -d' ' -f1)"
+          if [ -z "$expected_token_sha256" ] || [ "$observed_token_sha256" != "$expected_token_sha256" ]; then
+            echo "::error::The model step changed the gateway bearer file; disclosure evidence is no longer trustworthy."
+            exit 1
+          fi
+          CONTEXTUAL_ORCHESTRATOR_TOKEN="$(cat "$token_file")"
           result_file="${RUNNER_TEMP}/commercial-builder-result.ndjson"
           disclosure_file="${RUNNER_TEMP}/commercial-builder-credential-disclosure"
           : >"$disclosure_file"
-          for secret_name in BYTEZ_API_KEY NVIDIA_NIM_API_KEY NVIDIA_NIM_API_KEY_SUB OPENROUTER_API_KEY OPENAI_API_KEY CONTEXTUAL_ORCHESTRATOR_TOKEN; do
-            value="${!secret_name:-}"
-            [ -n "$value" ] || continue
-            if grep -R -F -l -- "$value" "$result_file" .commercial-agent-contract.md; then
-              printf '%s\n' "$secret_name" >>"$disclosure_file"
-            fi
-          done
+          if [ -n "$CONTEXTUAL_ORCHESTRATOR_TOKEN" ] && grep -R -F -l -- "$CONTEXTUAL_ORCHESTRATOR_TOKEN" "$result_file" .commercial-agent-contract.md; then
+            printf '%s\n' "CONTEXTUAL_ORCHESTRATOR_TOKEN" >>"$disclosure_file"
+          fi
           if [ -s "$disclosure_file" ]; then
-            echo "::error::The model disclosed a credential: $(sort -u "$disclosure_file" | tr '\n' ' ')"
+            echo "::error::The model disclosed the gateway credential."
             exit 1
           fi
