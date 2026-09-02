@@ -23,7 +23,6 @@ def is_safe_url(url: str) -> bool:
         if is_bad_ip(ip):
             return False
     except ValueError:
-        # Non-literal hostnames continue to the DNS resolution checks below.
         pass
 
     try:
