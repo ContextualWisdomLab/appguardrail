@@ -1,13 +1,34 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
-  "small_model": "nvidia/meta/llama-3.3-70b-instruct",
+  "model": "contextual-orchestrator/orchestrator/free",
+  "small_model": "contextual-orchestrator/orchestrator/free",
   "enabled_providers": [
-    "nvidia"
+    "contextual-orchestrator"
   ],
   "share": "disabled",
   "lsp": false,
   "mcp": {},
+  "provider": {
+    "contextual-orchestrator": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Contextual Orchestrator",
+      "options": {
+        "baseURL": "{env:CONTEXTUAL_ORCHESTRATOR_BASE_URL}",
+        "apiKey": "{env:CONTEXTUAL_ORCHESTRATOR_TOKEN}"
+      },
+      "models": {
+        "orchestrator/free": {
+          "name": "Orchestrator Free (ZDR-first zero-cost pool)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 200000,
+            "output": 32768
+          }
+        }
+      }
+    }
+  },
   "permission": {
     "edit": "deny",
     "bash": "deny",
