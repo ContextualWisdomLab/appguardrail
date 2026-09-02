@@ -191,9 +191,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: |
+          review_poll_failures=0
           max_poll_transport_failures=3
           while :; do
-            reviews="$(gh api repos/example/repo/pulls/1/reviews)"
+            if ! reviews="$(gh api repos/example/repo/pulls/1/reviews)"; then
+              review_poll_failures=$((review_poll_failures + 1))
+              if [ "$review_poll_failures" -ge "$max_poll_transport_failures" ]; then
+                exit 1
+              fi
+              continue
+            fi
+            review_poll_failures=0
             [ -n "$reviews" ] && break
             sleep 30
           done
@@ -305,10 +313,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: |
+          review_poll_failures=0
           max_poll_transport_failures=3
           poll_deadline_epoch=$(( $(date -u +%s) + 60 ))
           while :; do
-            reviews="$(gh api repos/example/repo/pulls/1/reviews)"
+            if ! reviews="$(gh api repos/example/repo/pulls/1/reviews)"; then
+              review_poll_failures=$((review_poll_failures + 1))
+              if [ "$review_poll_failures" -ge "$max_poll_transport_failures" ]; then
+                exit 1
+              fi
+              continue
+            fi
+            review_poll_failures=0
             [ -n "$reviews" ] && break
             sleep 30
           done
