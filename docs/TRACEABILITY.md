@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| GitHub Actions transport-only polling bound | built-in `github-actions-transport-only-poll-bound` rule | Issue #1087 / active PR; verified causal owner repair is protected `ContextualWisdomLab/.github@e29302c05eade7da7b0bdbb453e53980bc9d577b` |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,14 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## GitHub Actions polling-bound traceability contract
+
+Issue #1087 records a verified control-plane availability defect from `ContextualWisdomLab/.github`. At vulnerable protected predecessor `5c561a65cca3b925d533e4b40c5c3ac00f16524e`, the required OpenCode verdict step used a transport-failure counter around `gh api` calls but had no total bound for the path where every API call succeeded and no verdict appeared. Protected repair `e29302c05eade7da7b0bdbb453e53980bc9d577b` adds a 10,800-second wall-clock deadline checked on every loop iteration and fails closed when it expires.
+
+The AppGuardrail obligation is the reusable causal pattern, not the workflow or issue title. `github-actions-transport-only-poll-bound` requires an unbounded shell polling loop, executable remote `gh api` evidence, sleep/retry behavior, and a transport-only failure limit. It does not report the reviewed forms when executable evidence shows a total deadline comparison, a finite total-attempt comparison, or an explicit workflow job timeout. Comment/prose-only examples are negative. Cross-file/composite-action polling, non-shell control flow, dynamically generated workflows, and unrelated retry frameworks remain explicit false-negative boundaries rather than implied coverage.
+
+Regression evidence lives in `tests/test_github_actions_poll_bounds.py` and the pinned answer-free source fixtures under `tests/fixtures/security_corpus/github_actions_transport_only_poll_{vulnerable,fixed}.yml`. The detector remains active-PR evidence until its exact head passes required checks and ordinary protected integration; the already-protected `.github` repair is prevention/control-plane evidence only and does not itself satisfy AppGuardrail scanner coverage.
 
 ## Standards/research
 
