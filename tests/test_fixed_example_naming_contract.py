@@ -53,6 +53,19 @@ def test_fixed_example_validates_protected_request_inputs() -> None:
         assert validation_contract in example_text
 
 
+def test_admin_example_authenticates_before_processing_query_input() -> None:
+    """Authenticate protected admin requests before touching untrusted query input."""
+    example_text = FIXED_EXAMPLE_README.read_text(encoding="utf-8")
+    admin_section_text = example_text.split("### 7. Admin Auth Check Added", 1)[1]
+
+    authentication_position = admin_section_text.index("const authSession = await auth();")
+    query_validation_position = admin_section_text.index(
+        "const adminRequestUrl = new URL(httpRequest.url);"
+    )
+
+    assert authentication_position < query_validation_position
+
+
 def test_fixed_example_preserves_existing_sample_api_surface() -> None:
     """Naming repairs must not introduce unrelated sample API contract changes."""
     example_text = FIXED_EXAMPLE_README.read_text(encoding="utf-8")
