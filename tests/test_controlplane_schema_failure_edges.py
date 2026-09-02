@@ -9,6 +9,7 @@ import pytest
 
 from appguardrail_core.controlplane_schema import (
     CURRENT_SCHEMA_VERSION,
+    MIGRATION_NAME,
     SchemaMigrationError,
     inspect_controlplane_schema,
     migrate_controlplane_schema,
@@ -26,8 +27,8 @@ def _connection(path: Path | str = ":memory:") -> sqlite3.Connection:
 def _schema_snapshot(connection: sqlite3.Connection) -> tuple[tuple[object, ...], ...]:
     """Return deterministic schema metadata without reading customer row values."""
     return tuple(
-        tuple(row)
-        for row in connection.execute(
+        tuple(schema_row)
+        for schema_row in connection.execute(
             "SELECT type, name, tbl_name, sql FROM sqlite_schema "
             "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
         )
@@ -39,15 +40,15 @@ def test_mixed_legacy_and_canonical_tables_fail_without_partial_mutation() -> No
     connection = _connection()
     connection.executescript(LEGACY_SCHEMA)
     connection.execute(
-        "CREATE TABLE tenant_organizations(id INTEGER PRIMARY KEY, name TEXT)"
+        "CREATE TABLE tenant_organizations(organization_id INTEGER PRIMARY KEY, organization_name TEXT)"
     )
     connection.commit()
-    before = _schema_snapshot(connection)
+    before_snapshot = _schema_snapshot(connection)
 
     with pytest.raises(SchemaMigrationError, match="mixed schema"):
         migrate_controlplane_schema(connection)
 
-    assert _schema_snapshot(connection) == before
+    assert _schema_snapshot(connection) == before_snapshot
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
 
 
@@ -84,12 +85,12 @@ def test_malformed_legacy_columns_fail_before_any_table_is_renamed() -> None:
         """
     )
     connection.commit()
-    before = _schema_snapshot(connection)
+    before_snapshot = _schema_snapshot(connection)
 
     with pytest.raises(SchemaMigrationError, match="api_key_hash"):
         migrate_controlplane_schema(connection)
 
-    assert _schema_snapshot(connection) == before
+    assert _schema_snapshot(connection) == before_snapshot
     assert "orgs" in inspect_controlplane_schema(connection).table_names
 
 
@@ -97,13 +98,13 @@ def test_future_schema_version_is_rejected_without_downgrade() -> None:
     """An older binary cannot reinterpret or overwrite a newer database schema."""
     connection = _connection()
     connection.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION + 1}")
-    before = _schema_snapshot(connection)
+    before_snapshot = _schema_snapshot(connection)
 
     with pytest.raises(SchemaMigrationError, match="newer schema version"):
         migrate_controlplane_schema(connection)
 
-    assert _schema_snapshot(connection) == before
-    assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert _schema_snapshot(connection) == before_snapshot
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
 
 
 def test_active_caller_transaction_is_rejected_without_committing_it() -> None:
@@ -132,7 +133,7 @@ def test_injected_mid_migration_failure_rolls_back_renames_and_version(
         "VALUES ('Acme', 'bootstrap-hash', '2026-08-04T12:00:00Z')"
     )
     connection.commit()
-    before = _schema_snapshot(connection)
+    before_snapshot = _schema_snapshot(connection)
 
     def fail_governance_schema(_connection: sqlite3.Connection) -> None:
         """Raise at the documented injection boundary after legacy renames."""
@@ -146,7 +147,7 @@ def test_injected_mid_migration_failure_rolls_back_renames_and_version(
     with pytest.raises(SchemaMigrationError, match="migration failed"):
         migrate_controlplane_schema(connection)
 
-    assert _schema_snapshot(connection) == before
+    assert _schema_snapshot(connection) == before_snapshot
     assert connection.execute("SELECT name FROM orgs WHERE id = 1").fetchone()[0] == "Acme"
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
 
@@ -163,14 +164,68 @@ def test_foreign_key_violation_rolls_back_complete_migration() -> None:
         "'{\"CRITICAL\":0,\"HIGH\":1,\"WARNING\":0,\"INFO\":0}', 1, '[]')"
     )
     connection.commit()
-    before = _schema_snapshot(connection)
+    before_snapshot = _schema_snapshot(connection)
 
     with pytest.raises(SchemaMigrationError, match="foreign key check"):
         migrate_controlplane_schema(connection)
 
-    assert _schema_snapshot(connection) == before
+    assert _schema_snapshot(connection) == before_snapshot
     assert connection.execute("SELECT org_id FROM scans").fetchone()[0] == 99
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
+
+
+def test_matching_migration_marker_with_stale_user_version_recovers() -> None:
+    """An exact v3 marker may repair a stale pragma instead of wedging startup."""
+    connection = _connection()
+    migrate_controlplane_schema(connection)
+    connection.execute("PRAGMA user_version = 1")
+    connection.commit()
+
+    result = migrate_controlplane_schema(connection)
+
+    assert result.previous_version == 1
+    assert result.current_version == CURRENT_SCHEMA_VERSION
+    assert result.changed is True
+    migration_rows = connection.execute(
+        "SELECT schema_version, migration_name FROM schema_migrations"
+    ).fetchall()
+    assert [tuple(migration_row) for migration_row in migration_rows] == [
+        (CURRENT_SCHEMA_VERSION, MIGRATION_NAME)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "migration_name"),
+    [
+        (CURRENT_SCHEMA_VERSION, "unexpected_schema_v3"),
+        (1, MIGRATION_NAME),
+    ],
+)
+def test_conflicting_migration_marker_fails_closed(
+    schema_version: int, migration_name: str
+) -> None:
+    """Ambiguous migration metadata is never ignored while repairing a stale pragma."""
+    connection = _connection()
+    migrate_controlplane_schema(connection)
+    connection.execute("DELETE FROM schema_migrations")
+    connection.execute(
+        "INSERT INTO schema_migrations(schema_version, migration_name) VALUES (?, ?)",
+        (schema_version, migration_name),
+    )
+    connection.execute("PRAGMA user_version = 1")
+    connection.commit()
+
+    with pytest.raises(SchemaMigrationError, match="conflicting schema migration metadata"):
+        migrate_controlplane_schema(connection)
+
+    assert connection.in_transaction is False
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == 1
+    migration_rows = connection.execute(
+        "SELECT schema_version, migration_name FROM schema_migrations"
+    ).fetchall()
+    assert [tuple(migration_row) for migration_row in migration_rows] == [
+        (schema_version, migration_name)
+    ]
 
 
 def test_non_connection_and_closed_connection_are_rejected_cleanly() -> None:
@@ -184,15 +239,14 @@ def test_non_connection_and_closed_connection_are_rejected_cleanly() -> None:
         migrate_controlplane_schema(connection)
 
 
-
 class ConcurrentCompletionConnection(sqlite3.Connection):
     """Simulate another process completing migration before this writer locks."""
 
     completed_competing_migration = False
 
-    def execute(self, sql: str, parameters=(), /):  # type: ignore[override]
-        """Install version two immediately before the first write reservation."""
-        if sql == "BEGIN IMMEDIATE" and not self.completed_competing_migration:
+    def execute(self, sql_statement: str, parameters=(), /):  # type: ignore[override]
+        """Install semantic v3 immediately before the first write reservation."""
+        if sql_statement == "BEGIN IMMEDIATE" and not self.completed_competing_migration:
             from appguardrail_core import controlplane_schema as schema
 
             schema._create_base_tables(self)
@@ -202,10 +256,12 @@ class ConcurrentCompletionConnection(sqlite3.Connection):
                 "VALUES (?, ?)",
                 (schema.CURRENT_SCHEMA_VERSION, schema.MIGRATION_NAME),
             )
-            super().execute("PRAGMA user_version = 2")
+            super().execute(
+                f"PRAGMA user_version = {schema.CURRENT_SCHEMA_VERSION}"
+            )
             self.commit()
             self.completed_competing_migration = True
-        return super().execute(sql, parameters)
+        return super().execute(sql_statement, parameters)
 
 
 def test_post_lock_schema_snapshot_handles_concurrent_completion() -> None:

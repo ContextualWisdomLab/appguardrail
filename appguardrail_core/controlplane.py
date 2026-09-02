@@ -24,40 +24,8 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
+from .controlplane_schema import migrate_controlplane_schema
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS orgs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    api_key_hash TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL,
-    webhook_url TEXT
-);
-CREATE TABLE IF NOT EXISTS scans (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    repo TEXT,
-    commit_sha TEXT,
-    total INTEGER NOT NULL,
-    deploy_blocking INTEGER NOT NULL,
-    severity_counts TEXT NOT NULL,
-    new_blocking INTEGER NOT NULL DEFAULT 0,
-    findings TEXT NOT NULL,
-    FOREIGN KEY (org_id) REFERENCES orgs (id)
-);
-CREATE INDEX IF NOT EXISTS idx_scans_org ON scans (org_id, id DESC);
-CREATE TABLE IF NOT EXISTS keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id INTEGER NOT NULL,
-    key_hash TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL DEFAULT 'member',
-    label TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (org_id) REFERENCES orgs (id)
-);
-"""
 
 
 def _now() -> str:
@@ -95,25 +63,36 @@ def _hash_key(api_key: str) -> str:
     ).hex()
 
 
-def connect(db_path: str) -> sqlite3.Connection:
-    """Open (and initialize) the control-plane database."""
-    conn = sqlite3.connect(db_path)
+def _open_database(db_path: str, *, check_same_thread: bool = True) -> sqlite3.Connection:
+    """Open one runtime database and migrate it to the canonical schema."""
+    conn = sqlite3.connect(db_path, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
-    conn.commit()
+    try:
+        migrate_controlplane_schema(conn)
+    except Exception:
+        conn.close()
+        raise
     return conn
+
+
+def connect(db_path: str) -> sqlite3.Connection:
+    """Open and migrate the embedded control-plane database for direct callers."""
+    return _open_database(db_path)
 
 
 def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
     """Create an org and return (org_id, api_key). The key is shown only here."""
     api_key = "agk_" + secrets.token_urlsafe(32)
     cur = conn.execute(
-        "INSERT INTO orgs (name, api_key_hash, created_at) VALUES (?, ?, ?)",
+        "INSERT INTO tenant_organizations "
+        "(organization_name, api_key_hash, created_at) VALUES (?, ?, ?)",
         (name, _hash_key(api_key), _now()),
     )
     org_id = cur.lastrowid
     conn.execute(
-        "INSERT INTO keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO access_keys "
+        "(org_id, key_hash, role_code, access_key_label, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
         (org_id, _hash_key(api_key), "owner", "owner (bootstrap)", _now()),
     )
     conn.commit()
@@ -125,9 +104,10 @@ def org_for_key(conn: sqlite3.Connection, api_key: str) -> "int | None":
     if not api_key:
         return None
     row = conn.execute(
-        "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
+        "SELECT organization_id FROM tenant_organizations WHERE api_key_hash = ?",
+        (_hash_key(api_key),),
     ).fetchone()
-    return row["id"] if row else None
+    return row["organization_id"] if row else None
 
 
 def _drift_fp(finding: dict[str, Any]) -> str:
@@ -137,7 +117,10 @@ def _drift_fp(finding: dict[str, Any]) -> str:
 
 def set_webhook(conn: sqlite3.Connection, org_id: int, url: "str | None") -> None:
     """Set (or clear) the org's drift-alert webhook URL."""
-    conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url or None, org_id))
+    conn.execute(
+        "UPDATE tenant_organizations SET webhook_url = ? WHERE organization_id = ?",
+        (url or None, org_id),
+    )
     conn.commit()
 
 
@@ -257,7 +240,6 @@ def _is_safe_url(url: str) -> bool:
         if is_bad_ip(ip):
             return False
     except ValueError:
-        # Non-IP hostnames are expected; validate resolved addresses below.
         pass
 
     try:
@@ -268,8 +250,6 @@ def _is_safe_url(url: str) -> bool:
             if is_bad_ip(ip):
                 return False
     except socket.gaierror:
-        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
-        # This allows dummy domains in tests like `hook.example`.
         pass
     except ValueError:
         return False
@@ -278,7 +258,10 @@ def _is_safe_url(url: str) -> bool:
 
 
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject webhook redirects whose target leaves the validated public URL set."""
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Revalidate each redirect target before urllib follows it."""
         if not _is_safe_url(newurl):
             raise urllib.error.URLError("Unsafe redirect target")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -343,8 +326,10 @@ def create_key(
     role = role if role in _ROLE_RANK else "member"
     api_key = "agk_" + secrets.token_urlsafe(32)
     cur = conn.execute(
-        "INSERT INTO keys (org_id, key_hash, role, label, created_at) VALUES (?, ?, ?, ?, ?)",
-        (org_id, _hash_key(api_key), role, label, _now()),
+        "INSERT INTO access_keys "
+        "(org_id, key_hash, role_code, access_key_label, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (org_id, _hash_key(api_key), role, label or "", _now()),
     )
     conn.commit()
     return cur.lastrowid, api_key
@@ -355,15 +340,16 @@ def role_for_key(conn: sqlite3.Connection, api_key: str) -> "tuple[int, str] | N
     if not api_key:
         return None
     row = conn.execute(
-        "SELECT org_id, role FROM keys WHERE key_hash = ?", (_hash_key(api_key),)
+        "SELECT org_id, role_code FROM access_keys WHERE key_hash = ?",
+        (_hash_key(api_key),),
     ).fetchone()
     if row:
-        return (row["org_id"], row["role"])
-    # legacy/bootstrap key stored on orgs is an owner key
+        return (row["org_id"], row["role_code"])
     row = conn.execute(
-        "SELECT id FROM orgs WHERE api_key_hash = ?", (_hash_key(api_key),)
+        "SELECT organization_id FROM tenant_organizations WHERE api_key_hash = ?",
+        (_hash_key(api_key),),
     ).fetchone()
-    return (row["id"], "owner") if row else None
+    return (row["organization_id"], "owner") if row else None
 
 
 def add_scan(
@@ -379,24 +365,27 @@ def add_scan(
     blocking_findings = [f for f in normalized if is_deploy_blocking(f)]
     blocking = len(blocking_findings)
 
-    # Drift: deploy-blocking findings new since this org+repo's previous scan.
     prev = conn.execute(
-        "SELECT findings FROM scans WHERE org_id = ? AND IFNULL(repo, '') = IFNULL(?, '') "
-        "ORDER BY id DESC LIMIT 1",
+        "SELECT scan_findings_json FROM security_scans "
+        "WHERE org_id = ? AND IFNULL(repository_name, '') = IFNULL(?, '') "
+        "ORDER BY scan_id DESC LIMIT 1",
         (org_id, repo),
     ).fetchone()
     prev_fps = set()
     if prev:
         prev_fps = {
-            _drift_fp(f) for f in json.loads(prev["findings"]) if is_deploy_blocking(f)
+            _drift_fp(f)
+            for f in json.loads(prev["scan_findings_json"])
+            if is_deploy_blocking(f)
         }
     new_findings = [f for f in blocking_findings if _drift_fp(f) not in prev_fps]
     new_blocking = len(new_findings)
 
     created_at = _now()
     cur = conn.execute(
-        "INSERT INTO scans (org_id, created_at, repo, commit_sha, total, "
-        "deploy_blocking, severity_counts, new_blocking, findings) "
+        "INSERT INTO security_scans "
+        "(org_id, created_at, repository_name, commit_sha, finding_count, "
+        "deploy_blocking, severity_counts, new_blocking, scan_findings_json) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             org_id,
@@ -412,10 +401,11 @@ def add_scan(
     )
     conn.commit()
 
-    # Drift alert: notify the org's webhook when new blockers were introduced.
     if new_blocking > 0:
         row = conn.execute(
-            "SELECT name, webhook_url FROM orgs WHERE id = ?", (org_id,)
+            "SELECT organization_name, webhook_url FROM tenant_organizations "
+            "WHERE organization_id = ?",
+            (org_id,),
         ).fetchone()
         hook = row["webhook_url"] if row else None
         if hook:
@@ -431,7 +421,7 @@ def add_scan(
                     "deploy_blocking": blocking,
                     "created_at": created_at,
                 },
-                org_name=row["name"] if row else None,
+                org_name=row["organization_name"] if row else None,
                 new_findings=new_findings,
             )
 
@@ -450,17 +440,18 @@ def list_scans(
 ) -> list[dict[str, Any]]:
     """Return scan summaries for an org, newest first."""
     rows = conn.execute(
-        "SELECT id, created_at, repo, commit_sha, total, deploy_blocking, new_blocking, severity_counts "
-        "FROM scans WHERE org_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+        "SELECT scan_id, created_at, repository_name, commit_sha, finding_count, "
+        "deploy_blocking, new_blocking, severity_counts "
+        "FROM security_scans WHERE org_id = ? ORDER BY scan_id DESC LIMIT ? OFFSET ?",
         (org_id, limit, max(0, offset)),
     ).fetchall()
     return [
         {
-            "id": r["id"],
+            "id": r["scan_id"],
             "created_at": r["created_at"],
-            "repo": r["repo"],
+            "repo": r["repository_name"],
             "commit": r["commit_sha"],
-            "total": r["total"],
+            "total": r["finding_count"],
             "deploy_blocking": r["deploy_blocking"],
             "new_blocking": r["new_blocking"],
             "severity_counts": json.loads(r["severity_counts"]),
@@ -474,8 +465,8 @@ def scan_trend(
 ) -> list[dict[str, Any]]:
     """Oldest->newest deploy_blocking/new_blocking series for charting."""
     rows = conn.execute(
-        "SELECT created_at, deploy_blocking, new_blocking FROM scans "
-        "WHERE org_id = ? ORDER BY id DESC LIMIT ?",
+        "SELECT created_at, deploy_blocking, new_blocking FROM security_scans "
+        "WHERE org_id = ? ORDER BY scan_id DESC LIMIT ?",
         (org_id, max(1, limit)),
     ).fetchall()
     return [
@@ -493,20 +484,21 @@ def get_scan(
 ) -> "dict[str, Any] | None":
     """Return a full scan (with findings) scoped to the org, or None."""
     r = conn.execute(
-        "SELECT * FROM scans WHERE id = ? AND org_id = ?", (scan_id, org_id)
+        "SELECT * FROM security_scans WHERE scan_id = ? AND org_id = ?",
+        (scan_id, org_id),
     ).fetchone()
     if r is None:
         return None
     return {
-        "id": r["id"],
+        "id": r["scan_id"],
         "created_at": r["created_at"],
-        "repo": r["repo"],
+        "repo": r["repository_name"],
         "commit": r["commit_sha"],
-        "total": r["total"],
+        "total": r["finding_count"],
         "deploy_blocking": r["deploy_blocking"],
         "new_blocking": r["new_blocking"],
         "severity_counts": json.loads(r["severity_counts"]),
-        "findings": json.loads(r["findings"]),
+        "findings": json.loads(r["scan_findings_json"]),
     }
 
 
@@ -531,10 +523,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
     """
     import http.server
 
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
-    conn.commit()
+    conn = _open_database(db_path, check_same_thread=False)
     console = console_html()
 
     class _Handler(http.server.BaseHTTPRequestHandler):
@@ -557,8 +546,6 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             qs = parse_qs(parsed.query)
 
             def _qint(name, default, lo, hi):
-                # Clamp: sqlite treats LIMIT -1 as "no limit", so never pass
-                # negatives through; hi keeps a single request bounded.
                 try:
                     value = int(qs.get(name, [default])[0])
                 except (ValueError, TypeError):
@@ -604,7 +591,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 )
             return self._json(404, {"error": "not found"})
 
-        _MAX_BODY = 10 * 1024 * 1024  # 10 MiB — plenty for findings, blocks OOM posts
+        _MAX_BODY = 10 * 1024 * 1024
 
         def _body(self):
             try:
@@ -612,7 +599,6 @@ def make_control_plane_server(host: str, port: int, db_path: str):
             except (ValueError, TypeError):
                 return None
             if length < 0 or length > self._MAX_BODY:
-                # Negative reads until EOF; oversized bodies exhaust memory.
                 return None
             try:
                 raw_body = self.rfile.read(length)
@@ -705,7 +691,6 @@ if __name__ == "__main__":  # pragma: no cover - self-check
     assert len(listed) == 1 and listed[0]["repo"] == "acme/app"
     full = get_scan(conn, oid, s["id"])
     assert full and len(full["findings"]) == 2
-    # tenant isolation: another org can't read the first org's scan
     oid2, _ = create_org(conn, "Beta")
     assert get_scan(conn, oid2, s["id"]) is None
     assert list_scans(conn, oid2) == []
