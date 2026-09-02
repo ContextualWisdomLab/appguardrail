@@ -130,7 +130,7 @@ jobs:
           (steps.decision.outputs.action == 'dispatch-gap' ||
           steps.decision.outputs.action == 'wait-gap') &&
           steps.decision.outputs.issue_number != ''
-        uses: ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@bbe65f08b1ae663c467be343e8fd5a98881eb686
+        uses: ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93
         env:
           BYTEZ_API_KEY: ${{ secrets.BYTEZ_API_KEY }}
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
