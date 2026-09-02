@@ -151,6 +151,36 @@ def test_non_enforcing_clock_comparison_does_not_hide_renamed_poll(
     assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
 
 
+def test_uninitialized_deadline_does_not_hide_renamed_poll(tmp_path: Path) -> None:
+    """A deadline comparison is not a bound unless its deadline is initialized."""
+    workflow = _renamed_poll().replace(
+        "          while :; do\n",
+        "          while :; do\n"
+        "            if [ \"$(date -u +%s)\" -ge \"$missing_deadline\" ]; then\n"
+        "              exit 1\n"
+        "            fi\n",
+    )
+
+    assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
+
+
+def test_uninitialized_attempt_limit_does_not_hide_renamed_poll(
+    tmp_path: Path,
+) -> None:
+    """A total-attempt comparison needs a finite initialized limit."""
+    workflow = _renamed_poll().replace(
+        "          while :; do\n",
+        "          all_poll_attempts=0\n"
+        "          while :; do\n"
+        "            all_poll_attempts=$((all_poll_attempts + 1))\n"
+        "            if [ \"$all_poll_attempts\" -ge \"$missing_limit\" ]; then\n"
+        "              exit 1\n"
+        "            fi\n",
+    )
+
+    assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
+
+
 def test_unused_numeric_variables_do_not_create_transport_budget_evidence(
     tmp_path: Path,
 ) -> None:
