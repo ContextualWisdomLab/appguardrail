@@ -49,6 +49,26 @@ def test_homoglyph_detector_recognizes_multi_property_flow_yaml(tmp_path):
         assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
 
 
+def test_homoglyph_detector_recognizes_nested_flow_metadata(tmp_path):
+    for payload in (
+        "{metadata: {owner: team, tier: 1}, name: reаd_data}\n",
+        "{name: reаd_data, metadata: {owner: team, tier: 1}}\n",
+        "{tags: [safe, utility], skill: read_јobs}\n",
+    ):
+        manifest = tmp_path / "SKILL.md"
+        manifest.write_text(payload, encoding="utf-8")
+        assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
+
+
+def test_homoglyph_detector_keeps_clean_nested_flow_metadata_negative(tmp_path):
+    manifest = tmp_path / "SKILL.md"
+    manifest.write_text(
+        "{metadata: {owner: team, tier: 1}, name: read_data}\n", encoding="utf-8"
+    )
+
+    assert HOMOGLYPH_RULE_ID not in _rule_ids(manifest, tmp_path)
+
+
 def test_homoglyph_detector_keeps_clean_multi_property_flow_yaml_negative(tmp_path):
     manifest = tmp_path / "SKILL.md"
     manifest.write_text("{name: read_data, version: 1}\n", encoding="utf-8")
