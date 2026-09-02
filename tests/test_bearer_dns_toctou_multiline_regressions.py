@@ -249,3 +249,118 @@ def test_multiline_remove_then_restore_remains_detectable(tmp_path):
     return urllib.request.urlopen(req)
 """
     assert _family_ids(tmp_path, source) == [_MULTILINE_MUTATION]
+
+
+def test_fully_multiline_request_then_add_header_is_detected_once(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(
+        endpoint,
+        data=payload,
+        method="POST",
+    )
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    return urllib.request.urlopen(req)
+"""
+    assert _family_ids(tmp_path, source) == [_MULTILINE_MUTATION]
+
+
+def test_fully_multiline_request_then_add_unredirected_header_is_detected_once(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(
+        url=endpoint,
+        method="POST",
+    )
+    req.add_unredirected_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    return urllib.request.urlopen(req)
+"""
+    assert _family_ids(tmp_path, source) == [_MULTILINE_MUTATION]
+
+
+def test_fully_multiline_request_then_direct_assignment_is_detected_once(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(
+        endpoint,
+        data=payload,
+    )
+    req.headers[
+        "Authorization"
+    ] = (
+        f"Bearer {api_key}"
+    )
+    return urllib.request.urlopen(req)
+"""
+    assert _family_ids(tmp_path, source) == [_MULTILINE_MUTATION]
+
+
+def test_fully_multiline_mutation_stops_at_request_replacement(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(
+        endpoint,
+        method="POST",
+    )
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    req = urllib.request.Request("https://fixed.example/api")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_fully_multiline_mutation_stops_after_authorization_removal(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(
+        endpoint,
+        method="POST",
+    )
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    req.remove_header("Authorization")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_fully_multiline_mutation_stops_at_unreachable_dispatch(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(
+        endpoint,
+        method="POST",
+    )
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    return None
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_fully_multiline_mutation_does_not_cross_opposite_branch(tmp_path):
+    source = _prefix().replace(
+        "def deliver(url, api_key):", "def deliver(url, api_key, enabled):"
+    ) + """\
+    req = urllib.request.Request(
+        endpoint,
+        method="POST",
+    )
+    if enabled:
+        req.add_header(
+            "Authorization",
+            f"Bearer {api_key}",
+        )
+    else:
+        return urllib.request.urlopen(req)
+    return None
+"""
+    assert not _family_ids(tmp_path, source)
