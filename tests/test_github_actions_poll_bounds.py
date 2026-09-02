@@ -120,6 +120,27 @@ jobs:
     assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
 
 
+def test_job_timeout_after_steps_is_still_a_bounded_negative(tmp_path: Path) -> None:
+    """YAML key order must not change the owning job's timeout semantics."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          while true; do
+            reviews="$(gh api repos/example/repo/pulls/1/reviews)"
+            sleep 30
+          done
+    timeout-minutes: 20
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
 def test_sibling_job_bounds_do_not_suppress_vulnerable_poll(tmp_path: Path) -> None:
     """A bound in another job cannot terminate the vulnerable polling job."""
     workflow = """
