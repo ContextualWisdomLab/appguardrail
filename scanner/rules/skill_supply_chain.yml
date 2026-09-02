@@ -6,7 +6,7 @@ rules:
 
   - id: skill-name-homoglyph-confusable
     patterns:
-      - pattern-regex: '(?i)(^|[\s,{])(?:["''`](?:name|skill)["''`]|(?:name|skill))\s*[:=]\s*["'']?(?=[A-Za-z0-9_.а-яіїєґёјѕ-]*[A-Za-z])(?=[A-Za-z0-9_.а-яіїєґёјѕ-]*[а-яіїєґёјѕ])[A-Za-z0-9_.а-яіїєґёјѕ-]+'
+      - pattern-regex: '(?im)(?:(?:^[ \t]*(?:["''`](?:name|skill)["''`]|(?:name|skill)))|(?:[,{][ \t]*["''`](?:name|skill)["''`]))[ \t]*[:=][ \t]*["'']?(?=[A-Za-z0-9_.а-яіїєґёјѕ-]*[A-Za-z])(?=[A-Za-z0-9_.а-яіїєґёјѕ-]*[а-яіїєґёјѕ])[A-Za-z0-9_.а-яіїєґёјѕ-]+'
     message: |
       Skill identifier mixes Cyrillic homoglyph characters (а/е/о/р/с/х/і/ј/ѕ)
       with Latin letters. Homoglyph names masquerade as trusted skills
