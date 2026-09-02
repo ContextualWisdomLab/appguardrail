@@ -118,3 +118,134 @@ def test_commented_bearer_value_does_not_authenticate_multiline_mutation(tmp_pat
     return urllib.request.urlopen(req)
 """
     assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_constructor_stops_at_unrelated_endpoint_replacement(tmp_path):
+    source = _prefix() + """\
+    endpoint = "https://fixed.example/api"
+    req = urllib.request.Request(endpoint, headers={"Authorization": (
+        f"Bearer {api_key}"
+    )})
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_constructor_preserves_self_derived_endpoint(tmp_path):
+    source = _prefix() + """\
+    endpoint = endpoint + "/next"
+    req = urllib.request.Request(endpoint, headers={"Authorization": (
+        f"Bearer {api_key}"
+    )})
+    return urllib.request.urlopen(req)
+"""
+    assert _family_ids(tmp_path, source) == [_MULTILINE_CONSTRUCTOR]
+
+
+def test_multiline_constructor_stops_at_request_replacement(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint, headers={"Authorization": (
+        f"Bearer {api_key}"
+    )})
+    req = urllib.request.Request("https://fixed.example/api")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_constructor_stops_after_authorization_removal(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint, headers={"Authorization": (
+        f"Bearer {api_key}"
+    )})
+    req.remove_header("Authorization")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_constructor_stops_after_non_bearer_replacement(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint, headers={"Authorization": (
+        f"Bearer {api_key}"
+    )})
+    req.add_header("Authorization", "Basic fixed")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_constructor_stops_at_unreachable_dispatch(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint, headers={"Authorization": (
+        f"Bearer {api_key}"
+    )})
+    return None
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_mutation_stops_at_request_replacement(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint)
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    req = urllib.request.Request("https://fixed.example/api")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_mutation_stops_after_authorization_removal(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint)
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    req.remove_header("Authorization")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_mutation_stops_after_non_bearer_replacement(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint)
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    req.headers["Authorization"] = "Basic fixed"
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_mutation_stops_at_unreachable_dispatch(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint)
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    raise RuntimeError("stop")
+    return urllib.request.urlopen(req)
+"""
+    assert not _family_ids(tmp_path, source)
+
+
+def test_multiline_remove_then_restore_remains_detectable(tmp_path):
+    source = _prefix() + """\
+    req = urllib.request.Request(endpoint)
+    req.remove_header("Authorization")
+    req.add_header(
+        "Authorization",
+        f"Bearer {api_key}",
+    )
+    return urllib.request.urlopen(req)
+"""
+    assert _family_ids(tmp_path, source) == [_MULTILINE_MUTATION]
