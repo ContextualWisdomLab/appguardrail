@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-09-02 - Proxy Button Label-in-Name
+**Learning:** When replacing native UI elements with proxy elements (like buttons for file inputs), if the proxy button's visible text perfectly describes the action, do not add a redundant `aria-label`. Avoid duplicate accessible names between the proxy and the visually hidden native element.
+**Action:** Ensure label-in-name principles are followed and update corresponding UI contract tests to match the new markup.
