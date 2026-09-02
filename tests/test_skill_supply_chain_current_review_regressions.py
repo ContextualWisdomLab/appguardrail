@@ -21,10 +21,20 @@ def test_homoglyph_detector_recognizes_quoted_json_name_key(tmp_path):
     assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
 
 
+def test_homoglyph_detector_recognizes_minified_json_property_boundaries(tmp_path):
+    for payload in (
+        '{"name":"reаd_data"}',
+        '{"description":"test","skill":"read_јobs"}',
+    ):
+        manifest = tmp_path / "skill.json"
+        manifest.write_text(payload, encoding="utf-8")
+        assert HOMOGLYPH_RULE_ID in _rule_ids(manifest, tmp_path)
+
+
 def test_homoglyph_detector_keeps_clean_json_name_negative(tmp_path):
     manifest = tmp_path / "skill.json"
     manifest.write_text(
-        '{"name": "read_data", "description": "test"}\n', encoding="utf-8"
+        '{"name":"read_data","description":"test"}\n', encoding="utf-8"
     )
 
     assert HOMOGLYPH_RULE_ID not in _rule_ids(manifest, tmp_path)
