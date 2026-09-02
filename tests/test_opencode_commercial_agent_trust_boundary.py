@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -167,8 +166,8 @@ def test_workflow_materializes_read_only_registry_contract_before_gateway_token(
     assert "verify the issue number and reviewed marker only" not in workflow
 
 
-def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
-    """Only reviewed default-branch code can receive the hourly write capability."""
+def test_workflow_keeps_default_branch_without_cadence_cancellation() -> None:
+    """Reviewed source stays serialized without killing a long model run at the next tick."""
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert 'cron: "17 * * * *"' in workflow
@@ -176,7 +175,8 @@ def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
     assert "pull_request_target:" not in workflow
     assert "github.ref_name == github.event.repository.default_branch" in workflow
     assert "group: commercial-readiness-loop" in workflow
-    assert "cancel-in-progress: true" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "cancel-in-progress: true" not in workflow
     assert "persist-credentials: false" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "contents: write" in workflow
@@ -184,14 +184,9 @@ def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
     assert "pull-requests: write" in workflow
 
 
-def test_workflow_allows_two_hours_but_keeps_a_bounded_job_budget() -> None:
-    """Long commercial slices receive two hours without approaching runner limits."""
+def test_workflow_has_no_repository_authored_elapsed_time_model_deadline() -> None:
+    """The repository must not terminate reasoning or tool work solely by elapsed time."""
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    timeout_match = re.search(
-        r"(?m)^\s{4}timeout-minutes:\s*(?P<minutes>[1-9][0-9]*)\s*$",
-        workflow,
-    )
+    dispatch_job = workflow.split("  dispatch-reviewed-gap:\n", maxsplit=1)[1]
 
-    assert timeout_match is not None
-    timeout_minutes = int(timeout_match.group("minutes"))
-    assert 120 <= timeout_minutes <= 180
+    assert "\n    timeout-minutes:" not in dispatch_job
