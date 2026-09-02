@@ -34,15 +34,15 @@ def _scan(tmp_path: Path, shell: str, *, timeout_minutes: int | None = None) -> 
 
 
 def _transport_failure_block(counter: str, limit: str) -> str:
-    """Return the transport-error branch used by the reviewed incident family."""
-    return f"""if ! response=\"$(gh api repos/example/repo/pulls/7/reviews)\"; then
-  {counter}=$(({counter} + 1))
-  if [ \"${counter}\" -ge \"${limit}\" ]; then
-    exit 1
+    """Return the loop-local transport-error branch used by the reviewed incident family."""
+    return f"""  if ! response=\"$(gh api repos/example/repo/pulls/7/reviews)\"; then
+    {counter}=$(({counter} + 1))
+    if [ \"${counter}\" -ge \"${limit}\" ]; then
+      exit 1
+    fi
+    continue
   fi
-  continue
-fi
-{counter}=0"""
+  {counter}=0"""
 
 
 @pytest.mark.parametrize(
