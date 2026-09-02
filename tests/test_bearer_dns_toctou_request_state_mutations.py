@@ -1,5 +1,6 @@
 """Regression boundaries for post-construction urllib Request state mutations."""
 
+import re
 from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
@@ -38,9 +39,10 @@ def deliver(url, api_key, replacement=None):
 """
 
 
-def test_dynamic_bearer_companion_is_packaged_once():
-    loaded = [rule["id"] for rule in SCAN_RULES if rule["id"] == _DYNAMIC]
-    assert loaded == [_DYNAMIC]
+def test_dynamic_bearer_companion_is_packaged_once_and_compiled():
+    loaded = [rule for rule in SCAN_RULES if rule["id"] == _DYNAMIC]
+    assert len(loaded) == 1
+    assert isinstance(loaded[0]["pattern"], re.Pattern)
 
 
 def test_dynamic_authorization_assignment_breaks_unproven_bearer_state(tmp_path):
@@ -113,3 +115,33 @@ def test_provable_dynamic_bearer_add_header_remains_detectable(tmp_path):
     findings = _scan_source(tmp_path, source)
     assert len(findings) == 1
     assert findings[0]["rule_id"] == _DYNAMIC
+
+
+def test_dynamic_bearer_then_header_clear_is_sanitized(tmp_path):
+    source = _direct_bearer_prefix() + """\
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    req.headers.clear()
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_bearer_then_opaque_replacement_is_sanitized(tmp_path):
+    source = _direct_bearer_prefix() + """\
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    req.headers["Authorization"] = fallback
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_bearer_then_fixed_destination_is_sanitized(tmp_path):
+    source = _direct_bearer_prefix() + """\
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    req.full_url = "https://fixed.example/api/v1/scans"
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
