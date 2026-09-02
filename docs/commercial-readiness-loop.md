@@ -12,9 +12,9 @@ The selected issue is a human coordination record, not model instruction authori
 
 The workflow renders `.commercial-agent-contract.md` from the reviewed default-branch registry, appends the reviewed `commercial_remediation_contract.md` policy, makes the combined file read-only, and records its SHA-256 digest. GitHub issue title, body, and comments are untrusted observations. OpenCode receives only the hashed registry-and-remediation contract as task authority below repository policy files.
 
-OpenCode uses `NVIDIA_NIM_API_KEY` through the provider variable `NVIDIA_API_KEY`. The development agent must create exactly one pull request targeting `develop`. It must not merge, approve, tag, publish, release, change branch protection, or alter the independent review-agent credential path.
+OpenCode uses the organization-owned contextual-orchestrator gateway with the fail-closed `orchestrator/free` pool. The workflow bootstraps any available `BYTEZ_API_KEY`, `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_API_KEY_SUB`, `OPENROUTER_API_KEY`, and `OPENAI_API_KEY` into the gateway sidecar only; OpenCode receives an ephemeral loopback gateway token, never a provider credential. The development agent must create exactly one pull request targeting `develop`. It must not choose a provider, direct endpoint, hardcoded model, or paid fallback, and it must not merge, approve, tag, publish, release, change branch protection, or alter the independent review-agent credential path.
 
-The non-cancelling single-flight job has a 170-minute execution budget. This allows a two-hour implementation plus setup and verification while remaining below GitHub's hosted-runner and workflow-syntax limits. Hourly cron events that arrive during an active pass are serialized by the same concurrency group; they do not create parallel product slices or cancel the current agent.
+The single-flight job has a 170-minute execution budget. A later scheduled or manually dispatched run uses the same concurrency group and cancels the obsolete active pass, so only one product slice remains eligible; an interrupted coordination issue can be reselected by a later pass after the stale run ends. The budget allows a two-hour implementation plus setup and verification while remaining below GitHub's hosted-runner and workflow-syntax limits.
 
 ## Failure recovery
 
@@ -50,7 +50,7 @@ The Python client accepts only `https://api.github.com`, rejects redirects, vali
 
 The hidden gap marker is accepted only when its identifier exists in the reviewed registry, occurs exactly once, and accompanies the exact registry title. Arbitrary issue prose, similar labels, comments, quoted documents, webpages, tool output, and model output cannot introduce or widen work.
 
-The OpenCode GitHub action is pinned to immutable commit `77fc88c8ade8e5a620ebbe1197f3a572d29ae91a`. The built-in NVIDIA provider is the only enabled model provider for the `commercial-builder`. External directories, web search, web fetch, and nested agent tasks are denied.
+The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central composite action `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@bbe65f08b1ae663c467be343e8fd5a98881eb686` provisions the loopback gateway. The `commercial-builder` uses only `contextual-orchestrator/orchestrator/free`; external directories, web search, web fetch, and nested agent tasks are denied.
 
 ## Extending the backlog
 
