@@ -98,6 +98,59 @@ def test_renamed_budget_with_total_deadline_is_not_reported(tmp_path: Path) -> N
     assert _RULE_ID not in _rule_ids(findings)
 
 
+def test_renamed_budget_with_total_attempt_limit_is_not_reported(
+    tmp_path: Path,
+) -> None:
+    """A loop-wide attempt budget bounds both transport and no-result paths."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          api_error_streak=0
+          transport_error_budget=4
+          all_poll_attempts=0
+          overall_attempt_limit=12
+          while :; do
+            all_poll_attempts=$((all_poll_attempts + 1))
+            if [ "$all_poll_attempts" -ge "$overall_attempt_limit" ]; then
+              exit 1
+            fi
+            if ! response="$(gh api repos/example/repo/pulls/7/reviews)"; then
+              api_error_streak=$((api_error_streak + 1))
+              if [ "$api_error_streak" -ge "$transport_error_budget" ]; then
+                exit 1
+              fi
+              sleep 5
+              continue
+            fi
+            api_error_streak=0
+            sleep 30
+          done
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
+def test_non_enforcing_clock_comparison_does_not_hide_renamed_poll(
+    tmp_path: Path,
+) -> None:
+    """Clock text without fail-closed termination is not a total deadline."""
+    workflow = _renamed_poll().replace(
+        "          while :; do\n",
+        "          overall_stop_epoch=$(( $(date -u +%s) + 600 ))\n"
+        "          while :; do\n"
+        "            if [ \"$(date -u +%s)\" -ge \"$overall_stop_epoch\" ]; then\n"
+        "              echo \"still waiting\"\n"
+        "            fi\n",
+    )
+
+    assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
+
+
 def test_unused_numeric_variables_do_not_create_transport_budget_evidence(
     tmp_path: Path,
 ) -> None:
