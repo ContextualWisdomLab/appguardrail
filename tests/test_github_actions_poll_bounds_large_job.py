@@ -12,7 +12,9 @@ _RULE_ID = "github-actions-transport-only-poll-bound"
 
 def test_late_same_job_timeout_still_bounds_poll(tmp_path: Path) -> None:
     """A valid timeout remains job-scoped even after more than 300 YAML lines."""
-    filler = "".join(f"    env_{index}: value_{index}\n" for index in range(305))
+    filler = "    env:\n" + "".join(
+        f"      LARGE_JOB_FILLER_{index}: value_{index}\n" for index in range(305)
+    )
     workflow = f"""
 name: Required review
 on: pull_request_target
