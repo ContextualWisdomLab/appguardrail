@@ -114,7 +114,7 @@ def test_changelog_fragment_records_jules_replacement_and_secret_boundary() -> N
     assert "OpenCode" in changelog
     assert "NVIDIA_NIM_API_KEY" in changelog
     assert "direct-provider" in changelog.lower()
-    assert "Jules" not in changelog
+    assert "jules" not in changelog.lower()
     assert "review-agent" in changelog
     assert "registry" in changelog.lower()
     assert "hour" in changelog.lower()
