@@ -26,7 +26,7 @@ contextual-orchestrator/orchestrator/free
 
 The gateway chooses a currently eligible free route from its discovered catalog. The workflow does not name a provider-specific primary or helper model.
 
-The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central gateway boundary is pinned to immutable `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@bbe65f08b1ae663c467be343e8fd5a98881eb686`.
+The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central gateway boundary is pinned to immutable `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93`.
 
 The `commercial-builder` primary agent may edit repository files and run bounded shell commands, but it cannot access external directories, web search, web fetch, or nested agents. Its default configuration outside that named agent remains read-only.
 
