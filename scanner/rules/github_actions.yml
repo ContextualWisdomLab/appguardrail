@@ -35,12 +35,14 @@ rules:
   # A transport-failure counter is not a total polling bound. The verified
   # ContextualWisdomLab/.github incident kept every API request successful while
   # no review verdict arrived, so the loop never incremented its transport
-  # failure counter and retained a shared runner for hours. The matcher scopes
-  # both vulnerable evidence and safe bounds to one two-space GitHub Actions job
-  # block so an unrelated sibling job cannot suppress the vulnerable poll.
+  # failure counter and retained a shared runner for hours. Keep the lightweight
+  # detector intentionally bounded to conventional two-space Actions job syntax:
+  # all positive evidence must execute inside one literal-shell run block and
+  # gh/sleep must occur before that same unbounded loop's `done`. Same-job
+  # timeout and fail-closed deadline/attempt guards are safe boundaries.
   - id: github-actions-transport-only-poll-bound
     patterns:
-      - pattern-regex: '^  [A-Za-z0-9_.-]+[ \t]*:[^\n]*\n(?=(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+max_poll_transport_failures[ \t]*=[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?$)(?=(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+while[ \t]+(?::|true)[ \t]*;[ \t]*do[ \t]*(?:#[^\n]*)?$)(?=(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+(?!#)[^\n]*\bgh[ \t]+api\b[^\n]*$)(?=(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+(?!#)[^\n]*\bsleep(?:[ \t]+|$)[^\n]*$)(?!(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+timeout-minutes[ \t]*:[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?$)(?!(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+(?!#)[^\n]*-[gl]e[^\n]*\$(?:poll_)?deadline(?:_epoch)?\b[^\n]*$)(?!(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*^[ \t]+(?!#)[^\n]*-ge[^\n]*\$max_(?:poll_)?attempts\b[^\n]*$)(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[\s\S])*'
+      - pattern-regex: '^  [A-Za-z0-9_.-]+[^\n]*\n(?>(?:(?!^    timeout-minutes[ \t]*:|^      -[ \t]*run|^        run)^ {4,}[^\n]*\n)){0,80}^(?:      -[ \t]*run|        run)[ \t]*:[ \t]*\|[+-]?[^\n]*\n(?>(?:(?!^          max_poll_transport_failures)^ {10,}[^\n]*\n)){0,80}^          max_poll_transport_failures[ \t]*=[ \t]*[1-9][0-9]*[^\n]*\n(?>(?:(?!^          while[ \t])^ {10,}[^\n]*\n)){0,80}^          while[ \t]+(?::|true)[ \t]*;[ \t]*do[^\n]*\n(?!(?>^ {12,}[^\n]*\n){0,20}^ {12,}if[^\n]*-[gl]e[^\n]*\$(?:poll_)?deadline(?:_epoch)?\b[^\n]*;[ \t]*then[^\n]*\n(?>^ {14,}[^\n]*\n){0,8}^ {14,}exit[ \t]+[1-9][0-9]*\b[^\n]*\n)(?!(?>^ {12,}[^\n]*\n){0,20}^ {12,}if[^\n]*-ge[^\n]*\$max_(?:poll_)?attempts\b[^\n]*;[ \t]*then[^\n]*\n(?>^ {14,}[^\n]*\n){0,8}^ {14,}exit[ \t]+[1-9][0-9]*\b[^\n]*\n)(?>(?:(?!^ {12,}(?:[^#\n]*\$\([^\)\n]*\bgh[ \t]+api\b|(?:if[ \t]+![ \t]+)?(?:timeout[ \t]+\S+[ \t]+)?gh[ \t]+api\b))^ {12,}[^\n]*\n)){0,80}^ {12,}(?:[^#\n]*\$\([^\)\n]*\bgh[ \t]+api\b|(?:if[ \t]+![ \t]+)?(?:timeout[ \t]+\S+[ \t]+)?gh[ \t]+api\b)[^\n]*\n(?>(?:(?!^ {12,}sleep(?:[ \t]+|$))^ {12,}[^\n]*\n)){0,80}^ {12,}sleep(?:[ \t]+|$)[^\n]*\n(?>(?:(?!^          done\b)^ {12,}[^\n]*\n)){0,80}^          done\b'
     message: |
       This GitHub Actions job has a remote polling loop whose explicit retry
       limit covers transport failures but not the successful-no-result path.
@@ -49,10 +51,10 @@ rules:
       availability of required review/security controls. Add a total wall-clock
       deadline or finite total-attempt guard checked on every polling path and
       fail closed. An explicit timeout on this same job can also bound the
-      runner, but an in-loop deadline is preferred when it can release scarce
-      capacity earlier. A timeout or counter in a sibling job does not bound this
-      one. Keep per-request transport timeouts as defense in depth; they do not
-      replace the total polling bound.
+      runner. A timeout/counter in a sibling job, command-like text in another
+      run step, an echoed command string, or a shell comment is not evidence for
+      this loop. Keep per-request transport timeouts as defense in depth; they do
+      not replace the total polling bound.
     severity: HIGH
     languages: [generic]
     cwe: [CWE-400]
