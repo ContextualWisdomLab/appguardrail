@@ -93,9 +93,18 @@ def test_hourly_workflow_is_default_branch_only_and_secret_bounded() -> None:
     assert "persist-credentials: false" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "python3 -m scripts.ci.commercial_readiness_loop" in workflow
-    assert workflow.count("secrets.NVIDIA_NIM_API_KEY") == 2
-    assert "NVIDIA_API_KEY" in workflow
-    assert "anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a" in workflow
+    gateway_secrets = (
+        "BYTEZ_API_KEY",
+        "NVIDIA_NIM_API_KEY",
+        "NVIDIA_NIM_API_KEY_SUB",
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+    )
+    assert all(workflow.count(f"secrets.{name}") == 2 for name in gateway_secrets)
+    assert "ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93" in workflow
+    assert '"model":"contextual-orchestrator/orchestrator/free"' in workflow
+    assert "anomalyco/opencode/github@" not in workflow
+    assert "NVIDIA_API_KEY:" not in workflow
     assert "jules" not in lowered
     assert "copilot" not in lowered
     assert "PR_REVIEW_MERGE_TOKEN" not in workflow
@@ -248,7 +257,8 @@ def test_gap_issue_contract_requires_opencode_tdd_evidence_and_modularity() -> N
     assert gap.objective in body
     assert all(item in body for item in gap.acceptance)
     assert "OpenCode Agent" in body
-    assert "NVIDIA_NIM_API_KEY" in body
+    assert "orchestrator/free" in body
+    assert "contextual-orchestrator gateway" in body
     assert "test first" in body.lower()
     assert "100%" in body
     assert "CHANGELOG.d" in body

@@ -1,10 +1,9 @@
-"""Trust-boundary contracts for the hourly NVIDIA OpenCode development agent."""
+"""Trust-boundary contracts for the hourly gateway-backed OpenCode development agent."""
 
 from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -15,9 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 LOOP_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "commercial-readiness-loop.yml"
 CONFIG_PATH = ROOT / "opencode.jsonc"
-MODEL = "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5"
-SMALL_MODEL = "nvidia/meta/llama-3.3-70b-instruct"
-ACTION_PIN = "77fc88c8ade8e5a620ebbe1197f3a572d29ae91a"
+MODEL = "contextual-orchestrator/orchestrator/free"
+SMALL_MODEL = MODEL
+ACTION_PIN = "73b250f568d8892ead48bff85de06a4e3eb34e93"
+GATEWAY_PROVIDER = "contextual-orchestrator"
 
 
 def _load_loop_module():
@@ -109,14 +109,20 @@ def test_trusted_agent_contract_is_registry_derived_and_issue_text_free() -> Non
     assert "ignore previous instructions" not in contract.lower()
 
 
-def test_opencode_config_uses_builtin_nvidia_provider_only() -> None:
-    """OpenCode uses its maintained NVIDIA provider and no custom credential surface."""
+def test_opencode_config_uses_governed_contextual_orchestrator_provider() -> None:
+    """OpenCode uses only the centrally governed contextual-orchestrator provider."""
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
     assert config["model"] == MODEL
     assert config["small_model"] == SMALL_MODEL
-    assert config["enabled_providers"] == ["nvidia"]
-    assert "provider" not in config
+    assert config["enabled_providers"] == [GATEWAY_PROVIDER]
+    provider = config["provider"][GATEWAY_PROVIDER]
+    assert provider["npm"] == "@ai-sdk/openai-compatible"
+    assert provider["options"] == {
+        "baseURL": "{env:CONTEXTUAL_ORCHESTRATOR_BASE_URL}",
+        "apiKey": "{env:CONTEXTUAL_ORCHESTRATOR_TOKEN}",
+    }
+    assert "orchestrator/free" in provider["models"]
     agent = config["agent"]["commercial-builder"]
     assert agent["mode"] == "primary"
     assert agent["permission"]["edit"] == "allow"
@@ -126,23 +132,33 @@ def test_opencode_config_uses_builtin_nvidia_provider_only() -> None:
     assert agent["permission"]["websearch"] == "deny"
 
 
-def test_workflow_materializes_read_only_registry_contract_before_nvidia_secret() -> None:
-    """The secret-bearing action is gated by an immutable generated task contract."""
+def test_workflow_materializes_read_only_registry_contract_before_gateway_token() -> None:
+    """The gateway action is gated by an immutable generated task contract."""
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     contract_step = workflow.index("Materialize trusted registry contract")
-    secret_step = workflow.index("Require the dedicated NVIDIA NIM credential")
-    agent_step = workflow.index("Run the bounded OpenCode commercial builder")
+    gateway_step = workflow.index("Provision contextual-orchestrator orchestrator/free gateway")
+    agent_step = workflow.index("Run the orchestrator/free OpenCode commercial builder")
 
-    assert contract_step < secret_step < agent_step
+    assert contract_step < gateway_step < agent_step
     assert "--render-agent-contract" in workflow
     assert ".commercial-agent-contract.md" in workflow
     assert "chmod 0444 .commercial-agent-contract.md" in workflow
     assert "sha256sum .commercial-agent-contract.md" in workflow
-    assert f"anomalyco/opencode/github@{ACTION_PIN}" in workflow
-    assert f"model: {MODEL}" in workflow
-    assert "agent: commercial-builder" in workflow
-    assert workflow.count("secrets.NVIDIA_NIM_API_KEY") == 2
+    assert f"ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@{ACTION_PIN}" in workflow
+    assert f'OPENCODE_MODEL: "{MODEL}"' in workflow
+    assert f'"model":"{MODEL}"' in workflow
+    assert "agent: commercial-builder" not in workflow
+    for secret_name in (
+        "BYTEZ_API_KEY",
+        "NVIDIA_NIM_API_KEY",
+        "NVIDIA_NIM_API_KEY_SUB",
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+    ):
+        assert f"secrets.{secret_name}" in workflow
+    assert "anomalyco/opencode/github@" not in workflow
+    assert "NVIDIA_API_KEY:" not in workflow
     assert "COPILOT_GITHUB_TOKEN" not in workflow
     assert "Read the exact active issue" not in workflow
     assert "The only task authority is `.commercial-agent-contract.md`" in workflow
@@ -150,8 +166,8 @@ def test_workflow_materializes_read_only_registry_contract_before_nvidia_secret(
     assert "verify the issue number and reviewed marker only" not in workflow
 
 
-def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
-    """Only reviewed default-branch code can receive the hourly write capability."""
+def test_workflow_keeps_default_branch_without_cadence_cancellation() -> None:
+    """Reviewed source stays serialized without killing a long model run at the next tick."""
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert 'cron: "17 * * * *"' in workflow
@@ -160,6 +176,7 @@ def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
     assert "github.ref_name == github.event.repository.default_branch" in workflow
     assert "group: commercial-readiness-loop" in workflow
     assert "cancel-in-progress: false" in workflow
+    assert "cancel-in-progress: true" not in workflow
     assert "persist-credentials: false" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert "contents: write" in workflow
@@ -167,14 +184,9 @@ def test_workflow_keeps_default_branch_and_single_flight_boundaries() -> None:
     assert "pull-requests: write" in workflow
 
 
-def test_workflow_allows_two_hours_but_keeps_a_bounded_job_budget() -> None:
-    """Long commercial slices receive two hours without approaching runner limits."""
+def test_workflow_has_no_repository_authored_elapsed_time_model_deadline() -> None:
+    """The repository must not terminate reasoning or tool work solely by elapsed time."""
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    timeout_match = re.search(
-        r"(?m)^\s{4}timeout-minutes:\s*(?P<minutes>[1-9][0-9]*)\s*$",
-        workflow,
-    )
+    dispatch_job = workflow.split("  dispatch-reviewed-gap:\n", maxsplit=1)[1]
 
-    assert timeout_match is not None
-    timeout_minutes = int(timeout_match.group("minutes"))
-    assert 120 <= timeout_minutes <= 180
+    assert "\n    timeout-minutes:" not in dispatch_job

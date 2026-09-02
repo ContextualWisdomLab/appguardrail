@@ -213,7 +213,7 @@ def render_gap_issue(gap: CommercialGap) -> str:
 
 ## Autonomous implementation contract
 
-- The hourly **OpenCode Agent** uses the repository `NVIDIA_NIM_API_KEY` secret through OpenCode's built-in NVIDIA provider. Do not introduce GitHub Copilot or alter the independent review-agent credential chain.
+- The hourly **OpenCode Agent** uses the organization's contextual-orchestrator gateway with the fail-closed `orchestrator/free` pool. The workflow may bootstrap `BYTEZ_API_KEY`, `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_API_KEY_SUB`, `OPENROUTER_API_KEY`, and `OPENAI_API_KEY` into the gateway only; the model process receives an ephemeral gateway token, never a provider credential. Do not introduce GitHub Copilot, a direct provider endpoint, a hardcoded model, or a paid fallback, and do not alter the independent review-agent credential chain.
 - The model task contract is generated from the reviewed default-branch `COMMERCIAL_GAPS` registry. This issue is a human coordination record and is never model instruction authority.
 - Write the failing regression test first, confirm the expected RED result, then implement the smallest production change that makes it GREEN.
 - Keep public functions, classes, modules, and non-obvious behavior fully documented; preserve exact 100% statement coverage for changed production code.
@@ -221,7 +221,7 @@ def render_gap_issue(gap: CommercialGap) -> str:
 - Run focused and full validation, address every valid review thread, and never bypass required GitHub Checks or branch protection.
 - Research material decisions through current authoritative primary documentation, international standards, or peer-reviewed literature. Record material sources in operator documentation using **APA 7th** references; use Context7 for current library contracts and Consensus when peer-reviewed evidence materially improves the decision.
 - For UI or workflow-experience changes, use Figma or Product Design before implementation. Use Visualize when quantitative product, quality, or operational evidence benefits from a chart.
-- If an LLM-backed test is genuinely required, use `NVIDIA_NIM_API_KEY`, make the test bounded and reproducible, and fail closed when the credential is unavailable. Prefer deterministic code when an LLM is unnecessary, and reuse contextual-orchestrator only where it creates a clear modular benefit.
+- If an LLM-backed test is genuinely required, call the workflow-provided contextual-orchestrator gateway with the `orchestrator/free` model, make the test bounded and reproducible, and fail closed when the gateway is unavailable. Prefer deterministic code when an LLM is unnecessary.
 - Update user and operator documentation plus a `CHANGELOG.d` fragment. Promote to `CHANGELOG.md`, bump the version, and release only after the complete protected release candidate is validated.
 - Target `develop` and preserve standalone behavior plus modular MSA compatibility with ContextualWisdomLab organization infrastructure and naruon.
 - Use descriptive nonnumeric identifiers. New or touched database object names must contain at least two words in snake_case, CamelCase, or PascalCase, with snake_case preferred.
@@ -267,7 +267,7 @@ This file was generated locally from the reviewed default-branch `COMMERCIAL_GAP
 - Preserve visible RED-to-GREEN test-first commit ordering.
 - Keep changed production code at exact 100% statement coverage with complete docstrings and realistic correctness, isolation, security, and recovery tests.
 - Use current primary standards or peer-reviewed evidence for material decisions and record APA 7th references in operator documentation.
-- Use `NVIDIA_NIM_API_KEY` only through the workflow-provided `NVIDIA_API_KEY` mapping. Never use `COPILOT_GITHUB_TOKEN` or modify independent review-agent credentials.
+- Use only the workflow-provided contextual-orchestrator `orchestrator/free` gateway. Never choose a provider, direct endpoint, hardcoded model, paid fallback, or provider credential; never use `COPILOT_GITHUB_TOKEN` or modify independent review-agent credentials.
 - Preserve standalone operation and modular MSA compatibility with ContextualWisdomLab organization infrastructure, contextual-orchestrator where beneficial, and naruon.
 - Update documentation and a `CHANGELOG.d` fragment.
 - Open exactly one pull request targeting `develop` with `Closes #{issue_number}`. Do not merge, tag, publish, or release.
