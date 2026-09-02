@@ -1,0 +1,16 @@
+rules:
+  - id: python-bearer-preflight-dns-toctou-dynamic-bearer-replacement
+    patterns:
+      - pattern-regex: '(?ims)^(?P<di>[ \t]*)(?:async[ \t]+)?def[ \t]+\w+[^\n]*:\n(?:(?!^(?P=di)(?:async[ \t]+)?def\b|^(?P=di)class\b).){0,6000}?^(?P<bi>(?P=di)[ \t]+)if[ \t]+not[ \t]+_is_safe_url\([ \t]*(?P<u>\w+)[ \t]*\)[ \t]*:[^\n]*\n(?:^(?P=bi)[ \t]+(?:\#[^\n]*)?\n|^[ \t]*\n){0,8}^(?P=bi)[ \t]+(?:return|raise)\b[^\n]*\n(?:(?!^(?P=di)(?:async[ \t]+)?def\b|^(?P=di)class\b).){0,2500}?^(?P=bi)(?P<ep>\w+)[ \t]*=[ \t]*(?P=u)\.rstrip\([^\n]*\)[^\n]*\n(?:(?!^(?P=di)(?:async[ \t]+)?def\b|^(?P=di)class\b).){0,2500}?^(?P=bi)(?P<r>\w+)[ \t]*=[ \t]*urllib\.request\.Request\((?:[^\n]*\b(?P=ep)\b[^\n]*\)|[ \t]*\n(?:(?!^(?P=bi)\)[ \t]*(?:\#[^\n]*)?$)[^\n]*\n){1,30}^(?P=bi)\)[ \t]*(?:\#[^\n]*)?)\n(?:(?!^(?P=di)(?:async[ \t]+)?def\b|^(?P=di)class\b).){0,2000}?^(?P=bi)(?P<v>\w+)[ \t]*=[ \t]*(?:f?["\x27]Bearer[ \t]+\{?\w+\}?[^\n"\x27]*["\x27]|["\x27]Bearer[ \t]+["\x27][ \t]*\+[ \t]*\w+)[^\n]*\n(?:(?!^(?P=di)(?:async[ \t]+)?def\b|^(?P=di)class\b).){0,1200}?^(?P=bi)(?:(?P=r)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\][ \t]*=[ \t]*(?P=v)\b|(?P=r)\.(?:add_header|add_unredirected_header)\([ \t]*["\x27]Authorization["\x27][ \t]*,[ \t]*(?P=v)\b[^\n\)]*\))[^\n]*\n(?:(?!^(?P=bi)(?:return|raise)\b)(?!^(?P=bi)(?P=r)[ \t]*=)(?!^(?P=bi)(?P=r)\.remove_header\([ \t]*["\x27]Authorization["\x27])(?!^(?P=bi)(?P=r)\.headers\.(?:pop|clear)\()(?!^(?P=bi)(?P=r)\.headers[ \t]*=)(?!^(?P=bi)(?P=r)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\][ \t]*=)(?!^(?P=bi)(?P=r)\.(?:add_header|add_unredirected_header)\([ \t]*["\x27]Authorization["\x27])(?!^(?P=bi)(?P=r)\.full_url[ \t]*=(?![^\n]*(?:(?P=ep)|(?P=u))\b))[^\n]*\n){0,80}?(?:^(?P=bi)[ \t]*(?:return[ \t]+|\w+[ \t]*=[ \t]*)?urllib\.request\.urlopen\([ \t]*(?:url[ \t]*=[ \t]*)?(?P=r)\b|^(?P=bi)(?P<o>\w+)[ \t]*=[ \t]*urllib\.request\.build_opener\([ \t]*SafeRedirectHandler\([ \t]*\)[ \t]*\)[^\n]*\n(?:(?!^(?P=bi)(?:return|raise)\b)(?!^(?P=bi)(?P=o)[ \t]*=)(?!^(?P=bi)(?P=r)[ \t]*=)(?!^(?P=bi)(?P=r)\.remove_header\([ \t]*["\x27]Authorization["\x27])(?!^(?P=bi)(?P=r)\.headers\.(?:pop|clear)\()(?!^(?P=bi)(?P=r)\.headers[ \t]*=)(?!^(?P=bi)(?P=r)\.headers[ \t]*\[[ \t]*["\x27]Authorization["\x27][ \t]*\][ \t]*=)(?!^(?P=bi)(?P=r)\.full_url[ \t]*=(?![^\n]*(?:(?P=ep)|(?P=u))\b))[^\n]*\n){0,40}?^(?P=bi)[ \t]*(?:return[ \t]+|\w+[ \t]*=[ \t]*)?(?P=o)\.open\([ \t]*(?:fullurl[ \t]*=[ \t]*)?(?P=r)\b)'
+    message: |
+      A locally provable Bearer replacement is applied to a live urllib Request after
+      a separate URL-safety preflight, and that request is dispatched through a
+      resolver-backed urllib transport. Connect through the already-validated
+      address set instead of resolving the hostname again.
+      [CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition]
+      [CWE-918 - Server-Side Request Forgery]
+    severity: HIGH
+    languages: [python]
+    prefilter: [_is_safe_url, urllib.request.Request]
+    cwe: [CWE-367, CWE-918]
+    owasp: [A10:2021]
