@@ -120,6 +120,42 @@ jobs:
     assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
 
 
+def test_sibling_job_bounds_do_not_suppress_vulnerable_poll(tmp_path: Path) -> None:
+    """A bound in another job cannot terminate the vulnerable polling job."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  bounded-helper:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - run: |
+          max_poll_attempts=2
+          poll_attempts=0
+          poll_deadline_epoch=$(( $(date -u +%s) + 60 ))
+          while :; do
+            poll_attempts=$((poll_attempts + 1))
+            if [ "$poll_attempts" -ge "$max_poll_attempts" ]; then exit 1; fi
+            if [ "$(date -u +%s)" -ge "$poll_deadline_epoch" ]; then exit 1; fi
+            gh api repos/example/repo
+            sleep 1
+          done
+  required-review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          while :; do
+            reviews="$(gh api repos/example/repo/pulls/1/reviews)"
+            [ -n "$reviews" ] && break
+            sleep 30
+          done
+"""
+
+    assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
+
+
 def test_transport_counter_without_remote_sleeping_poll_is_not_reported(
     tmp_path: Path,
 ) -> None:
