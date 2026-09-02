@@ -269,20 +269,19 @@ The example is a fresh illustrative schema rather than a migration of an existin
 import { auth } from '@/auth';
 
 export async function GET(httpRequest: Request) {
-  // This listing accepts no query parameters; fail closed on unexpected input.
+  // Step 1: Authenticate before processing any untrusted request input.
+  const authSession = await auth();
+  if (!authSession) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Step 2: This listing accepts no query parameters; fail closed on unexpected input.
   const adminRequestUrl = new URL(httpRequest.url);
   if ([...adminRequestUrl.searchParams.keys()].length > 0) {
     return Response.json({ error: 'Unexpected query parameters' }, { status: 400 });
   }
 
-  const authSession = await auth();
-
-  // Step 1: Require authentication
-  if (!authSession) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Step 2: Require admin role (from database, not just session claim)
+  // Step 3: Require admin role (from database, not just session claim)
   const userAccount = await applicationDatabase.userAccount.findUnique({
     where: { userAccountId: authSession.user.id },
     select: { accountRole: true },
@@ -315,7 +314,6 @@ Each fixed endpoint has corresponding tests. Route fixtures use UUID-shaped proj
 ```typescript
 describe('GET /api/projects/[projectId]', () => {
   const ownerUserId = '11111111-1111-4111-8111-111111111111';
-  const otherUserId = '22222222-2222-4222-8222-222222222222';
   const ownerProjectId = '33333333-3333-4333-8333-333333333333';
   const otherProjectId = '44444444-4444-4444-8444-444444444444';
 
