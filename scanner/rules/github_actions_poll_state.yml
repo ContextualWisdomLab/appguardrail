@@ -1,0 +1,50 @@
+rules:
+  # Companion for issue #1087. A syntactically present total bound is not a
+  # real bound if the loop itself refreshes the deadline, resets the total
+  # attempt counter, or grows the attempt limit at the same pace. Keep this
+  # detector separate from the historical/generic transport-budget matchers so
+  # their already-reviewed negative boundaries are not weakened while this
+  # higher-order state invariant remains executable scanner evidence.
+  - id: github-actions-poll-bound-state-reset
+    patterns:
+      - pattern-regex: '^  [A-Za-z0-9_.-]+[^\n]*\n(?!(?>(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[^\n]*\n))*^    timeout-minutes[ \t]*:[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?$)(?>(?:(?!^      -[ \t]*run|^        run)^ {4,}[^\n]*\n)){0,80}^(?:      -[ \t]*run|        run)[ \t]*:[ \t]*\|[+-]?[^\n]*\n(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<mut_fc>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*0[ \t]*(?:#[^\n]*)?\n(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<mut_fl>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?\n(?:(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<mut_deadline>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*\$\(\(\$\([^\n]*\bdate\b[^\n]*\+%s\)[ \t]*\+[ \t]*[1-9][0-9]*\)\)[^\n]*\n(?>(?:(?!^          while[ \t])^ {10,}[^\n]*\n)){0,20}^          while[ \t]+(?::|true)[ \t]*;[ \t]*do[^\n]*\n(?>(?:(?!^ {12}(?! )(?P=mut_deadline)[ \t]*=|^          done\b)^ {12,}[^\n]*\n)){0,12}^ {12}(?! )(?P=mut_deadline)[ \t]*=[ \t]*\$\(\(\$\([^\n]*\bdate\b[^\n]*\+%s\)[ \t]*\+[ \t]*[1-9][0-9]*\)\)[^\n]*\n(?>(?:(?!^ {12}(?! )if[^\n]*\$(?:\{)?(?P=mut_deadline)(?:\})?\b[^\n]*;[ \t]*then|^          done\b)^ {12,}[^\n]*\n)){0,12}^ {12}(?! )if[^\n]*\bdate\b[^\n]*\+%s[^\n]*-[gl]e[^\n]*\$(?:\{)?(?P=mut_deadline)(?:\})?\b[^\n]*;[ \t]*then[^\n]*\n(?>(?:(?!^ {14}(?! )exit[ \t]+[1-9][0-9]*\b)^ {14,}[^\n]*\n)){0,8}^ {14}(?! )exit[ \t]+[1-9][0-9]*\b[^\n]*\n|(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<mut_total_counter>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*0[ \t]*(?:#[^\n]*)?\n(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<mut_total_limit>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?\n(?>(?:(?!^          while[ \t])^ {10,}[^\n]*\n)){0,20}^          while[ \t]+(?::|true)[ \t]*;[ \t]*do[^\n]*\n(?:(?>(?:(?!^ {12}(?! )(?P=mut_total_counter)[ \t]*=[ \t]*0\b|^          done\b)^ {12,}[^\n]*\n)){0,12}^ {12}(?! )(?P=mut_total_counter)[ \t]*=[ \t]*0[^\n]*\n(?>(?:(?!^ {12}(?! )(?P=mut_total_counter)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_total_counter)[ \t]*\+[ \t]*1[ \t]*\)\))^ {12,}[^\n]*\n)){0,8}^ {12}(?! )(?P=mut_total_counter)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_total_counter)[ \t]*\+[ \t]*1[ \t]*\)\)[^\n]*\n|(?>(?:(?!^ {12}(?! )(?P=mut_total_counter)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_total_counter)[ \t]*\+[ \t]*1[ \t]*\)\))^ {12,}[^\n]*\n)){0,12}^ {12}(?! )(?P=mut_total_counter)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_total_counter)[ \t]*\+[ \t]*1[ \t]*\)\)[^\n]*\n(?>(?:(?!^ {12}(?! )(?P=mut_total_limit)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_total_limit)[ \t]*\+[ \t]*1[ \t]*\)\))^ {12,}[^\n]*\n)){0,8}^ {12}(?! )(?P=mut_total_limit)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_total_limit)[ \t]*\+[ \t]*1[ \t]*\)\)[^\n]*\n)(?>(?:(?!^ {12}(?! )if[^\n]*\$(?P=mut_total_counter)[^\n]*-ge[^\n]*\$(?P=mut_total_limit)\b[^\n]*;[ \t]*then|^          done\b)^ {12,}[^\n]*\n)){0,8}^ {12}(?! )if[^\n]*\$(?P=mut_total_counter)[^\n]*-ge[^\n]*\$(?P=mut_total_limit)\b[^\n]*;[ \t]*then[^\n]*\n(?>(?:(?!^ {14}(?! )exit[ \t]+[1-9][0-9]*\b)^ {14,}[^\n]*\n)){0,8}^ {14}(?! )exit[ \t]+[1-9][0-9]*\b[^\n]*\n)(?>(?:(?!^ {12}(?! )if[ \t]+![^\n]*\bgh[ \t]+api\b|^          done\b)^ {12,}[^\n]*\n)){0,30}^ {12}(?! )if[ \t]+![^\n]*\bgh[ \t]+api\b[^\n]*;[ \t]*then[^\n]*\n(?>(?:(?!^ {14}(?! )(?P=mut_fc)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_fc)[ \t]*\+[ \t]*1[ \t]*\)\)|^ {12}fi\b)^ {14,}[^\n]*\n)){0,8}^ {14}(?! )(?P=mut_fc)[ \t]*=[ \t]*\$\(\([ \t]*(?P=mut_fc)[ \t]*\+[ \t]*1[ \t]*\)\)[^\n]*\n(?>(?:(?!^ {14}(?! )if[^\n]*\$(?P=mut_fc)[^\n]*-ge[^\n]*\$(?P=mut_fl)\b[^\n]*;[ \t]*then|^ {12}fi\b)^ {14,}[^\n]*\n)){0,8}^ {14}(?! )if[^\n]*\$(?P=mut_fc)[^\n]*-ge[^\n]*\$(?P=mut_fl)\b[^\n]*;[ \t]*then[^\n]*\n(?>(?:(?!^ {16}(?! )exit[ \t]+[1-9][0-9]*\b)^ {16,}[^\n]*\n)){0,8}^ {16}(?! )exit[ \t]+[1-9][0-9]*\b[^\n]*\n(?>(?:(?!^ {12}fi\b)^ {12,}[^\n]*\n)){0,20}^ {12}fi\b[^\n]*\n(?>(?:(?!^ {12}(?! )sleep(?:[ \t]+|$)|^          done\b)^ {12,}[^\n]*\n)){0,20}^ {12}(?! )sleep(?:[ \t]+|$)[^\n]*\n(?>(?:(?!^          done\b)^ {12,}[^\n]*\n)){0,20}^          done\b'
+    prefilter: [while, sleep]
+    message: |
+      This GitHub Actions polling loop appears to have a total deadline or
+      attempt bound, but the loop mutates that safety state so the bound can
+      fail to converge: it refreshes the deadline, resets the total counter, or
+      grows the total limit alongside the counter. A transport-failure budget
+      does not cover the healthy-transport/no-result path. Keep deadline and
+      limit state invariant for the lifetime of the loop, make the total counter
+      monotonic, or add a positive timeout-minutes to the owning job. Fail closed
+      when the real total bound expires.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-400]
+    owasp: [A04:2021]
+    paths:
+      include:
+        - ".github/workflows/*.yml"
+        - ".github/workflows/*.yaml"
+
+  # `break 0` is an invalid shell break level. Without errexit the command can
+  # fail and execution can continue to the sleep/back edge, so it must not be
+  # treated as proof that a healthy API path terminates the poll.
+  - id: github-actions-poll-invalid-break-zero
+    patterns:
+      - pattern-regex: '^  [A-Za-z0-9_.-]+[^\n]*\n(?!(?>(?:(?!^(?:[A-Za-z0-9_.-]+|  [A-Za-z0-9_.-]+)[ \t]*:)[^\n]*\n))*^    timeout-minutes[ \t]*:[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?$)(?>(?:(?!^      -[ \t]*run|^        run)^ {4,}[^\n]*\n)){0,80}^(?:      -[ \t]*run|        run)[ \t]*:[ \t]*\|[+-]?[^\n]*\n(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<brk_fc>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*0[ \t]*(?:#[^\n]*)?\n(?>(?:(?!^          [A-Za-z_][A-Za-z0-9_]*[ \t]*=)^ {10,}[^\n]*\n)){0,20}^          (?P<brk_fl>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*[1-9][0-9]*[ \t]*(?:#[^\n]*)?\n(?>(?:(?!^          while[ \t])^ {10,}[^\n]*\n)){0,20}^          while[ \t]+(?::|true)[ \t]*;[ \t]*do[^\n]*\n(?>(?:(?!^ {12}(?! )if[ \t]+![^\n]*\bgh[ \t]+api\b|^          done\b)^ {12,}[^\n]*\n)){0,30}^ {12}(?! )if[ \t]+![^\n]*\bgh[ \t]+api\b[^\n]*;[ \t]*then[^\n]*\n(?>(?:(?!^ {14}(?! )(?P=brk_fc)[ \t]*=[ \t]*\$\(\([ \t]*(?P=brk_fc)[ \t]*\+[ \t]*1[ \t]*\)\)|^ {12}fi\b)^ {14,}[^\n]*\n)){0,8}^ {14}(?! )(?P=brk_fc)[ \t]*=[ \t]*\$\(\([ \t]*(?P=brk_fc)[ \t]*\+[ \t]*1[ \t]*\)\)[^\n]*\n(?>(?:(?!^ {14}(?! )if[^\n]*\$(?P=brk_fc)[^\n]*-ge[^\n]*\$(?P=brk_fl)\b[^\n]*;[ \t]*then|^ {12}fi\b)^ {14,}[^\n]*\n)){0,8}^ {14}(?! )if[^\n]*\$(?P=brk_fc)[^\n]*-ge[^\n]*\$(?P=brk_fl)\b[^\n]*;[ \t]*then[^\n]*\n(?>(?:(?!^ {16}(?! )exit[ \t]+[1-9][0-9]*\b)^ {16,}[^\n]*\n)){0,8}^ {16}(?! )exit[ \t]+[1-9][0-9]*\b[^\n]*\n(?>(?:(?!^ {12}fi\b)^ {12,}[^\n]*\n)){0,20}^ {12}fi\b[^\n]*\n(?>(?:(?!^ {12}(?! )break[ \t]+0\b|^          done\b)^ {12,}[^\n]*\n)){0,20}^ {12}(?! )break[ \t]+0\b[^\n]*\n(?>(?:(?!^ {12}(?! )sleep(?:[ \t]+|$)|^          done\b)^ {12,}[^\n]*\n)){0,20}^ {12}(?! )sleep(?:[ \t]+|$)[^\n]*\n(?>(?:(?!^          done\b)^ {12,}[^\n]*\n)){0,20}^          done\b'
+    prefilter: [while, sleep]
+    message: |
+      This GitHub Actions polling loop uses `break 0` as successful-path
+      termination. In POSIX-like shells the zero break level is invalid; without
+      fail-fast shell semantics execution can continue to the polling sleep and
+      back edge. Use bare `break`, a valid positive break level, an explicit
+      successful exit, or a real total polling bound.
+    severity: HIGH
+    languages: [generic]
+    cwe: [CWE-400]
+    owasp: [A04:2021]
+    paths:
+      include:
+        - ".github/workflows/*.yml"
+        - ".github/workflows/*.yaml"
