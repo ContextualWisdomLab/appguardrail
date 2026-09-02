@@ -58,7 +58,7 @@ rules:
 
   - id: skill-placeholder-template-unresolved
     patterns:
-      - pattern-regex: '^name:\s*"\{\{?[a-z][a-z-]*\}?\}"?\s*$'
+      - pattern-regex: '(?im)^name:\s*["'']?\{\{?[A-Za-z][A-Za-z0-9_-]*\}\}?["'']?\s*$'
     message: |
       Skill frontmatter still carries an unresolved placeholder name
       (e.g. "{skill-name}"). Placeholder templates pollute skill discovery and
