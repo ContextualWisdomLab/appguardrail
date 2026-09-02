@@ -35,6 +35,26 @@ def _scan(tmp_path: Path, shell: str) -> list[str]:
     return [finding["rule_id"] for finding in _scan_file(workflow, tmp_path)]
 
 
+def _scan_with_timeout(tmp_path: Path, shell: str, timeout: str) -> list[str]:
+    """Scan a workflow whose owning job declares the supplied timeout expression."""
+    workflow = tmp_path / ".github" / "workflows" / "required-review.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_text(
+        "name: Required review\n"
+        "on: pull_request_target\n"
+        "jobs:\n"
+        "  review:\n"
+        "    runs-on: ubuntu-24.04\n"
+        f"    timeout-minutes: {timeout}\n"
+        "    steps:\n"
+        "      - run: |\n"
+        + "\n".join(f"          {line}" for line in shell.strip().splitlines())
+        + "\n",
+        encoding="utf-8",
+    )
+    return [finding["rule_id"] for finding in _scan_file(workflow, tmp_path)]
+
+
 def _renamed_transport_branch(command: str = "gh api repos/example/repo/pulls/7/reviews") -> str:
     """Return the reviewed renamed transport-failure branch."""
     return '''  if ! response="$(%s)"; then
@@ -296,3 +316,122 @@ while :; do
 done
 """
     assert _HISTORICAL in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize("historical", [False, True])
+def test_primary_poll_accepts_strict_total_deadline_bound(
+    tmp_path: Path, historical: bool
+) -> None:
+    """A strict clock-greater-than deadline is still a finite total poll bound."""
+    setup, branch, target = _transport_case(historical)
+    shell = f"""
+{setup}
+overall_deadline=$(($(date +%s) + 600))
+while :; do
+  if [ "$(date +%s)" -gt "$overall_deadline" ]; then
+    exit 1
+  fi
+{branch}
+  sleep 30
+done
+"""
+    assert target not in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize("historical", [False, True])
+@pytest.mark.parametrize(
+    "declarations",
+    [
+        "overall_attempts=0\noverall_attempt_limit=12",
+        "overall_attempt_limit=12\noverall_attempts=0",
+    ],
+)
+def test_primary_poll_accepts_strict_total_attempt_bound(
+    tmp_path: Path, historical: bool, declarations: str
+) -> None:
+    """A strict total-attempt comparison bounds either declaration order."""
+    setup, branch, target = _transport_case(historical)
+    shell = f"""
+{setup}
+{declarations}
+while :; do
+  overall_attempts=$((overall_attempts + 1))
+  if [ "$overall_attempts" -gt "$overall_attempt_limit" ]; then
+    exit 1
+  fi
+{branch}
+  sleep 30
+done
+"""
+    assert target not in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize("historical", [False, True])
+def test_primary_poll_accepts_positive_constant_timeout_expression(
+    tmp_path: Path, historical: bool
+) -> None:
+    """A statically positive Actions timeout expression bounds the owning job."""
+    setup, branch, target = _transport_case(historical)
+    shell = f"""
+{setup}
+while :; do
+{branch}
+  sleep 30
+done
+"""
+    assert target not in _scan_with_timeout(tmp_path, shell, "${{ 20 }}")
+
+
+def test_state_reset_accepts_positive_constant_timeout_expression(tmp_path: Path) -> None:
+    """The mutable-state companion respects a static positive owning-job timeout."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+poll_deadline=$(($(date +%s) + 300))
+while :; do
+  poll_deadline=$(($(date +%s) + 300))
+  if [ "$(date +%s)" -ge "$poll_deadline" ]; then
+    exit 1
+  fi
+{_renamed_transport_branch()}
+  sleep 30
+done
+"""
+    assert _RESET not in _scan_with_timeout(tmp_path, shell, "${{ 20 }}")
+
+
+def test_unreachable_exit_accepts_positive_constant_timeout_expression(tmp_path: Path) -> None:
+    """The unreachable-exit companion respects a static positive owning-job timeout."""
+    shell = """
+overall_deadline=$(($(date +%s) + 600))
+while :; do
+  if [ "$(date +%s)" -ge "$overall_deadline" ]; then
+    continue
+    exit 1
+  fi
+  if ! response="$(gh api repos/example/repo/pulls/7/reviews)"; then
+    continue
+  fi
+  sleep 30
+done
+"""
+    assert _UNREACHABLE not in _scan_with_timeout(tmp_path, shell, "${{ 20 }}")
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    ["${{ 0 }}", "${{ -1 }}", "${{ inputs.timeout }}"],
+)
+def test_unproved_timeout_expression_does_not_suppress_poll_finding(
+    tmp_path: Path, timeout: str
+) -> None:
+    """Zero, negative, or dynamic timeout expressions are not static safety evidence."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+while :; do
+{_renamed_transport_branch()}
+  sleep 30
+done
+"""
+    assert _GENERIC in _scan_with_timeout(tmp_path, shell, timeout)
