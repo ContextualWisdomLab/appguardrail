@@ -99,6 +99,64 @@ done
     assert _scan(tmp_path, shell).count(_RULE) == 1
 
 
+@pytest.mark.parametrize("terminator", ["exit 0", "break"])
+def test_terminating_command_before_continue_is_not_reported(
+    tmp_path: Path, terminator: str
+) -> None:
+    """A command that terminates first makes the later continue unreachable."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+poll_deadline=$(($(date +%s) + 300))
+while :; do
+  if [ \"$(date +%s)\" -ge \"$poll_deadline\" ]; then
+    {terminator}
+    continue
+    exit 1
+  fi
+{_transport_failure_block("api_error_streak", "transport_error_budget")}
+  sleep 30
+done
+"""
+    assert _RULE not in _scan(tmp_path, shell)
+
+
+def test_continue_zero_is_not_reported_as_a_valid_back_edge(tmp_path: Path) -> None:
+    """Invalid ``continue 0`` is not evidence of a reachable loop back edge."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+poll_deadline=$(($(date +%s) + 300))
+while :; do
+  if [ \"$(date +%s)\" -ge \"$poll_deadline\" ]; then
+    continue 0
+    exit 1
+  fi
+{_transport_failure_block("api_error_streak", "transport_error_budget")}
+  sleep 30
+done
+"""
+    assert _RULE not in _scan(tmp_path, shell)
+
+
+def test_continue_one_before_exit_remains_detectable(tmp_path: Path) -> None:
+    """A directly reachable level-one continue is a real loop back edge."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+poll_deadline=$(($(date +%s) + 300))
+while :; do
+  if [ \"$(date +%s)\" -ge \"$poll_deadline\" ]; then
+    continue 1
+    exit 1
+  fi
+{_transport_failure_block("api_error_streak", "transport_error_budget")}
+  sleep 30
+done
+"""
+    assert _scan(tmp_path, shell).count(_RULE) == 1
+
+
 def test_reachable_deadline_exit_is_not_reported_by_unreachable_exit_companion(
     tmp_path: Path,
 ) -> None:
