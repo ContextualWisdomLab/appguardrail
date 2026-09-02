@@ -10,7 +10,7 @@ See `../vulnerable-vibe-app/README.md` for the list of vulnerabilities that were
 
 ### 1. Ownership Check Added (IDOR Fixed)
 
-`app/api/projects/[id]/route.ts`
+`app/api/projects/[projectId]/route.ts`
 
 ```typescript
 // ✅ SECURE: Authentication + ownership verification
@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { projectId: string } }
 ) {
   // Step 1: Check authentication
   const session = await auth();
@@ -30,18 +30,18 @@ export async function GET(
   const supabase = createClient();
 
   // Step 2: Fetch the project
-  const { data: project, error } = await supabase
+  const { data: projectRecord, error: projectQueryError } = await supabase
     .from('projects')
     .select('*')
-    .eq('id', params.id)
+    .eq('project_id', params.projectId)
     .single();
 
   // Step 3: Verify ownership
-  if (error || !project || project.user_id !== session.user.id) {
+  if (projectQueryError || !projectRecord || projectRecord.user_id !== session.user.id) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  return Response.json(project);
+  return Response.json(projectRecord);
 }
 ```
 
@@ -196,10 +196,10 @@ const db = new PrismaClient(); // uses DATABASE_URL from process.env automatical
 ```sql
 -- ✅ SECURE: RLS enabled with proper policies
 CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) NOT NULL,
-  name TEXT NOT NULL,
-  data JSONB
+  project_name TEXT NOT NULL,
+  project_payload_json JSONB
 );
 
 -- Enable Row Level Security
@@ -271,7 +271,7 @@ export async function GET(req: Request) {
 Each fixed endpoint has corresponding tests:
 
 ```typescript
-describe('GET /api/projects/[id]', () => {
+describe('GET /api/projects/[projectId]', () => {
   it('returns 401 when unauthenticated', async () => {
     const res = await GET(request('/api/projects/test-id'));
     expect(res.status).toBe(401);
