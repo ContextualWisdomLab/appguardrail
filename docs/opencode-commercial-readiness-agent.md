@@ -6,7 +6,7 @@ AppGuardrail runs one bounded commercial-readiness pass at `17 * * * *`. The wor
 
 The default branch is the only source of task authority. The workflow checks out the exact scheduled or manually selected default-branch SHA with persisted checkout credentials disabled. A feature branch, pull-request event, issue body, issue comment, model response, downloaded document, or webpage cannot define or widen the model task.
 
-GitHub issue title, body, and comments are **untrusted observations**. The selector accepts an active issue only when it has exactly one known hidden registry marker and its title exactly matches the reviewed registry entry. Unknown, duplicated, or mismatched identities fail closed before `NVIDIA_NIM_API_KEY` is exposed.
+GitHub issue title, body, and comments are **untrusted observations**. The selector accepts an active issue only when it has exactly one known hidden registry marker and its title exactly matches the reviewed registry entry. Unknown, duplicated, or mismatched identities fail closed before any gateway provider credential is exposed.
 
 Before the model step, the workflow creates `.commercial-agent-contract.md` from the reviewed registry. The file contains the gap identifier, objective, acceptance criteria, engineering constraints, issue number, and protected handoff rules. The workflow makes it read-only, records its SHA-256 digest, and instructs the agent to verify that digest. `.commercial-agent-contract.md` is the sole task authority below repository policy files.
 
@@ -14,27 +14,19 @@ The development model does not read the issue title, body, or comments. The sele
 
 ## Credentials and provider
 
-OpenCode uses its built-in `nvidia` provider. GitHub Actions maps the organization secret `NVIDIA_NIM_API_KEY` to the provider variable `NVIDIA_API_KEY` only for the credential preflight and the pinned OpenCode action.
+OpenCode uses the organization-owned contextual-orchestrator gateway. GitHub Actions gives the sidecar any available `BYTEZ_API_KEY`, `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_API_KEY_SUB`, `OPENROUTER_API_KEY`, and `OPENAI_API_KEY` only for in-memory discovery. OpenCode receives an ephemeral loopback `CONTEXTUAL_ORCHESTRATOR_TOKEN`, never a provider credential.
 
 `COPILOT_GITHUB_TOKEN` must never be configured, referenced, or used by this scheduler. The existing review-agent credentials, models, approval rules, and required Checks are independent and must not be changed by the development path.
 
-The primary model is:
+The model selector is the gateway virtual model:
 
 ```text
-nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5
+contextual-orchestrator/orchestrator/free
 ```
 
-The bounded helper model is:
+The gateway chooses a currently eligible free route from its discovered catalog. The workflow does not name a provider-specific primary or helper model.
 
-```text
-nvidia/meta/llama-3.3-70b-instruct
-```
-
-The GitHub integration is pinned to immutable commit:
-
-```text
-anomalyco/opencode/github@77fc88c8ade8e5a620ebbe1197f3a572d29ae91a
-```
+The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central gateway boundary is pinned to immutable `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@bbe65f08b1ae663c467be343e8fd5a98881eb686`.
 
 The `commercial-builder` primary agent may edit repository files and run bounded shell commands, but it cannot access external directories, web search, web fetch, or nested agents. Its default configuration outside that named agent remains read-only.
 
@@ -49,16 +41,16 @@ flowchart TD
     D --> F[Generate read-only contract]
     E --> F
     F --> G[SHA-256 contract receipt]
-    G --> H[NVIDIA secret preflight]
-    H --> I[Pinned OpenCode commercial-builder]
+    G --> H[Gateway credential preflight]
+    H --> I[Pinned OpenCode CLI via CO/free]
     I --> J[Exactly one develop PR]
     J --> K[Independent review and exact-head Checks]
     K --> L[Protected merge by a separate path]
 ```
 
-The workflow has one non-cancelling concurrency group, so a later hourly event cannot terminate an active commercial slice. The job timeout is **170 minutes**. This permits a two-hour implementation plus checkout, dependency setup, tests, documentation, and pull-request publication while remaining well below GitHub's six-hour hosted-runner execution ceiling and the workflow-syntax maximum of 360 minutes.
+The workflow has one single-flight concurrency group with cancellation enabled, so a later scheduled or manually dispatched run terminates an obsolete active commercial slice before it creates duplicate work. The job timeout is **170 minutes**. This permits a two-hour implementation plus checkout, dependency setup, tests, documentation, and pull-request publication while remaining well below GitHub's six-hour hosted-runner execution ceiling and the workflow-syntax maximum of 360 minutes.
 
-Because the schedule fires hourly, one 170-minute pass may span more than one later cron event. Those later events remain serialized by the same concurrency group rather than creating parallel implementation branches. If a run reaches the reviewed timeout without producing a pull request, GitHub cancels the job, the coordination issue remains open, and a later pass can reselect it only after the active run has ended and the PR queue is still empty. The job-scoped `GITHUB_TOKEN` remains valid only for the job lifetime and is not persisted by checkout.
+Because the schedule fires hourly, one 170-minute pass may span more than one later cron event. A later event cancels the superseded run through the same concurrency group; the coordination issue remains open and a later pass can reselect it after the stale run has ended and the PR queue is still empty. The job-scoped `GITHUB_TOKEN` remains valid only for the job lifetime and is not persisted by checkout.
 
 Independent CodeRabbit, OpenCode review, security, and merge workflows may continue after the builder opens its pull request. Review waiting does not grant the builder permission to merge, change credentials, or weaken repository protection.
 
@@ -89,8 +81,8 @@ The workflow fails closed when any of the following occurs:
 - the issue marker is unknown or duplicated;
 - the issue title differs from the reviewed registry;
 - the trusted contract is empty or cannot be hashed;
-- `NVIDIA_NIM_API_KEY` is missing;
-- OpenCode cannot use the selected NVIDIA model;
+- none of the five supported gateway bootstrap credentials is available;
+- contextual-orchestrator cannot produce a usable `orchestrator/free` route;
 - the agent cannot produce a tested, reviewable PR; or
 - the 170-minute execution budget expires.
 
@@ -107,7 +99,7 @@ Before merge, the current head must prove:
 3. production docstrings remain complete;
 4. workflow syntax and immutable action pins are valid;
 5. the job timeout remains between 120 and 180 minutes;
-6. no `COPILOT_GITHUB_TOKEN` or Jules handoff remains;
+6. no direct provider endpoint/model or `COPILOT_GITHUB_TOKEN`/Jules handoff remains;
 7. security, SAST, and repository tests pass on the same head;
 8. all review threads are resolved; and
 9. a reviewer other than the last pusher approves the same head.
@@ -118,7 +110,9 @@ A release is not implied by merging the scheduler. Version promotion and `CHANGE
 
 Anomaly. (2026a). *GitHub integration*. OpenCode documentation. https://opencode.ai/docs/github/
 
-Anomaly. (2026b). *Providers: NVIDIA*. OpenCode documentation. https://opencode.ai/docs/providers/
+Anomaly. (2026b). *Providers: OpenAI-compatible*. OpenCode documentation. https://opencode.ai/docs/providers/
+
+ContextualWisdomLab. (2026). *Contextual Orchestrator gateway contract*. https://github.com/ContextualWisdomLab/contextual-orchestrator
 
 Anomaly. (2026c). *Agents*. OpenCode documentation. https://opencode.ai/docs/agents/
 
