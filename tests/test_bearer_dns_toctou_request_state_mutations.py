@@ -13,6 +13,7 @@ _FAMILY = {
     "python-bearer-preflight-dns-toctou-multiline-constructor",
     "python-bearer-preflight-dns-toctou-multiline-header-mutation",
     _DYNAMIC,
+    "python-bearer-preflight-dns-toctou-unredirected-header-persistence",
 }
 
 
@@ -179,3 +180,49 @@ def test_dynamic_bearer_reviewed_opener_request_replacement_is_sanitized(tmp_pat
     return opener.open(req, timeout=5)
 """
     assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_fixed_one_line_request_merely_mentioning_endpoint_is_not_bound(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request("https://fixed.example/api", headers={"X-Endpoint": endpoint})
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_fixed_multiline_request_merely_mentioning_endpoint_is_not_bound(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        "https://fixed.example/api",
+        headers={"X-Endpoint": endpoint},
+    )
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_keyword_request_destination_remains_detectable(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(url=endpoint)
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _scan_source(tmp_path, source)
+    assert [finding["rule_id"] for finding in findings] == [_DYNAMIC]
