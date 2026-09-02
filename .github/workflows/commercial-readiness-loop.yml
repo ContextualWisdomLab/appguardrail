@@ -18,7 +18,7 @@ jobs:
   dispatch-reviewed-gap:
     # Scheduled workflows are loaded from the default branch. Manual execution
     # is allowed only on that same reviewed branch; feature-branch workflow code
-    # never receives the NVIDIA credential or repository write capability.
+    # never receives a provider credential or repository write capability.
     if: github.event_name == 'schedule' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 170
