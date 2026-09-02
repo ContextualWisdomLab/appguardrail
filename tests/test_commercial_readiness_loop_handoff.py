@@ -66,10 +66,12 @@ def test_operator_documentation_records_agent_trust_and_recovery() -> None:
     documentation = DOCUMENTATION_PATH.read_text(encoding="utf-8")
 
     required = (
+        "contextual-orchestrator",
+        "orchestrator/free",
+        "CONTEXTUAL_ORCHESTRATOR_TOKEN",
         "NVIDIA_NIM_API_KEY",
-        "NVIDIA_API_KEY",
         "commercial-builder",
-        "77fc88c8ade8e5a620ebbe1197f3a572d29ae91a",
+        "bbe65f08b1ae663c467be343e8fd5a98881eb686",
         "17 * * * *",
         "default branch",
         "PR-first",
@@ -111,7 +113,8 @@ def test_changelog_fragment_records_jules_replacement_and_secret_boundary() -> N
 
     assert "OpenCode" in changelog
     assert "NVIDIA_NIM_API_KEY" in changelog
-    assert "Jules" in changelog
+    assert "direct-provider" in changelog.lower()
+    assert "Jules" not in changelog
     assert "review-agent" in changelog
     assert "registry" in changelog.lower()
     assert "hour" in changelog.lower()
