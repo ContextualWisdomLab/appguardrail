@@ -1,6 +1,7 @@
 """Tests for the multi-tenant control-plane store + API."""
 
 import json
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -179,7 +180,7 @@ def test_webhook_alerts_on_drift(monkeypatch):
     )
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")
-    set_webhook(conn, oid, "http://8.8.8.8/x")
+    set_webhook(conn, oid, "http://hook.example/x")
     crit = {
         "severity": "CRITICAL",
         "rule_id": "s",
@@ -192,7 +193,7 @@ def test_webhook_alerts_on_drift(monkeypatch):
     add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")  # 0 new -> no alert
     assert len(sent) == 1
     url, payload, kw = sent[0]
-    assert url == "http://8.8.8.8/x"
+    assert url == "http://hook.example/x"
     assert payload["event"] == "drift.new_blocking" and payload["new_blocking"] == 1
     # add_scan hands the Slack renderer the org name + the new findings.
     assert kw["org_name"] == "Acme"
@@ -304,7 +305,7 @@ def test_api_role_enforcement(server):
     for method, path, body in [
         ("POST", "/api/v1/scans", F),
         ("POST", "/api/v1/keys", {"role": "member"}),
-        ("POST", "/api/v1/webhook", {"url": "http://8.8.8.8"}),
+        ("POST", "/api/v1/webhook", {"url": "http://x"}),
     ]:
         with pytest.raises(urllib.error.HTTPError) as e:
             _req(method, f"{base}{path}", viewer, body)
@@ -312,11 +313,12 @@ def test_api_role_enforcement(server):
     # member: ingest yes, keys/webhook no
     assert _req("POST", f"{base}/api/v1/scans", member, F)[0] == 201
     with pytest.raises(urllib.error.HTTPError) as e:
-        _req("POST", f"{base}/api/v1/webhook", member, {"url": "http://8.8.8.8"})
+        _req("POST", f"{base}/api/v1/webhook", member, {"url": "http://x"})
     assert e.value.code == 403
     # owner: all yes
     assert (
-        _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://8.8.8.8"})[0] == 200
+        _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://8.8.8.8/x"})[0]
+        == 200
     )
 
 
@@ -369,7 +371,7 @@ def test_is_slack_webhook():
     assert not _is_slack_webhook(
         "https://hooks.slack.com.evil.example/x"
     )  # host must match
-    assert not _is_slack_webhook("https://8.8.8.8/x")
+    assert not _is_slack_webhook("https://hook.example/x")
     assert not _is_slack_webhook("not a url")
 
 
@@ -404,6 +406,14 @@ def test_slack_blocks_caps_and_escapes():
 
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
+
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", 443))
+        ],
+    )
 
     def _fake_build_opener(*handlers):
         assert any(type(h).__name__ == "SafeRedirectHandler" for h in handlers)
@@ -450,7 +460,7 @@ def test_send_alert_slack_vs_generic(monkeypatch):
     # Generic URL -> untouched original payload (backward compatible)
     assert (
         _send_alert(
-            "https://8.8.8.8/x", generic, org_name="Acme", new_findings=findings
+            "https://hook.example/x", generic, org_name="Acme", new_findings=findings
         )
         is True
     )

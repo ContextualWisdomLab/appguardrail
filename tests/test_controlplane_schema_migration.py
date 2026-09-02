@@ -83,7 +83,7 @@ def _legacy_connection(path: Path | str = ":memory:") -> sqlite3.Connection:
             "Acme Security",
             "bootstrap-hash-001",
             "2026-08-04T12:00:00Z",
-            "https://8.8.8.8/tenant-acme",
+            "https://hooks.example.test/tenant-acme",
         ),
     )
     connection.execute(
@@ -167,7 +167,7 @@ def test_legacy_database_migrates_rows_and_foreign_keys_without_data_loss(
         "Acme Security",
         "bootstrap-hash-001",
         "2026-08-04T12:00:00Z",
-        "https://8.8.8.8/tenant-acme",
+        "https://hooks.example.test/tenant-acme",
     )
     assert tuple(scan[:7]) == (
         1,
