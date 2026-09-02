@@ -226,3 +226,49 @@ def deliver(url, api_key):
 """
     findings = _scan_source(tmp_path, source)
     assert [finding["rule_id"] for finding in findings] == [_DYNAMIC]
+
+
+def test_dynamic_validated_url_replacement_before_endpoint_breaks_provenance(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    url = "https://fixed.example"
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint)
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_endpoint_replacement_before_request_breaks_provenance(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    endpoint = "https://fixed.example/api/v1/scans"
+    req = urllib.request.Request(endpoint)
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_self_derived_endpoint_reassignment_preserves_provenance(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    endpoint = endpoint + "?retry=1"
+    req = urllib.request.Request(endpoint)
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _scan_source(tmp_path, source)
+    assert [finding["rule_id"] for finding in findings] == [_DYNAMIC]
