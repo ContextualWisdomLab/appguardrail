@@ -145,3 +145,37 @@ def test_dynamic_bearer_then_fixed_destination_is_sanitized(tmp_path):
     return urllib.request.urlopen(req, timeout=5)
 """
     assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_bearer_reviewed_opener_remains_detectable(tmp_path):
+    source = _direct_bearer_prefix() + """\
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    return opener.open(req, timeout=5)
+"""
+    findings = _scan_source(tmp_path, source)
+    assert len(findings) == 1
+    assert findings[0]["rule_id"] == _DYNAMIC
+
+
+def test_dynamic_bearer_reviewed_opener_header_clear_is_sanitized(tmp_path):
+    source = _direct_bearer_prefix() + """\
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    req.headers.clear()
+    return opener.open(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
+
+
+def test_dynamic_bearer_reviewed_opener_request_replacement_is_sanitized(tmp_path):
+    source = _direct_bearer_prefix() + """\
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    req = urllib.request.Request("https://fixed.example/api/v1/scans")
+    return opener.open(req, timeout=5)
+"""
+    assert not _scan_source(tmp_path, source)
