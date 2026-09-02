@@ -141,6 +141,31 @@ jobs:
     assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
 
 
+def test_late_job_timeout_after_more_than_300_lines_is_bounded_negative(
+    tmp_path: Path,
+) -> None:
+    """Owning-job timeout discovery must not depend on an arbitrary line cap."""
+    spacer = "\n".join("    # realistic large-job spacer" for _ in range(305))
+    workflow = f"""
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          while true; do
+            reviews="$(gh api repos/example/repo/pulls/1/reviews)"
+            sleep 30
+          done
+{spacer}
+    timeout-minutes: 20
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
 def test_sibling_job_bounds_do_not_suppress_vulnerable_poll(tmp_path: Path) -> None:
     """A bound in another job cannot terminate the vulnerable polling job."""
     workflow = """
