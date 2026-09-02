@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scanner.cli.appguardrail import _scan_file
+from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 _PRIMARY = "python-bearer-preflight-dns-toctou"
 _DYNAMIC = "python-bearer-preflight-dns-toctou-dynamic-bearer-replacement"
@@ -36,6 +36,11 @@ def deliver(url, api_key, replacement=None):
         headers={"Authorization": f"Bearer {api_key}"},
     )
 """
+
+
+def test_dynamic_bearer_companion_is_packaged_once():
+    loaded = [rule["id"] for rule in SCAN_RULES if rule["id"] == _DYNAMIC]
+    assert loaded == [_DYNAMIC]
 
 
 def test_dynamic_authorization_assignment_breaks_unproven_bearer_state(tmp_path):
