@@ -37,7 +37,7 @@ def _scan(tmp_path: Path, shell: str) -> list[str]:
 
 def _renamed_transport_branch(command: str = "gh api repos/example/repo/pulls/7/reviews") -> str:
     """Return the reviewed renamed transport-failure branch."""
-    return f'''  if ! response="$(%s)"; then
+    return '''  if ! response="$(%s)"; then
     api_error_streak=$((api_error_streak + 1))
     if [ "$api_error_streak" -ge "$transport_error_budget" ]; then
       exit 1
@@ -49,7 +49,7 @@ def _renamed_transport_branch(command: str = "gh api repos/example/repo/pulls/7/
 
 def _historical_transport_branch(command: str = "gh api repos/example/repo/pulls/7/reviews") -> str:
     """Return the source-incident transport-failure branch."""
-    return f'''  if ! response="$(%s)"; then
+    return '''  if ! response="$(%s)"; then
     review_poll_failures=$((review_poll_failures + 1))
     if [ "$review_poll_failures" -ge "$max_poll_transport_failures" ]; then
       exit 1
@@ -142,6 +142,7 @@ done
     [
         "echo 'gh api repos/example/repo/pulls/7/reviews'",
         "printf '%s\\n' 'gh api repos/example/repo/pulls/7/reviews'",
+        "printf '%s\\n' '$(gh api repos/example/repo/pulls/7/reviews)'",
     ],
 )
 def test_quoted_command_substitution_is_not_executable_poll_evidence(
@@ -157,6 +158,42 @@ while :; do
 done
 """
     assert _FAMILY.isdisjoint(_scan(tmp_path, shell))
+
+
+def test_unreachable_exit_requires_executable_poll_command(tmp_path: Path) -> None:
+    """Quoted nested command text cannot witness an unreachable-bound polling defect."""
+    shell = """
+overall_deadline=$(($(date +%s) + 600))
+while :; do
+  if [ "$(date +%s)" -ge "$overall_deadline" ]; then
+    continue
+    exit 1
+  fi
+  if ! response="$(printf '%s\\n' '$(gh api repos/example/repo/pulls/7/reviews)')"; then
+    continue
+  fi
+  sleep 30
+done
+"""
+    assert _UNREACHABLE not in _scan(tmp_path, shell)
+
+
+def test_unreachable_exit_keeps_direct_poll_command_positive(tmp_path: Path) -> None:
+    """A directly executed gh api poll keeps the unreachable-exit finding positive."""
+    shell = """
+overall_deadline=$(($(date +%s) + 600))
+while :; do
+  if [ "$(date +%s)" -ge "$overall_deadline" ]; then
+    continue
+    exit 1
+  fi
+  if ! response="$(gh api repos/example/repo/pulls/7/reviews)"; then
+    continue
+  fi
+  sleep 30
+done
+"""
+    assert _UNREACHABLE in _scan(tmp_path, shell)
 
 
 @pytest.mark.parametrize("historical", [False, True])
