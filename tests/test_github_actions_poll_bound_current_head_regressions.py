@@ -1,0 +1,186 @@
+"""Current-head regressions for issue #1087 polling detector precision."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from scanner.cli.appguardrail import _scan_file
+
+
+_HISTORICAL = "github-actions-transport-only-poll-bound"
+_GENERIC = "github-actions-transport-failure-budget-poll-bound"
+_RESET = "github-actions-poll-bound-state-reset"
+_UNREACHABLE = "github-actions-poll-bound-unreachable-exit"
+_FAMILY = {_HISTORICAL, _GENERIC, _RESET, _UNREACHABLE}
+
+
+def _scan(tmp_path: Path, shell: str) -> list[str]:
+    """Scan one conventional literal-shell GitHub Actions workflow."""
+    workflow = tmp_path / ".github" / "workflows" / "required-review.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_text(
+        "name: Required review\n"
+        "on: pull_request_target\n"
+        "jobs:\n"
+        "  review:\n"
+        "    runs-on: ubuntu-24.04\n"
+        "    steps:\n"
+        "      - run: |\n"
+        + "\n".join(f"          {line}" for line in shell.strip().splitlines())
+        + "\n",
+        encoding="utf-8",
+    )
+    return [finding["rule_id"] for finding in _scan_file(workflow, tmp_path)]
+
+
+def _renamed_transport_branch(command: str = "gh api repos/example/repo/pulls/7/reviews") -> str:
+    """Return the reviewed renamed transport-failure branch."""
+    return f'''  if ! response="$(%s)"; then
+    api_error_streak=$((api_error_streak + 1))
+    if [ "$api_error_streak" -ge "$transport_error_budget" ]; then
+      exit 1
+    fi
+    continue
+  fi
+  api_error_streak=0''' % command
+
+
+def _historical_transport_branch(command: str = "gh api repos/example/repo/pulls/7/reviews") -> str:
+    """Return the source-incident transport-failure branch."""
+    return f'''  if ! response="$(%s)"; then
+    review_poll_failures=$((review_poll_failures + 1))
+    if [ "$review_poll_failures" -ge "$max_poll_transport_failures" ]; then
+      exit 1
+    fi
+    continue
+  fi
+  review_poll_failures=0''' % command
+
+
+def test_mutable_retry_deadline_is_safe_with_independent_total_deadline(tmp_path: Path) -> None:
+    """One mutable candidate cannot invalidate a separate monotonic wall-clock bound."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+retry_deadline=$(($(date +%s) + 30))
+overall_deadline=$(($(date +%s) + 600))
+while :; do
+  retry_deadline=$(($(date +%s) + 30))
+  if [ "$(date +%s)" -ge "$retry_deadline" ]; then
+    exit 1
+  fi
+  if [ "$(date +%s)" -ge "$overall_deadline" ]; then
+    exit 1
+  fi
+{_renamed_transport_branch()}
+  sleep 30
+done
+"""
+    assert _RESET not in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize(
+    "declarations",
+    [
+        "overall_attempts=0\noverall_attempt_limit=12",
+        "overall_attempt_limit=12\noverall_attempts=0",
+    ],
+)
+def test_mutable_retry_counter_is_safe_with_independent_total_attempt_bound(
+    tmp_path: Path, declarations: str
+) -> None:
+    """A separate monotonic total-attempt guard bounds the loop in either declaration order."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+retry_attempts=0
+retry_limit=4
+{declarations}
+while :; do
+  retry_attempts=0
+  retry_attempts=$((retry_attempts + 1))
+  if [ "$retry_attempts" -ge "$retry_limit" ]; then
+    exit 1
+  fi
+  overall_attempts=$((overall_attempts + 1))
+  if [ "$overall_attempts" -ge "$overall_attempt_limit" ]; then
+    exit 1
+  fi
+{_renamed_transport_branch()}
+  sleep 30
+done
+"""
+    assert _RESET not in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize("termination", ["break", "exit 0"])
+def test_state_reset_loop_with_unconditional_post_sleep_termination_is_finite(
+    tmp_path: Path, termination: str
+) -> None:
+    """A direct successful termination before done removes the polling back edge."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+poll_deadline=$(($(date +%s) + 300))
+while :; do
+  poll_deadline=$(($(date +%s) + 300))
+  if [ "$(date +%s)" -ge "$poll_deadline" ]; then
+    exit 1
+  fi
+{_renamed_transport_branch()}
+  sleep 30
+  {termination}
+done
+"""
+    assert _RESET not in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize(
+    "fake_command",
+    [
+        "echo 'gh api repos/example/repo/pulls/7/reviews'",
+        "printf '%s\\n' 'gh api repos/example/repo/pulls/7/reviews'",
+    ],
+)
+def test_quoted_command_substitution_is_not_executable_poll_evidence(
+    tmp_path: Path, fake_command: str
+) -> None:
+    """Text produced by echo/printf must not impersonate an executable gh command token."""
+    shell = f"""
+api_error_streak=0
+transport_error_budget=4
+while :; do
+{_renamed_transport_branch(fake_command)}
+  sleep 30
+done
+"""
+    assert _FAMILY.isdisjoint(_scan(tmp_path, shell))
+
+
+@pytest.mark.parametrize("historical", [False, True])
+def test_unconditional_break_is_not_made_conditional_by_unrelated_later_fi(
+    tmp_path: Path, historical: bool
+) -> None:
+    """A later unrelated if/fi block cannot change ownership of an earlier direct break."""
+    if historical:
+        setup = "review_poll_failures=0\nmax_poll_transport_failures=3"
+        branch = _historical_transport_branch()
+        target = _HISTORICAL
+    else:
+        setup = "api_error_streak=0\ntransport_error_budget=4"
+        branch = _renamed_transport_branch()
+        target = _GENERIC
+    shell = f"""
+{setup}
+while :; do
+{branch}
+  break
+  if [ -n "$GITHUB_ACTIONS" ]; then
+    echo done
+  fi
+  sleep 30
+done
+"""
+    assert target not in _scan(tmp_path, shell)
