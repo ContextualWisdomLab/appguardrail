@@ -101,7 +101,7 @@ def test_hourly_workflow_is_default_branch_only_and_secret_bounded() -> None:
         "OPENAI_API_KEY",
     )
     assert all(workflow.count(f"secrets.{name}") == 2 for name in gateway_secrets)
-    assert "ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@bbe65f08b1ae663c467be343e8fd5a98881eb686" in workflow
+    assert "ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93" in workflow
     assert '"model":"contextual-orchestrator/orchestrator/free"' in workflow
     assert "anomalyco/opencode/github@" not in workflow
     assert "NVIDIA_API_KEY:" not in workflow
