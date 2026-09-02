@@ -1,188 +1,164 @@
 # AppGuardrail product and technical gap baseline
 
-**Snapshot:** 2026-08-21
-**Authority:** protected `develop` documentation plus live GitHub PR/issue state
-**Status:** working baseline; it is not a release or certification claim
+**Snapshot:** 2026-09-02  
+**Authority:** protected `develop` documentation plus live GitHub PR/issue evidence  
+**Status:** working baseline; it is not a release, certification, or protected-branch capability claim
 
 ## Decision summary
 
-AppGuardrail already has a useful standalone scanner, normalized findings/SARIF,
-safe remediation guidance, an optional tenant control plane, external-engine
-provenance, and a PR-first security-development loop. The largest buyer gap is
-not another detector pattern: it is proving that one detector acquired
-source-authoritative evidence, bound it to the control obligation, and produced
-an independently verifiable result.
+AppGuardrail is a persistent security layer for AI-assisted application development. Its buyer value is not the raw count of rules: retained security incidents must become durable, executable detection obligations with reproducible positive, negative, and inconclusive evidence, while prevention/hardening and scanner detection remain separate controls.
 
-The delivery order is therefore:
+The current delivery order is:
 
-1. ship one source-authoritative detector vertical slice;
-2. make `Clean Scan` an evidence-qualified state;
-3. make remediation evidence safely portable into an agent workflow;
-4. harden retention, audit, release provenance, and cross-repository evidence
-   as the preceding contracts become production truth.
+1. keep the organization security-defect corpus tied to causal source evidence rather than issue titles;
+2. close high-risk detector false negatives and deployment-blocking false positives with the smallest safe test-first change;
+3. repair the canonical causal owner when the defect is outside AppGuardrail, then retain that incident as AppGuardrail regression evidence;
+4. make `Clean Scan` evidence-qualified rather than synonymous with zero findings;
+5. make remediation, retention, audit, release provenance, and buyer evidence independently reproducible.
 
-An open or green PR is not protected-branch behavior. A claim becomes current
-only after the exact unchanged head passes its required Checks, review-thread
-resolution, applicable independent review, and ordinary protected merge.
+An open PR, a queued workflow, a registry row, or a model review is not protected-branch truth. A claim becomes current only after the unchanged exact head satisfies its required Checks, current-head review-thread obligations, qualifying independent approval, and ordinary protected merge.
 
-## Current product contract
+## Product, technical, and architecture contract
 
-The accepted product and technical baselines define four separable planes:
+The accepted PRD and architecture define four separable planes:
 
 ```text
-scan       built-in detectors + optional external engines
+scan       built-in executable detectors + optional external engines
 remediate  deterministic safe transforms + reviewable fix/verification guidance
 control    tenant-isolated scan history, drift, API keys, and webhooks
-assurance  SARIF, reports, SBOM, provenance, and CI/release evidence
+assurance  SARIF, reports, SBOM, provenance, CI/release and buyer evidence
 ```
 
-The contract requires executable detector evidence, realistic positive/negative/
-inconclusive tests, preserved external provenance, explicit tenant and egress
-boundaries, and a `Clean Scan` result only after the selected evidence sources
-complete successfully. `docs/PRD.md`, `docs/TRD.md`, `docs/UML.md`,
-`docs/TRACEABILITY.md`, `docs/THREAT_MODEL.md`, `docs/TEST_STRATEGY.md`, and
-`docs/OPERABILITY.md` are the current source documents. The root
-`ARCHITECTURE.md` is the concise navigation document for these contracts; do
-not create a duplicate `docs/ARCHITECTURE.md`.
+`docs/PRD.md` is the product-requirement authority; `docs/TRD.md` records technical contracts; `docs/UML.md` and the root `ARCHITECTURE.md` record component/control-flow structure; `docs/TRACEABILITY.md` binds controls to executable evidence; `docs/THREAT_MODEL.md`, `docs/TEST_STRATEGY.md`, and `docs/OPERABILITY.md` define abuse cases, verification, and operational proof. Existing ERD/schema material remains owned by the control-plane schema documentation; this baseline does not invent a second domain model or duplicate `ARCHITECTURE.md`.
 
-## Live PR and issue evidence
+The protected PRD invariants require executable detector evidence, positive/negative/inconclusive tests, preserved external-engine provenance, fail-closed inconclusive handling, explicit tenant/egress boundaries, and a `Clean Scan` only after configured evidence completes successfully. Runtime prevention and scanner-detection coverage remain independent obligations.
 
-This table records the high-signal work visible during the 2026-08-20 audit.
-It intentionally does not promote a PR's proposal, review, or queued Check to
-protected-branch truth.
+## Context Map
 
-| Work | Live state | Product meaning | Required next proof |
+```mermaid
+flowchart LR
+    SRC[Organization repositories and workflows\ncausal security defects]
+    CORPUS[AppGuardrail issue corpus\nincident identity + provenance]
+    OBL[Detection obligation\nroot cause + preconditions + signals]
+    DET[Executable detector/analyzer]
+    REG[Regression corpus\npositive / negative / inconclusive]
+    FIND[Normalized finding / SARIF]
+    GATE[Deploy / assurance gate]
+    OWNER[Canonical causal owner\nsource/runtime/control-plane repair]
+    EVID[Exact-head checks + review + release evidence]
+
+    SRC --> CORPUS
+    CORPUS --> OBL
+    OBL --> DET
+    REG --> DET
+    DET --> FIND
+    FIND --> GATE
+    SRC --> OWNER
+    OWNER --> REG
+    DET --> EVID
+    OWNER --> EVID
+```
+
+Responsibility boundaries:
+
+- **AppGuardrail** owns executable detection, normalized findings, regression evidence, and remediation guidance for detectable defect classes.
+- **The causal repository** owns the vulnerable application/runtime behavior and must carry the source fix when AppGuardrail is not the defect owner.
+- **ContextualWisdomLab/.github** owns shared CI/review/security/release control-plane behavior; leaf repositories must not copy or weaken central controls to bypass an owner defect.
+- **Optional external engines** retain their source/tool/version provenance; normalization never relabels their evidence as a built-in AppGuardrail finding.
+- **Review/check infrastructure** is acceptance evidence, not product truth. A developer agent cannot self-approve or replace missing exact-head evidence with predecessor results.
+
+## Security-defect corpus refresh — 2026-09-02
+
+The table below is a point-in-time execution register. `queued`, `pending`, `COMMENTED`, or stale predecessor evidence is not passing evidence.
+
+| Work / corpus item | Exact observed state | Root-cause / product meaning | Gap / next safe action |
 | --- | --- | --- | --- |
-| PR #998, Python shell AST detector, head `e2b0637` | open, `develop` target; all repository and dedicated detector Checks terminal-success; current CodeRabbit threads resolved; independent approval absent | High-value detector precision for aliases, nesting, shadowing, and malformed Python | exact-head qualifying approval, protected merge |
-| PR #997, browser XSS evidence, head `079b335` | open, `develop` target; repository and browser Checks terminal-success; visible review thread resolved; independent approval absent | Browser-level proof that hostile dashboard content remains inert | exact-head qualifying approval, protected merge |
-| PR #999, product/technical gap baseline, this documentation head | open, `develop` target; required Checks queued; review required | Buyer-facing evidence register and a bounded product-development contract | terminal Checks, current review evidence, and protected merge |
-| PR #983, Python shell-spawning detector, head `40c4d24` | open, `develop` target; current tree has passed local focused/full tests; required Checks queued after a same-tree follow-up commit; current review evidence is predecessor-bound | Distinguish implicit `os.system`/`os.popen` shells from `subprocess(..., shell=True)` and cover nested arguments | exact-head terminal Checks, current review evidence, protected merge |
-| PR #969, dashboard upload proxy, head `9997f00` | open, `develop` target; current head restores HTML `hidden` tree exclusion after an external regression; required Checks and current review queued | Preserve one accessible upload action while keeping native file selection behavior | exact-head terminal Checks, current review evidence, protected merge |
-| PR #963, Java tenant authorization detector, head `9cbba72` | open, `develop` target; source-backed fixture and local full tests pass; required Checks and current review queued | Detect discarded tenant authorization context at Spring admin read/mutation sinks | exact-head terminal Checks, current review evidence, protected merge |
-| PR #973, GitHub Actions workflow-input injection detector, head `11b9843` | open, `develop` target; 22 focused and 1,023 full tests pass locally; CodeRabbit boundary/performance findings and Devin snippet-redaction finding fixed with resolved threads; required Checks queued after the fix; current review requested; qualifying approval absent | Trust-boundary detection for untrusted workflow inputs reaching commands | exact-head SAST, coverage, security, current qualifying review, and protected-merge evidence |
-| PR #971, Java mutable MultipartFile detector, head `565917c` | open, `develop` target; terminal quality/security Checks passed; CodeRabbit thread resolved; old OpenCode request remains while current-head rerun is queued | Detect unsafe mutable byte-array exposure across Java syntax variants | current-head OpenCode approval, terminal Checks, and protected merge |
-| PR #968, fail-open authentication-secret detector, head `4d030ff` | open, `develop` target; terminal quality/security Checks passed; CodeRabbit thread resolved; current OpenCode approval absent | Prevent authentication findings from losing their declared CWE contract | current-head OpenCode approval, terminal Checks, and protected merge |
-| PR #966, orphaned workflow registry detector, head `b3f10ad` | open, `develop` target; all repository Checks terminal-success; visible threads resolved; OpenCode request remains; qualifying approval absent | Detect stale workflow registrations before assurance evidence is trusted | exact-head qualifying approval and protected merge |
-| PR #954, hostname-unbound loopback SSRF detector, head `f1e2ce5` | open, `develop` target; all repository Checks terminal-success; visible threads resolved; repeated OpenCode requests remain; qualifying approval absent | Prevent hostname-bound SSRF exceptions from accepting loopback targets | exact-head qualifying approval and protected merge |
-| PR #930, dashboard state and focus, head `2e96553` | draft, `develop` target; repository Checks terminal-success; visible threads resolved; extensive predecessor OpenCode requests remain; qualifying approval absent | Make scan state, detail focus, external-reference behavior, and read-only console exposure perceivable | current-head review reconciliation, qualifying approval, and protected merge |
-| PR #996, reference-dedupe performance, head `51dd28a` | draft, `develop` target; repository Checks terminal-success; review absent; qualifying approval absent | Remove generator-frame allocation without changing reference normalization semantics | reproducible benchmark evidence, current review, and protected merge |
-| PR #970, retention-audit diligence posture, head `db06f5e` | open, `develop` target; 13 retention-focused tests and full 1,014-test suite pass; repository Checks terminal-success; report-safety threads resolved; current-head review re-requested after the prior coverage-evidence failure; qualifying approval absent | Give buyers a non-secret, fail-closed retention and audit posture | current-head qualifying review, qualifying approval, and protected merge |
-| PR #967, protected PyPI publication, head `5a48b74` | open, `develop` target; Strix Security Scan failed on exact head in run `31927961766` (archived job log unavailable); other repository Checks terminal-success; local CodeGraph scan has no deploy-blocking critical/high findings; OpenCode requests remain; qualifying approval absent | Bind release publication to protected source and installable artifact evidence | recover the archived Strix finding or obtain a current-head rerun after a verified fix, then exact-head qualifying review, approval, and protected merge |
-| PR #972, evidence-qualified clean scans, head `4ba738a` | draft, `develop` target; repository and dedicated assurance Checks terminal-success; visible thread resolved; formal review COMMENTED; independent approval absent | Core assurance contract for the state gap below | leave Draft only after current-head review policy and qualifying approval; keep consumer follow-ups separately reviewable |
-| Issue #938 | open product gap | source-authoritative detector vertical slice | one real source fixture, independent oracle, persisted evidence, and black-box production path |
-| Issue #927 | open product gap | buyer cannot distinguish zero findings from completed trusted coverage | evidence-qualified outcome model and accessible dashboard/report parity |
-| Issue #928 | open product gap; PR #1006 adds the standalone non-UI handoff contract | remediation evidence still cannot yet move through the CSP-compatible dashboard workflow; the current branch provides bounded redacted JSON, while clipboard/UI behavior remains unimplemented | CSP-safe listeners, exact text copy, fallback, provenance schema, and UX tests |
+| PR #1080 / Issue #892, Bearer DNS-rebinding TOCTOU, head `0a752c091489efd4dc7373230f1e242313e7cca6` | open, mergeable; repository-local Tests, Security Process, Security Scan, SAST Semgrep, Pinned HTTPS Coverage, OpenSSF Evidence Coverage, Retention Audit Coverage, and Scan path context coverage are newly queued | `_is_safe_url` preflight can be separated from the DNS decision used by a later credential-bearing `urllib` connection; detector family tracks destination, request, credential, reachability, multiline, dynamic-replacement, and unredirected-header boundaries | keep current-head control-flow regressions authoritative; do not reuse predecessor GREEN; merge only after exact-head checks and independent review |
+| PR #1068, empty-host / unresolved-DNS SSRF validator, head `62df0db1a831985fc34dbdc3565cfa2688facc98` | open, mergeable; causal control-plane validation now rejects empty host and DNS-resolution failure; current-head acceptance remains gated | malformed or unresolved destinations could previously cross a fail-open validation path; packaged `python-ssrf-empty-host-fail-open` preserves the reusable source-to-success-path pattern | retain historical vulnerable/fixed fixtures; require exact-head checks/review before merge; do not weaken DNS policy for dummy test domains |
+| PR #1036, shared-skill supply-chain detectors, head `661d5138f1d6db5db0890b7c6ca14042440d6264` | open, mergeable; repository workflows are queued/pending | malicious installable skill/agent manifests can use mixed Latin/Cyrillic identifiers, prompt-injection/exfiltration directives, or unresolved placeholders; current rules explicitly bound YAML/JSON syntax and defensive-prose false-positive edges | preserve structural-key and bounded flow-YAML regressions; current-head CI/review is required before integration |
+| PR #963 / Issue #550, discarded tenant authorization context, head `c11b6e004c6477b66f04d9800c3ce7b1d10ce612` | open, mergeable; source-backed vulnerable/fixed fixtures retained; repository workflows queued | a tenant-admin permission check can be performed while the returned tenant context is discarded before global reads or tenant-sensitive mutations | keep live causal-owner repair provenance separate from the pinned regression oracle; refresh the protected-head negative oracle after canonical owner merge |
+| Issue #309, `naruon` OpenSSF Best Practices badge | open LOW governance/posture finding; no code location and no reproducible source-to-sink path | project-security-program maturity signal, not an application vulnerability | do not manufacture a HIGH source detector; track remediation/evidence as governance posture |
+| Closed Issues #310/#311, Code Scanning configuration visibility | closed configuration/analysis-category findings | GitHub could not compare current-head analysis categories with the protected branch; this is an assurance-visibility defect, not a source vulnerability | retain as configuration/assurance corpus; detector work should target category/provenance drift only when executable evidence supports it |
 
-### Current queue refresh (2026-08-21)
+The open security-label inventory is not the complete corpus. Closed incidents, source-side fixes, review-discovered false positives/false negatives, failed checks, and authenticated workflow evidence remain valid regression inputs when they encode a reproducible defect class.
 
-The following exact-head refresh supplements the historical 2026-08-20
-snapshot above. It records observed queue state only; `queued`, `in progress`,
-and robot `COMMENTED`/`CHANGES_REQUESTED` states are not approvals or protected
-merge evidence.
+## Detector-development contract
 
-| Work | Exact-head observed state | Product meaning | Required next proof |
-| --- | --- | --- | --- |
-| PR #1000, source-bound workflow evidence, head `b1ec29b` | open, `develop` target; no failed Checks observed; `coverage-source-tree` queued; review required; qualifying approval absent | Bind GitHub workflow failure evidence to source, revision, artifact, freshness, and typed assessment | terminal exact-head Checks, current qualifying approval, protected merge |
-| PR #1002, dashboard DOM-XSS hardening, head `9932510` | open, `develop` target; required repository/security Checks queued; no failed Check observed; review required; qualifying approval absent | Escape untrusted numeric and identifier properties before dashboard `innerHTML` rendering | terminal SAST/security/browser evidence, current qualifying approval, protected merge |
-| PR #1001, console busy-state styling, head `71c4251` | open, `develop` target; required Checks queued; no failed Check observed; review required; qualifying approval absent | Keep disabled and `aria-busy` button state perceivable to visual and assistive users | terminal accessibility Checks, current qualifying approval, protected merge |
-| PR #983, Python shell-spawning detector, head `59dcc82` | open, `develop` target; 9 focused detector tests and full 1,010-test suite pass locally; current-head required Checks are queued after the AST follow-up; stale OpenCode review remains predecessor-bound; current-head review requested; qualifying approval absent | Distinguish implicit `os.system`/`os.popen` shell execution from `subprocess(..., shell=True)` and close deeply nested-call false negatives | exact-head terminal Checks, current qualifying review, qualifying approval, protected merge |
-| PR #973, workflow-input command-injection detector, head `11b9843` | open, `develop` target; 22 focused and 1,023 full tests pass locally; boundary/performance and snippet-redaction findings fixed with resolved threads; required Checks queued after the current-head fix; current review requested; qualifying approval absent | Detect caller-controlled string workflow inputs interpolated into shell run blocks | terminal exact-head SAST/coverage/security evidence, current qualifying review, qualifying approval, protected merge |
-| PR #963, tenant authorization-scope detector, head `9cbba72` | open, `develop` target; `coverage-evidence` queued; no failed Check observed; predecessor-bound review state remains | Detect discarded tenant authorization context before Spring admin reads or mutations | terminal exact-head Checks and current review evidence, qualifying approval, protected merge |
-| PR #1004, release-tooling cryptography remediation, head `c94b2c8` | open, `develop` target; hash-pinned lock at `cryptography==50.0.0`; CHANGELOG.d fragment added cooperatively; duplicate #1034 closed in its favor; required Checks queued; qualifying approval absent | Remove the high-severity Dependabot CVE-2026-69247 exposure by moving transitive `cryptography` from 49.0.0 to first patched 50.0.0 | terminal exact-head security/dependency Checks, current qualifying approval, protected merge; confirm Dependabot alert closure after merge |
-| PR #1032, malicious shared-skill threat inventory rows, head `33f0780` | open, `develop` target; repository Checks terminal-success incl. CodeQL/Semgrep/Trivy; central `opencode-review` queued; closes #1031 | Names the homoglyph prompt-injection skill and placeholder-template threats so they become executable detection obligations (G-005 knowledge half) | central OpenCode review, terminal Checks, protected merge |
-| PR batch #1025–#1030, Bolt/Palette agent optimizations and a11y/UX fixes | open, `develop` target; per-PR Checks state varies; independent approvals absent | Perf overhead removals (`rules.py` generators, dedupe), screen-reader tab guidance, ARIA busy visuals, upload proxy button | per-PR exact-head Checks, review reconciliation, protected merge |
-| Central .github#1326, hourly review-repair callers minute 41 (appguardrail) / minute 44 (macos_utility_packs) | open, `main` target; contract trio + focused tests green locally (41 checks); org dispatch-target variable updated | Gives this repo its own bounded hourly RCA repair loop (G-007) | terminal Checks on the central PR, then one scheduled protected-develop consumer run as operational acceptance |
-| PR #1005, scan-assurance report consumer, head `d968a0e` | open, `feat/scan-assurance-927` target; local 1,047-test suite and exact core assurance coverage pass; required Checks queued; review required; qualifying approval absent | Carry qualified assurance state into buyer-facing reports and bind it to the exact findings artifact digest | current-head terminal Checks, qualifying review, protected parent/child merge order; dashboard, SARIF, and scanner-owned evidence production remain open |
-| PR #1006, remediation evidence handoff contract, head `949873d` | open, `develop` target; exact local 1,014-test suite, focused 100% statement/branch coverage, and CodeGraph scan pass; required Checks queued; review required; qualifying approval absent | Provide a bounded, redacted, deterministic handoff artifact for standalone/naruon/contextual-orchestrator consumers | exact-head terminal Checks and qualifying review; dashboard clipboard actions, fallback, announcements, focus, and browser E2E remain open |
-| PR #969, dashboard upload proxy, head `29e2469` | open, `develop` target; 24 focused dashboard tests and full 1,004-test suite pass locally; CodeGraph scan reports 0 deploy blockers; current-head required Checks are queued; current-head review requested; qualifying approval absent | Keep the native file picker programmatically usable while excluding it from the accessibility tree and preserving one visible upload action | exact-head terminal Checks, current qualifying review, qualifying approval, protected merge |
-| PR #999, product/technical gap baseline (this document) | self-referential maintenance PR; its live head SHA is intentionally kept in GitHub PR metadata rather than duplicated here; review, Checks, and approval gates remain external | Keep buyer-visible gaps and exact PR evidence synchronized with active security work | read the live PR head before relying on this document; preserve the exact-head records for all other queued PRs |
+For each security-relevant incident, extract and record:
 
-The live queue contains additional open PRs and security-failure coordination
-issues. The hourly loop must re-read them from GitHub before selecting work;
-this snapshot is not a substitute for that query.
+1. **root cause** — the security-relevant state transition or missing enforcement, not the issue title;
+2. **preconditions** — data/control-flow, configuration, dependency, permission, secret, or workflow conditions required for the failure;
+3. **observable signals** — evidence AppGuardrail can actually acquire without caller assertions;
+4. **false-positive boundary** — safe flows that look textually similar but do not preserve the vulnerable path;
+5. **false-negative boundary** — equivalent or adjacent syntax/control-flow not yet modeled;
+6. **causal owner** — AppGuardrail detector, source repository/runtime, or `.github` control plane;
+7. **regression evidence** — historical vulnerable incident plus fixed/negative/inconclusive oracle;
+8. **acceptance evidence** — exact-head tests/security checks, current-head review, protected merge, and owner release/consumer bump where applicable.
+
+Issue or registry identity can route the obligation but cannot assert pass/fail. Where bounded regex state begins to diverge across detector-family members, prefer a small structural/state analyzer over accumulating incompatible textual exceptions; retain the historical regex fixtures as migration oracles.
 
 ## Buyer-facing gap register
 
-| ID | Buyer-visible gap | Current evidence | Smallest valuable slice | Exit evidence |
-| --- | --- | --- | --- | --- |
-| G-01 | A buyer cannot verify that AppGuardrail itself observed the authoritative source condition rather than receiving a caller assertion. | PRD-FR-002/TRD §3 require the boundary; Issue #938 states the missing vertical slice. | Implement one detector family through `atomic cause → obligation → probe/acquirer → source identity → typed assessment → independent oracle → persisted evidence → API`. | Positive, negative, malformed, unavailable, stale, duplicate, adversarial fixtures; mutation tests; production black-box test; exact source/artifact digest. |
-| G-02 | `0 findings` can overstate assurance when detectors, external tools, scope, or provenance are incomplete. | PRD invariant 10 and TRD §7 state the rule; Issue #927 and PR #972 remain active; PR #1005 stages the report consumer. | Add `clean`, `findings_present`, `incomplete`, `failed`, and `untrusted` outcomes with scope, detector completion, freshness, commit, schema, and provenance fields; carry the state into reports without allowing cross-artifact digest reuse. | Only fully completed/trusted fixtures render clean; dashboard, JSON, SARIF, reports, and deploy gate agree. |
-| G-03 | A developer cannot transfer remediation and evidence into an agent workflow without CSP, clipboard, redaction, or provenance ambiguity. | Issue #928 and PR #1006; the standalone versioned/redacted/digest-verified JSON contract is active-PR evidence only, while the current dashboard is static and must retain its CSP contract. | Keep PR #1006 as the transport-neutral bundle boundary; then add listener-based copy actions and a versioned deterministic UI evidence bundle after the design/Storybook gate. | hostile text remains inert; success/rejection/fallback are accessible; no duplicate listeners; schema and digest are verified on a protected head. |
-| G-04 | Enterprise buyers need defensible retention, deletion, audit, and recovery semantics for scan evidence. | PRD §7, Issue #871, `docs/controlplane-schema-migration.md`, and current control-plane docs. | Integrate the reviewed retention/audit policy into the live control-plane store/API with tenant ownership and migration rollback. | real migration rehearsal, backup/restore evidence, tenant authorization tests, immutable audit verification, and current-head release proof. |
-| G-05 | Acquisition reviewers cannot yet consume one compact, exact-head evidence package spanning source, checks, provenance, and residual gaps. | `docs/OPERABILITY.md` and assurance-plane requirements exist; open PRs remain distributed evidence. | Produce a deterministic buyer evidence bundle that separates observed, unavailable, and inferred facts and binds every claim to SHA/run/artifact identifiers. | independently recomputable digest, no raw secrets, failed/unavailable distinction, protected-head and post-publish smoke evidence. |
+| ID | Buyer-visible gap | Current evidence | Smallest valuable slice | Exit evidence | Status / action |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | A buyer cannot always verify that AppGuardrail itself observed the authoritative source condition rather than receiving a caller assertion. | PRD-FR-002 and the issue-to-detection architecture require the boundary; several source-backed detector PRs now carry pinned fixtures. | Complete one detector family through `atomic cause → obligation → source identity → executable assessment → independent oracle → persisted evidence → API/report`. | positive, negative, malformed, unavailable, stale, duplicate, adversarial fixtures; production black-box path; exact source/artifact digest | **In progress.** Use the best source-backed security PR as the vertical slice; do not call open-PR evidence protected behavior. |
+| G-02 | `0 findings` can overstate assurance when detectors, external tools, scope, or provenance are incomplete. | PRD invariant 10 and assurance-plane requirements define typed evidence states. | Carry `clean`, `findings_present`, `incomplete`, `failed`, and `untrusted` with scope, completion, freshness, commit, schema, and provenance across outputs. | dashboard, JSON, SARIF, reports, and deploy gate agree; missing/failed evidence never renders clean | **Open.** Keep evidence-qualified scan work separately reviewable and bind consumers to the exact findings artifact digest. |
+| G-03 | A developer cannot safely transfer remediation/evidence into an agent workflow without CSP, clipboard, redaction, or provenance ambiguity. | Existing remediation contracts and active handoff/UI work provide partial evidence only. | Keep a transport-neutral deterministic redacted bundle, then add CSP-safe listener-based UI actions and accessible fallback. | hostile text inert; exact copy/fallback behavior; provenance schema/digest verified on protected head | **Open.** UI work must retain CSP/accessibility evidence and avoid duplicate listeners or source-copy shortcuts. |
+| G-04 | Enterprise buyers need defensible retention, deletion, audit, and recovery semantics for scan evidence. | PRD retention requirements, control-plane schema/migration docs, and retention/audit assurance work. | Integrate retention/audit policy into the live control-plane store/API with tenant ownership, migration rollback, and recovery proof. | migration rehearsal, backup/restore, tenant authorization tests, immutable audit verification, release evidence | **Open.** Treat queued/partial posture checks as evidence state, not completed retention behavior. |
+| G-05 | Acquisition reviewers cannot yet consume one compact exact-head package spanning source, checks, provenance, causal repairs, and residual gaps. | OPERABILITY and assurance-plane contracts exist; evidence remains distributed across PRs/issues/runs. | Produce deterministic buyer evidence that separates observed, unavailable, and inferred facts and binds claims to SHA/run/artifact/release identifiers. | independently recomputable digest; no raw secrets; failed vs unavailable distinction; protected-head and post-publish smoke evidence | **Open.** This baseline is the human-readable register; it is not itself the signed buyer evidence package. |
+| G-06 | Security detector families with increasingly stateful regexes can diverge in control-flow/provenance semantics and create alternating FP/FN repairs. | #1080 review history repeatedly exercises destination, request, credential, reachability, branch, and mutation state across multiple rule identities. | Define a bounded Python structural/state analyzer for the shared provenance model while preserving rule IDs and regression corpus compatibility. | differential test corpus against existing family; no loss of historical positives; reviewed FP negatives remain negative; performance measured on realistic repositories | **Proposed.** Start only after the current #1080 exact-head repair set stabilizes enough to serve as migration oracle; do not replace working coverage with an unverified rewrite. |
+| G-07 | The product/technical gap baseline itself can become stale while the active security corpus changes hourly. | PR #999 was based on August evidence while September security PRs and exact heads changed. | Make this document a maintained evidence register, refresh it from live GitHub state, and keep self-referential PR head outside the document. | protected merge of a current snapshot plus recurring future updates that distinguish historical snapshots from live metadata | **In progress in PR #999.** This refresh non-destructively synchronizes with current `develop` and records the 2026-09-02 security lanes. |
 
-## Technical and architecture gaps
+## Technical / TRD gaps
 
-- The scanner, control plane, remediation, and assurance planes are described
-  separately, but the source-authoritative evidence contract is not yet proven
-  end to end by one production detector.
-- `ARCHITECTURE.md` is the concise navigation document for the existing
-  PRD/TRD/UML/ERD/threat/test/operability contracts; keep it synchronized when
-  a boundary changes and do not duplicate those documents.
-- External tools remain capability-dependent. Missing, queued, failed, and
-  unavailable evidence must remain typed states rather than becoming a clean
-  result or a built-in AppGuardrail finding.
-- The current repository is Python/stdlib security tooling, not mathematical
-  or psychometrics software. No Rust/GPU rewrite is justified by this baseline;
-  introduce a native component only for a measured security, isolation, or
-  throughput boundary with a stable standalone/MSA contract.
-- No database object is added by this baseline. Future schema work must use
-  descriptive two-word-or-longer `snake_case` names, normalized relations,
-  tenant ownership, migration rollback, and a hot-partition strategy grounded
-  in measured workload.
-- Authorized PII-bearing work must use tenant isolation, least privilege,
-  encryption, immutable audit, purpose binding, retention, and field-level
-  authorization. Indiscriminate masking is not an acceptable substitute for
-  access control, and this document contains no customer identifiers.
-- No Figma file is needed for this documentation-only slice. Any material UI
-  change for G-02 or G-03 must first record its Figma File ID in an ADR and
-  maintain a reusable design-token/Storybook inventory where the project uses
-  a component UI. The current static dashboard is not evidence that Storybook
-  coverage exists.
+- Built-in lightweight regex rules are valid only for explicitly tested syntax/control-flow. Structural patterns that cannot be represented safely must remain external-engine/planned or move behind an executable structural analyzer.
+- Detector-family state must use Python identifier case semantics while HTTP header/token semantics use protocol-appropriate case handling.
+- Missing, queued, failed, stale, cancelled, and unavailable evidence are distinct typed states; none may become a clean result by omission.
+- The scanner/control/remediation/assurance boundaries are already distinct; do not create a shared database or cross-service SQL shortcut to combine them.
+- AppGuardrail is security tooling rather than mathematical-science code. A Rust/native component is justified only by measured security/isolation/performance evidence and must sit behind a versioned standalone contract.
+- Future database/schema work must use descriptive two-word-or-longer names, normalized tenant ownership, migration rollback, and measured partition/locking strategy. No schema change is introduced by this document.
 
-## Governance loop
+## UML / ERD status
 
-The scheduler remains PR-first and single-flight:
+- **UML:** root architecture and `docs/UML.md` remain the authority for scanner, findings, control-plane, and assurance interactions. Security-detector changes that alter a component boundary must update those diagrams rather than embedding a competing architecture here.
+- **ERD:** control-plane persistence remains the only relevant database boundary for this baseline. Detector fixtures and issue-corpus metadata are evidence artifacts, not new transactional aggregates. Any new persisted evidence aggregate must first define tenant ownership, lifecycle, retention/deletion, provenance, and migration semantics in the canonical schema documentation.
+
+## Governance and development loop
+
+The loop is PR-first, exact-head, non-destructive, and **non-blocking across independent safe lanes**:
 
 ```text
-read live PRs → inspect current-head review/Checks → fix valid findings
-→ rerun focused/full evidence → merge only under protection
-→ re-read queue → select one reviewed gap → implement → repeat
+re-fetch PRs/issues/docs
+→ review current heads and exact checks/logs
+→ repair valid finding on the canonical writer branch
+→ add/retain regression evidence
+→ push without force
+→ regenerate exact-head checks
+→ while that head waits, continue another non-conflicting security lane
+→ merge/auto-merge only through ordinary protection
+→ re-read corpus and product gaps
 ```
 
-Checks waiting is not a reason to bypass the gate. During a wait, only
-non-conflicting diagnostic, documentation, or test work may proceed. Never use
-admin merge, force-push, review dismissal, required-check removal, fabricated
-runtime evidence, or a model's output as merge/release authority.
+One writer owns a delta/branch at a time, but a queued review/check does not make unrelated safe implementation work stop. Re-fetch immediately before writes and preserve concurrent intent. Never use force-push, destructive rebase, self-approval, review dismissal as acceptance, required-check removal, warning suppression, fabricated runtime evidence, stale/predecessor Checks, or admin bypass.
 
-As of 2026-08-25 this repository also has its own bounded hourly caller
-(central `.github#1326`, minute 41) with the dispatch-target allowlist entry
-set; activation acceptance still requires one scheduled protected-develop
-consumer run proving the exact `ContextualWisdomLab/appguardrail` head.
+A PR reaches zero only by protected merge or by verified complete successor carryover of every valid delta; simple closure is not completion. When a defect belongs to another ContextualWisdomLab repository or `.github`, repair and release the canonical owner first, then update the AppGuardrail regression/oracle and consumer contract rather than copying owner source or weakening a leaf gate.
 
 ## Standards and acceptance basis
 
-This baseline maps its delivery evidence to the following current primary
-sources. These references guide controls; they do not constitute CSAP, SOC 2,
-or any other certification claim.
+These references guide control design and acceptance evidence; they are not a claim of CSAP, SOC 2, or any other certification.
 
 ### References (APA 7th)
 
-National Institute of Standards and Technology. (2022). *Secure software
-development framework (SSDF) version 1.1: Recommendations for mitigating the
-risk of software vulnerabilities* (NIST Special Publication 800-218).
-https://doi.org/10.6028/NIST.SP.800-218
+National Institute of Standards and Technology. (2022). *Secure software development framework (SSDF) version 1.1: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218). https://doi.org/10.6028/NIST.SP.800-218
 
-OWASP Foundation. (2025). *OWASP Application Security Verification Standard
-(ASVS) 5.0.0*. https://owasp.org/www-project-application-security-verification-standard/
+OWASP Foundation. (2025). *OWASP Application Security Verification Standard (ASVS) 5.0.0*. https://owasp.org/www-project-application-security-verification-standard/
 
-SLSA. (n.d.). *SLSA specification version 1.2*. Retrieved August 20, 2026,
-from https://slsa.dev/spec/v1.2/
+SLSA. (n.d.). *SLSA specification version 1.2*. Retrieved September 2, 2026, from https://slsa.dev/spec/v1.2/
 
-## Next action
+## Next actions
 
-After the current exact-head PR loop reaches a protected merge, start with
-G-01/Issue #938 on `develop`. Keep G-02 and G-03 as separately reviewable
-successors unless a live dependency proves stacking is safe. Do not call this
-baseline complete until the gap register is re-audited against current PR,
-issue, source, and protected-branch evidence.
+1. Keep #1080, #1068, #1036, and #963 exact-head evidence separate; do not transfer predecessor GREEN or reviewer state.
+2. When a current-head security review produces a reproducible FP/FN, add the smallest production `_scan_file`/runtime regression before or with the repair and retain both the vulnerable and safe oracle.
+3. Advance G-06 only after the current DNS-TOCTOU family is stable enough to define an analyzer migration oracle; do not trade known coverage for architectural novelty.
+4. Refresh this baseline after protected merges, causal-owner releases, materially new security corpus classes, or changes to PRD/ADR/ARCHITECTURE boundaries.
+5. Do not call the baseline or product complete until the live PR/issue/source/check audit is re-run and residual gaps are explicit.
