@@ -25,7 +25,7 @@ AppGuardrail makes that work repeatable across five connected surfaces:
 
 ## Quick start
 
-AppGuardrail requires Python 3.11 or newer.
+Requires Python 3.11 or newer.
 
 ```bash
 python3 -m pip install appguardrail
