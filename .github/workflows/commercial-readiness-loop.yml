@@ -116,7 +116,7 @@ jobs:
           tar --extract --gzip --file "$archive" --directory "$install_dir" opencode
           chmod 0555 "$install_dir/opencode"
           echo "$install_dir" >>"$GITHUB_PATH"
-          observed_version="$install_dir/opencode --version"
+          observed_version="$("$install_dir/opencode" --version)"
           case "$observed_version" in
             "$OPENCODE_VERSION"|"opencode $OPENCODE_VERSION") ;;
             *)
