@@ -14,7 +14,9 @@ The development model does not read the issue title, body, or comments. The sele
 
 ## Credentials and provider
 
-OpenCode uses the organization-owned contextual-orchestrator gateway. GitHub Actions gives the sidecar any available `BYTEZ_API_KEY`, `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_API_KEY_SUB`, `OPENROUTER_API_KEY`, and `OPENAI_API_KEY` only for in-memory discovery. OpenCode receives an ephemeral loopback `CONTEXTUAL_ORCHESTRATOR_TOKEN`, never a provider credential.
+OpenCode uses the organization-owned contextual-orchestrator gateway. GitHub Actions gives the sidecar any available `BYTEZ_API_KEY`, `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_API_KEY_SUB`, `OPENROUTER_API_KEY`, and `OPENAI_API_KEY` only at the trusted sidecar bootstrap step. OpenCode receives an ephemeral loopback `CONTEXTUAL_ORCHESTRATOR_TOKEN`, never a provider credential.
+
+The central sidecar is expected to copy provider credentials into its process-local credential store and scrub the bootstrap variables before model-controlled work can run. The immutable pin used by this change does not yet prove that scrub: `ContextualWisdomLab/.github#1742` tracks the owner-side RED/GREEN repair. This consumer is not merge-ready until that defect is fixed in an immutable central revision and this workflow bumps to the repaired pin.
 
 `COPILOT_GITHUB_TOKEN` must never be configured, referenced, or used by this scheduler. The existing review-agent credentials, models, approval rules, and required Checks are independent and must not be changed by the development path.
 
@@ -26,7 +28,7 @@ contextual-orchestrator/orchestrator/free
 
 The gateway chooses a currently eligible free route from its discovered catalog. The workflow does not name a provider-specific primary or helper model.
 
-The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central gateway boundary is pinned to immutable `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93`.
+The OpenCode CLI archive is pinned to version `1.18.13` with SHA-256 `8d500b20fed2d26e537e221895b1a575476571b4f0089bb29fb13eeb8eb9e937`. The central gateway boundary is pinned to immutable `ContextualWisdomLab/.github/.github/actions/orchestrator-free-sidecar@73b250f568d8892ead48bff85de06a4e3eb34e93` until the owner-side repair above ships.
 
 The `commercial-builder` primary agent may edit repository files and run bounded shell commands, but it cannot access external directories, web search, web fetch, or nested agents. Its default configuration outside that named agent remains read-only.
 
@@ -41,16 +43,19 @@ flowchart TD
     D --> F[Generate read-only contract]
     E --> F
     F --> G[SHA-256 contract receipt]
-    G --> H[Gateway credential preflight]
-    H --> I[Pinned OpenCode CLI via CO/free]
-    I --> J[Exactly one develop PR]
-    J --> K[Independent review and exact-head Checks]
-    K --> L[Protected merge by a separate path]
+    G --> H[Gateway sidecar bootstrap]
+    H --> I[Verify pinned CLI + authenticated loopback gateway]
+    I --> J[Pinned OpenCode CLI via CO/free]
+    J --> K[Exactly one develop PR]
+    K --> L[Independent review and exact-head Checks]
+    L --> M[Protected merge by a separate path]
 ```
 
-The workflow has one single-flight concurrency group with cancellation enabled, so a later scheduled or manually dispatched run terminates an obsolete active commercial slice before it creates duplicate work. The job timeout is **170 minutes**. This permits a two-hour implementation plus checkout, dependency setup, tests, documentation, and pull-request publication while remaining well below GitHub's six-hour hosted-runner execution ceiling and the workflow-syntax maximum of 360 minutes.
+The workflow has one non-cancelling single-flight concurrency group. If a run is still active when the next hourly event arrives, GitHub serializes the later run instead of terminating the active OpenCode reasoning or tool-execution slice. The repository does not impose a `timeout-minutes` deadline on the model-backed job; user cancellation, provider termination, platform limits, and explicit administrative termination remain distinct external stop conditions.
 
-Because the schedule fires hourly, one 170-minute pass may span more than one later cron event. A later event cancels the superseded run through the same concurrency group; the coordination issue remains open and a later pass can reselect it after the stale run has ended and the PR queue is still empty. The job-scoped `GITHUB_TOKEN` remains valid only for the job lifetime and is not persisted by checkout.
+Before model execution, `scripts/ci/verify_commercial_gateway_handoff.py` verifies the installed OpenCode version and performs an authenticated `GET /v1/models` against the exported numeric-loopback gateway URL using the sidecar bearer file. Redirects, remote hosts, malformed bearer files, CLI-version drift, invalid JSON, and empty model catalogs fail closed. This is a bounded control-plane handshake, not model inference, so its transport timeout does not terminate reasoning work.
+
+The workflow then records a SHA-256 digest of the gateway bearer before model execution. The post-model disclosure check does not source control-plane shell or reacquire provider secrets; it first proves the bearer file still matches that trusted digest, then scans the result for the gateway bearer. This prevents model-controlled mutation of the loader or bearer file from being treated as trustworthy post-model evidence.
 
 Independent CodeRabbit, OpenCode review, security, and merge workflows may continue after the builder opens its pull request. Review waiting does not grant the builder permission to merge, change credentials, or weaken repository protection.
 
@@ -83,10 +88,11 @@ The workflow fails closed when any of the following occurs:
 - the trusted contract is empty or cannot be hashed;
 - none of the five supported gateway bootstrap credentials is available;
 - contextual-orchestrator cannot produce a usable `orchestrator/free` route;
-- the agent cannot produce a tested, reviewable PR; or
-- the 170-minute execution budget expires.
+- the pinned OpenCode executable and authenticated gateway handoff cannot be verified;
+- the pre-model bearer integrity receipt cannot be produced or the post-model bearer no longer matches it; or
+- the agent cannot produce a tested, reviewable PR.
 
-The compatibility reconciliation command is read-only. It can report the PR-first or active-gap state after an interrupted pass, but it never adds labels, edits issues, changes credentials, or dispatches another agent. The next hourly run can safely reselect the same validated issue because the workflow creates at most one open product slice and the open-PR gate prevents parallel implementation branches.
+The compatibility reconciliation command is read-only reconciliation. It can report the PR-first or active-gap state after an interrupted pass, but it never adds labels, edits issues, changes credentials, or dispatches another agent. The next hourly run can safely reselect the same validated issue because the workflow creates at most one open product slice and the open-PR gate prevents parallel implementation branches.
 
 Rollback is performed by reverting the scheduler merge on the protected default branch. Existing issues and pull requests remain ordinary GitHub records; disabling the schedule does not rewrite or delete them. The independent manual development and review paths remain available.
 
@@ -95,14 +101,16 @@ Rollback is performed by reverting the scheduler merge on the protected default 
 Before merge, the current head must prove:
 
 1. selector and trust-boundary unit tests pass;
-2. both scheduler modules have exact 100% statement coverage;
+2. scheduler production modules touched by the change have exact 100% statement coverage;
 3. production docstrings remain complete;
 4. workflow syntax and immutable action pins are valid;
-5. the job timeout remains between 120 and 180 minutes;
-6. no direct provider endpoint/model or `COPILOT_GITHUB_TOKEN`/Jules handoff remains;
-7. security, SAST, and repository tests pass on the same head;
-8. all review threads are resolved; and
-9. a reviewer other than the last pusher approves the same head.
+5. hourly concurrency is non-cancelling and the model-backed job has no repository-authored elapsed-time deadline;
+6. the pinned CLI, token-loader export, authenticated loopback gateway, and bearer-integrity handoff pass executable tests;
+7. no direct provider endpoint/model or `COPILOT_GITHUB_TOKEN`/Jules handoff remains;
+8. the central provider-environment scrub in `ContextualWisdomLab/.github#1742` is released immutably and this consumer is pinned to it;
+9. security, SAST, and repository tests pass on the same head;
+10. all review threads are resolved; and
+11. a reviewer other than the last pusher approves the same head.
 
 A release is not implied by merging the scheduler. Version promotion and `CHANGELOG.md` release sections require a separately validated product release candidate.
 
