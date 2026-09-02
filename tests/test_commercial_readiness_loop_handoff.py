@@ -71,7 +71,7 @@ def test_operator_documentation_records_agent_trust_and_recovery() -> None:
         "CONTEXTUAL_ORCHESTRATOR_TOKEN",
         "NVIDIA_NIM_API_KEY",
         "commercial-builder",
-        "bbe65f08b1ae663c467be343e8fd5a98881eb686",
+        "73b250f568d8892ead48bff85de06a4e3eb34e93",
         "17 * * * *",
         "default branch",
         "PR-first",
