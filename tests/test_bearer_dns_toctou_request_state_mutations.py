@@ -272,3 +272,19 @@ def deliver(url, api_key):
 """
     findings = _scan_source(tmp_path, source)
     assert [finding["rule_id"] for finding in findings] == [_DYNAMIC]
+
+
+def test_dynamic_self_derived_validated_url_reassignment_preserves_provenance(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    url = url.rstrip("/")
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(endpoint)
+    replacement = f"Bearer {api_key}"
+    req.headers["Authorization"] = replacement
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _scan_source(tmp_path, source)
+    assert [finding["rule_id"] for finding in findings] == [_DYNAMIC]
