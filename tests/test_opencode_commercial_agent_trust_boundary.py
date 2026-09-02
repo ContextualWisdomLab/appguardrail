@@ -17,7 +17,7 @@ WORKFLOW_PATH = ROOT / ".github" / "workflows" / "commercial-readiness-loop.yml"
 CONFIG_PATH = ROOT / "opencode.jsonc"
 MODEL = "contextual-orchestrator/orchestrator/free"
 SMALL_MODEL = MODEL
-ACTION_PIN = "bbe65f08b1ae663c467be343e8fd5a98881eb686"
+ACTION_PIN = "73b250f568d8892ead48bff85de06a4e3eb34e93"
 GATEWAY_PROVIDER = "contextual-orchestrator"
 
 
