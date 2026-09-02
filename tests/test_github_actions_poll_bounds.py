@@ -156,6 +156,124 @@ jobs:
     assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
 
 
+def test_split_steps_do_not_donate_poll_evidence(tmp_path: Path) -> None:
+    """Transport budget and poll evidence must belong to one shell run block."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Configure retry policy
+        run: |
+          max_poll_transport_failures=3
+          echo "configuration only"
+      - name: Independent bounded watcher
+        run: |
+          while :; do
+            gh api repos/example/repo
+            sleep 30
+            break
+          done
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
+def test_remote_poll_and_sleep_must_be_inside_the_unbounded_loop(tmp_path: Path) -> None:
+    """Commands elsewhere in one run block cannot fabricate a polling loop."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          while :; do
+            echo "local loop"
+            break
+          done
+          gh api repos/example/repo
+          sleep 30
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
+def test_quoted_poll_commands_are_not_executable_evidence(tmp_path: Path) -> None:
+    """Echoed or printf-only command text must not create a HIGH finding."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          while :; do
+            echo "gh api repos/example/repo"
+            printf '%s\\n' 'sleep 30'
+            break
+          done
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
+def test_indented_shell_comments_are_not_executable_poll_evidence(
+    tmp_path: Path,
+) -> None:
+    """Whitespace before a shell comment marker must not bypass comment filtering."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          while :; do
+              # gh api repos/example/repo
+              # sleep 30
+            break
+          done
+"""
+
+    assert _RULE_ID not in _rule_ids(_scan_workflow(tmp_path, workflow))
+
+
+def test_unrelated_post_loop_deadline_comparison_does_not_suppress(
+    tmp_path: Path,
+) -> None:
+    """A comparison outside the poll cannot bound the successful-no-result path."""
+    workflow = """
+name: Required review
+on: pull_request_target
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          max_poll_transport_failures=3
+          poll_deadline_epoch=$(( $(date -u +%s) + 60 ))
+          while :; do
+            reviews="$(gh api repos/example/repo/pulls/1/reviews)"
+            [ -n "$reviews" ] && break
+            sleep 30
+          done
+          if [ "$(date -u +%s)" -ge "$poll_deadline_epoch" ]; then
+            echo "too late to bound the completed loop"
+          fi
+"""
+
+    assert _rule_ids(_scan_workflow(tmp_path, workflow)).count(_RULE_ID) == 1
+
+
 def test_transport_counter_without_remote_sleeping_poll_is_not_reported(
     tmp_path: Path,
 ) -> None:
