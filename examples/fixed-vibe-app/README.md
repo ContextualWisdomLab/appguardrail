@@ -4,48 +4,64 @@
 
 See `../vulnerable-vibe-app/README.md` for the list of vulnerabilities that were fixed.
 
+The fixed example also follows the ContextualWisdomLab naming contract: organization-owned database objects and internal identifiers use bounded-context-specific multiword names. Vendor-owned fields such as NextAuth `session.user.id`, Zod parse-result `data`, and Supabase `auth.users(id)` remain unchanged at their adapter boundaries.
+
 ---
 
 ## Security Fixes Applied
 
 ### 1. Ownership Check Added (IDOR Fixed)
 
-`app/api/projects/[id]/route.ts`
+`app/api/projects/[projectId]/route.ts`
 
 ```typescript
-// ✅ SECURE: Authentication + ownership verification
+// ✅ SECURE: Authentication + validated project identifier + ownership verification
 import { auth } from '@/auth';
 import { createClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const projectIdSchema = z.string().uuid();
 
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  httpRequest: Request,
+  { params }: { params: { projectId: string } }
 ) {
   // Step 1: Check authentication
-  const session = await auth();
-  if (!session) {
+  const authSession = await auth();
+  if (!authSession) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const supabase = createClient();
+  // Step 2: Validate route input before using it in a database predicate.
+  const projectIdResult = projectIdSchema.safeParse(params.projectId);
+  if (!projectIdResult.success) {
+    return Response.json({ error: 'Invalid project identifier' }, { status: 400 });
+  }
+  const validatedProjectId = projectIdResult.data;
 
-  // Step 2: Fetch the project
-  const { data: project, error } = await supabase
-    .from('projects')
+  const supabaseClient = createClient();
+
+  // Step 3: Fetch the project
+  const { data: projectRecord, error: projectQueryError } = await supabaseClient
+    .from('project_records')
     .select('*')
-    .eq('id', params.id)
+    .eq('project_id', validatedProjectId)
     .single();
 
-  // Step 3: Verify ownership
-  if (error || !project || project.user_id !== session.user.id) {
+  // Step 4: Verify ownership. `authSession.user.id` is NextAuth-owned.
+  if (
+    projectQueryError ||
+    !projectRecord ||
+    projectRecord.owner_user_id !== authSession.user.id
+  ) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  return Response.json(project);
+  return Response.json(projectRecord);
 }
 ```
 
-**Fix:** Authentication check + server-side ownership verification. Returns 403 (not 404) on ownership violation.
+**Fix:** Authentication check + server-side UUID validation + ownership verification. Returns 403 (not 404) on ownership violation.
 
 ---
 
@@ -59,7 +75,7 @@ import 'server-only'; // prevents import in client components
 import { createClient } from '@supabase/supabase-js';
 
 // This file can only be imported by server-side code
-export const supabaseAdmin = createClient(
+export const supabaseAdminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // no NEXT_PUBLIC_ prefix!
 );
@@ -71,7 +87,7 @@ export const supabaseAdmin = createClient(
 // ✅ SECURE: Client uses anon key only
 import { createBrowserClient } from '@supabase/ssr';
 
-export function createClient() {
+export function createSupabaseBrowserClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // anon key only
@@ -89,29 +105,29 @@ export function createClient() {
 // ✅ SECURE: Signature verified before processing
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-export async function POST(req: Request) {
-  const rawBody = await req.text(); // raw body for signature verification
-  const sig = req.headers.get('stripe-signature')!;
+export async function POST(httpRequest: Request) {
+  const rawRequestBody = await httpRequest.text(); // raw body for signature verification
+  const stripeSignature = httpRequest.headers.get('stripe-signature')!;
 
-  let event: Stripe.Event;
+  let stripeEvent: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
+    stripeEvent = stripeClient.webhooks.constructEvent(
+      rawRequestBody,
+      stripeSignature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err);
+  } catch (signatureError) {
+    console.error('Webhook signature verification failed:', signatureError);
     return Response.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
-    await db.user.update({
-      where: { stripeCustomerId: session.customer as string },
-      data: { plan: 'pro' },
+  if (stripeEvent.type === 'checkout.session.completed') {
+    const checkoutSession = stripeEvent.data.object as Stripe.Checkout.Session;
+    await applicationDatabase.userAccount.update({
+      where: { stripeCustomerId: checkoutSession.customer as string },
+      data: { subscriptionPlan: 'pro' },
     });
   }
 
@@ -129,8 +145,16 @@ export async function POST(req: Request) {
 // ✅ SECURE: Price ID comes from environment, not the client
 import { auth } from '@/auth';
 import Stripe from 'stripe';
+import { z } from 'zod';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+// Public request key `plan` is preserved; the validated internal name is `selectedPlan`.
+const checkoutRequestSchema = z
+  .object({
+    plan: z.enum(['pro_monthly', 'pro_annual']),
+  })
+  .strict();
 
 // Price IDs are defined server-side only
 const PRICE_IDS = {
@@ -138,28 +162,32 @@ const PRICE_IDS = {
   pro_annual: process.env.STRIPE_PRICE_ID_PRO_ANNUAL!,
 } as const;
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session) {
+export async function POST(httpRequest: Request) {
+  const authSession = await auth();
+  if (!authSession) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { plan } = await req.json();
+  const checkoutRequestResult = checkoutRequestSchema.safeParse(
+    await httpRequest.json().catch(() => null)
+  );
+  if (!checkoutRequestResult.success) {
+    return Response.json({ error: 'Invalid checkout request' }, { status: 400 });
+  }
+  const selectedPlan = checkoutRequestResult.data.plan;
 
   // Look up the price server-side — never from client
-  const priceId = PRICE_IDS[plan as keyof typeof PRICE_IDS];
-  if (!priceId) {
-    return Response.json({ error: 'Invalid plan' }, { status: 400 });
-  }
+  const stripePriceId = PRICE_IDS[selectedPlan];
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    customer_email: session.user.email!,
-    line_items: [{ price: priceId, quantity: 1 }],
+  const checkoutSession = await stripeClient.checkout.sessions.create({
+    customer_email: authSession.user.email!,
+    line_items: [{ price: stripePriceId, quantity: 1 }],
     mode: 'subscription',
     success_url: `${process.env.NEXT_PUBLIC_URL}/success`,
     cancel_url: `${process.env.NEXT_PUBLIC_URL}/pricing`,
   });
 
+  // Preserve the sample's established public response key.
   return Response.json({ url: checkoutSession.url });
 }
 ```
@@ -184,7 +212,7 @@ DATABASE_URL=******host:5432/dbname
 
 ```typescript
 // ✅ SECURE: URL from environment variable
-const db = new PrismaClient(); // uses DATABASE_URL from process.env automatically
+const applicationDatabase = new PrismaClient(); // uses DATABASE_URL from process.env automatically
 ```
 
 ---
@@ -194,38 +222,41 @@ const db = new PrismaClient(); // uses DATABASE_URL from process.env automatical
 `supabase/migrations/001_initial.sql`
 
 ```sql
--- ✅ SECURE: RLS enabled with proper policies
-CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
-  name TEXT NOT NULL,
-  data JSONB
+-- ✅ SECURE: RLS enabled with proper policies and semantic owned names.
+-- `auth.users(id)` is Supabase-owned and intentionally remains unchanged.
+CREATE TABLE project_records (
+  project_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id UUID REFERENCES auth.users(id) NOT NULL,
+  project_name TEXT NOT NULL,
+  project_payload JSONB
 );
 
 -- Enable Row Level Security
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_records ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own projects
-CREATE POLICY "Users can view own projects"
-  ON projects FOR SELECT
-  USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own project records"
+  ON project_records FOR SELECT
+  USING (auth.uid() = owner_user_id);
 
 -- Users can only create projects owned by themselves
-CREATE POLICY "Users can create own projects"
-  ON projects FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can create own project records"
+  ON project_records FOR INSERT
+  WITH CHECK (auth.uid() = owner_user_id);
 
 -- Users can only update their own projects
-CREATE POLICY "Users can update own projects"
-  ON projects FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own project records"
+  ON project_records FOR UPDATE
+  USING (auth.uid() = owner_user_id)
+  WITH CHECK (auth.uid() = owner_user_id);
 
 -- Users can only delete their own projects
-CREATE POLICY "Users can delete own projects"
-  ON projects FOR DELETE
-  USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own project records"
+  ON project_records FOR DELETE
+  USING (auth.uid() = owner_user_id);
 ```
+
+The example is a fresh illustrative schema rather than a migration of an existing deployment. A real application that already has `projects(id, user_id, name, data)` must use an explicit forward migration and compatibility plan; renaming live PostgreSQL objects in place without tracing foreign keys, indexes, ORM mappings, RLS policies, UPSERT paths, locks, rollback, and deployed consumers is not safe.
 
 ---
 
@@ -234,33 +265,43 @@ CREATE POLICY "Users can delete own projects"
 `app/api/admin/users/route.ts`
 
 ```typescript
-// ✅ SECURE: Admin role verified server-side
+// ✅ SECURE: Admin role verified server-side and unsupported query input rejected
 import { auth } from '@/auth';
 
-export async function GET(req: Request) {
-  const session = await auth();
-
-  // Step 1: Require authentication
-  if (!session) {
+export async function GET(httpRequest: Request) {
+  // Step 1: Authenticate before processing any untrusted request input.
+  const authSession = await auth();
+  if (!authSession) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Step 2: Require admin role (from database, not just session claim)
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
+  // Step 2: This listing accepts no query parameters; fail closed on unexpected input.
+  const adminRequestUrl = new URL(httpRequest.url);
+  if ([...adminRequestUrl.searchParams.keys()].length > 0) {
+    return Response.json({ error: 'Unexpected query parameters' }, { status: 400 });
+  }
+
+  // Step 3: Require admin role (from database, not just session claim)
+  const userAccount = await applicationDatabase.userAccount.findUnique({
+    where: { userAccountId: authSession.user.id },
+    select: { accountRole: true },
   });
 
-  if (user?.role !== 'admin') {
+  if (userAccount?.accountRole !== 'admin') {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const users = await db.user.findMany({
-    select: { id: true, email: true, createdAt: true, plan: true },
+  const userAccounts = await applicationDatabase.userAccount.findMany({
+    select: {
+      userAccountId: true,
+      emailAddress: true,
+      createdAt: true,
+      subscriptionPlan: true,
+    },
     // Never include passwords, secrets, or sensitive fields
   });
 
-  return Response.json(users);
+  return Response.json(userAccounts);
 }
 ```
 
@@ -268,25 +309,35 @@ export async function GET(req: Request) {
 
 ## Security Tests
 
-Each fixed endpoint has corresponding tests:
+Each fixed endpoint has corresponding tests. Route fixtures use UUID-shaped project identifiers so identifier validation and ownership behavior are tested independently:
 
 ```typescript
-describe('GET /api/projects/[id]', () => {
+describe('GET /api/projects/[projectId]', () => {
+  const ownerUserId = '11111111-1111-4111-8111-111111111111';
+  const ownerProjectId = '33333333-3333-4333-8333-333333333333';
+  const otherProjectId = '44444444-4444-4444-8444-444444444444';
+
   it('returns 401 when unauthenticated', async () => {
-    const res = await GET(request('/api/projects/test-id'));
-    expect(res.status).toBe(401);
+    const httpResponse = await GET(request(`/api/projects/${ownerProjectId}`));
+    expect(httpResponse.status).toBe(401);
+  });
+
+  it('returns 400 for an invalid project identifier', async () => {
+    mockSession({ user: { id: ownerUserId } });
+    const httpResponse = await GET(request('/api/projects/not-a-uuid'));
+    expect(httpResponse.status).toBe(400);
   });
 
   it('returns 403 when accessing another user\\'s project', async () => {
-    mockSession({ user: { id: 'user-a' } });
-    const res = await GET(request('/api/projects/user-b-project-id'));
-    expect(res.status).toBe(403);
+    mockSession({ user: { id: ownerUserId } });
+    const httpResponse = await GET(request(`/api/projects/${otherProjectId}`));
+    expect(httpResponse.status).toBe(403);
   });
 
   it('returns 200 for the project owner', async () => {
-    mockSession({ user: { id: 'user-a' } });
-    const res = await GET(request('/api/projects/user-a-project-id'));
-    expect(res.status).toBe(200);
+    mockSession({ user: { id: ownerUserId } });
+    const httpResponse = await GET(request(`/api/projects/${ownerProjectId}`));
+    expect(httpResponse.status).toBe(200);
   });
 });
 ```
