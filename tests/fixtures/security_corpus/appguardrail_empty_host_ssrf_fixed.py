@@ -25,6 +25,7 @@ def is_safe_url(url: str) -> bool:
         if is_bad_ip(ip):
             return False
     except ValueError:
+        # Non-literal hostnames continue to the DNS resolution checks below.
         pass
 
     try:
@@ -34,6 +35,7 @@ def is_safe_url(url: str) -> bool:
             if is_bad_ip(ip):
                 return False
     except socket.gaierror:
+        # Preserve the reviewed historical DNS-error fall-through in this fixture.
         pass
     except ValueError:
         return False
