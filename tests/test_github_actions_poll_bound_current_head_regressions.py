@@ -59,6 +59,21 @@ def _historical_transport_branch(command: str = "gh api repos/example/repo/pulls
   review_poll_failures=0''' % command
 
 
+def _transport_case(historical: bool) -> tuple[str, str, str]:
+    """Return setup, transport branch, and detector identity for one primary rule."""
+    if historical:
+        return (
+            "review_poll_failures=0\nmax_poll_transport_failures=3",
+            _historical_transport_branch(),
+            _HISTORICAL,
+        )
+    return (
+        "api_error_streak=0\ntransport_error_budget=4",
+        _renamed_transport_branch(),
+        _GENERIC,
+    )
+
+
 def test_mutable_retry_deadline_is_safe_with_independent_total_deadline(tmp_path: Path) -> None:
     """One mutable candidate cannot invalidate a separate monotonic wall-clock bound."""
     shell = f"""
@@ -137,6 +152,44 @@ done
     assert _RESET not in _scan(tmp_path, shell)
 
 
+@pytest.mark.parametrize("historical", [False, True])
+@pytest.mark.parametrize("termination", ["break", "exit 0"])
+def test_primary_poll_with_unconditional_post_sleep_termination_is_finite(
+    tmp_path: Path, historical: bool, termination: str
+) -> None:
+    """A direct termination after sleep still removes the primary polling back edge."""
+    setup, branch, target = _transport_case(historical)
+    shell = f"""
+{setup}
+while :; do
+{branch}
+  sleep 30
+  {termination}
+done
+"""
+    assert target not in _scan(tmp_path, shell)
+
+
+@pytest.mark.parametrize("historical", [False, True])
+@pytest.mark.parametrize("termination", ["break", "exit 0"])
+def test_primary_poll_keeps_same_indent_conditional_post_sleep_termination_positive(
+    tmp_path: Path, historical: bool, termination: str
+) -> None:
+    """A conditional termination after sleep does not remove the repeatable healthy path."""
+    setup, branch, target = _transport_case(historical)
+    shell = f"""
+{setup}
+while :; do
+{branch}
+  sleep 30
+  if [ -n "$REVIEW_RESULT" ]; then
+  {termination}
+  fi
+done
+"""
+    assert target in _scan(tmp_path, shell)
+
+
 @pytest.mark.parametrize(
     "fake_command",
     [
@@ -201,14 +254,7 @@ def test_unconditional_break_is_not_made_conditional_by_unrelated_later_fi(
     tmp_path: Path, historical: bool
 ) -> None:
     """A later unrelated if/fi block cannot change ownership of an earlier direct break."""
-    if historical:
-        setup = "review_poll_failures=0\nmax_poll_transport_failures=3"
-        branch = _historical_transport_branch()
-        target = _HISTORICAL
-    else:
-        setup = "api_error_streak=0\ntransport_error_budget=4"
-        branch = _renamed_transport_branch()
-        target = _GENERIC
+    setup, branch, target = _transport_case(historical)
     shell = f"""
 {setup}
 while :; do
