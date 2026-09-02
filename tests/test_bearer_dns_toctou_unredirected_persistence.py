@@ -1,6 +1,7 @@
 """Regression coverage for urllib's separate unredirected header store."""
 
 import re
+import urllib.request
 from pathlib import Path
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
@@ -83,14 +84,13 @@ def test_headers_pop_does_not_remove_unredirected_bearer(tmp_path):
     assert [finding["rule_id"] for finding in findings] == [_RULE]
 
 
-def test_regular_authorization_overwrite_does_not_remove_unredirected_bearer(tmp_path):
+def test_regular_authorization_overwrite_suppresses_unredirected_bearer(tmp_path):
     source = _prefix() + """\
     req.add_unredirected_header("Authorization", f"Bearer {api_key}")
     req.headers["Authorization"] = "Basic dXNlcjpwYXNz"
     return urllib.request.urlopen(req, timeout=5)
 """
-    findings = _family_findings(tmp_path, source)
-    assert [finding["rule_id"] for finding in findings] == [_RULE]
+    assert not _family_findings(tmp_path, source)
 
 
 def test_multiline_unredirected_bearer_survives_headers_clear(tmp_path):
@@ -114,3 +114,72 @@ def test_remove_header_clears_both_header_stores(tmp_path):
     return urllib.request.urlopen(req, timeout=5)
 """
     assert not _family_findings(tmp_path, source)
+
+
+def test_normal_authorization_overrides_unredirected_at_runtime():
+    req = urllib.request.Request("https://example.test/")
+    req.add_unredirected_header("Authorization", "Bearer secret")
+    req.headers["Authorization"] = "Basic dXNlcjpwYXNz"
+    assert dict(req.header_items())["Authorization"] == "Basic dXNlcjpwYXNz"
+
+
+def test_pop_reveals_unredirected_authorization_at_runtime():
+    req = urllib.request.Request("https://example.test/")
+    req.add_unredirected_header("Authorization", "Bearer secret")
+    req.headers["Authorization"] = "Basic dXNlcjpwYXNz"
+    req.headers.pop("Authorization")
+    assert dict(req.header_items())["Authorization"] == "Bearer secret"
+
+
+def test_clear_reveals_unredirected_authorization_at_runtime():
+    req = urllib.request.Request("https://example.test/")
+    req.add_unredirected_header("Authorization", "Bearer secret")
+    req.headers["Authorization"] = "Basic dXNlcjpwYXNz"
+    req.headers.clear()
+    assert dict(req.header_items())["Authorization"] == "Bearer secret"
+
+
+def test_fixed_one_line_request_with_endpoint_only_in_header_is_not_bound(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request("https://fixed.example/api", headers={"X-Endpoint": endpoint})
+    req.add_unredirected_header("Authorization", f"Bearer {api_key}")
+    req.headers.clear()
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _family_findings(tmp_path, source)
+
+
+def test_fixed_multiline_request_with_endpoint_only_in_header_is_not_bound(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(
+        "https://fixed.example/api",
+        headers={"X-Endpoint": endpoint},
+    )
+    req.add_unredirected_header("Authorization", f"Bearer {api_key}")
+    req.headers.clear()
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    assert not _family_findings(tmp_path, source)
+
+
+def test_keyword_request_destination_remains_bound(tmp_path):
+    source = """\
+def deliver(url, api_key):
+    if not _is_safe_url(url):
+        return None
+    endpoint = url.rstrip("/") + "/api/v1/scans"
+    req = urllib.request.Request(url=endpoint)
+    req.add_unredirected_header("Authorization", f"Bearer {api_key}")
+    req.headers.clear()
+    return urllib.request.urlopen(req, timeout=5)
+"""
+    findings = _family_findings(tmp_path, source)
+    assert [finding["rule_id"] for finding in findings] == [_RULE]
