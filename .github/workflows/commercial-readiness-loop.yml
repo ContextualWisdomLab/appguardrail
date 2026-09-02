@@ -160,6 +160,9 @@ jobs:
             echo "::error::The gateway bearer contract is incomplete."
             exit 1
           fi
+          python3 scripts/ci/verify_commercial_gateway_handoff.py \
+            --opencode "$(command -v opencode)" \
+            --expected-version "1.18.13"
           token_sha256="$(printf '%s' "$CONTEXTUAL_ORCHESTRATOR_TOKEN" | sha256sum | cut -d' ' -f1)"
           test "${#token_sha256}" -eq 64
           echo "token_sha256=$token_sha256" >>"$GITHUB_OUTPUT"
