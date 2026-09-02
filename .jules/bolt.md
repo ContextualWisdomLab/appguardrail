@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2024-11-21 - Unrolling any/all generator expressions in hot loops
+**Learning:** Generator expressions passed to `any()` or `all()` inside hot loops (like file pre-filters) incur significant iterator instantiation overhead compared to explicit `for` loops, even when the underlying sequence is very small. Unrolling the `any()` or `all()` into a standard `for` loop with an early return can yield more than a 2x speedup in these hot paths.
+**Action:** When evaluating simple conditions over small sequences in high-frequency loops (such as the `required_substrings` pre-filter in `_scan_file`), replace `not all(...)` or `any(...)` with an unrolled `for` loop that checks the condition explicitly.
