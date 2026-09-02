@@ -302,3 +302,54 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+def test_dashboard_filtering_and_sorting_parity():
+    """Verify that SEV_ORDER_MAP implementation behaves identically to indexOf
+    for known, missing, and unknown severities."""
+    import subprocess
+    import json
+
+    script = """
+    const ALL = [
+      { severity: 'INFO', file: 'd' },
+      { severity: 'CRITICAL', file: 'a' },
+      { severity: 'MISSING', file: 'e' },
+      { file: 'f' }, // missing entirely
+      { severity: 'HIGH', file: 'b' },
+      { severity: 'UNKNOWN', file: 'g' },
+      { severity: 'WARNING', file: 'c' }
+    ];
+
+    const SEV_ORDER = ['CRITICAL','HIGH','WARNING','INFO'];
+    const SEV_ORDER_MAP = Object.fromEntries(SEV_ORDER.map((s, i) => [s, i]));
+
+    // Legacy (behavior before optimization)
+    const exactLegacy = ALL.map((f,i)=>({f,i})).sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+
+    // New optimized code
+    const filtered = [];
+    for (let i = 0; i < ALL.length; i++) {
+        const f = ALL[i];
+        const severity = String(f.severity).toUpperCase();
+        filtered.push({f, i, _sevOrder: SEV_ORDER_MAP[severity] ?? -1});
+    }
+    filtered.sort((a, b) => a._sevOrder - b._sevOrder);
+
+    console.log(JSON.stringify({
+        legacy: exactLegacy.map(x => x.f.file),
+        new: filtered.map(x => x.f.file)
+    }));
+    """
+
+    import tempfile
+    import os
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
+        f.write(script)
+        temp_name = f.name
+
+    try:
+        out = subprocess.check_output(["node", temp_name]).decode("utf-8")
+        data = json.loads(out)
+        assert data["legacy"] == data["new"]
+    finally:
+        os.remove(temp_name)

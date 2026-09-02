@@ -195,13 +195,13 @@ function render(){
   const filtered = [];
   for (let i = 0; i < ALL.length; i++) {
     const f = ALL[i];
-    const severity = String(f.severity || 'INFO').toUpperCase();
+    const severity = String(f.severity).toUpperCase();
     if (filterSev && severity !== filterSev) continue;
     if (query) {
       const searchString = (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase();
       if (!searchString.includes(query)) continue;
     }
-    filtered.push({f, i, _sevOrder: SEV_ORDER_MAP[severity] ?? 999});
+    filtered.push({f, i, _sevOrder: SEV_ORDER_MAP[severity] ?? -1});
   }
   filtered.sort((a, b) => a._sevOrder - b._sevOrder);
   const allFindingsText = formatFindingCount(ALL.length);
