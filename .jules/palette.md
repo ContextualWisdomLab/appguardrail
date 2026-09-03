@@ -81,6 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-## 2024-10-10 - Blocking Interactions on Non-Native Loading Elements
-**Learning:** Adding `aria-busy="true"` to non-native elements (like `<tr role="button">`) provides screen reader feedback but fails to natively block interactions. Keyboard and mouse users can still re-trigger async actions while they are loading.
-**Action:** Always pair `aria-busy="true"` with CSS visual disabling (e.g. `pointer-events: none; opacity: 0.7;`) and explicitly add JavaScript event guards (`if (el.getAttribute('aria-busy') === 'true') return;`) in `click` and `keydown` handlers to fully block duplicate interactions.
