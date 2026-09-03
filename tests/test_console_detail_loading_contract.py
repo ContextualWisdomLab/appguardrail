@@ -29,6 +29,18 @@ def test_console_exposes_loading_busy_and_error_states():
     assert 'tr.removeAttribute("aria-busy");' in html
 
 
+def test_console_busy_scan_row_blocks_duplicate_pointer_and_keyboard_requests():
+    """Busy scan rows must not start a second detail request from pointer or keyboard input."""
+    html = _console_html()
+
+    assert '[aria-busy="true"]{pointer-events:none;opacity:0.7}' in html
+    assert 'tr.onclick=()=>{if(tr.getAttribute("aria-busy")==="true")return;detail(tr.dataset.id,tr);};' in html
+    assert (
+        "if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); "
+        'if(tr.getAttribute("aria-busy")==="true")return; detail(tr.dataset.id,tr); }'
+    ) in html
+
+
 def test_console_detail_scrolling_respects_reduced_motion():
     """Successful and failed detail requests must honor reduced-motion preferences."""
     html = _console_html()
