@@ -1,3 +1,4 @@
+import appguardrail_core.rules as rules_module
 from appguardrail_core.rules import (build_rule_metadata,
                                      extract_public_references,
                                      validate_rule_metadata)
@@ -26,6 +27,16 @@ def test_extract_public_references_deduplicates_in_first_seen_order():
         "CWE-295 - Improper Certificate Validation",
         "OWASP A05:2021 - Security Misconfiguration",
     )
+
+
+def test_extract_public_references_skips_regex_without_opening_bracket(monkeypatch):
+    class RejectRegex:
+        def finditer(self, _message):
+            raise AssertionError("regex engine must not run on the no-bracket fast path")
+
+    monkeypatch.setattr(rules_module, "REFERENCE_RE", RejectRegex())
+
+    assert extract_public_references("CWE-918 mentioned without bracket syntax") == ()
 
 
 def test_build_rule_metadata_adds_defaults_for_category():
