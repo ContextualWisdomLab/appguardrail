@@ -88,7 +88,7 @@ def test_dashboard_severity_cards_are_accessible_filter_toggles():
     """Severity cards must preserve their complete pointer and keyboard contract."""
     html = dashboard_index_path().read_text(encoding="utf-8")
 
-    assert 'aria-label="Filter by ${s}: ${counts[s]}"' in html
+    assert 'aria-label="Filter by ${s}: ${esc(counts[s])}"' in html
     assert 'aria-pressed="${isSelected}"' in html
     assert "document.getElementById('sev').value='${isSelected ? '' : s}'" in html
     assert "dispatchEvent(new Event('change'))" in html

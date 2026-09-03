@@ -183,9 +183,9 @@ function render(){
     const isSelected = filterSev === s;
     const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
     return `
-    <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
+    <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${esc(counts[s])}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
       <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
-      <div class="n">${counts[s]}</div>
+      <div class="n">${esc(counts[s])}</div>
     </div>`;
   }).join('');
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
