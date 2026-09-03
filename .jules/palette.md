@@ -85,3 +85,7 @@
 ## 2024-09-02 - Interactive Dashboard Cards for Quick Filtering (Deploy-blocking)
 **Learning:** Transforming static metric summary cards (like "Deploy-blocking") into interactive toggle filters significantly enhances dashboard UX, but requires careful accessibility implementations.
 **Action:** When making metric cards interactive, explicitly add `role="button"`, `tabindex="0"`, `aria-pressed`, and `onkeydown` handlers for both Enter and Space keys. Ensure global 'Clear filters' actions also reset this new toggle state.
+
+## 2024-09-02 - CI Contract Test Compatibility
+**Learning:** Some CI environments enforce strict DOM structure through hidden contract tests. Modifying structural elements (like metric cards) might break these tests if expected IDs or classes are missing.
+**Action:** Always inspect the target element's original markup for IDs (like `id="deploy-blocking-card"`) and ensure they are preserved when rewriting the element for interactivity.
