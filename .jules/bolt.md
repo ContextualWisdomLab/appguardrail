@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2026-09-03 - Measure reference deduplication before making performance claims
+**Learning:** `dict.fromkeys(generator)` and an explicit dictionary loop are both insertion-ordered, hash-based O(N) deduplication. Replacing one with the other may change constant factors, but it does not remove an O(N²) list algorithm because no such list algorithm existed here. A result from one interpreter, machine, or synthetic workload is not enough to support a general percentage claim.
+**Action:** Preserve first-seen ordering and filtering semantics. Treat the explicit-loop change as a performance candidate until a reproducible benchmark on the exact code and representative AppGuardrail workloads demonstrates a material improvement; do not publish a percentage or asymptotic claim without that evidence.
