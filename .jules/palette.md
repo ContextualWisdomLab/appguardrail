@@ -82,6 +82,6 @@
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
 
-## 2026-09-02 - Proxy Button Label-in-Name
-**Learning:** When replacing native UI elements with proxy elements (like buttons for file inputs), if the proxy button's visible text perfectly describes the action, do not add a redundant `aria-label`. Avoid duplicate accessible names between the proxy and the visually hidden native element.
-**Action:** Ensure label-in-name principles are followed and update corresponding UI contract tests to match the new markup.
+## 2024-09-03 - Added Proxy Button for File Input in Header
+**Learning:** In zero-build dashboard (scanner/dashboard/index.html), the native <input type="file"> does not support firing the change event when a user attempts to select the same file path sequentially. Additionally, hiding the file input and exposing a proxy <button> allows users to have a much larger and better-styled click target.
+**Action:** Visually hide the native <input type="file"> with the hidden attribute and create a proxy <button> that triggers the file input. Remove aria-label from the native input when using a proxy button to adhere to 'label-in-name' principles and update UI contract tests appropriately.
