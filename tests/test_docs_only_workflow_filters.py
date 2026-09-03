@@ -1,4 +1,4 @@
-"""Contracts for docs-only workflow path filtering."""
+"""Contracts preventing documentation-backed behavior from bypassing CI."""
 
 from pathlib import Path
 
@@ -14,10 +14,29 @@ WORKFLOWS = (
 )
 
 
+def _event_block(workflow: str, event: str) -> str:
+    """Return one peer event block from the workflow's top-level ``on`` mapping."""
+    lines = workflow.splitlines()
+    marker = f"  {event}:"
+    try:
+        start = lines.index(marker)
+    except ValueError as exc:
+        raise AssertionError(f"missing workflow event: {event}") from exc
+
+    block: list[str] = []
+    for line in lines[start + 1 :]:
+        if line.startswith("  ") and not line.startswith("    "):
+            break
+        block.append(line)
+    return "\n".join(block)
+
+
 @pytest.mark.parametrize("workflow_path", WORKFLOWS)
-def test_docs_only_filters_ignore_markdown_at_any_depth(workflow_path: str) -> None:
-    """Optimized workflows skip Markdown anywhere, not only at repository root."""
+def test_contract_sensitive_workflows_do_not_skip_documentation(
+    workflow_path: str,
+) -> None:
+    """Docs and policy Markdown remain covered until a dedicated contract lane exists."""
     workflow = Path(workflow_path).read_text(encoding="utf-8")
 
-    assert workflow.count('      - "**.md"') == 2
-    assert '      - "*.md"' not in workflow
+    for event in ("push", "pull_request"):
+        assert "paths-ignore:" not in _event_block(workflow, event)
