@@ -7,6 +7,15 @@ from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
 from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
+def test_is_safe_url_empty_host():
+    assert not _is_safe_url("http://")
+    assert not _is_safe_url("http://user@")
+    assert not _is_safe_url("http://user:pass@")
+    assert not _cli_is_safe_url("http://")
+    assert not _cli_is_safe_url("http://user@")
+    assert not _cli_is_safe_url("http://user:pass@")
+
+
 def test_is_safe_url_public_domains():
     assert _is_safe_url("http://google.com/")
     assert _is_safe_url("https://github.com/")
