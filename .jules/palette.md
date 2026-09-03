@@ -84,4 +84,4 @@
 
 ## 2025-02-18 - External Links Context Switch Accessibility
 **Learning:** External links with `target="_blank"` cause a sudden context switch, which can disorient screen reader users if they are not explicitly warned beforehand.
-**Action:** When using `target="_blank"`, explicitly warn screen reader users of the context switch by adding text like `(opens in a new tab)` to the `aria-label` or visually hidden text.
+**Action:** When using `target="_blank"`, explicitly warn users of the context switch by adding a visible advisory hint (like `↗`) with visually hidden text (like ` (opens in a new tab)`), rather than a universal screen-reader-only rule or replacing the visible label in the accessible name.
