@@ -77,6 +77,3 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-## 2024-12-05 - Avoid double dictionary lookups in hot loops
-**Learning:** In hot loops such as PR drift assessments (e.g., `compare_snapshots`), checking `if key not in dict` followed by `dict[key]` performs two O(1) hashing and lookup operations per iteration. While O(1) in theory, the constant overhead scales linearly and creates a measurable bottleneck in large iterations.
-**Action:** Always use `dict.get(key)` to retrieve the value and handle the `None` case in a single lookup pass when processing large data structures.
