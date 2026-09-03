@@ -1,0 +1,5 @@
+Revert "🛡️ Sentinel: [HIGH] Fix DOM XSS via unescaped schema-validated fields"
+
+The PR reviewer correctly pointed out that `counts[s]` is a derived integer strictly controlled by the loop `counts[s in counts ? s : 'INFO']++` and not an attacker-controlled string from JSON. Therefore, no realistic DOM XSS attack can be executed through this path.
+
+The initial assumption that fields like IDs or numeric counts were direct, unvalidated string sinks was incorrect for the specific variables modified in the previous commit. Reverting to address feedback and closing task.
