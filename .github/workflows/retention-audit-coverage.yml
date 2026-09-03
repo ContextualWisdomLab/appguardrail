@@ -3,14 +3,8 @@ name: Retention Audit Coverage
 on:
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
   push:
     branches: [develop, main]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
 
 permissions:
   contents: read
