@@ -23,3 +23,9 @@ def test_console_rows_preserve_cell_content_for_screen_readers():
 
     assert 'role="button" title="View scan details"' in html
     assert 'aria-label="View scan details"' not in html
+
+def test_external_link_accessibility():
+    """External links must provide context warnings for screen readers."""
+    from scanner.cli.appguardrail import dashboard_index_path
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert 'aria-label="${esc(r)} (opens in a new tab)"' in html
