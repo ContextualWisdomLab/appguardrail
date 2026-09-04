@@ -24,6 +24,11 @@ def test_pr_workflows_cancel_only_superseded_heads() -> None:
         assert "${{ github.workflow }}-${{ github.repository }}-" in workflow
         assert "github.event.pull_request.number || github.run_id" in workflow
         assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+        assert (
+            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]"
+            in workflow
+        )
+        assert "github.event.pull_request.draft == false" in workflow
 
 
 def test_release_workflows_serialize_without_dropping_delivery() -> None:
@@ -31,5 +36,5 @@ def test_release_workflows_serialize_without_dropping_delivery() -> None:
         workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
         assert "group: ${{ github.workflow }}-${{ github.repository }}" in workflow
         assert "github.run_id" not in workflow.split("jobs:", 1)[0]
-        assert "queue: max" in workflow
+        assert "queue:" not in workflow.split("jobs:", 1)[0]
         assert "cancel-in-progress: false" in workflow

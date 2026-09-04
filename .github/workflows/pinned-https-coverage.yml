@@ -2,6 +2,7 @@ name: Pinned HTTPS Coverage
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
     branches: [develop, main]
   push:
     branches: [develop, main]
@@ -15,6 +16,7 @@ concurrency:
 
 jobs:
   exact-pinned-https-coverage:
+    if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

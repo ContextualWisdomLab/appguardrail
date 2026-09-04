@@ -4,6 +4,7 @@ on:
   push:
     branches: [develop, main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
     branches: [develop, main]
 
 permissions:
@@ -15,6 +16,7 @@ concurrency:
 
 jobs:
   pytest:
+    if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:

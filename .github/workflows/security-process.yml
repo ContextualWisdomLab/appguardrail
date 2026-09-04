@@ -4,6 +4,7 @@ on:
   push:
     branches: [develop, main, master]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
     branches: [develop, main, master]
   schedule:
     - cron: "31 4 * * 1"
@@ -19,6 +20,7 @@ concurrency:
 
 jobs:
   appguardrail-scan:
+    if: ${{ github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
