@@ -29,6 +29,16 @@ def test_console_exposes_loading_busy_and_error_states():
     assert 'tr.removeAttribute("aria-busy");' in html
 
 
+def test_console_busy_scan_row_exposes_temporary_action_unavailability():
+    """A busy focusable scan row must expose and enforce its unavailable action state."""
+    html = _console_html()
+
+    assert 'tr.setAttribute("aria-busy","true");' in html
+    assert 'tr.setAttribute("aria-disabled","true");' in html
+    assert html.count('if(tr.getAttribute("aria-disabled")==="true") return;') == 2
+    assert 'tr.removeAttribute("aria-disabled");' in html
+
+
 def test_console_detail_scrolling_respects_reduced_motion():
     """Successful and failed detail requests must honor reduced-motion preferences."""
     html = _console_html()
