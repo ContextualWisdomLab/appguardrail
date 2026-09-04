@@ -20,6 +20,7 @@
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
+| org console busy vs unavailable interaction | `scanner/dashboard/console.html` plus contract tests | active-PR through #974; Storybook inventory is documentation-only until an optional package exists |
 
 ## Promotion rules
 

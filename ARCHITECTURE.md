@@ -87,6 +87,8 @@ Stored SSRF prevention and scanner detection are separate controls. The control-
 
 Current standalone control plane is stdlib HTTP + SQLite, with tenant API-key roles and scan/history/drift/webhook configuration. Persistent organization identity is resolved from authenticated key context, not untrusted payload strings. Enterprise replacement of SQLite is behind stable repository service functions and requires migrations/authz/recovery evidence.
 
+The organization console is a no-build HTML surface. In-flight (`aria-busy`) and unavailable (`aria-disabled` / native `disabled`) states stay scoped to live controls and share `--busy-opacity`. Storybook may later consume `docs/storybook-inventory.md`; it is not a runtime dependency of `appguardrail serve`. See ADR-0007.
+
 ## Remediation authority
 
 Autofix can perform only narrowly proven semantics-preserving transformations. Other fixes are guidance for a user/agent and become accepted only after rescanning/reverification. Model-generated remediation is never a substitute for scanner evidence.
