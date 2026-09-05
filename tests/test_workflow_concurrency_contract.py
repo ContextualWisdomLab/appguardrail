@@ -20,9 +20,9 @@ CONSOLIDATED_COVERAGE_WORKFLOWS = (
 RELEASE_WORKFLOWS = ("prepare-pypi-release.yml", "publish-pypi.yml")
 
 
-def _top_level_concurrency(workflow: str) -> str:
+def _top_level_block(workflow: str, heading: str) -> str:
     lines = workflow.splitlines()
-    start = lines.index("concurrency:")
+    start = lines.index(f"{heading}:")
     end = next(
         (
             index
@@ -34,10 +34,25 @@ def _top_level_concurrency(workflow: str) -> str:
     return "\n".join(lines[start:end])
 
 
+def _pull_request_block(workflow: str) -> str:
+    lines = _top_level_block(workflow, "on").splitlines()
+    start = lines.index("  pull_request:")
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if lines[index].startswith("  ") and not lines[index].startswith("    ")
+        ),
+        len(lines),
+    )
+    return "\n".join(lines[start:end])
+
+
 def test_pr_workflows_cancel_only_superseded_heads() -> None:
     for name in PR_WORKFLOWS:
         workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
-        concurrency = _top_level_concurrency(workflow)
+        concurrency = _top_level_block(workflow, "concurrency")
+        pull_request = _pull_request_block(workflow)
         assert (
             "group: ${{ github.workflow }}-${{ github.repository }}-"
             "${{ github.event_name == 'pull_request' && github.run_attempt == 1 "
@@ -49,10 +64,10 @@ def test_pr_workflows_cancel_only_superseded_heads() -> None:
         )
         assert (
             "types: [opened, synchronize, reopened, ready_for_review]"
-            in workflow
+            in pull_request
         )
-        assert "converted_to_draft" not in workflow.split("permissions:", 1)[0]
-        assert "closed" not in workflow.split("permissions:", 1)[0]
+        assert "converted_to_draft" not in pull_request
+        assert "closed" not in pull_request
         assert "github.event.pull_request.draft == false" in workflow
         assert "github.event.action != 'closed'" in workflow
 
@@ -60,7 +75,7 @@ def test_pr_workflows_cancel_only_superseded_heads() -> None:
 def test_release_workflows_serialize_without_dropping_delivery() -> None:
     for name in RELEASE_WORKFLOWS:
         workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
-        concurrency = _top_level_concurrency(workflow)
+        concurrency = _top_level_block(workflow, "concurrency")
         assert "group: ${{ github.workflow }}-${{ github.repository }}" in concurrency
         assert "github.run_id" not in concurrency
         assert "queue: max" in concurrency
