@@ -11,6 +11,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.repository }}
+  queue: max
   cancel-in-progress: false
 
 jobs:

@@ -18,23 +18,46 @@ PR_WORKFLOWS = (
 RELEASE_WORKFLOWS = ("prepare-pypi-release.yml", "publish-pypi.yml")
 
 
+def _top_level_concurrency(workflow: str) -> str:
+    lines = workflow.splitlines()
+    start = lines.index("concurrency:")
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if lines[index] and not lines[index][0].isspace()
+        ),
+        len(lines),
+    )
+    return "\n".join(lines[start:end])
+
+
 def test_pr_workflows_cancel_only_superseded_heads() -> None:
     for name in PR_WORKFLOWS:
         workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
-        assert "${{ github.workflow }}-${{ github.repository }}-" in workflow
-        assert "github.event.pull_request.number || github.run_id" in workflow
-        assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+        concurrency = _top_level_concurrency(workflow)
+        assert (
+            "group: ${{ github.workflow }}-${{ github.repository }}-"
+            "${{ github.event_name == 'pull_request' && github.run_attempt == 1 "
+            "&& github.event.pull_request.number || github.run_id }}"
+        ) in concurrency
+        assert (
+            "cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+            in concurrency
+        )
         assert (
             "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]"
             in workflow
         )
         assert "github.event.pull_request.draft == false" in workflow
+        assert "github.event.action != 'closed'" in workflow
 
 
 def test_release_workflows_serialize_without_dropping_delivery() -> None:
     for name in RELEASE_WORKFLOWS:
         workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
-        assert "group: ${{ github.workflow }}-${{ github.repository }}" in workflow
-        assert "github.run_id" not in workflow.split("jobs:", 1)[0]
-        assert "queue:" not in workflow.split("jobs:", 1)[0]
-        assert "cancel-in-progress: false" in workflow
+        concurrency = _top_level_concurrency(workflow)
+        assert "group: ${{ github.workflow }}-${{ github.repository }}" in concurrency
+        assert "github.run_id" not in concurrency
+        assert "queue: max" in concurrency
+        assert "cancel-in-progress: false" in concurrency
