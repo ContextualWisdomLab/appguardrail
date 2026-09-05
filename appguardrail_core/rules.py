@@ -106,7 +106,6 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    # ⚡ Bolt: Fast-path string check to avoid re.finditer overhead
     if not message or "[" not in message:
         return ()
 
@@ -178,5 +177,7 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(
-        dict.fromkeys(reference for group in groups for reference in group if reference)
+        dict.fromkeys(
+            reference for group in groups for reference in group if reference
+        )
     )
