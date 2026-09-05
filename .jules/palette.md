@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-08-06 - Interactive Dashboard Cards for Quick Filtering
-**Learning:** Making metric cards (like severity counts) interactive significantly reduces friction compared to using dropdown filters. It's a common dashboard pattern that users intuitively try to click, and explicitly adding `role="button"`, `tabindex="0"`, and `aria-pressed` makes it accessible.
-**Action:** When aggregate metric cards act as filter toggles, give them an accessible name that includes the current count, expose `role="button"`, `tabindex="0"`, and `aria-pressed`, and handle both `Enter` and `Space` activation while preventing the Space key's default scrolling.
