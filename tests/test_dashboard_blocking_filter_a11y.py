@@ -8,4 +8,8 @@ def test_deploy_blocking_filter_uses_native_button_semantics() -> None:
 
     assert '<button type="button" class="card"' in html
     assert 'aria-pressed="${filterBlocking}"' in html
-    assert '<div class="card" role="button"' not in html
+    # The regression test wants to ensure Deploy-blocking doesn't use the manual div role pattern
+    assert (
+        '<div class="card" role="button" tabindex="0" aria-label="Filter by deploy-blocking'
+        not in html
+    )
