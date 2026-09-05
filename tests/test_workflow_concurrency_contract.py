@@ -46,9 +46,11 @@ def test_pr_workflows_cancel_only_superseded_heads() -> None:
             in concurrency
         )
         assert (
-            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]"
+            "types: [opened, synchronize, reopened, ready_for_review]"
             in workflow
         )
+        assert "converted_to_draft" not in workflow.split("permissions:", 1)[0]
+        assert "closed" not in workflow.split("permissions:", 1)[0]
         assert "github.event.pull_request.draft == false" in workflow
         assert "github.event.action != 'closed'" in workflow
 

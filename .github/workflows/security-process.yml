@@ -4,7 +4,7 @@ on:
   push:
     branches: [develop, main, master]
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [develop, main, master]
   schedule:
     - cron: "31 4 * * 1"
