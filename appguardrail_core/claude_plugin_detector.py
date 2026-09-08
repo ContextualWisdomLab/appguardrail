@@ -23,7 +23,10 @@ not permission, except that hook or manifest ``gh pr merge`` and
 Hook or manifest ``kubectl apply`` and ``docker push`` fail closed as
 deployment-write command findings. Hook or manifest ``terraform apply``
 and ``helm install`` fail closed as infra-write command findings.
-``terraform plan``, ``helm list``, ``vercel deploy``, and ``fly deploy``
+Hook or manifest ``vercel deploy`` and ``fly deploy`` fail closed as
+hosted-deploy command findings. Unquoted ``#`` comments and
+``echo``/``printf``/``print`` lookalikes are not that class.
+``terraform plan``, ``helm list``, ``vercel ls``, and ``fly status``
 stay inventory. Hook or manifest paths into
 ``~/.netrc``, ``~/.aws/credentials``,
 GitHub CLI hosts, Docker auth ``config.json``, cookie jars, and
@@ -31,7 +34,8 @@ GitHub CLI hosts, Docker auth ``config.json``, cookie jars, and
 Chrome and Firefox profile stores stay browser-profile findings.
 Hardcoded PATs stay write-token findings.
 ``gh issue create``, ``gh pr review``, ``kubectl get``, ``docker ps``,
-``terraform plan``, and ``helm list`` stay inventory. Skill
+``terraform plan``, ``helm list``, ``vercel ls``, and ``fly status``
+stay inventory. Skill
 homoglyph, injection, exfiltration, and placeholder hits reuse #1036 rule
 identities. Skill, command, or agent text that hides tool use, rewrites
 the system prompt, or escalates the declared goal is a separate
@@ -245,6 +249,16 @@ CLAUDE_PLUGIN_HELM_INSTALL_COMMAND_MESSAGE: Final = (
     "is write authority on a cluster. Remove the command. "
     "[CWE-250 - Execution with Unnecessary Privileges]"
 )
+CLAUDE_PLUGIN_VERCEL_DEPLOY_COMMAND_MESSAGE: Final = (
+    "Claude plugin hook or manifest runs vercel deploy. Publishing to a "
+    "hosted platform is write authority. Remove the command. "
+    "[CWE-269 - Improper Privilege Management]"
+)
+CLAUDE_PLUGIN_FLY_DEPLOY_COMMAND_MESSAGE: Final = (
+    "Claude plugin hook or manifest runs fly deploy. Publishing to a "
+    "hosted platform is write authority. Remove the command. "
+    "[CWE-250 - Execution with Unnecessary Privileges]"
+)
 CLAUDE_PLUGIN_DOCKER_SOCKET_MESSAGE: Final = (
     "Claude plugin hook reaches the host Docker socket. Socket access is host "
     "control, not an image push. Remove the socket bind and keep builds "
@@ -368,6 +382,8 @@ _DOCKER_PUSH_COMMAND = re.compile(
 )
 _TERRAFORM_APPLY_COMMAND = re.compile(r"\bterraform\s+apply\b", re.IGNORECASE)
 _HELM_INSTALL_COMMAND = re.compile(r"\bhelm\s+install\b", re.IGNORECASE)
+_VERCEL_DEPLOY_COMMAND = re.compile(r"\bvercel\s+deploy\b", re.IGNORECASE)
+_FLY_DEPLOY_COMMAND = re.compile(r"\b(?:fly|flyctl)\s+deploy\b", re.IGNORECASE)
 _REPORTING_BUILTINS: Final = frozenset({"echo", "printf", "print"})
 _FIRST_SHELL_TOKEN = re.compile(r"\s*([A-Za-z0-9_./+-]+)")
 _LITERAL_HEREDOC_OPEN = re.compile(
@@ -609,7 +625,7 @@ _TEXT_CAPABILITY_PATTERNS: Final = (
         "deployment_write",
         re.compile(
             r"\b(?:kubectl\s+apply|terraform\s+apply|helm\s+install|"
-            r"vercel\s+deploy|fly\s+deploy|docker\s+push)\b",
+            r"vercel\s+deploy|fly(?:ctl)?\s+deploy|docker\s+push)\b",
             re.IGNORECASE,
         ),
     ),
@@ -863,6 +879,8 @@ def inspect_claude_plugin_file(
         hits.extend(_docker_push_command_hits(content))
         hits.extend(_terraform_apply_command_hits(content, manifest=manifest))
         hits.extend(_helm_install_command_hits(content, manifest=manifest))
+        hits.extend(_vercel_deploy_command_hits(content, manifest=manifest))
+        hits.extend(_fly_deploy_command_hits(content, manifest=manifest))
         hits.extend(_docker_socket_hits(content))
         hits.extend(_browser_profile_hits(content))
         hits.extend(_credential_store_hits(content))
@@ -1579,6 +1597,44 @@ def _docker_push_command_hits(content: str) -> tuple[PluginHit, ...]:
     )
 
 
+def _terraform_apply_command_hits(
+    content: str, *, manifest: bool = False
+) -> tuple[PluginHit, ...]:
+    """Return executable terraform apply findings without vars."""
+    for source, first_line in _hosted_command_sources(content, manifest=manifest):
+        match = _executable_command_match(source, _TERRAFORM_APPLY_COMMAND)
+        if match is None:
+            continue
+        return (
+            PluginHit(
+                rule_id="claude-plugin-terraform-apply-command",
+                line=first_line + source[: match.start()].count("\n"),
+                snippet="terraform apply",
+                message=CLAUDE_PLUGIN_TERRAFORM_APPLY_COMMAND_MESSAGE,
+            ),
+        )
+    return ()
+
+
+def _helm_install_command_hits(
+    content: str, *, manifest: bool = False
+) -> tuple[PluginHit, ...]:
+    """Return executable helm install findings without chart names."""
+    for source, first_line in _hosted_command_sources(content, manifest=manifest):
+        match = _executable_command_match(source, _HELM_INSTALL_COMMAND)
+        if match is None:
+            continue
+        return (
+            PluginHit(
+                rule_id="claude-plugin-helm-install-command",
+                line=first_line + source[: match.start()].count("\n"),
+                snippet="helm install",
+                message=CLAUDE_PLUGIN_HELM_INSTALL_COMMAND_MESSAGE,
+            ),
+        )
+    return ()
+
+
 def _unquoted_hash_index(line: str) -> int | None:
     """Return the index of an unquoted ``#`` shell comment, if any.
 
@@ -1896,41 +1952,57 @@ def _executable_command_match(    content: str, pattern: re.Pattern[str]
                     return match
                 break
     return None
-
-
-def _terraform_apply_command_hits(
+def _vercel_deploy_command_hits(
     content: str, *, manifest: bool = False
 ) -> tuple[PluginHit, ...]:
-    """Return executable terraform apply findings without vars."""
+    """Return ``vercel deploy`` findings with a command label, not tokens.
+
+    Args:
+        content: Hook or manifest text.
+
+    Returns:
+        One hit when an executable ``vercel deploy`` is present.
+        ``vercel ls``, README wording, hook comments, and echo/printf
+        lookalikes are not this class.
+    """
     for source, first_line in _hosted_command_sources(content, manifest=manifest):
-        match = _executable_command_match(source, _TERRAFORM_APPLY_COMMAND)
+        match = _executable_command_match(source, _VERCEL_DEPLOY_COMMAND)
         if match is None:
             continue
         return (
             PluginHit(
-                rule_id="claude-plugin-terraform-apply-command",
+                rule_id="claude-plugin-vercel-deploy-command",
                 line=first_line + source[: match.start()].count("\n"),
-                snippet="terraform apply",
-                message=CLAUDE_PLUGIN_TERRAFORM_APPLY_COMMAND_MESSAGE,
+                snippet="vercel deploy",
+                message=CLAUDE_PLUGIN_VERCEL_DEPLOY_COMMAND_MESSAGE,
             ),
         )
     return ()
 
 
-def _helm_install_command_hits(
+def _fly_deploy_command_hits(
     content: str, *, manifest: bool = False
 ) -> tuple[PluginHit, ...]:
-    """Return executable helm install findings without chart names."""
+    """Return ``fly deploy`` findings with a command label, not app names.
+
+    Args:
+        content: Hook or manifest text.
+
+    Returns:
+        One hit for executable ``fly deploy`` or ``flyctl deploy``.
+        ``fly status``, hook comments, and echo/printf lookalikes are
+        not this class.
+    """
     for source, first_line in _hosted_command_sources(content, manifest=manifest):
-        match = _executable_command_match(source, _HELM_INSTALL_COMMAND)
+        match = _executable_command_match(source, _FLY_DEPLOY_COMMAND)
         if match is None:
             continue
         return (
             PluginHit(
-                rule_id="claude-plugin-helm-install-command",
+                rule_id="claude-plugin-fly-deploy-command",
                 line=first_line + source[: match.start()].count("\n"),
-                snippet="helm install",
-                message=CLAUDE_PLUGIN_HELM_INSTALL_COMMAND_MESSAGE,
+                snippet="fly deploy",
+                message=CLAUDE_PLUGIN_FLY_DEPLOY_COMMAND_MESSAGE,
             ),
         )
     return ()
