@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## $(date +%Y-%m-%d) - O(1) SARIF rule index lookup으로 변경
+**Learning:** Python 루프 내에서 리스트로 캐스팅된 딕셔너리 키들의 순차 탐색(`.index()`)은 항목이 증가할수록 O(N^2) 병목을 유발합니다.
+**Action:** 보조 딕셔너리를 사용하여 삽입 인덱스를 O(1) 해시맵 룩업으로 처리하도록 코드를 변경합니다.
