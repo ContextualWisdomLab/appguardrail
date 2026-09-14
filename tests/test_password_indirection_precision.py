@@ -27,6 +27,16 @@ def test_literal_password_remains_detected(tmp_path: Path) -> None:
     assert is_deploy_blocking(findings[0])
 
 
+def test_js_colon_password_literal_remains_detected(tmp_path: Path) -> None:
+    """A JavaScript-style colon assignment must remain a literal password."""
+    target = tmp_path / "config.ts"
+    target.write_text("password:'secret123'\n", encoding="utf-8")
+    findings = _by_rule(target, tmp_path, "hardcoded-password")
+
+    assert len(findings) == 1
+    assert is_deploy_blocking(findings[0])
+
+
 def test_shell_password_indirection_is_not_hardcoded(tmp_path: Path) -> None:
     """Self/variable assignment is not a committed secret literal."""
     target = tmp_path / "upgrade-legacy-local.sh"
