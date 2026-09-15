@@ -1,0 +1,11 @@
+--- scanner/cli/appguardrail.py
++++ scanner/cli/appguardrail.py
+@@ -1647,6 +1647,8 @@
+         return False
+
+     host = (parsed.hostname or "").lower()
++    if not host:
++        return False
+     raw = host.split("%", 1)[0].strip("[]")
+
+     def is_bad_ip(ip) -> bool:
