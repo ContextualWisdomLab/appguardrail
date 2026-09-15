@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-09-15 - Header File Input Styling
+**Learning:** The native `<input type="file">` in HTML is notoriously difficult to style consistently across browsers, leading to disjointed UI. However, adding custom interactive logic inside the HTML element like `onclick` handlers violates CSP (Content Security Policy) and accessibility patterns.
+**Action:** When styling file inputs in the dashboard header, replace the native input with a proxy `<button>` that triggers the hidden native input. Ensure the native file input receives `hidden` instead of `display:none` or custom CSS classes, and keep the `aria-label` on the hidden native element to pass UI contract tests. Always attach `addEventListener` instead of inline click handlers.
