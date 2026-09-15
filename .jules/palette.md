@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-09-14 - External Link Warnings
+**Learning:** For `target="_blank"` external links, explicitly provide **both** an assistive-technology warning (e.g., visually hidden text like `(opens in a new tab)`) and a visible warning (e.g., an external link SVG icon) to be consistent with advisory W3C G201 guidelines. Be careful not to create a duplicate screen reader announcement by placing an `aria-describedby` referenced node *inside* the element's accessible name.
+**Action:** Place the visually hidden span *outside* the anchor tag and reference it with `aria-describedby` on the anchor, while keeping the decorative (`aria-hidden="true"`) external link icon inside the anchor.
