@@ -66,8 +66,11 @@
   .dlg-head button:hover{background:var(--bg);color:var(--text)}
   .dlg-head button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .dlg-body{padding:6px 22px 22px}
-  .sec{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px 16px;margin-top:14px}
+  .sec{position:relative;border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px 16px;margin-top:14px}
   .sec h3{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  .copy-btn{position:absolute;top:10px;right:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted);transition:all 0.2s}
+  .copy-btn:hover{color:var(--text);border-color:var(--muted)}
+  .copy-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
   .sec.problem{border-left-color:var(--crit)} .sec.problem h3{color:var(--crit)}
   .sec.fix{border-left-color:var(--primary)} .sec.fix h3{color:var(--primary)}
   .sec.verify{border-left-color:#1E874B} .sec.verify h3{color:#1E874B}
@@ -295,9 +298,9 @@ function openDetail(f){
     <div class="dlg-body">
       <p class="file">${esc(f.file)}:${esc(f.line)} · ${esc(f.category)} · context: ${esc(f.context||'app-code')}${isDeployBlocking(f)?' · <span class="tag block">deploy-blocking</span>':''}</p>
       <div class="sec problem"><h3>Problem</h3><div>${esc(f.message)}</div></div>
-      <div class="sec fix"><h3>Fix Prompt</h3><pre>${esc(f.remediation)}</pre></div>
-      <div class="sec verify"><h3>Verification</h3><pre>${esc(f.verification)}</pre></div>
-      ${f.snippet?`<div class="sec meta"><h3>Evidence</h3><pre>${esc(f.snippet)}</pre></div>`:''}
+      <div class="sec fix"><h3>Fix Prompt</h3><button type="button" class="copy-btn" aria-label="Copy fix prompt" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button><pre>${esc(f.remediation)}</pre></div>
+      <div class="sec verify"><h3>Verification</h3><button type="button" class="copy-btn" aria-label="Copy verification steps" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button><pre>${esc(f.verification)}</pre></div>
+      ${f.snippet?`<div class="sec meta"><h3>Evidence</h3><button type="button" class="copy-btn" aria-label="Copy evidence snippet" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button><pre>${esc(f.snippet)}</pre></div>`:''}
       ${(owasp||cwe||refs)?`<div class="sec meta"><h3>References</h3>
         ${owasp?`<div class="kv">OWASP: ${esc(owasp)}</div>`:''}
         ${cwe?`<div class="kv">CWE: ${esc(cwe)}</div>`:''}
