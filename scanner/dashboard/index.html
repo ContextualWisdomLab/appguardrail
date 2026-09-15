@@ -281,7 +281,7 @@ function render(){
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
-  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
+  const refs = (f.references||[]).map((r, i)=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener" aria-describedby="ext-warn-${i}">${esc(r)}<svg style="width:12px;height:12px;margin-left:4px;vertical-align:middle" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a><span id="ext-warn-${i}" class="sr-only">(opens in a new tab)</span>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');

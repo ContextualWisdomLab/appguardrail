@@ -79,5 +79,7 @@
 **Action:** Invalidate the request generation on close, restore focus only to a connected trigger, and expose equivalent Escape and close-button paths for success and error states.
 
 ## 2026-08-12 - Skip to Content Accessibility
-**Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
-**Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-05-19 - 외부 링크(target="_blank") 접근성 개선
+**Learning:** 스크린 리더는 외부 링크(`target="_blank"`)가 새 탭에서 열린다는 사실을 항상 알려주지 않으며, 시각적으로 숨겨진 경고 텍스트를 앵커 태그 내부에 포함하면 스크린 리더가 두 번 읽는 문제가 발생할 수 있습니다. 또한 시각적인 표시가 없으면 일반 사용자도 새 탭이 열린다는 사실을 인지하기 어렵습니다.
+**Action:** `aria-describedby`를 사용하여 앵커 태그 외부에 스크린 리더용 경고 텍스트를 제공하고, 링크 내부에는 모든 사용자가 외부 탐색임을 인지할 수 있도록 시각적인 SVG 아이콘을 추가해야 합니다.
