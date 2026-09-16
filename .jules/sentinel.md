@@ -132,3 +132,8 @@
 **Vulnerability:** API boundaries validated webhook URLs for SSRF, but inner data access components (`set_webhook`) did not. If any other internal component reused `set_webhook`, it bypassed SSRF protections entirely.
 **Learning:** Security validations should be as close to the state change (the database) as possible, not just sitting on one particular API edge. Network guardrails should enforce safety intrinsically rather than trusting the caller layer.
 **Prevention:** Always push input validation logic (`_is_safe_url` etc.) directly into the storage or execution functions (like `set_webhook`), handling normalization of edge cases (`""` to `None`) inside the guardrail, and returning a predictable `ValueError` for the API to translate to a 400.
+
+## 2026-07-29 - Default to Unsafe Network Validations Inside DB Bounds (Updated)
+**Vulnerability:** Semgrep rule `python-stored-ssrf-webhook-url` raised a false positive when `set_webhook` internally handled SSRF validation.
+**Learning:** External SAST tools often lack inter-procedural data flow tracking. If validation logic is moved into an internal helper, the tool may still flag the outer caller as missing a validation boundary.
+**Prevention:** Rather than suppressing the alert broadly (which can hide true positives), add a local condition like `if webhook_url is not None and not _is_safe_url(webhook_url): return ...` immediately before calling the internal helper, or if appropriate, use a localized `# nosemgrep: RULE_ID` comment only when you are certain the helper provides guaranteed fail-closed validation. In this case, adding the explicit `if not _is_safe_url(...)` guard in the API handler satisfied the static analysis tool while maintaining the defense-in-depth architecture.
