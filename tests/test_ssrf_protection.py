@@ -124,3 +124,14 @@ def test_safe_redirect_handler_allows_public_https(monkeypatch):
         None, None, 302, "Found", None, "https://hooks.example.com/alert"
     )
     assert result is sentinel
+
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+)
+def test_is_safe_url_empty_hostname(validator):
+    assert not validator("http://")
+    assert not validator("http://user@")
+    assert not validator("http:///")
+    assert not validator("http://?query")
+    assert not validator("http://#fragment")
