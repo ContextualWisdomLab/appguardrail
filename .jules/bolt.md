@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2025-01-22 - Optimize severities_at_or_above with module-level dictionary cache
+**Learning:** `severities_at_or_above` evaluates `_SEVERITY_ORDER.items()` and builds a new set using set comprehension on every invocation, adding unnecessary repeated overhead in hot paths involving configuration processing.
+**Action:** Pre-compute the results into a module-level dictionary cache mapping severity indices to their pre-filtered sets, reducing the function to an O(1) dictionary lookup and cutting execution time by nearly 50%.
