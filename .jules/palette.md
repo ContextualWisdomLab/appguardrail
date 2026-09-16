@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2024-05-24 - [File Input Styling and A11y]
+**Learning:** Native `<input type="file">` elements are notoriously difficult to style consistently across browsers. Simply hiding them (`hidden`) and proxying clicks through a styled `<button>` provides a much cleaner, consistent UI while maintaining keyboard accessibility (since standard buttons are focusable). Additionally, tests often have strict string matching for `aria-label`, so moving visible text to the proxy button and keeping `aria-label` on the hidden input satisfies both a11y principles (label-in-name for visible elements) and existing contract tests.
+**Action:** When improving file upload UI, default to the hidden input + proxy button pattern. Always verify that proxy buttons trigger the hidden input correctly using explicit event listeners, and maintain any necessary `aria-label` attributes on the hidden input to satisfy testing constraints.
