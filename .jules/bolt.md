@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-20 - 제너레이터 표현식 오버헤드 최적화 (Optimize Generator Expression Overhead)
+**Learning:** `any()` 함수와 제너레이터 표현식(`any(x in y for x in tuple)`)을 결합하여 문자열을 검사하는 것은 핫 루프에서 심각한 오버헤드를 발생시킵니다. 내부적으로 제너레이터 객체 생성 및 함수 호출 비용이 매 반복마다 부과되기 때문입니다.
+**Action:** 핫 루프 내에서는 정적 집합의 문자열 포함 여부를 검사할 때 제너레이터 대신 `or` 연산자를 사용한 명시적인 조건문(`x in y or z in y`)으로 풀어쓰십시오. 이렇게 하면 C 수준의 문자열 연산 속도를 최대한 활용하여 성능을 대폭 향상시킬 수 있습니다.
