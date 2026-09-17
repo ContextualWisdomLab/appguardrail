@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-10-25 - 외부 링크 접근성 개선
+**Learning:** `target="_blank"` 속성을 가진 외부 링크에 명시적인 안내가 없으면, 스크린 리더 사용자는 예기치 않은 컨텍스트 전환을 경험하게 되며, 시각적 사용자 또한 링크의 동작을 예측하기 어렵습니다. 외부 숨김 span과 함께 `aria-describedby`를 사용하면 일부 스크린 리더에서 중복으로 읽어주는 문제가 발생할 수 있습니다.
+**Action:** `target="_blank"` 링크를 추가할 때, 스크린 리더용 숨김 텍스트(예: `<span class="sr-only"> (opens in a new tab)</span>`)와 시각적 안내(예: 외부 링크 SVG 아이콘)를 `<a>` 태그 내부에 직접 포함시켜 접근성과 UX를 동시에 개선해야 합니다.
