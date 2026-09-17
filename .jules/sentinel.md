@@ -137,3 +137,8 @@
 **Vulnerability:** Semgrep rule `python-stored-ssrf-webhook-url` raised a false positive when `set_webhook` internally handled SSRF validation.
 **Learning:** External SAST tools often lack inter-procedural data flow tracking. If validation logic is moved into an internal helper, the tool may still flag the outer caller as missing a validation boundary.
 **Prevention:** Rather than suppressing the alert broadly (which can hide true positives), add a local condition like `if webhook_url is not None and not _is_safe_url(webhook_url): return ...` immediately before calling the internal helper, or if appropriate, use a localized `# nosemgrep: RULE_ID` comment only when you are certain the helper provides guaranteed fail-closed validation. In this case, adding the explicit `if not _is_safe_url(...)` guard in the API handler satisfied the static analysis tool while maintaining the defense-in-depth architecture.
+
+## 2026-07-29 - Default to Unsafe Network Validations Inside DB Bounds (Updated 2)
+**Vulnerability:** Semgrep rule `python-stored-ssrf-webhook-url` raised a false positive when `set_webhook` internally handled SSRF validation.
+**Learning:** Adding `if webhook_url is not None and not _is_safe_url(webhook_url): return ...` immediately before calling the internal helper (`set_webhook`) satisfies the Semgrep rule by demonstrating an explicit validation boundary before storage.
+**Prevention:** Rather than suppressing the alert broadly (which can hide true positives), add a local condition like `if webhook_url is not None and not _is_safe_url(webhook_url): return ...` immediately before calling the internal helper. This satisfies the static analysis tool while maintaining the defense-in-depth architecture.
