@@ -1648,6 +1648,7 @@ def _is_safe_url(url: str) -> bool:
         return False
 
     host = (parsed.hostname or "").lower()
+    # 🛡️ Sentinel: Reject empty hostnames to prevent SSRF bypasses via malformed URLs like "http://user@"
     if not host:
         return False
     raw = host.split("%", 1)[0].strip("[]")
