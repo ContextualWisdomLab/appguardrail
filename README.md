@@ -48,7 +48,7 @@ appguardrail --help
 ```
 
 Maintainers can prepare PyPI releases with GitHub Actions Bot and OpenCode
-Agent. See [Release Automation](https://github.com/ContextualWisdomLab/appguardrail/blob/main/docs/release-automation.md).
+Agent. See [Release Automation](https://github.com/ContextualWisdomLab/appguardrail/blob/develop/docs/release-automation.md).
 
 ### Initialize security rules in your project
 
@@ -453,10 +453,10 @@ This project is open-source and welcomes contributions of:
 - Fix prompts for common vulnerability patterns
 - Scanner detection rules
 
-Please read [docs/responsible-testing.md](https://github.com/ContextualWisdomLab/appguardrail/blob/main/docs/responsible-testing.md) before contributing scanner rules.
+Please read [docs/responsible-testing.md](https://github.com/ContextualWisdomLab/appguardrail/blob/develop/docs/responsible-testing.md) before contributing scanner rules.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](https://github.com/ContextualWisdomLab/appguardrail/blob/main/LICENSE)
+MIT — see [LICENSE](https://github.com/ContextualWisdomLab/appguardrail/blob/develop/LICENSE)
