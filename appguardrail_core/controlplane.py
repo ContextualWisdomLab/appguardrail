@@ -137,11 +137,7 @@ def _drift_fp(finding: dict[str, Any]) -> str:
 
 def set_webhook(conn: sqlite3.Connection, org_id: int, url: "str | None") -> None:
     """Set (or clear) the org's drift-alert webhook URL."""
-    if url == "":
-        url = None
-    if url is not None and not _is_safe_url(url):
-        raise ValueError("invalid webhook url")
-    conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url, org_id))
+    conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url or None, org_id))
     conn.commit()
 
 
@@ -646,9 +642,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                     webhook_url = None
                 if webhook_url is not None and not _is_safe_url(webhook_url):
                     return self._json(400, {"error": "invalid webhook url"})
-
-                # Check to satisfy rule: if webhook_url is not None and not _is_safe_url(webhook_url): return
-                try:  # nosemgrep: python-stored-ssrf-webhook-url
+                try:
                     set_webhook(conn, org, webhook_url)
                 except ValueError as e:
                     return self._json(400, {"error": str(e)})
