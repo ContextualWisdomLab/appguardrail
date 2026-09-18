@@ -106,12 +106,13 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    # ⚡ Bolt: Fast-path string pre-check and unrolling generator expressions
+    if not message or "[" not in message:
+        return ()
+    d_pub = {}
+    for match in REFERENCE_RE.finditer(message):
+        d_pub[" ".join(match.group(1).split())] = None
+    return tuple(d_pub)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -134,15 +135,19 @@ def build_rule_metadata(
     """Build a stable metadata envelope for a scanner finding."""
     public_references = extract_public_references(message)
     category = _category_for_references(public_references, category)
+
     references = _merge_references(
         public_references,
         CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
     )
-    owasp_list, cwe_list = [], []
+
+    # ⚡ Bolt: Use explicit for loops instead of generator iterations
+    owasp_list = []
+    cwe_list = []
     for ref in references:
         if ref.startswith("OWASP "):
             owasp_list.append(ref)
-        if ref.startswith("CWE-"):
+        elif ref.startswith("CWE-"):
             cwe_list.append(ref)
 
     return RuleMetadata(
@@ -175,7 +180,5 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
+        dict.fromkeys(reference for group in groups for reference in group if reference)
     )
