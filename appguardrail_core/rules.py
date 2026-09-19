@@ -31,6 +31,7 @@ CATEGORY_REFERENCE_DEFAULTS = {
 REFERENCE_CATEGORY_OVERRIDES = {
     "CWE-918": "ssrf",
 }
+_REFERENCE_CATEGORY_OVERRIDES_ITEMS = tuple(REFERENCE_CATEGORY_OVERRIDES.items())
 
 SAMM_BY_CATEGORY = {
     "authz": "Implementation / Secure Build",
@@ -106,8 +107,8 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    # ⚡ Bolt: Fast-path string pre-check and unrolling generator expressions
-    if not message or "[" not in message:
+    # ⚡ Bolt: Unroll generator expression to avoid frame allocation overhead
+    if not message:
         return ()
     d_pub = {}
     for match in REFERENCE_RE.finditer(message):
@@ -118,7 +119,7 @@ def extract_public_references(message: str) -> tuple[str, ...]:
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
     """Prefer an authoritative public taxonomy over a rule-id heuristic."""
     for reference in references:
-        for prefix, category in REFERENCE_CATEGORY_OVERRIDES.items():
+        for prefix, category in _REFERENCE_CATEGORY_OVERRIDES_ITEMS:
             if reference.startswith(prefix):
                 return category
     return fallback
@@ -141,7 +142,6 @@ def build_rule_metadata(
         CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
     )
 
-    # ⚡ Bolt: Use explicit for loops instead of generator iterations
     owasp_list = []
     cwe_list = []
     for ref in references:

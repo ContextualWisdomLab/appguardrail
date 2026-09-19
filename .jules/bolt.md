@@ -78,5 +78,8 @@
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
 ## 2026-10-24 - Optimize dictionary keys and generator expressions
-**Learning:** `dict.fromkeys(generator_expression)`와 같은 패턴은 매 반복마다 제너레이터 프레임 할당 오버헤드를 발생시킵니다. 또한 정규표현식을 매번 실행하기 전에 단순 부분 문자열 체크(`"[" in text`)를 하는 것이 훨씬 빠릅니다.
-**Action:** 핫 루프에서는 제너레이터 표현식 대신 명시적인 `for` 루프를 사용하여 딕셔너리를 채우고, 값 비싼 정규표현식이나 함수 호출 전에 빠른 부분 문자열 필터링을 도입하십시오.
+**Learning:** `dict.fromkeys(generator_expression)`와 같은 패턴은 매 반복마다 제너레이터 프레임 할당 오버헤드를 발생시킵니다.
+**Action:** 핫 루프에서는 제너레이터 표현식 대신 명시적인 `for` 루프를 사용하여 딕셔너리를 채우십시오.
+## 2026-10-24 - Optimize dict.items() caching in hot loops
+**Learning:** `dict.items()`나 `dict.keys()`를 핫 루프 안에서 호출하면 오버헤드가 발생합니다. 상수 딕셔너리의 경우 모듈 레벨에서 튜플로 캐싱하는 것이 효율적입니다.
+**Action:** 핫 루프 내에서 고정된 딕셔너리의 `items()`나 `keys()`를 순회해야 하는 경우, 모듈이 로드될 때 튜플(예: `_ITEMS = tuple(DICT.items())`)로 미리 만들어 두고 캐싱된 튜플을 순회하십시오.
