@@ -399,13 +399,14 @@ def test_receipt_helpers_cover_incomplete_and_hostile_trees(
     detector._walk_entries(licensed / ".claude-plugin")
     monkeypatch.setattr(Path, "is_symlink", original_is_symlink)
 
-    original_read = Path.read_bytes
+    original_open = Path.open
 
-    def read_bytes(self: Path) -> bytes:
+    def open_file(self: Path, *args, **kwargs):
         raise OSError("read")
 
-    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    monkeypatch.setattr(Path, "open", open_file)
     assert detector._regular_file_bytes(licensed / ".claude-plugin" / "plugin.json") == b""
+    monkeypatch.setattr(Path, "open", original_open)
 
 
 def test_symlink_escape_is_reported_and_not_followed(tmp_path: Path) -> None:

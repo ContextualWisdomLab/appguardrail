@@ -106,6 +106,31 @@ class PluginHit:
 
 
 @dataclass(frozen=True, slots=True)
+class _ArtifactInventory:
+    """One bounded traversal and payload snapshot for a plugin artifact."""
+
+    entries: tuple[tuple[Path, bytes | None], ...]
+    artifact_sha256: str
+    file_count: int
+    scanned_byte_count: int
+    oversized: bool
+
+
+class _WalkedEntries(tuple[Path, ...]):
+    """Tuple-compatible bounded walk result with truncation evidence."""
+
+    truncated: bool
+
+    def __new__(
+        cls, entries: Iterable[Path], *, truncated: bool
+    ) -> _WalkedEntries:
+        """Create a tuple result while retaining whether traversal hit its budget."""
+        result = super().__new__(cls, entries)
+        result.truncated = truncated
+        return result
+
+
+@dataclass(frozen=True, slots=True)
 class PluginScanReceipt:
     """Bounded deterministic receipt for one Claude plugin artifact scan."""
 
@@ -203,7 +228,9 @@ def inspect_claude_plugin_file(
     return tuple(hits)
 
 
-def scan_claude_plugin_package(root: Path) -> tuple[PluginHit, ...]:
+def scan_claude_plugin_package(
+    root: Path, *, _inventory: _ArtifactInventory | None = None
+) -> tuple[PluginHit, ...]:
     """Return package-level findings for a materialized Claude plugin tree.
 
     Args:
@@ -216,18 +243,21 @@ def scan_claude_plugin_package(root: Path) -> tuple[PluginHit, ...]:
     plugin_dir = root / ".claude-plugin"
     if not plugin_dir.is_dir() or plugin_dir.is_symlink():
         return ()
+    inventory = _inventory or _build_artifact_inventory(root)
     manifest_path = plugin_dir / "plugin.json"
     if not manifest_path.is_file() or manifest_path.is_symlink():
         manifest_path = plugin_dir / "marketplace.json"
     declared: set[str] = set()
     if manifest_path.is_file() and not manifest_path.is_symlink():
         try:
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            payload = json.loads(
+                _inventory_file_bytes(root, inventory, manifest_path).decode("utf-8")
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError):
             payload = {}
         declared = _declared_paths(payload)
     hits: list[PluginHit] = []
-    if _license_summary(root) == "absent":
+    if _license_summary(root, inventory) == "absent":
         hits.append(
             PluginHit(
                 rule_id="claude-plugin-license-missing",
@@ -237,8 +267,7 @@ def scan_claude_plugin_package(root: Path) -> tuple[PluginHit, ...]:
                 file=".claude-plugin",
             )
         )
-    _, file_count, scanned_byte_count = _artifact_digest(root)
-    if file_count > _MAX_PACKAGE_FILES or scanned_byte_count > _MAX_PACKAGE_BYTES:
+    if inventory.oversized:
         hits.append(
             PluginHit(
                 rule_id="claude-plugin-oversized-package",
@@ -248,37 +277,36 @@ def scan_claude_plugin_package(root: Path) -> tuple[PluginHit, ...]:
                 file=".claude-plugin",
             )
         )
-    hits.extend(_source_mismatch_hits(root))
-    for directory_name in _HOOK_DIRS:
-        directory = root / directory_name
-        if not directory.is_dir() or directory.is_symlink():
+    hits.extend(_source_mismatch_hits(root, inventory))
+    hook_prefixes = tuple(f"{name}/" for name in _HOOK_DIRS)
+    for path, payload_bytes in inventory.entries:
+        relative = path.relative_to(root).as_posix()
+        if not relative.startswith(hook_prefixes):
             continue
-        for path in _walk_entries(directory):
-            relative = path.relative_to(root).as_posix()
-            if path.is_symlink():
-                hits.append(
-                    PluginHit(
-                        rule_id="claude-plugin-symlink-escape",
-                        line=1,
-                        snippet=path.name[:120],
-                        message=CLAUDE_PLUGIN_SYMLINK_ESCAPE_MESSAGE,
-                        file=relative,
-                    )
-                )
-                continue
-            if not path.is_file() or path.suffix.lower() not in _EXECUTABLE_SUFFIXES:
-                continue
-            if relative in declared or path.name in declared:
-                continue
+        if payload_bytes is None:
             hits.append(
                 PluginHit(
-                    rule_id="claude-plugin-undeclared-executable",
+                    rule_id="claude-plugin-symlink-escape",
                     line=1,
                     snippet=path.name[:120],
-                    message=CLAUDE_PLUGIN_UNDECLARED_EXECUTABLE_MESSAGE,
+                    message=CLAUDE_PLUGIN_SYMLINK_ESCAPE_MESSAGE,
                     file=relative,
                 )
             )
+            continue
+        if path.suffix.lower() not in _EXECUTABLE_SUFFIXES:
+            continue
+        if relative in declared or path.name in declared:
+            continue
+        hits.append(
+            PluginHit(
+                rule_id="claude-plugin-undeclared-executable",
+                line=1,
+                snippet=path.name[:120],
+                message=CLAUDE_PLUGIN_UNDECLARED_EXECUTABLE_MESSAGE,
+                file=relative,
+            )
+        )
     return tuple(hits)
 
 
@@ -302,12 +330,12 @@ def build_claude_plugin_scan_receipt(
         ``pass`` only when ``.claude-plugin/`` exists and no policy findings
         remain. Secret literals never appear on the receipt.
     """
-    hits = _collect_plugin_hits(root)
+    inventory = _build_artifact_inventory(root)
+    hits = _collect_plugin_hits(root, inventory)
     finding_summary = tuple(sorted({hit.rule_id for hit in hits}))
-    identity = _plugin_identity(root)
-    artifact_sha256, file_count, scanned_byte_count = _artifact_digest(root)
+    identity = _plugin_identity(root, inventory)
     marketplace_path = root / ".claude-plugin" / "marketplace.json"
-    marketplace_bytes = _regular_file_bytes(marketplace_path)
+    marketplace_bytes = _inventory_file_bytes(root, inventory, marketplace_path)
     marketplace_blob_sha = _sha256(marketplace_bytes) if marketplace_bytes else ""
     marketplace_entry_sha256 = _sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
@@ -343,13 +371,13 @@ def build_claude_plugin_scan_receipt(
         "source_repository": identity["source_repository"],
         "source_commit_sha": identity["source_commit_sha"],
         "source_path": identity["source_path"],
-        "artifact_sha256": artifact_sha256,
-        "file_count": file_count,
-        "scanned_byte_count": scanned_byte_count,
+        "artifact_sha256": inventory.artifact_sha256,
+        "file_count": inventory.file_count,
+        "scanned_byte_count": inventory.scanned_byte_count,
         "capability_inventory_sha256": capability_inventory_sha256,
         "sarif_sha256": sarif_sha256,
         "finding_summary": list(finding_summary),
-        "license_evidence_summary": _license_summary(root),
+        "license_evidence_summary": _license_summary(root, inventory),
         "scan_result": scan_result,
     }
     receipt_id = _sha256(
@@ -587,52 +615,70 @@ def _sha256(data: bytes) -> str:
 
 
 def _walk_entries(root: Path) -> tuple[Path, ...]:
-    """Yield regular files and symlinks without following linked directories."""
+    """Return at most one over-budget set of files without following symlinks."""
     found: list[Path] = []
     stack = [root]
-    while stack:
+    limit = max(0, _MAX_PACKAGE_FILES) + 1
+    examined = 0
+    truncated = False
+    while stack and examined < limit:
         current = stack.pop()
         try:
-            entries = sorted(current.iterdir(), key=lambda path: path.name, reverse=True)
+            entries: list[Path] = []
+            for entry in current.iterdir():
+                entries.append(entry)
+                examined += 1
+                if examined >= limit:
+                    truncated = True
+                    break
+            entries.sort(key=lambda path: path.name, reverse=True)
         except OSError:
             continue
         for entry in entries:
             try:
                 if entry.is_symlink():
                     found.append(entry)
-                    continue
-                if entry.is_dir():
+                elif entry.is_dir():
                     stack.append(entry)
-                    continue
-                if entry.is_file():
+                elif entry.is_file():
                     found.append(entry)
             except OSError:
                 continue
-    return tuple(sorted(found, key=lambda path: path.as_posix()))
+    if stack:
+        truncated = True
+    return _WalkedEntries(
+        sorted(found, key=lambda path: path.as_posix()), truncated=truncated
+    )
 
 
 def _regular_file_bytes(path: Path) -> bytes:
-    """Return bytes of a regular file, or empty bytes for missing/symlink paths."""
+    """Return bounded bytes of a regular file, or empty bytes otherwise."""
     try:
         if not path.is_file() or path.is_symlink():
             return b""
-        return path.read_bytes()
+        with path.open("rb") as source:
+            return source.read(_MAX_PACKAGE_BYTES + 1)
     except OSError:
         return b""
 
 
-def _artifact_digest(root: Path) -> tuple[str, int, int]:
-    """Return SHA-256, file count, and byte count for regular files under ``root``."""
+def _build_artifact_inventory(root: Path) -> _ArtifactInventory:
+    """Traverse and read a plugin artifact once, stopping after either budget."""
     hasher = hashlib.sha256()
     file_count = 0
     scanned_byte_count = 0
-    for path in _walk_entries(root):
+    entries: list[tuple[Path, bytes | None]] = []
+    oversized = False
+    walked_entries = _walk_entries(root)
+    for path in walked_entries:
         if path.is_symlink():
+            entries.append((path, None))
             hasher.update(b"symlink:")
             hasher.update(path.relative_to(root).as_posix().encode())
             hasher.update(b"\0")
             continue
         payload = _regular_file_bytes(path)
+        entries.append((path, payload))
         relative = path.relative_to(root).as_posix().encode()
         hasher.update(relative)
         hasher.update(b"\0")
@@ -642,15 +688,58 @@ def _artifact_digest(root: Path) -> tuple[str, int, int]:
         hasher.update(b"\0")
         file_count += 1
         scanned_byte_count += len(payload)
-    return hasher.hexdigest(), file_count, scanned_byte_count
+        if file_count > _MAX_PACKAGE_FILES or scanned_byte_count > _MAX_PACKAGE_BYTES:
+            oversized = True
+            break
+    if len(entries) > _MAX_PACKAGE_FILES or getattr(
+        walked_entries, "truncated", False
+    ):
+        oversized = True
+    return _ArtifactInventory(
+        entries=tuple(entries),
+        artifact_sha256=hasher.hexdigest(),
+        file_count=file_count,
+        scanned_byte_count=scanned_byte_count,
+        oversized=oversized,
+    )
 
 
-def _license_summary(root: Path) -> str:
+def _artifact_digest(
+    root: Path, inventory: _ArtifactInventory | None = None
+) -> tuple[str, int, int]:
+    """Return the bounded artifact digest and observed file and byte counts."""
+    snapshot = inventory or _build_artifact_inventory(root)
+    return (
+        snapshot.artifact_sha256,
+        snapshot.file_count,
+        snapshot.scanned_byte_count,
+    )
+
+
+def _inventory_file_bytes(
+    root: Path, inventory: _ArtifactInventory, path: Path
+) -> bytes:
+    """Return one regular-file payload captured by ``inventory``."""
+    try:
+        wanted = path.relative_to(root)
+    except ValueError:
+        return b""
+    for candidate, payload in inventory.entries:
+        if candidate.relative_to(root) == wanted:
+            return payload or b""
+    return b""
+
+
+def _license_summary(
+    root: Path, inventory: _ArtifactInventory | None = None
+) -> str:
     """Return present license path names or ``absent`` without legal approval."""
+    snapshot = inventory or _build_artifact_inventory(root)
     names = [
         path.relative_to(root).as_posix()
-        for path in _walk_entries(root)
-        if not path.is_symlink() and path.name.upper().startswith("LICENSE")
+        for path, payload in snapshot.entries
+        if payload is not None
+        and path.name.upper().startswith(("LICENSE", "NOTICE"))
     ]
     return ",".join(names) if names else "absent"
 
@@ -694,9 +783,18 @@ def _identity_from_payload(payload: object) -> dict[str, str]:
     return identity
 
 
-def _identity_from_file(path: Path) -> dict[str, str]:
+def _identity_from_file(
+    path: Path,
+    *,
+    root: Path | None = None,
+    inventory: _ArtifactInventory | None = None,
+) -> dict[str, str]:
     """Return identity from one regular JSON file, or blanks on parse failure."""
-    payload_bytes = _regular_file_bytes(path)
+    payload_bytes = (
+        _inventory_file_bytes(root, inventory, path)
+        if root is not None and inventory is not None
+        else _regular_file_bytes(path)
+    )
     if not payload_bytes:
         return _empty_identity()
     try:
@@ -706,10 +804,16 @@ def _identity_from_file(path: Path) -> dict[str, str]:
     return _identity_from_payload(payload)
 
 
-def _source_mismatch_hits(root: Path) -> tuple[PluginHit, ...]:
+def _source_mismatch_hits(
+    root: Path, inventory: _ArtifactInventory | None = None
+) -> tuple[PluginHit, ...]:
     """Return hits when catalog identity disagrees with the retrieved artifact."""
-    plugin = _identity_from_file(root / ".claude-plugin" / "plugin.json")
-    market = _identity_from_file(root / ".claude-plugin" / "marketplace.json")
+    plugin = _identity_from_file(
+        root / ".claude-plugin" / "plugin.json", root=root, inventory=inventory
+    )
+    market = _identity_from_file(
+        root / ".claude-plugin" / "marketplace.json", root=root, inventory=inventory
+    )
     hits: list[PluginHit] = []
     for field in ("source_commit_sha", "source_repository"):
         left, right = plugin[field], market[field]
@@ -750,50 +854,39 @@ def _source_mismatch_hits(root: Path) -> tuple[PluginHit, ...]:
     return tuple(hits)
 
 
-def _plugin_identity(root: Path) -> dict[str, str]:
+def _plugin_identity(
+    root: Path, inventory: _ArtifactInventory | None = None
+) -> dict[str, str]:
     """Return bounded plugin identity fields from the local manifest."""
     for name in ("plugin.json", "marketplace.json"):
-        identity = _identity_from_file(root / ".claude-plugin" / name)
+        identity = _identity_from_file(
+            root / ".claude-plugin" / name, root=root, inventory=inventory
+        )
         if any(identity.values()):
             return identity
     return _empty_identity()
 
 
-def _collect_plugin_hits(root: Path) -> tuple[PluginHit, ...]:
+def _collect_plugin_hits(
+    root: Path, inventory: _ArtifactInventory | None = None
+) -> tuple[PluginHit, ...]:
     """Combine package-level and per-file Claude plugin findings."""
-    hits = list(scan_claude_plugin_package(root))
-    for mcp_name in _MCP_FILENAMES:
-        mcp_path = root / mcp_name
-        if mcp_path.is_symlink() or not mcp_path.is_file():
-            continue
-        try:
-            content = mcp_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            content = ""
-        hits.extend(inspect_claude_plugin_file(mcp_path.name, mcp_name, content))
+    snapshot = inventory or _build_artifact_inventory(root)
+    hits = list(scan_claude_plugin_package(root, _inventory=snapshot))
     plugin_dir = root / ".claude-plugin"
-    if not plugin_dir.is_dir() or plugin_dir.is_symlink():
-        return tuple(hits)
-    for path in _walk_entries(plugin_dir):
-        if path.is_symlink() or not path.is_file():
+    is_package = plugin_dir.is_dir() and not plugin_dir.is_symlink()
+    plugin_prefixes = (".claude-plugin/", *(f"{name}/" for name in _HOOK_DIRS))
+    for path, payload in snapshot.entries:
+        if payload is None:
             continue
-        relative = path.relative_to(root).as_posix()
         try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            content = payload.decode("utf-8")
+        except UnicodeDecodeError:
             content = ""
-        hits.extend(inspect_claude_plugin_file(path.name, relative, content))
-    for directory_name in _HOOK_DIRS:
-        directory = root / directory_name
-        if not directory.is_dir() or directory.is_symlink():
+        relative = path.relative_to(root).as_posix()
+        if relative in _MCP_FILENAMES:
+            hits.extend(inspect_claude_plugin_file(path.name, relative, content))
             continue
-        for path in _walk_entries(directory):
-            if path.is_symlink() or not path.is_file():
-                continue
-            relative = path.relative_to(root).as_posix()
-            try:
-                content = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                content = ""
+        if is_package and relative.startswith(plugin_prefixes):
             hits.extend(inspect_claude_plugin_file(path.name, relative, content))
     return tuple(hits)

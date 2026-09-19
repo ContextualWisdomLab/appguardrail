@@ -2310,12 +2310,18 @@ def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
 _TEST_PATH_RE = re.compile(
     r"(?:^|/)(?:tests?|__tests__)(?:/|$)|(?:^|/)[^/]*\.(?:test|spec)\.[A-Za-z0-9]+$"
 )
-_PASSWORD_INDIRECTION_RE = re.compile(r""":['\"]|["']\$""")
+_PASSWORD_ENV_INDIRECTION_RE = re.compile(r"[\"']\$")
+_PSQL_PASSWORD_INDIRECTION_RE = re.compile(r":[\"'][A-Za-z_][A-Za-z0-9_]*[\"']")
 
 
-def _hardcoded_password_is_literal(matched: str) -> bool:
+def _hardcoded_password_is_literal(matched: str, file_path: Path) -> bool:
     """Return whether a password match embeds a secret literal rather than indirection."""
-    return not _PASSWORD_INDIRECTION_RE.search(matched or "")
+    if _PASSWORD_ENV_INDIRECTION_RE.search(matched or ""):
+        return False
+    return not (
+        file_path.suffix.lower() in {".psql", ".sql"}
+        and _PSQL_PASSWORD_INDIRECTION_RE.search(matched or "")
+    )
 
 
 def _finding_context(file_path: str, snippet: str = "") -> str:
@@ -3069,7 +3075,7 @@ def _scan_file(
 
                 for match in finditer(content):
                     if rule_id == "hardcoded-password" and not _hardcoded_password_is_literal(
-                        match.group(0)
+                        match.group(0), file_path
                     ):
                         continue
                     if rel_path_str is None:

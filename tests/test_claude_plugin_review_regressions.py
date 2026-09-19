@@ -107,6 +107,30 @@ def test_byte_budget_stops_hostile_tree_reads(
     assert reads <= 2
 
 
+def test_single_file_payload_read_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One hostile file cannot force a payload read beyond the byte budget sentinel."""
+    payload = tmp_path / "payload.bin"
+    payload.write_bytes(b"0123456789")
+    monkeypatch.setattr(detector, "_MAX_PACKAGE_BYTES", 4)
+
+    assert detector._regular_file_bytes(payload) == b"01234"
+
+
+def test_directory_entry_budget_marks_inventory_oversized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Directory-only fanout is bounded and retained as fail-closed evidence."""
+    for index in range(6):
+        (tmp_path / f"directory-{index}").mkdir()
+    monkeypatch.setattr(detector, "_MAX_PACKAGE_FILES", 2)
+
+    inventory = detector._build_artifact_inventory(tmp_path)
+
+    assert inventory.oversized
+
+
 def test_receipt_reuses_one_bounded_artifact_inventory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
