@@ -39,10 +39,10 @@ def test_file_count_budget_stops_hostile_tree_reads(
     original = detector._regular_file_bytes
     reads = 0
 
-    def counted_read(path: Path) -> bytes:
+    def counted_read(path: Path, byte_limit: int | None = None) -> bytes:
         nonlocal reads
         reads += 1
-        return original(path)
+        return original(path, byte_limit)
 
     monkeypatch.setattr(detector, "_regular_file_bytes", counted_read)
 
@@ -94,17 +94,21 @@ def test_byte_budget_stops_hostile_tree_reads(
     original = detector._regular_file_bytes
     reads = 0
 
-    def counted_read(path: Path) -> bytes:
+    read_limits: list[int | None] = []
+
+    def counted_read(path: Path, byte_limit: int | None = None) -> bytes:
         nonlocal reads
         reads += 1
-        return original(path)
+        read_limits.append(byte_limit)
+        return original(path, byte_limit)
 
     monkeypatch.setattr(detector, "_regular_file_bytes", counted_read)
 
     _, _, scanned_byte_count = detector._artifact_digest(tmp_path)
 
-    assert scanned_byte_count > detector._MAX_PACKAGE_BYTES
+    assert scanned_byte_count == detector._MAX_PACKAGE_BYTES + 1
     assert reads <= 2
+    assert read_limits == [detector._MAX_PACKAGE_BYTES + 1, 2]
 
 
 def test_single_file_payload_read_is_bounded(

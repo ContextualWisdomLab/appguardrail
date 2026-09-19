@@ -651,13 +651,15 @@ def _walk_entries(root: Path) -> tuple[Path, ...]:
     )
 
 
-def _regular_file_bytes(path: Path) -> bytes:
-    """Return bounded bytes of a regular file, or empty bytes otherwise."""
+def _regular_file_bytes(path: Path, byte_limit: int | None = None) -> bytes:
+    """Return at most ``byte_limit`` regular-file bytes, or empty bytes."""
     try:
         if not path.is_file() or path.is_symlink():
             return b""
         with path.open("rb") as source:
-            return source.read(_MAX_PACKAGE_BYTES + 1)
+            return source.read(
+                _MAX_PACKAGE_BYTES + 1 if byte_limit is None else max(0, byte_limit)
+            )
     except OSError:
         return b""
 
@@ -677,7 +679,11 @@ def _build_artifact_inventory(root: Path) -> _ArtifactInventory:
             hasher.update(path.relative_to(root).as_posix().encode())
             hasher.update(b"\0")
             continue
-        payload = _regular_file_bytes(path)
+        remaining_bytes = _MAX_PACKAGE_BYTES - scanned_byte_count
+        if remaining_bytes <= 0:
+            oversized = True
+            break
+        payload = _regular_file_bytes(path, remaining_bytes + 1)
         entries.append((path, payload))
         relative = path.relative_to(root).as_posix().encode()
         hasher.update(relative)
@@ -841,7 +847,24 @@ def _source_mismatch_hits(
                     file=".claude-plugin/plugin.json",
                 )
             )
-        elif not (root / path_value).exists():
+        else:
+            candidate = root
+            unsafe = False
+            for part in parts:
+                candidate /= part
+                try:
+                    if candidate.is_symlink():
+                        unsafe = True
+                        break
+                except OSError:
+                    unsafe = True
+                    break
+            try:
+                unsafe = unsafe or not candidate.exists()
+            except OSError:
+                unsafe = True
+            if not unsafe:
+                return tuple(hits)
             hits.append(
                 PluginHit(
                     rule_id="claude-plugin-source-mismatch",

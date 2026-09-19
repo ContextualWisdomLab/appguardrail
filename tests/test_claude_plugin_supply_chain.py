@@ -333,6 +333,17 @@ def test_receipt_helpers_cover_incomplete_and_hostile_trees(
     (licensed / "LICENSE").write_text("MIT\n", encoding="utf-8")
     licensed_receipt = detector.build_claude_plugin_scan_receipt(licensed)
     assert "LICENSE" in licensed_receipt.license_evidence_summary
+    assert detector._regular_file_bytes(tmp_path / "missing") == b""
+    assert detector._identity_from_file(
+        licensed / ".claude-plugin" / "plugin.json"
+    )["plugin_name"] == "safe-plugin"
+    licensed_inventory = detector._build_artifact_inventory(licensed)
+    assert (
+        detector._inventory_file_bytes(
+            licensed, licensed_inventory, tmp_path / "outside.json"
+        )
+        == b""
+    )
 
     linked = tmp_path / "linked-root"
     linked.mkdir()
@@ -578,6 +589,38 @@ def test_oversized_plugin_package_fails_closed(
     assert any(hit.rule_id == "claude-plugin-oversized-package" for hit in hits)
 
 
+def test_aggregate_byte_budget_reads_only_remaining_plus_sentinel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each payload read is capped by the aggregate bytes still available."""
+    from appguardrail_core import claude_plugin_detector as detector
+
+    (tmp_path / "a.bin").write_bytes(b"abc")
+    (tmp_path / "b.bin").write_bytes(b"0123456789")
+    (tmp_path / "c.bin").write_bytes(b"must-not-be-read")
+    monkeypatch.setattr(detector, "_MAX_PACKAGE_BYTES", 4)
+    original = detector._regular_file_bytes
+    read_limits: list[int | None] = []
+
+    def counted_read(path: Path, byte_limit: int | None = None) -> bytes:
+        read_limits.append(byte_limit)
+        return original(path, byte_limit)
+
+    monkeypatch.setattr(detector, "_regular_file_bytes", counted_read)
+
+    inventory = detector._build_artifact_inventory(tmp_path)
+
+    assert inventory.oversized
+    assert inventory.scanned_byte_count == 5
+    assert read_limits == [5, 2]
+
+    read_limits.clear()
+    monkeypatch.setattr(detector, "_MAX_PACKAGE_BYTES", 0)
+    zero_budget = detector._build_artifact_inventory(tmp_path)
+    assert zero_budget.oversized
+    assert zero_budget.scanned_byte_count == 0
+    assert read_limits == []
+
 def test_marketplace_and_plugin_ref_mismatch_fails_closed(tmp_path: Path) -> None:
     """Catalog SHA and retrieved plugin SHA must be the same object."""
     from appguardrail_core.claude_plugin_detector import scan_claude_plugin_package
@@ -621,6 +664,65 @@ def test_declared_source_path_must_exist_inside_the_tree(tmp_path: Path) -> None
     plugin.write_text(json.dumps(payload), encoding="utf-8")
     hits = scan_claude_plugin_package(root)
     assert any(hit.rule_id == "claude-plugin-source-mismatch" for hit in hits)
+
+
+def test_declared_source_path_rejects_symlink_escape(tmp_path: Path) -> None:
+    """A source.path symlink component cannot escape the artifact root."""
+    from appguardrail_core.claude_plugin_detector import scan_claude_plugin_package
+
+    root = _pinned_plugin(tmp_path / "plugin")
+    outside = tmp_path / "outside"
+    (outside / "safe-plugin").mkdir(parents=True)
+    (root / "plugins").symlink_to(outside, target_is_directory=True)
+    plugin = root / ".claude-plugin" / "plugin.json"
+    payload = json.loads(plugin.read_text(encoding="utf-8"))
+    payload["source"]["path"] = "plugins/safe-plugin"
+    plugin.write_text(json.dumps(payload), encoding="utf-8")
+
+    hits = scan_claude_plugin_package(root)
+
+    assert any(hit.rule_id == "claude-plugin-source-mismatch" for hit in hits)
+
+
+def test_declared_source_path_stat_errors_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A source.path that cannot be safely inspected is a mismatch."""
+    from appguardrail_core import claude_plugin_detector as detector
+
+    root = _pinned_plugin(tmp_path / "plugin")
+    nested = root / "plugins" / "safe-plugin"
+    nested.mkdir(parents=True)
+    plugin = root / ".claude-plugin" / "plugin.json"
+    payload = json.loads(plugin.read_text(encoding="utf-8"))
+    payload["source"]["path"] = "plugins/safe-plugin"
+    plugin.write_text(json.dumps(payload), encoding="utf-8")
+    inventory = detector._build_artifact_inventory(root)
+    original_is_symlink = Path.is_symlink
+    original_exists = Path.exists
+
+    def blocked_symlink(path: Path) -> bool:
+        if path == root / "plugins":
+            raise OSError("blocked")
+        return original_is_symlink(path)
+
+    monkeypatch.setattr(Path, "is_symlink", blocked_symlink)
+    assert any(
+        hit.rule_id == "claude-plugin-source-mismatch"
+        for hit in detector._source_mismatch_hits(root, inventory)
+    )
+    monkeypatch.setattr(Path, "is_symlink", original_is_symlink)
+
+    def blocked_exists(path: Path) -> bool:
+        if path == nested:
+            raise OSError("blocked")
+        return original_exists(path)
+
+    monkeypatch.setattr(Path, "exists", blocked_exists)
+    assert any(
+        hit.rule_id == "claude-plugin-source-mismatch"
+        for hit in detector._source_mismatch_hits(root, inventory)
+    )
 
 
 def test_matching_source_path_is_not_a_mismatch(tmp_path: Path) -> None:
