@@ -3011,17 +3011,18 @@ def _scan_file(
                         )
                     )
             name = file_path.name
+            from appguardrail_core.claude_plugin_detector import (
+                _EXECUTABLE_SUFFIXES,
+                inspect_claude_plugin_file,
+            )
+
             maybe_plugin = name in {
                 "marketplace.json",
                 "plugin.json",
                 "hooks.json",
-            } or ext in {".sh", ".bash", ".zsh"}
+            } or ext in _EXECUTABLE_SUFFIXES
             if maybe_plugin:
                 posix_path = _display_path(context.relative_candidate(file_path))
-                from appguardrail_core.claude_plugin_detector import (
-                    inspect_claude_plugin_file,
-                )
-
                 plugin_hits = inspect_claude_plugin_file(
                     name, posix_path, content
                 )

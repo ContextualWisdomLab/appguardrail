@@ -70,6 +70,11 @@ CLAUDE_PLUGIN_SOURCE_MISMATCH_MESSAGE: Final = (
     "ref, repository, or source path. Bind admission to one exact object. "
     "[CWE-494 - Download of Code Without Integrity Check]"
 )
+CLAUDE_PLUGIN_UNINSPECTABLE_FILE_MESSAGE: Final = (
+    "Claude plugin package contains a regular file that could not be read. "
+    "Unreadable artifact content fails admission instead of being treated as empty. "
+    "[CWE-703 - Improper Check or Handling of Exceptional Conditions]"
+)
 _MCP_FILENAMES: Final = frozenset({".mcp.json", "mcp.json"})
 _MAX_PACKAGE_FILES: Final = 10_000
 _MAX_PACKAGE_BYTES: Final = 10 * 1024 * 1024
@@ -114,6 +119,7 @@ class _ArtifactInventory:
     file_count: int
     scanned_byte_count: int
     oversized: bool
+    uninspectable_paths: tuple[Path, ...]
 
 
 class _WalkedEntries(tuple[Path, ...]):
@@ -257,6 +263,17 @@ def scan_claude_plugin_package(
             payload = {}
         declared = _declared_paths(payload)
     hits: list[PluginHit] = []
+    uninspectable_paths = frozenset(inventory.uninspectable_paths)
+    for path in inventory.uninspectable_paths:
+        hits.append(
+            PluginHit(
+                rule_id="claude-plugin-uninspectable-file",
+                line=1,
+                snippet="uninspectable-file",
+                message=CLAUDE_PLUGIN_UNINSPECTABLE_FILE_MESSAGE,
+                file=path.relative_to(root).as_posix(),
+            )
+        )
     if _license_summary(root, inventory) == "absent":
         hits.append(
             PluginHit(
@@ -284,6 +301,8 @@ def scan_claude_plugin_package(
         if not relative.startswith(hook_prefixes):
             continue
         if payload_bytes is None:
+            if path in uninspectable_paths:
+                continue
             hits.append(
                 PluginHit(
                     rule_id="claude-plugin-symlink-escape",
@@ -651,8 +670,8 @@ def _walk_entries(root: Path) -> tuple[Path, ...]:
     )
 
 
-def _regular_file_bytes(path: Path, byte_limit: int | None = None) -> bytes:
-    """Return at most ``byte_limit`` regular-file bytes, or empty bytes."""
+def _regular_file_bytes(path: Path, byte_limit: int | None = None) -> bytes | None:
+    """Return bounded regular-file bytes, or ``None`` when reading fails."""
     try:
         if not path.is_file() or path.is_symlink():
             return b""
@@ -661,7 +680,7 @@ def _regular_file_bytes(path: Path, byte_limit: int | None = None) -> bytes:
                 _MAX_PACKAGE_BYTES + 1 if byte_limit is None else max(0, byte_limit)
             )
     except OSError:
-        return b""
+        return None
 
 
 def _build_artifact_inventory(root: Path) -> _ArtifactInventory:
@@ -670,6 +689,7 @@ def _build_artifact_inventory(root: Path) -> _ArtifactInventory:
     file_count = 0
     scanned_byte_count = 0
     entries: list[tuple[Path, bytes | None]] = []
+    uninspectable_paths: list[Path] = []
     oversized = False
     walked_entries = _walk_entries(root)
     for path in walked_entries:
@@ -686,6 +706,16 @@ def _build_artifact_inventory(root: Path) -> _ArtifactInventory:
         payload = _regular_file_bytes(path, remaining_bytes + 1)
         entries.append((path, payload))
         relative = path.relative_to(root).as_posix().encode()
+        if payload is None:
+            uninspectable_paths.append(path)
+            hasher.update(b"uninspectable:")
+            hasher.update(relative)
+            hasher.update(b"\0")
+            file_count += 1
+            if file_count > _MAX_PACKAGE_FILES:
+                oversized = True
+                break
+            continue
         hasher.update(relative)
         hasher.update(b"\0")
         hasher.update(str(len(payload)).encode())
@@ -707,6 +737,7 @@ def _build_artifact_inventory(root: Path) -> _ArtifactInventory:
         file_count=file_count,
         scanned_byte_count=scanned_byte_count,
         oversized=oversized,
+        uninspectable_paths=tuple(uninspectable_paths),
     )
 
 
