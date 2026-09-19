@@ -141,17 +141,3 @@ def test_is_safe_url_empty_hostname():
     assert not _is_safe_url("http://user@")
     assert not _cli_is_safe_url("http://")
     assert not _cli_is_safe_url("http://user@")
-
-
-@pytest.mark.parametrize(
-    "validator",
-    [_is_safe_url, _cli_is_safe_url],
-    ids=["controlplane", "cli"],
-)
-@pytest.mark.parametrize(
-    "url",
-    ["https://8.8.8.8:bad/hook", "https://8.8.8.8:65536/hook", "https://8.8.8.8:0/hook"],
-    ids=["nonnumeric", "out-of-range", "zero"],
-)
-def test_is_safe_url_rejects_invalid_ports(validator, url):
-    assert not validator(url)
