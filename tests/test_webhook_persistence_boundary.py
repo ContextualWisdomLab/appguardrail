@@ -2,6 +2,7 @@
 
 import json
 import threading
+import urllib.error
 import urllib.request
 from contextlib import closing
 
@@ -61,6 +62,17 @@ def test_set_webhook_rejects_unsafe_destination_before_persistence():
     assert _stored_webhook(conn, org_id) is None
 
 
+@pytest.mark.parametrize("url", ["http://", "https://", "http://user@"])
+def test_set_webhook_rejects_empty_hostname_before_persistence(url):
+    conn = connect(":memory:")
+    org_id, _ = create_org(conn, "Acme")
+
+    with pytest.raises(ValueError, match="invalid webhook url"):
+        set_webhook(conn, org_id, url)
+
+    assert _stored_webhook(conn, org_id) is None
+
+
 def test_set_webhook_rejects_non_string_before_sqlite_binding():
     conn = connect(":memory:")
     org_id, _ = create_org(conn, "Acme")
@@ -94,3 +106,14 @@ def test_api_empty_string_clears_existing_destination(webhook_server):
 
     assert status == 200
     assert body["webhook_url"] is None
+
+
+@pytest.mark.parametrize("url", ["http://", "https://", "http://user@"])
+def test_api_rejects_empty_hostname(webhook_server, url):
+    base_url, key = webhook_server
+
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        _req("POST", f"{base_url}/api/v1/webhook", key, {"url": url})
+
+    assert exc_info.value.code == 400
+    assert json.loads(exc_info.value.read()) == {"error": "invalid webhook url"}
