@@ -25,6 +25,26 @@ def test_is_safe_url_invalid_types(validator, value):
     assert not validator(value)
 
 
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://",
+        "https://",
+        "http://user@",
+        "http:///",
+        "http://?query",
+        "http://#fragment",
+    ],
+)
+def test_is_safe_url_rejects_empty_hostname(validator, url):
+    assert not validator(url)
+
+
 def test_is_safe_url_ipv4_localhost():
     assert not _is_safe_url("http://127.0.0.1/")
     assert not _is_safe_url("http://127.0.0.1:8080/")
