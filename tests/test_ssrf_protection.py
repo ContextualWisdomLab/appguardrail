@@ -128,3 +128,4 @@ def test_safe_redirect_handler_allows_public_https(monkeypatch):
 def test_is_safe_url_empty_hostname():
     assert not _is_safe_url("http://")
     assert not _is_safe_url("http://user@")
+# Trigger CI re-run
