@@ -78,6 +78,6 @@
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
 
-## 2024-11-21 - O(N^2) Rule Index Enumeration in SARIF Generation
-**Learning:** In `appguardrail_core/sarif.py`, the SARIF generation loop computes `ruleIndex` by calling `list(rules).index(rule_id)` for every finding. This iterates over the keys of the `rules` dictionary, yielding O(M × R) complexity before optimization and O(M + R) after, where M is findings and R is unique rules. The 10,000-finding/1,000-rule benchmark verifies this constant-factor micro-optimization but does not constitute buyer-visible p95 evidence.
-**Action:** Replace dynamic index searching with a parallel `rule_indices` dictionary (`rule_indices[rule_id] = len(rules)`) mapping rule IDs to their integer index to achieve average O(1) lookups per finding.
+## 2026-09-20 - Avoid repeated SARIF rule-index enumeration
+**Learning:** With M findings and R unique rules, rebuilding and searching the rule-key list for every result costs O(M × R). A rule-to-index dictionary makes each lookup average O(1) and the complete pass O(M + R).
+**Action:** Assign the insertion index when a SARIF rule is first observed, preserve the emitted rule order, and benchmark representative finding/rule distributions before claiming buyer-visible latency improvement.
