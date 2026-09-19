@@ -136,8 +136,12 @@ def _drift_fp(finding: dict[str, Any]) -> str:
 
 
 def set_webhook(conn: sqlite3.Connection, org_id: int, url: "str | None") -> None:
-    """Set (or clear) the org's drift-alert webhook URL."""
-    conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url or None, org_id))
+    """Persist one validated public webhook URL or clear the destination."""
+    if url == "":
+        url = None
+    if url is not None and (not isinstance(url, str) or not _is_safe_url(url)):
+        raise ValueError("invalid webhook url")
+    conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url, org_id))
     conn.commit()
 
 
@@ -642,11 +646,14 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 body = self._body()
                 if body is None or not isinstance(body, dict):
                     return self._json(400, {"error": "invalid JSON body"})
-                webhook_url = body.get("url")
-                if webhook_url is not None and not _is_safe_url(webhook_url):
+                if "url" not in body:
+                    return self._json(400, {"error": "url is required"})
+                webhook_url = body["url"]
+                try:
+                    set_webhook(conn, org, webhook_url)
+                except ValueError:
                     return self._json(400, {"error": "invalid webhook url"})
-                set_webhook(conn, org, webhook_url)
-                return self._json(200, {"webhook_url": webhook_url})
+                return self._json(200, {"webhook_url": webhook_url or None})
 
             if path == "/api/v1/keys":
                 if not has_role(role, "owner"):
