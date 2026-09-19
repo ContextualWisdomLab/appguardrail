@@ -7,6 +7,7 @@
 - 대시보드 검색창 커서 유지 — 검색어 중간에서 텍스트를 수정할 때마다 커서가 검색어의 맨 끝으로 점프하는 불편함을 수정했습니다. 이제 입력창의 커서 위치(`selectionStart`/`selectionEnd`)가 동적 렌더링 이후에도 원래 위치에 정확히 유지되어 자연스러운 타이핑 경험을 제공합니다.
 
 ### 보안
+- Gap baseline을 #1217의 DNS-rebinding/HTTPS identity 수선에 결속했습니다. Exact head `43bc6ba…`는 기존 `pinned_https` canonical transport를 재사용해 hop별 단일 DNS 결정, global-address 검증, TCP peer pinning, 원래 TLS hostname, 307/308 redirect 재검증을 적용합니다. HTTP·invalid port·DNS failure·missing `url`은 fail closed이고 explicit null/empty deletion은 보존됩니다. RED 16/62, focused 119/119, full 1,029/1,029을 기록하며 hosted exact-head Checks와 독립 승인은 미완료입니다.
 - Gap baseline을 #1189까지 전진시켰습니다. Deno publish와 CocoaPods trunk push successor를 최신 #1188 위로 ordinary two-parent merge했으며 17 ahead / 0 behind, focused 193/193, 전체 Claude-plugin 661/661 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft입니다.
 - Gap baseline을 #1188까지 전진시켰습니다. SBT publish/publishSigned와 Conan upload successor를 최신 #1187 위로 ordinary two-parent merge했으며 11 ahead / 0 behind, focused 159/159, 전체 Claude-plugin 643/643 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft입니다.
 - Gap baseline을 #1187까지 전진시켰습니다. Gradle publish와 LuaRocks upload successor를 최신 #1186 위로 ordinary two-parent merge했으며 3 ahead / 0 behind, focused 142/142, 전체 Claude-plugin 626/626 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft입니다. Restack 충돌에서는 Vercel/Fly hosted-deploy fail-closed fixture를 보존했습니다.
