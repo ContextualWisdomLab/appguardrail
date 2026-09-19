@@ -7,6 +7,7 @@
 - 대시보드 검색창 커서 유지 — 검색어 중간에서 텍스트를 수정할 때마다 커서가 검색어의 맨 끝으로 점프하는 불편함을 수정했습니다. 이제 입력창의 커서 위치(`selectionStart`/`selectionEnd`)가 동적 렌더링 이후에도 원래 위치에 정확히 유지되어 자연스러운 타이핑 경험을 제공합니다.
 
 ### 보안
+- Gap baseline을 #1184까지 전진시켰습니다. #1183 gem/NuGet와 #1184 Dart/Flutter pub-publish successor를 최신 parent 위로 ordinary two-parent merge했으며 각각 12/0, 10/0 ahead/behind와 572/572, 583/583 exact-tree Claude-plugin GREEN을 기록합니다. Hosted workflow·review가 없어 Draft이며 #1185+ 승계는 미완료입니다.
 - Gap baseline을 #1182의 current-parent restack과 #1217의 concurrent empty-host guard 회귀 수선에 결속했습니다. #1182는 latest #1180보다 12 ahead / 0 behind이며 24/24 focused와 561/561 Claude-plugin 회귀를 통과합니다. #1217은 semantic-inverse commit의 6 failures / 41 passes를 재현한 뒤 exact prior GREEN tree를 복구해 47/47을 통과하며, 새 hosted Checks와 DNS-rebinding review 의무는 미완료로 유지합니다.
 - Gap baseline을 #1217의 canonical webhook URL boundary 수선에 결속했습니다. Empty-host fail-open의 RED 18/29와 GREEN 47/47·전체 1,023/1,023, 중복 후보의 완전한 유효-delta 승계, exact-head hosted Checks·review 미완료를 분리 기록합니다.
 - Gap baseline now records #1260's exact console severity own-property repair, executable hostile-key regression, and still-queued hosted/review acceptance boundary without promoting the Draft to protected functionality.
