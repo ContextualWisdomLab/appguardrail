@@ -31,6 +31,7 @@ CATEGORY_REFERENCE_DEFAULTS = {
 REFERENCE_CATEGORY_OVERRIDES = {
     "CWE-918": "ssrf",
 }
+_REFERENCE_CATEGORY_OVERRIDES_ITEMS = tuple(REFERENCE_CATEGORY_OVERRIDES.items())
 
 SAMM_BY_CATEGORY = {
     "authz": "Implementation / Secure Build",
@@ -106,18 +107,19 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    # ⚡ Bolt: Unroll generator expression to avoid frame allocation overhead
+    if not message:
+        return ()
+    d_pub = {}
+    for match in REFERENCE_RE.finditer(message):
+        d_pub[" ".join(match.group(1).split())] = None
+    return tuple(d_pub)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
     """Prefer an authoritative public taxonomy over a rule-id heuristic."""
     for reference in references:
-        for prefix, category in REFERENCE_CATEGORY_OVERRIDES.items():
+        for prefix, category in _REFERENCE_CATEGORY_OVERRIDES_ITEMS:
             if reference.startswith(prefix):
                 return category
     return fallback
@@ -134,15 +136,18 @@ def build_rule_metadata(
     """Build a stable metadata envelope for a scanner finding."""
     public_references = extract_public_references(message)
     category = _category_for_references(public_references, category)
+
     references = _merge_references(
         public_references,
         CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
     )
-    owasp_list, cwe_list = [], []
+
+    owasp_list = []
+    cwe_list = []
     for ref in references:
         if ref.startswith("OWASP "):
             owasp_list.append(ref)
-        if ref.startswith("CWE-"):
+        elif ref.startswith("CWE-"):
             cwe_list.append(ref)
 
     return RuleMetadata(
@@ -175,7 +180,5 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
+        dict.fromkeys(reference for group in groups for reference in group if reference)
     )
