@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2026-08-27 - Properly Setting aria-busy State Before Calling Async Details
+**Learning:** When trying to implement a loading state (like `aria-busy="true"`) to prevent double clicks, simply updating the CSS and adding the check `if(tr.getAttribute("aria-busy")==="true")return;` inside the event listener is not enough. If the attribute is never actually set on the element (`tr.setAttribute("aria-busy", "true")`), the guard will always fail and the CSS will never trigger.
+**Action:** When adding state-based UI interactions, always ensure the state attribute (e.g., `aria-busy`) is properly initialized *before* the async logic and removed *after* it, often inside the handler or within the async function being called.
