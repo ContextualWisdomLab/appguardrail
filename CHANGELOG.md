@@ -7,6 +7,7 @@
 - 대시보드 검색창 커서 유지 — 검색어 중간에서 텍스트를 수정할 때마다 커서가 검색어의 맨 끝으로 점프하는 불편함을 수정했습니다. 이제 입력창의 커서 위치(`selectionStart`/`selectionEnd`)가 동적 렌더링 이후에도 원래 위치에 정확히 유지되어 자연스러운 타이핑 경험을 제공합니다.
 
 ### 보안
+- Gap baseline을 #1217의 canonical webhook URL boundary 수선에 결속했습니다. Empty-host fail-open의 RED 18/29와 GREEN 47/47·전체 1,023/1,023, 중복 후보의 완전한 유효-delta 승계, exact-head hosted Checks·review 미완료를 분리 기록합니다.
 - Gap baseline now records #1260's exact console severity own-property repair, executable hostile-key regression, and still-queued hosted/review acceptance boundary without promoting the Draft to protected functionality.
 - Claude plugin registry-publish detector 계보를 최신 #1179 위로 ordinary two-parent merge했습니다. #1180 exact head `ee39a15…`는 15 ahead / 0 behind이며 five-file npm/twine/cargo publish delta와 모든 predecessor 수선을 보존합니다. Restack 전 stale Terraform/Helm fixture 1 failure / 478 passes를 재현했고, 최종 focused 104/104, 전체 Claude-plugin 549/549, compile·diff check가 통과했습니다. Hosted exact-head workflow와 독립 review가 없어 Draft입니다.
 - Claude plugin object-store/containerapp detector 계보를 최신 #1177 위로 ordinary two-parent merge했습니다. #1179 exact head `9ff0a9b…`는 17 ahead / 0 behind이며 seven-file S3 direction/containerapp delta와 모든 predecessor 수선을 보존합니다. Restack 전 stale Terraform/Helm fixture 1 failure / 466 passes를 재현했고, 최종 focused 121/121, 전체 Claude-plugin 537/537, compile·diff check가 통과했습니다. Hosted exact-head workflow와 독립 review가 없어 Draft입니다.
