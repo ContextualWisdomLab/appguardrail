@@ -226,6 +226,7 @@ def test_manifest_cloud_prose_and_reporting_commands_are_not_this_class(
     manifest["description"] = "operators may later run gcloud run deploy"
     manifest["hooks"] = {
         "PostToolUse": [
+            {"command": "hooks/session.sh"},
             {"command": 'echo "aws cloudformation deploy"'},
             {"command": "printf '%s\\n' 'az webapp deploy'"},
         ],
