@@ -3,7 +3,7 @@
 Status: **Proposed**  
 Last evidence refresh: 2026-09-20  
 Current review: [appguardrail#1272](https://github.com/ContextualWisdomLab/appguardrail/pull/1272)  
-Additional measured-performance lane: [appguardrail#1247](https://github.com/ContextualWisdomLab/appguardrail/pull/1247) at `1a141f4c23c590bdc4563bfb53f93938bd7cff0b`  
+Additional measured-performance lane: [appguardrail#1247](https://github.com/ContextualWisdomLab/appguardrail/pull/1247) at `63c6548946ccc98c11b2329f7ac7fd60e6b2f22a`  
 Production evidence ancestor: `f76fcbabc867b0953b260908116a162314619f63`
 
 ## Goal and loop
