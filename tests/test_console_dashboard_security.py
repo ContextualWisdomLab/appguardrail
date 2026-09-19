@@ -31,3 +31,11 @@ def test_detail_panel_close_invalidates_async_work_and_restores_focus() -> None:
     assert html.count('d.querySelector(".close-btn").addEventListener("click",closeDetail);') == 2
     assert html.count("d.focus({preventScroll:true});") == 2
     assert 'aria-label="${esc(s.created_at)}: ${esc(String(s.deploy_blocking||0))} blocking"' in html
+
+
+def test_severity_color_lookup_rejects_prototype_chain_properties() -> None:
+    """Untrusted severity keys must resolve only against SEV's own properties."""
+    html = CONSOLE_PATH.read_text(encoding="utf-8")
+
+    assert "Object.prototype.hasOwnProperty.call(SEV,severity)" in html
+    assert "SEV[String(f.severity||'INFO').toUpperCase()]" not in html
