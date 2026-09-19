@@ -18,13 +18,17 @@ import json
 import re
 import secrets
 import sqlite3
-import urllib.error
-import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
+from .pinned_https import (
+    DestinationValidationError,
+    PinnedHTTPSFailure,
+    post_json_pinned_https,
+    resolve_public_https_destination,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS orgs (
@@ -222,73 +226,12 @@ def _slack_blocks(
 
 
 def _is_safe_url(url: str) -> bool:
-    import ipaddress
-    import urllib.parse
-    import socket
-
-    if not isinstance(url, str):
-        return False
-
+    """Return whether ``url`` resolves to a strict public HTTPS destination."""
     try:
-        parsed = urllib.parse.urlparse(
-            url
-        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-    except ValueError:
+        resolve_public_https_destination(url)
+    except DestinationValidationError:
         return False
-
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in {"http", "https"}:
-        return False
-
-    host = (parsed.hostname or "").lower()
-    if not host:
-        return False
-    raw = host.split("%", 1)[0].strip("[]")
-
-    def is_bad_ip(ip) -> bool:
-        mapped = getattr(ip, "ipv4_mapped", None)
-        if mapped:
-            ip = mapped
-        return (
-            ip.is_loopback
-            or ip.is_private
-            or ip.is_link_local
-            or ip.is_unspecified
-            or ip.is_multicast
-            or getattr(ip, "is_reserved", False)
-            or not getattr(ip, "is_global", True)
-        )
-
-    try:
-        ip = ipaddress.ip_address(raw)
-        if is_bad_ip(ip):
-            return False
-    except ValueError:
-        # Non-IP hostnames are expected; validate resolved addresses below.
-        pass
-
-    try:
-        resolved = socket.getaddrinfo(raw, None)
-        for entry in resolved:
-            ip_str = entry[4][0].split("%", 1)[0]
-            ip = ipaddress.ip_address(ip_str)
-            if is_bad_ip(ip):
-                return False
-    except socket.gaierror:
-        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
-        # This allows dummy domains in tests like `hook.example`.
-        pass
-    except ValueError:
-        return False
-
     return True
-
-
-class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not _is_safe_url(newurl):
-            raise urllib.error.URLError("Unsafe redirect target")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _send_alert(
@@ -304,30 +247,15 @@ def _send_alert(
     rendered as a Block Kit message so Slack shows a readable card; every other
     URL receives the generic JSON ``payload`` unchanged (backward compatible).
     """
-    import urllib.error
-    import urllib.request
-
-    if not _is_safe_url(url):
-        return False
-
     if _is_slack_webhook(url):
         body = _slack_blocks(org_name, payload, new_findings or [])
     else:
         body = payload
 
     try:
-        req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
-            url,
-            data=json.dumps(body).encode("utf-8"),
-            method="POST",
-            headers={"Content-Type": "application/json"},
-        )
-        opener = urllib.request.build_opener(SafeRedirectHandler())
-        opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-            req, timeout=10
-        )  # noqa: S310 - Safe URL scheme validated
-        return True
-    except (urllib.error.URLError, OSError, ValueError):
+        response = post_json_pinned_https(url, body, timeout=10)
+        return 200 <= response.status < 300
+    except (PinnedHTTPSFailure, OSError, TypeError, ValueError):
         return False
 
 
@@ -644,6 +572,8 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 body = self._body()
                 if body is None or not isinstance(body, dict):
                     return self._json(400, {"error": "invalid JSON body"})
+                if "url" not in body:
+                    return self._json(400, {"error": "missing webhook url"})
                 webhook_url = body.get("url")
                 normalized_webhook_url = None if webhook_url == "" else webhook_url
                 if normalized_webhook_url is not None and not _is_safe_url(normalized_webhook_url):

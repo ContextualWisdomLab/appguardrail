@@ -62,6 +62,25 @@ def test_set_webhook_rejects_unsafe_destination_before_persistence():
     assert _stored_webhook(conn, org_id) is None
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://8.8.8.8/hook",
+        "https://8.8.8.8:0/hook",
+        "https://8.8.8.8:65536/hook",
+        "https://8.8.8.8:not-a-port/hook",
+    ],
+)
+def test_set_webhook_rejects_insecure_or_invalid_destination_before_persistence(url):
+    conn = connect(":memory:")
+    org_id, _ = create_org(conn, "Acme")
+
+    with pytest.raises(ValueError, match="invalid webhook url"):
+        set_webhook(conn, org_id, url)
+
+    assert _stored_webhook(conn, org_id) is None
+
+
 @pytest.mark.parametrize("url", ["http://", "https://", "http://user@"])
 def test_set_webhook_rejects_empty_hostname_before_persistence(url):
     conn = connect(":memory:")
@@ -86,8 +105,8 @@ def test_set_webhook_rejects_non_string_before_sqlite_binding():
 def test_set_webhook_empty_string_clears_existing_destination():
     conn = connect(":memory:")
     org_id, _ = create_org(conn, "Acme")
-    set_webhook(conn, org_id, "http://hook.example/x")
-    assert _stored_webhook(conn, org_id) == "http://hook.example/x"
+    set_webhook(conn, org_id, "https://8.8.8.8/x")
+    assert _stored_webhook(conn, org_id) == "https://8.8.8.8/x"
 
     set_webhook(conn, org_id, "")
 
@@ -97,10 +116,10 @@ def test_set_webhook_empty_string_clears_existing_destination():
 def test_api_empty_string_clears_existing_destination(webhook_server):
     base_url, key = webhook_server
     status, body = _req(
-        "POST", f"{base_url}/api/v1/webhook", key, {"url": "http://hook.example/x"}
+        "POST", f"{base_url}/api/v1/webhook", key, {"url": "https://8.8.8.8/x"}
     )
     assert status == 200
-    assert body["webhook_url"] == "http://hook.example/x"
+    assert body["webhook_url"] == "https://8.8.8.8/x"
 
     status, body = _req("POST", f"{base_url}/api/v1/webhook", key, {"url": ""})
 
@@ -117,3 +136,19 @@ def test_api_rejects_empty_hostname(webhook_server, url):
 
     assert exc_info.value.code == 400
     assert json.loads(exc_info.value.read()) == {"error": "invalid webhook url"}
+
+
+def test_api_rejects_missing_url_without_clearing_existing_destination(webhook_server):
+    base_url, key = webhook_server
+    _req(
+        "POST",
+        f"{base_url}/api/v1/webhook",
+        key,
+        {"url": "https://8.8.8.8/x"},
+    )
+
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        _req("POST", f"{base_url}/api/v1/webhook", key, {})
+
+    assert exc_info.value.code == 400
+    assert json.loads(exc_info.value.read()) == {"error": "missing webhook url"}
