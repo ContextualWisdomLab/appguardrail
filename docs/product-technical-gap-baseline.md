@@ -3,6 +3,7 @@
 Status: **Proposed**  
 Last evidence refresh: 2026-09-20  
 Current review: [appguardrail#1272](https://github.com/ContextualWisdomLab/appguardrail/pull/1272)  
+Additional measured-performance lane: [appguardrail#1247](https://github.com/ContextualWisdomLab/appguardrail/pull/1247) at `1a141f4c23c590bdc4563bfb53f93938bd7cff0b`  
 Production evidence ancestor: `f76fcbabc867b0953b260908116a162314619f63`
 
 ## Goal and loop
@@ -78,6 +79,7 @@ No database entity or relationship is introduced by #1272. The dashboard consume
 | Browser and AT acceptance | Exercise pointer, touch, Tab/Enter, accessible name, focus return and popup-blocked recovery in current Chromium/Firefox/WebKit | Open |
 | Responsive evidence | Capture 320 px, 768 px and desktop reference wrapping/overflow screenshots | Open |
 | Locale authority | Provide released ko/en/ja/zh/vi/es/de/fr screen resources or a bounded language decision | Open |
+| Severity-cache performance claim | Preserve exact/fresh-set semantics; record benchmark command, environment, warm-up, sample size, failure denominator, median/p95, and real calling-path impact before claiming a percentage | Source/test repaired in #1247; measurement open |
 | Performance and recovery | Measure realistic reference-list median/p95 and verify offline/reload behavior | Open |
 
 ## Release decision
