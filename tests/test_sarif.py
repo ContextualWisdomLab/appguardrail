@@ -55,6 +55,7 @@ def test_levels_and_security_severity():
     stripe_rule = run["tool"]["driver"]["rules"][0]
     assert stripe_rule["properties"]["security-severity"] == "9.0"
     assert "CWE-798" in stripe_rule["properties"]["tags"]
+    assert stripe_rule["helpUri"] == "https://stripe.com/docs/keys"
 
 
 def test_location_and_deploy_blocking():
