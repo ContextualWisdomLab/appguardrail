@@ -232,7 +232,11 @@ def _is_safe_url(url: str) -> bool:
         parsed = urllib.parse.urlparse(
             url
         )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        parsed_port = parsed.port
     except ValueError:
+        return False
+
+    if parsed_port == 0:
         return False
 
     scheme = (parsed.scheme or "").lower()
