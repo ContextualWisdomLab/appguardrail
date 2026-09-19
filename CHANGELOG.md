@@ -7,7 +7,8 @@
 - 대시보드 검색창 커서 유지 — 검색어 중간에서 텍스트를 수정할 때마다 커서가 검색어의 맨 끝으로 점프하는 불편함을 수정했습니다. 이제 입력창의 커서 위치(`selectionStart`/`selectionEnd`)가 동적 렌더링 이후에도 원래 위치에 정확히 유지되어 자연스러운 타이핑 경험을 제공합니다.
 
 ### 보안
-- Gap baseline을 #1187까지 전진시켰습니다. Gradle publish와 LuaRocks upload successor를 최신 #1186 위로 ordinary two-parent merge했으며 3 ahead / 0 behind, focused 142/142, 전체 Claude-plugin 626/626 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft이며 #1188+ 승계는 미완료입니다. Restack 충돌에서는 Vercel/Fly hosted-deploy fail-closed fixture를 보존했습니다.
+- Gap baseline을 #1188까지 전진시켰습니다. SBT publish/publishSigned와 Conan upload successor를 최신 #1187 위로 ordinary two-parent merge했으며 11 ahead / 0 behind, focused 159/159, 전체 Claude-plugin 643/643 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft이며 #1189+ 승계는 미완료입니다.
+- Gap baseline을 #1187까지 전진시켰습니다. Gradle publish와 LuaRocks upload successor를 최신 #1186 위로 ordinary two-parent merge했으며 3 ahead / 0 behind, focused 142/142, 전체 Claude-plugin 626/626 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft입니다. Restack 충돌에서는 Vercel/Fly hosted-deploy fail-closed fixture를 보존했습니다.
 - Gap baseline을 #1186까지 전진시켰습니다. Cabal/Hackage upload와 Maven deploy successor를 최신 #1185 위로 ordinary two-parent merge했으며 6 ahead / 0 behind, focused 74/74, 전체 Claude-plugin 611/611 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft입니다.
 - Gap baseline을 #1185까지 전진시켰습니다. Hex/Mix publish와 Conda/Anaconda upload successor를 최신 #1184 위로 ordinary two-parent merge했으며 9 ahead / 0 behind, focused 59/59, 전체 Claude-plugin 596/596 GREEN을 기록합니다. Hosted workflow·review·thread가 없어 Draft이며 #1186+ 승계는 미완료입니다.
 - Gap baseline을 #1184까지 전진시켰습니다. #1183 gem/NuGet와 #1184 Dart/Flutter pub-publish successor를 최신 parent 위로 ordinary two-parent merge했으며 각각 12/0, 10/0 ahead/behind와 572/572, 583/583 exact-tree Claude-plugin GREEN을 기록합니다. Hosted workflow·review가 없어 Draft이며 #1185+ 승계는 미완료입니다.
