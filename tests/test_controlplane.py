@@ -505,3 +505,15 @@ def test_negative_content_length_rejected(server):
     resp = conn.getresponse()
     assert resp.status == 400
     conn.close()
+
+def test_api_set_webhook_ssrf_empty_host_protection(server):
+    import pytest
+    import urllib.error
+    import json
+
+    base, key = server
+    for bad_url in ["http://", "http://user@", "http://user@/foo"]:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _req("POST", f"{base}/api/v1/webhook", key, {"url": bad_url})
+        assert exc.value.code == 400
+        assert json.loads(exc.value.read())["error"] == "invalid webhook url"
