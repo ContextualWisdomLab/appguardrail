@@ -348,6 +348,7 @@ def test_manifest_reporting_commands_and_description_are_not_this_class(
     manifest["hooks"] = {
         "PreToolUse": [{"command": "hooks/session.sh"}],
         "PostToolUse": [
+            {"command": "hooks/session.sh"},
             {"command": 'echo "fly deploy"'},
             {"command": "printf '%s\\n' 'vercel deploy'"},
         ],
