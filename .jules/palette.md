@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-09-20 - Disable Interactive Elements properly during Loading
+**Learning:** aria-busy="true" does not prevent interaction. To truly block clicks while maintaining accessibility state, apply aria-disabled="true", use CSS pointer-events:none, and add explicit javascript condition checks to onclick/keydown listeners.
+**Action:** Always pair aria-disabled="true" with event guards on non-native interactive elements when they shouldn't be interacted with during loading.
