@@ -83,3 +83,7 @@
 ## 2026-10-24 - Optimize dict.items() caching in hot loops
 **Learning:** `dict.items()`나 `dict.keys()`를 핫 루프 안에서 호출하면 오버헤드가 발생합니다. 상수 딕셔너리의 경우 모듈 레벨에서 튜플로 캐싱하는 것이 효율적입니다.
 **Action:** 핫 루프 내에서 고정된 딕셔너리의 `items()`나 `keys()`를 순회해야 하는 경우, 모듈이 로드될 때 튜플(예: `_ITEMS = tuple(DICT.items())`)로 미리 만들어 두고 캐싱된 튜플을 순회하십시오.
+
+## 2026-09-20 - Union metadata-build unrolls (#1046+#1263)
+**Learning:** Separate Bolt PRs unrolled `extract_public_references`, cached override items, switched CWE classification to `elif`, and unrolled `_merge_references`; leaving them split forced reviewers to keep two incomplete keepers.
+**Action:** Land the full rules.py metadata-build union in one change so successor close claims do not rely on a multi-PR mental merge.
