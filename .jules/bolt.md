@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-08-01 - Python Hot Loop Generator Overhead
+**Learning:** Python의 핫 루프(hot loop)에서 `any()` 또는 `all()`과 함께 제너레이터 표현식(generator expression)을 사용하면(예: `any(x in y for x in z)`), 눈에 띄는 인터프리터 및 프레임 할당 오버헤드가 발생합니다. 특히 스캐너 엔진처럼 많은 파일을 검사하는 곳에서는 이 오버헤드가 병목 현상을 유발합니다. O(K * N) 에서 O(N)으로의 개선은 아니지만, constant-factor 적으로 유의미한 성능 향상을 가져옵니다 (약 2N to N 효과와 유사).
+**Action:** 성능이 중요한 구간에서는 제너레이터를 명시적인 `for` 루프와 `break` 혹은 `return`을 사용해 풀어쓰십시오. 이렇게 하면 제너레이터 객체 생성 및 평가 비용을 아낄 수 있어 실행 속도가 크게 단축됩니다.
