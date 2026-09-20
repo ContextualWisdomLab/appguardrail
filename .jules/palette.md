@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-05-18 - File Input Resets via Proxy Button
+**Learning:** Browsers natively suppress `change` events on `<input type="file">` if the user selects the same file twice in a row, which is a common pattern in single-page apps like AppGuardrail where users might re-scan and upload the updated file. Native inputs also render inconsistently and are hard to style effectively for accessibility.
+**Action:** When a file input needs consistent behavior and styling, visually hide it (using the `hidden` attribute or `.sr-only`) and trigger it via a `.primary-action` proxy `<button>`. Immediately clear `input.value = ''` in the change handler so the exact same file can be selected again.
