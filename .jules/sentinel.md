@@ -127,3 +127,8 @@
 **Vulnerability:** The `/api/v1/webhook` POST endpoint in `appguardrail_core/controlplane.py` failed to validate the `url` property when accepting it into the database, leading to Stored SSRF risks. In addition, the core SSRF validation logic (`_is_safe_url`) in both the CLI and control-plane did not verify the input type (e.g. `isinstance(url, str)`). Passing non-string types (like integers) resulted in unhandled `AttributeError` exceptions inside `urllib.parse.urlparse`, which led to API 500 crashes on malicious JSON payloads.
 **Learning:** Network endpoints must explicitly validate the data type of user-provided configurations prior to execution or storage. Furthermore, webhooks configured by users should always be checked for SSRF when saved, as trusting them later assumes input has already been safely validated, bypassing downstream network guardrails.
 **Prevention:** Apply `_is_safe_url` checks directly upon ingestion (e.g., in `/api/v1/webhook`) and enforce type checks `if not isinstance(url, str): return False` prior to using library parsing functions like `urlparse`. Always return gracefully failing responses (like `400 Bad Request`) for unsafe URLs instead of allowing unhandled 500 server errors.
+
+## 2025-02-28 - 빈 호스트네임을 통한 SSRF 우회 취약점
+**Vulnerability:** `http://` 또는 `http://user@`와 같이 호스트네임이 비어있는 URL이 SSRF 검증 로직을 우회할 수 있습니다. `urllib.parse`가 호스트네임으로 빈 문자열을 반환할 때, `socket.getaddrinfo('', None)`가 예외를 발생시키지 않고 로컬 시스템으로 해석될 수 있어 내부 IP 제한을 피할 수 있습니다.
+**Learning:** 기저의 호스트네임 해석 함수가 빈 문자열을 로컬 환경이나 `localhost`를 암묵적으로 가리키는 것으로 처리할 때, 특정 위험 IP 대역만 검사하는 것은 충분하지 않습니다.
+**Prevention:** IP 검증이나 DNS 해석을 시도하기 전에, 호스트네임이 비어있는 URL은 명시적으로 거부(`if not host: return False`)해야 합니다.
