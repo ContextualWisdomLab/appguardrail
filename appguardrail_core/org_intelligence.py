@@ -150,7 +150,7 @@ def build_org_inventory(
 
     unsupported = sorted(unsupported_set)
     return OrgInventory(
-        total_repositories=len(repo_list),
+        total_repositories=len(nonforks) + len(forks),
         nonfork_repositories=len(nonforks),
         fork_repositories=len(forks),
         private_repositories=private_repositories,
