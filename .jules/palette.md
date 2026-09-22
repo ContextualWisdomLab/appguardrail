@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-14 - External Link Affordances and Overflow
+**Learning:** Adding an external link icon to an anchor containing a long URL (like a reference link) without updating CSS can cause the text to overflow and break the container layout, as the icon prevents natural line breaks.
+**Action:** When appending an inline icon (like an external link SVG) inside an anchor tag containing long unspaced text, apply `word-break: break-all` (or similar text-wrapping CSS) to the anchor to prevent UI breakage.
