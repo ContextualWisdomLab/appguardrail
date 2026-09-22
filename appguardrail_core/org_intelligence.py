@@ -129,6 +129,7 @@ def build_org_inventory(
     default_branches = Counter()
     unsupported_set = set()
     supported_nonforks = 0
+    private_repositories = 0
 
     for repo in repo_list:
         lang = _primary_language(repo)
@@ -142,6 +143,8 @@ def build_org_inventory(
             elif lang != "Unknown":
                 unsupported_set.add(lang)
 
+        if _truthy(repo.get("isPrivate")):
+            private_repositories += 1
         primary_languages[lang] += 1
         default_branches[_default_branch(repo)] += 1
 
@@ -150,9 +153,7 @@ def build_org_inventory(
         total_repositories=len(repo_list),
         nonfork_repositories=len(nonforks),
         fork_repositories=len(forks),
-        private_repositories=sum(
-            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
-        ),
+        private_repositories=private_repositories,
         supported_nonfork_repositories=supported_nonforks,
         unsupported_nonfork_languages=tuple(unsupported),
         primary_language_counts=_sorted_counts(primary_languages),
