@@ -131,12 +131,12 @@ def build_org_inventory(
     supported_nonforks = 0
 
     for repo in repo_list:
+        lang = _primary_language(repo)
         is_fork = _truthy(repo.get("isFork"))
         if is_fork:
             forks.append(repo)
         else:
             nonforks.append(repo)
-            lang = _primary_language(repo)
             if lang in SUPPORTED_PRIMARY_LANGUAGES:
                 supported_nonforks += 1
             elif lang != "Unknown":
