@@ -55,6 +55,15 @@ def test_levels_and_security_severity():
     assert "CWE-798" in stripe_rule["properties"]["tags"]
 
 
+def test_rule_index_tracks_first_rule_insertion_order():
+    run = findings_to_sarif(FINDINGS)["runs"][0]
+    assert [rule["id"] for rule in run["tool"]["driver"]["rules"]] == [
+        "hardcoded-stripe-secret-key",
+        "note",
+    ]
+    assert [result["ruleIndex"] for result in run["results"]] == [0, 0, 1]
+
+
 def test_location_and_deploy_blocking():
     run = findings_to_sarif(FINDINGS)["runs"][0]
     loc = run["results"][0]["locations"][0]["physicalLocation"]
