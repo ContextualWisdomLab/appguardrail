@@ -78,6 +78,6 @@
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
 
-## 2024-11-20 - [Optimize generator expressions in hot paths]
-**Learning:** Python에서 `any()`나 `all()`을 제너레이터 표현식과 함께 사용하는 것은 핫 패스(hot path)나 빈번하게 호출되는 함수에서 추가적인 제너레이터 객체 생성 및 프레임 할당 오버헤드를 발생시킵니다.
-**Action:** 성능이 중요한 구간에서는 제너레이터 표현식 대신 명시적인 `for` 루프와 `break` 혹은 `return`을 사용하여 루프를 수동으로 언롤링(unroll)하십시오. 이는 측정 가능한 'constant-factor' 실행 속도 향상을 가져옵니다.
+## 2026-09-23 - [Optimize string searches with fast-path checks and unroll generator expressions]
+**Learning:** 정규 표현식 검색(`re.finditer`) 전에 매칭될 가능성이 없는 문자열을 미리 걸러내는 `if '[' not in text: return`과 같은 빠른 경로 부분 문자열 검사(fast-path substring check)를 사용하면 불필요한 정규식 평가를 건너뛰어 성능이 크게 향상됩니다. 또한 튜플이나 딕셔너리 생성자(`dict.fromkeys`)에 제너레이터 표현식을 전달하는 것은 오버헤드를 발생시킵니다.
+**Action:** 핫 패스(hot path)에서는 항상 `in` 연산자를 활용한 빠른 문자열 검사를 먼저 수행하십시오. 그리고 제너레이터 표현식 대신 명시적인 중첩 `for` 루프(explicit nested for loops)를 사용하여 로컬 딕셔너리나 리스트를 수동으로 채우는 방식으로 언롤링(unroll)하여 측정 가능한 'constant-factor' 실행 속도 향상을 얻으십시오.

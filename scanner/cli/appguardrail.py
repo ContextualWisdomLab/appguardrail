@@ -1607,11 +1607,7 @@ def cmd_scan(args):
             return False
         return core_is_deploy_blocking(finding, blocking)
 
-    # ⚡ Bolt: unroll any() generator for measurable speedup
-    for f in findings:
-        if _gates(f):
-            return 1
-    return 0
+    return 1 if any(_gates(f) for f in findings) else 0
 
 
 def _write_findings_json(findings, output_path: Path):
@@ -2289,11 +2285,7 @@ _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 def _is_sensitive_rule(rule_id: str) -> bool:
     """Return whether a rule id is likely to expose secret material."""
     lowered = (rule_id or "").lower()
-    # ⚡ Bolt: unroll any() generator for constant-factor evaluation speedup
-    for token in _SENSITIVE_RULE_TOKENS:
-        if token in lowered:
-            return True
-    return False
+    return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
 
 
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
@@ -2330,28 +2322,33 @@ def _finding_category(rule_id: str) -> str:
         return "dependency"
     if "jwt-decode" in rule:
         return "authz"
-    for token in (
-        "secret",
-        "jwt",
-        "password",
-        "database-url",
-        "credential",
-        "api-key",
-        "token",
-        "openai",
+    if any(
+        token in rule
+        for token in (
+            "secret",
+            "jwt",
+            "password",
+            "database-url",
+            "credential",
+            "api-key",
+            "token",
+            "openai",
+        )
     ):
-        if token in rule:
-            return "secrets"
+        return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    for token in ("auth", "session", "admin", "route-without-auth"):
-        if token in rule:
-            return "authz"
-    for token in ("eval", "sql", "command", "subprocess", "path-traversal"):
-        if token in rule:
-            return "injection"
+    if any(
+        token in rule for token in ("auth", "session", "admin", "route-without-auth")
+    ):
+        return "authz"
+    if any(
+        token in rule
+        for token in ("eval", "sql", "command", "subprocess", "path-traversal")
+    ):
+        return "injection"
     return "misconfig"
 
 
