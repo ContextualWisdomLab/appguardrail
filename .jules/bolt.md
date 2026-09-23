@@ -77,6 +77,3 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-## 2024-11-21 - Optimize parse_qs
-**Learning:** `urllib.parse.parse_qs` instantiates large numbers of nested lists and dicts when parsing query strings. Calling this inside hot paths for URL routing causes significant performance bottlenecks.
-**Action:** Replace `parse_qs` with direct, raw string slicing using `str.find` to extract necessary variables manually, preventing heavy memory allocations.
