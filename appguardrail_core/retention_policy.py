@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Mapping
+
 
 RETENTION_CATEGORIES = (
     "scan_history",
@@ -130,7 +130,7 @@ class RetentionPolicy:
         tenant_id: int,
         updated_at: str,
         updated_by: str,
-    ) -> RetentionPolicy:
+    ) -> "RetentionPolicy":
         """Create the documented product defaults for a newly configured tenant."""
         return cls(
             tenant_id=tenant_id,
@@ -154,7 +154,7 @@ class RetentionPolicy:
     def cutoffs(self, *, as_of: str) -> dict[str, str]:
         """Return the inclusive age cutoff for every data class at one UTC instant."""
         instant = datetime.strptime(_canonical_utc(as_of, "as_of"), _UTC_FORMAT).replace(
-            tzinfo=UTC
+            tzinfo=timezone.utc
         )
         return {
             category: (instant - timedelta(days=days)).strftime(_UTC_FORMAT)

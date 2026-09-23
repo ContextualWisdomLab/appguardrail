@@ -15,9 +15,10 @@ contents or secret-derived hashes.
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import Mapping
+
 
 CURRENT_SCHEMA_VERSION = 2
 MIGRATION_NAME = "retention_audit_schema_v2"

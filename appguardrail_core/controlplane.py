@@ -13,18 +13,15 @@ for Postgres behind the same functions when scale demands it.
 from __future__ import annotations
 
 import hashlib
+import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import re
 import secrets
 import sqlite3
 import urllib.error
 import urllib.request
-from collections.abc import Iterable
-from datetime import UTC, datetime
-from importlib import (
-    resources,  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
-)
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
@@ -64,7 +61,7 @@ CREATE TABLE IF NOT EXISTS keys (
 
 
 def _now() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # scrypt work factors (stdlib ``hashlib.scrypt``). n must be a power of two;
@@ -107,7 +104,7 @@ def connect(db_path: str) -> sqlite3.Connection:
     return conn
 
 
-def create_org(conn: sqlite3.Connection, name: str) -> tuple[int, str]:
+def create_org(conn: sqlite3.Connection, name: str) -> "tuple[int, str]":
     """Create an org and return (org_id, api_key). The key is shown only here."""
     api_key = "agk_" + secrets.token_urlsafe(32)
     cur = conn.execute(
@@ -123,7 +120,7 @@ def create_org(conn: sqlite3.Connection, name: str) -> tuple[int, str]:
     return org_id, api_key
 
 
-def org_for_key(conn: sqlite3.Connection, api_key: str) -> int | None:
+def org_for_key(conn: sqlite3.Connection, api_key: str) -> "int | None":
     """Return the org id for a presented API key, or None."""
     if not api_key:
         return None
@@ -138,7 +135,7 @@ def _drift_fp(finding: dict[str, Any]) -> str:
     return f"{finding.get('rule_id')}|{finding.get('file')}|{str(finding.get('message', ''))[:80]}"
 
 
-def set_webhook(conn: sqlite3.Connection, org_id: int, url: str | None) -> None:
+def set_webhook(conn: sqlite3.Connection, org_id: int, url: "str | None") -> None:
     """Set (or clear) the org's drift-alert webhook URL."""
     conn.execute("UPDATE orgs SET webhook_url = ? WHERE id = ?", (url or None, org_id))
     conn.commit()
@@ -164,9 +161,9 @@ def _trim(text: str, limit: int) -> str:
 
 
 def _slack_blocks(
-    org_name: str | None,
+    org_name: "str | None",
     payload: dict[str, Any],
-    new_findings: list[dict[str, Any]],
+    new_findings: "list[dict[str, Any]]",
     top: int = 5,
 ) -> dict[str, Any]:
     """Render a drift alert as a Slack Block Kit message (header + summary).
@@ -221,8 +218,8 @@ def _slack_blocks(
 
 def _is_safe_url(url: str) -> bool:
     import ipaddress
-    import socket
     import urllib.parse
+    import socket
 
     if not isinstance(url, str):
         return False
@@ -291,8 +288,8 @@ def _send_alert(
     url: str,
     payload: dict[str, Any],
     *,
-    org_name: str | None = None,
-    new_findings: list[dict[str, Any]] | None = None,
+    org_name: "str | None" = None,
+    new_findings: "list[dict[str, Any]] | None" = None,
 ) -> bool:
     """Best-effort POST of a drift alert. Never raises; returns delivery success.
 
@@ -312,7 +309,7 @@ def _send_alert(
         body = payload
 
     try:
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310 - Safe URL scheme validated
             url,
             data=json.dumps(body).encode("utf-8"),
             method="POST",
@@ -321,7 +318,7 @@ def _send_alert(
         opener = urllib.request.build_opener(SafeRedirectHandler())
         opener.open(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             req, timeout=10
-        )
+        )  # noqa: S310 - Safe URL scheme validated
         return True
     except (urllib.error.URLError, OSError, ValueError):
         return False
@@ -331,7 +328,7 @@ ROLES = ("viewer", "member", "owner")
 _ROLE_RANK = {role: rank for rank, role in enumerate(ROLES)}
 
 
-def has_role(role: str | None, minimum: str) -> bool:
+def has_role(role: "str | None", minimum: str) -> bool:
     """True if ``role`` is at or above ``minimum`` in the viewer<member<owner order."""
     return _ROLE_RANK.get(role or "", -1) >= _ROLE_RANK.get(minimum, 99)
 
@@ -340,8 +337,8 @@ def create_key(
     conn: sqlite3.Connection,
     org_id: int,
     role: str = "member",
-    label: str | None = None,
-) -> tuple[int, str]:
+    label: "str | None" = None,
+) -> "tuple[int, str]":
     """Issue a new API key for an org with a role. Returns (key_id, api_key)."""
     role = role if role in _ROLE_RANK else "member"
     api_key = "agk_" + secrets.token_urlsafe(32)
@@ -353,7 +350,7 @@ def create_key(
     return cur.lastrowid, api_key
 
 
-def role_for_key(conn: sqlite3.Connection, api_key: str) -> tuple[int, str] | None:
+def role_for_key(conn: sqlite3.Connection, api_key: str) -> "tuple[int, str] | None":
     """Return (org_id, role) for a presented key, or None."""
     if not api_key:
         return None
@@ -373,8 +370,8 @@ def add_scan(
     conn: sqlite3.Connection,
     org_id: int,
     findings: Iterable[dict[str, Any]],
-    repo: str | None = None,
-    commit_sha: str | None = None,
+    repo: "str | None" = None,
+    commit_sha: "str | None" = None,
 ) -> dict[str, Any]:
     """Store a scan for an org, computing counts from the findings."""
     normalized = list(normalize_findings(findings))
@@ -493,7 +490,7 @@ def scan_trend(
 
 def get_scan(
     conn: sqlite3.Connection, org_id: int, scan_id: int
-) -> dict[str, Any] | None:
+) -> "dict[str, Any] | None":
     """Return a full scan (with findings) scoped to the org, or None."""
     r = conn.execute(
         "SELECT * FROM scans WHERE id = ? AND org_id = ?", (scan_id, org_id)
@@ -683,7 +680,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
 
         def log_message(self, format, *args):
             """Suppress default logging."""
-            return
+            return None
 
     return http.server.HTTPServer((host, port), _Handler)
 

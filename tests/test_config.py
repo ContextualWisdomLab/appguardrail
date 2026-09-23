@@ -3,7 +3,8 @@
 import pytest
 
 from appguardrail_core.config import CONFIG_NAME, load_config
-from appguardrail_core.findings import is_deploy_blocking, severities_at_or_above
+from appguardrail_core.findings import (is_deploy_blocking,
+                                        severities_at_or_above)
 
 
 def _write(tmp_path, text):

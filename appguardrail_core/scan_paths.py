@@ -80,7 +80,7 @@ def build_scan_path_context(
         raise TypeError("base_path_is_file must be a Boolean when provided")
 
     is_file = base_path.is_file() if base_path_is_file is None else base_path_is_file
-    resolved_base_path = Path.cwd() if is_file else base_path
+    resolved_base_path = Path(".").resolve() if is_file else base_path
     resolved_base_path_str = str(resolved_base_path)
     resolved_base_path_prefix = (
         resolved_base_path_str

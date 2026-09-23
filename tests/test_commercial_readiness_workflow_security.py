@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+
 WORKFLOW_PATH = (
     Path(__file__).resolve().parents[1]
     / ".github"

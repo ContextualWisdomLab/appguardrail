@@ -13,6 +13,7 @@ from appguardrail_core.openssf_evidence import (
     CURRENT_ORIGIN,
 )
 
+
 _RULE_ID = "openssf-best-practices-evidence"
 _FINDINGS_SUMMARY_MARKER = "## Findings Summary"
 _STATUS_LABELS = {
@@ -142,7 +143,13 @@ def render_openssf_evidence_section(
         repository = _table_text(finding.get("repository_url") or "Not reported")
         link = f"[Project evidence]({project_url})" if project_url else "Not available"
         lines.append(
-            f"| `{repository}` | {_table_text(status_label)} | {_table_text(tier_label)} | {verified_at} | {link} |"
+            "| `{repository}` | {status} | {tier} | {verified} | {link} |".format(
+                repository=repository,
+                status=_table_text(status_label),
+                tier=_table_text(tier_label),
+                verified=verified_at,
+                link=link,
+            )
         )
     lines.extend(
         [

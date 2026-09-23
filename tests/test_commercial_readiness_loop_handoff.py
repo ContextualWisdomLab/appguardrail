@@ -6,6 +6,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 DOCUMENTATION_PATH = ROOT / "docs" / "opencode-commercial-readiness-agent.md"

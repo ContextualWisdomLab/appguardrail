@@ -4,6 +4,7 @@ from pathlib import Path
 
 from scanner.cli.appguardrail import _scan_file
 
+
 ROOT = Path(__file__).resolve().parents[1]
 LOOP_MODULE = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 

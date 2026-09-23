@@ -8,6 +8,7 @@ from pathlib import Path
 
 from appguardrail_core import issueops
 
+
 MODULE_PATH = (
     Path(__file__).resolve().parents[1]
     / "scripts"

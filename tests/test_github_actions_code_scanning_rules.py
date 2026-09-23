@@ -8,6 +8,7 @@ import pytest
 
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
+
 _RULE_ID = "github-actions-sarif-missing-pull-request-trigger"
 
 

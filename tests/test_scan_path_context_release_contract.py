@@ -6,6 +6,7 @@ from pathlib import Path
 
 import appguardrail_core
 
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "scan-path-context-coverage.yml"
 DOCUMENTATION = ROOT / "docs" / "scanner-path-context.md"

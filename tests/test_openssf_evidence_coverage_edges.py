@@ -12,6 +12,7 @@ import pytest
 
 import appguardrail_core
 
+
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 VERIFIED_AT = "2026-08-04T10:00:00Z"
 

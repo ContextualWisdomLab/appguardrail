@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -166,7 +166,7 @@ def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
 def _metric(
     id: str,
     label: str,
-    value: float | bool,
+    value: float | int | bool,
     target: str,
     predicate: Callable[[float | int | bool], bool],
     pillar: str,

@@ -11,12 +11,9 @@ from html.parser import HTMLParser
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    dashboard_index_path,
-    dashboard_tokens_path,
-    make_dashboard_server,
-    render_tokens_css,
-)
+from scanner.cli.appguardrail import (dashboard_index_path,
+                                      dashboard_tokens_path,
+                                      make_dashboard_server, render_tokens_css)
 
 
 class _ButtonAttributeParser(HTMLParser):

@@ -65,7 +65,8 @@ def test_render_script_writes_buyer_evidence_bundle(tmp_path):
         ],
         cwd=ROOT,
         check=True,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         timeout=30,
     )

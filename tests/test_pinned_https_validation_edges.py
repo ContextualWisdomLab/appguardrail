@@ -12,6 +12,7 @@ import pytest
 
 from appguardrail_core import pinned_https as transport
 
+
 PUBLIC_IPV4 = "8.8.8.8"
 
 
@@ -195,7 +196,7 @@ def test_connection_honors_source_address_and_rejects_tunneling() -> None:
         context=_Context(),
         socket_factory=lambda *_args: _Socket(),
     )
-    blocked._tunnel_host = "proxy.example"
+    blocked._tunnel_host = "proxy.example"  # noqa: SLF001 - contract edge
     with pytest.raises(OSError, match="tunneling"):
         blocked.connect()
 

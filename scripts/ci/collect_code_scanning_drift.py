@@ -11,9 +11,8 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 
 from appguardrail_core.code_scanning import (
     AnalysisIdentity,
@@ -24,10 +23,9 @@ from appguardrail_core.code_scanning import (
 )
 from scripts.ci.commercial_readiness_loop import (
     GitHub as _BaseGitHub,
-)
-from scripts.ci.commercial_readiness_loop import (
     NoRedirect as _BaseNoRedirect,
 )
+
 
 DEFAULT_MAX_PULL_REQUESTS = 100
 MAX_PAGINATION_PAGES = 100
@@ -447,27 +445,27 @@ def render_drift_issue(record: PullRequestDriftRecord) -> str:
     body = "\n\n".join(
         (
             drift_marker(record),
-            ("## Live Code Scanning analysis drift\n\n"
+            "## Live Code Scanning analysis drift\n\n"
             "This issue is generated from **live GitHub Code Scanning analysis state** "
             "and is **not inferred from repository workflow text**. It is intentionally "
             "distinct from the repository-local "
-            "`github-actions-sarif-missing-pull-request-trigger` heuristic."),
-            ("## Exact evidence boundary\n\n"
+            "`github-actions-sarif-missing-pull-request-trigger` heuristic.",
+            "## Exact evidence boundary\n\n"
             f"- Repository: `{_code(record.repository)}`\n"
             f"- Pull request: {record.pr_url or f'#{record.pr_number}'}\n"
             f"- Base ref: `{_code(record.base_ref)}`\n"
             f"- Current merge ref: `{_code(record.current_ref)}`\n"
             f"- Current head ref: `{_code(record.head_ref)}`\n"
             f"- Head SHA: `{_code(record.head_sha)}`\n"
-            f"- Merge SHA: `{_code(record.merge_sha or 'not reported')}`"),
+            f"- Merge SHA: `{_code(record.merge_sha or 'not reported')}`",
             f"## Missing or unhealthy analysis identities\n\n{_identity_rows(record)}",
-            ("## Required remediation\n\n"
+            "## Required remediation\n\n"
             "1. Open the exact pull-request head and its Code Scanning analyses.\n"
             "2. Restore the missing tool/category or fix the errored SARIF analysis.\n"
             "3. Keep tool, category, matrix identity, and SARIF upload configuration "
             "stable between the base branch and pull-request run.\n"
             "4. Rerun analysis for the same exact head and verify this live-state drift "
-            "is absent before merging."),
+            "is absent before merging.",
         )
     )
     if len(body) > MAX_ISSUE_BODY_CHARS:

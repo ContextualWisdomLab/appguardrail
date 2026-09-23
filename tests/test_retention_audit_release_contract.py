@@ -17,6 +17,7 @@ from appguardrail_core import (
     verify_purge_preview,
 )
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 

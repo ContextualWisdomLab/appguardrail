@@ -4,21 +4,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    _confidence,
-    _finding_category,
-    _finding_context,
-    _is_deploy_blocking,
-    _run_codegraph_command,
-    _run_codegraph_index,
-    _run_trivy_fs,
-    _scan_file,
-    _trivy_findings,
-    _trivy_line,
-    _trivy_severity,
-    _trivy_target,
-    cmd_scan,
-)
+from scanner.cli.appguardrail import (_confidence, _finding_category,
+                                      _finding_context, _is_deploy_blocking,
+                                      _run_codegraph_command,
+                                      _run_codegraph_index, _run_trivy_fs,
+                                      _scan_file, _trivy_findings, _trivy_line,
+                                      _trivy_severity, _trivy_target, cmd_scan)
 from tests.test_appguardrail_coverage import ScanArgs
 
 
@@ -292,10 +283,11 @@ def test_run_codegraph_command_reports_failure(tmp_path):
         stdout="",
         stderr="status failed\n",
     )
-    with patch("subprocess.run", return_value=result), pytest.raises(
-        RuntimeError, match="CodeGraph status failed: status failed"
-    ):
-        _run_codegraph_command(["codegraph", "status"], tmp_path, "status")
+    with patch("subprocess.run", return_value=result):
+        with pytest.raises(
+            RuntimeError, match="CodeGraph status failed: status failed"
+        ):
+            _run_codegraph_command(["codegraph", "status"], tmp_path, "status")
 
 
 def test_run_codegraph_index_rejects_missing_workdir(tmp_path):

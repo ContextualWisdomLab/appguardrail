@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from typing import Self
 
 import pytest
 
 from appguardrail_core import openssf_evidence as evidence
+
 
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 VERIFIED_AT = "2026-08-04T11:00:00Z"
@@ -21,7 +21,7 @@ class Response:
         """Create independent JSON response headers for this response."""
         self.headers = {"content-type": "application/json"}
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> "Response":
         """Return this response for context-manager use."""
         return self
 

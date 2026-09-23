@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
 
 import pytest
+from pathlib import Path
 
 from appguardrail_core.controlplane_schema import (
     CANONICAL_INDEX_NAMES,
@@ -16,6 +16,7 @@ from appguardrail_core.controlplane_schema import (
     inspect_controlplane_schema,
     migrate_controlplane_schema,
 )
+
 
 LEGACY_SCHEMA = """
 CREATE TABLE orgs (
@@ -261,8 +262,8 @@ def test_new_audit_events_are_append_only_at_the_database_boundary() -> None:
     connection.commit()
 
     for statement in (
-        ("UPDATE audit_events SET event_type = 'tampered' "
-        "WHERE audit_event_id = 'audit-event-1'"),
+        "UPDATE audit_events SET event_type = 'tampered' "
+        "WHERE audit_event_id = 'audit-event-1'",
         "DELETE FROM audit_events WHERE audit_event_id = 'audit-event-1'",
     ):
         try:

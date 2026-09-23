@@ -7,11 +7,11 @@ import json
 import urllib.error
 from collections.abc import Iterator
 from email.message import Message
-from typing import Self
 
 import pytest
 
 from appguardrail_core import openssf_evidence as evidence
+
 
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 VERIFIED_AT = "2026-08-04T07:00:00Z"
@@ -25,7 +25,7 @@ class Response:
         self.payload = payload
         self.headers = {"content-type": content_type}
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> "Response":
         """Return this response for context-manager use."""
         return self
 

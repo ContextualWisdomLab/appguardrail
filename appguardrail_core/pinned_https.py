@@ -20,6 +20,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+
 DEFAULT_TIMEOUT_SECONDS = 15.0
 DEFAULT_MAX_REDIRECTS = 5
 DEFAULT_MAX_RESPONSE_BYTES = 1_000_000
@@ -327,7 +328,7 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 
 def _validated_bound(
-    value: float,
+    value: int | float,
     *,
     name: str,
     allow_zero: bool,

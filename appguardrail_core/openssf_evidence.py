@@ -16,9 +16,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
 
 CURRENT_ORIGIN = "https://www.bestpractices.dev"
 LEGACY_ORIGIN = "https://bestpractices.coreinfrastructure.org"
@@ -56,6 +57,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     ) -> None:
         """Return no redirected request, causing urllib to expose the 3xx response."""
         del req, fp, code, msg, headers, newurl
+        return None
 
 
 @dataclass(frozen=True)
@@ -75,7 +77,7 @@ class OpenSSFEvidence:
 
 def _utc_timestamp() -> str:
     """Return the current UTC timestamp in stable second-precision form."""
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _normalize_repository_url(value: str) -> str:
@@ -441,13 +443,13 @@ def _fetch_origin(
     timeout: float,
 ) -> OpenSSFEvidence:
     """Fetch and classify one official origin without leaking response bodies."""
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310 - origin is allowlisted
         _project_search_url(source_origin, repository_url),
         method="GET",
         headers={"User-Agent": USER_AGENT},
     )
     try:
-        with opener.open(request, timeout=timeout) as response:
+        with opener.open(request, timeout=timeout) as response:  # noqa: S310
             if not _is_json_media_type(response.headers.get("content-type", "")):
                 return _non_affirmative_evidence(
                     "malformed",

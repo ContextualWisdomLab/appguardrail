@@ -14,6 +14,7 @@ from appguardrail_core.pinned_https import (
     post_json_pinned_https,
 )
 
+
 PUBLIC_IPV4 = "8.8.8.8"
 SECOND_PUBLIC_IPV4 = "1.1.1.1"
 

@@ -109,7 +109,8 @@ def redact(log: str) -> str:
     text = ANSI_RE.sub(
         "", log.replace("\r\n", "\n").translate(_LINE_SEPARATOR_TRANSLATION)
     )
-    text = text.removesuffix("\n")
+    if text.endswith("\n"):
+        text = text[:-1]
     text = TS_RE.sub("", text)
     for regex in SECRET_RE:
         text = regex.sub(

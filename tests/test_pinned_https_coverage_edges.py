@@ -9,6 +9,7 @@ import pytest
 
 from appguardrail_core import pinned_https as transport
 
+
 PUBLIC_IPV4 = "8.8.8.8"
 
 
