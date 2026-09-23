@@ -54,6 +54,24 @@ def test_dashboard_uses_one_polite_atomic_status_region() -> None:
     assert "aria-atomic" not in parser.elements_by_id["src"]
 
 
+def test_dashboard_upload_proxy_has_one_keyboard_control() -> None:
+    """The styled upload control must not leave a second invisible tab stop."""
+    html = _dashboard_html()
+    parser = _ElementAttributeParser()
+    parser.feed(html)
+
+    upload = parser.elements_by_id["upload-btn"]
+    file_input = parser.elements_by_id["file"]
+
+    assert upload["type"] == "button"
+    assert 'id="upload-btn" class="primary-action"' in html
+    assert ">Upload findings file</button>" in html
+    assert "hidden" in file_input
+    assert "class" not in file_input
+    assert "aria-label" not in file_input
+    assert "uploadBtn.addEventListener('click', () => fileInput.click());" in html
+
+
 def test_dashboard_centralizes_finding_count_pluralization() -> None:
     """Every visible count uses one singular/plural formatter."""
     html = _dashboard_html()
