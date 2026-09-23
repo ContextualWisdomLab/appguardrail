@@ -12,7 +12,6 @@ from appguardrail_core.openssf_evidence import (
     parse_project_matches,
 )
 
-
 VERIFIED_AT = "2026-08-04T06:30:00Z"
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import re
-from typing import Any, Iterable, Literal
-
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 SnapshotStatus = Literal["ok", "unknown"]
 AssessmentStatus = Literal["clean", "drift", "unknown"]
@@ -100,12 +100,12 @@ def _normalized_timestamp(value: Any) -> str:
     """Validate an offset-aware GitHub timestamp and return canonical UTC text."""
     text = _required_text(value, "created_at")
     try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text)
     except ValueError as exc:
         raise ValueError("created_at must be an ISO-8601 timestamp") from exc
     if parsed.tzinfo is None:
         raise ValueError("created_at must include a timezone")
-    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def normalize_analysis(payload: dict[str, Any]) -> AnalysisEvidence:

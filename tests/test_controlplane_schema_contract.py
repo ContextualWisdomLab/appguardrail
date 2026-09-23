@@ -17,7 +17,6 @@ from appguardrail_core.controlplane_schema import (
     migrate_controlplane_schema,
 )
 
-
 LEGACY_OBJECT_NAMES = {"orgs", "scans", "keys", "idx_scans_org"}
 
 

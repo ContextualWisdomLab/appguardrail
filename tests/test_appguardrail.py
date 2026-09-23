@@ -7,20 +7,32 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (SCAN_RULES, _bandit_findings,
-                                      _build_finding, _collect_files,
-                                      _detect_scan_languages,
-                                      _load_packaged_regex_rules,
-                                      _path_allowed_by_rule,
-                                      _print_scan_results, _ruff_findings,
-                                      _run_bandit_scan, _run_codegraph_command,
-                                      _run_codegraph_index,
-                                      _run_ruff_security_scan,
-                                      _run_semgrep_scan, _run_trivy_fs,
-                                      _run_zap_baseline, _scan_file,
-                                      _semgrep_findings, cmd_init, cmd_monitor,
-                                      cmd_org_bundle, cmd_report, cmd_scan,
-                                      cmd_serve)
+from scanner.cli.appguardrail import (
+    SCAN_RULES,
+    _bandit_findings,
+    _build_finding,
+    _collect_files,
+    _detect_scan_languages,
+    _load_packaged_regex_rules,
+    _path_allowed_by_rule,
+    _print_scan_results,
+    _ruff_findings,
+    _run_bandit_scan,
+    _run_codegraph_command,
+    _run_codegraph_index,
+    _run_ruff_security_scan,
+    _run_semgrep_scan,
+    _run_trivy_fs,
+    _run_zap_baseline,
+    _scan_file,
+    _semgrep_findings,
+    cmd_init,
+    cmd_monitor,
+    cmd_org_bundle,
+    cmd_report,
+    cmd_scan,
+    cmd_serve,
+)
 
 MOCK_RULES = [
     {
@@ -1185,9 +1197,8 @@ def test_run_codegraph_index_rejects_file_at_index_path(tmp_path):
 
     with patch(
         "scanner.cli.appguardrail.shutil.which", return_value="/usr/bin/codegraph"
-    ):
-        with pytest.raises(RuntimeError, match="not a directory"):
-            _run_codegraph_index(tmp_path)
+    ), pytest.raises(RuntimeError, match="not a directory"):
+        _run_codegraph_index(tmp_path)
 
 
 def test_run_codegraph_command_rejects_non_string_argument(tmp_path):
@@ -1274,14 +1285,7 @@ def test_cmd_scan_redacts_sensitive_values_in_output(tmp_path, capsys):
         },
     ]
     (tmp_path / ".env").write_text(
-        "\n".join(
-            [
-                "STRIPE_SECRET_KEY=sk_test_123456789",
-                "OPENAI_API_KEY=sk-openai-abcdefghijk",
-                "JWT_SECRET=jwt-secret-value",
-                "DATABASE_URL=sqlite:///tmp/app.db",
-            ]
-        )
+        "STRIPE_SECRET_KEY=sk_test_123456789\nOPENAI_API_KEY=sk-openai-abcdefghijk\nJWT_SECRET=jwt-secret-value\nDATABASE_URL=sqlite:///tmp/app.db"
         + "\n"
     )
 
