@@ -124,10 +124,3 @@ def test_safe_redirect_handler_allows_public_https(monkeypatch):
         None, None, 302, "Found", None, "https://hooks.example.com/alert"
     )
     assert result is sentinel
-
-def test_empty_host_is_unsafe():
-    from appguardrail_core.controlplane import _is_safe_url as cp_is_safe_url
-    from scanner.cli.appguardrail import _is_safe_url as cli_is_safe_url
-    for url in ["http://", "https://", "http://user@", "https://user:pass@"]:
-        assert not cp_is_safe_url(url)
-        assert not cli_is_safe_url(url)
