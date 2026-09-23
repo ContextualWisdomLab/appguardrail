@@ -132,8 +132,8 @@ def test_safe_redirect_handler_allows_public_https(monkeypatch):
 )
 @pytest.mark.parametrize(
     "value",
-    ["http://", "https://", "http://user@", "https://user@"],
-    ids=["http", "https", "http-userinfo", "https-userinfo"],
+    ["http://", "https://", "http://user@", "https://user@", "https://user:pass@"],
+    ids=["http", "https", "http-userinfo", "https-userinfo", "https-userinfo-password"],
 )
 def test_is_safe_url_requires_hostname_before_dns(monkeypatch, validator, value):
     def unexpected_resolution(*args, **kwargs):
