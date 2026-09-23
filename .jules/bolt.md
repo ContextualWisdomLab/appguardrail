@@ -77,7 +77,3 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-
-## 2024-11-20 - 제너레이터 표현식 언롤링 최적화
-**Learning:** Python의 hot path에서 튜플이나 딕셔너리 생성자(예: `dict.fromkeys(x for x in y if z)`)에 제너레이터 표현식을 전달하면 제너레이터 객체를 생성하고 평가하는 오버헤드가 발생합니다.
-**Action:** 제너레이터 표현식을 명시적인 중첩 `for` 루프(예: 지역 딕셔너리나 리스트를 직접 채우는 방식)로 언롤링(unroll)하여 제너레이터 객체 생성 오버헤드를 우회하십시오. 이를 통해 측정 가능한 성능 향상을 얻을 수 있습니다.
