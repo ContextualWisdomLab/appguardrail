@@ -1,1 +1,0 @@
-- Enforce the existing webhook SSRF policy at `set_webhook` before persistence so non-HTTP callers cannot store unsafe destinations; add direct storage-boundary regression coverage that preserves the prior value after rejected writes.
