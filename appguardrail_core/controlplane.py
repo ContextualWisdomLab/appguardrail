@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Iterable
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from .findings import is_deploy_blocking, normalize_findings, severity_counts
 
@@ -554,14 +554,26 @@ def make_control_plane_server(host: str, port: int, db_path: str):
         def do_GET(self):
             parsed = urlparse(self.path)
             path = parsed.path
-            qs = parse_qs(parsed.query)
+            query = parsed.query
 
             def _qint(name, default, lo, hi):
                 # Clamp: sqlite treats LIMIT -1 as "no limit", so never pass
                 # negatives through; hi keeps a single request bounded.
+                if not query:
+                    return default
+                prefix = name + "="
+                start = query.find(prefix)
+                if start == -1:
+                    return default
+
+                val_start = start + len(prefix)
+                end = query.find("&", val_start)
+                if end == -1:
+                    end = len(query)
+
                 try:
-                    value = int(qs.get(name, [default])[0])
-                except (ValueError, TypeError):
+                    value = int(query[val_start:end])
+                except ValueError:
                     return default
                 return max(lo, min(hi, value))
 
