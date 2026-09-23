@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-08-14 - Native File Input Proxy Pattern
-**Learning:** Native `<input type="file">` elements are notoriously difficult to style consistently across browsers, often clashing with application design systems. Simply replacing them with a custom button and hiding the input is common, but it can create duplicate accessible names if both elements have `aria-label`s, violating the 'label-in-name' principle.
-**Action:** When creating a proxy button for a file input, use visible text for the button (e.g., "Upload") and retain the required `aria-label` on the visually hidden `<input type="file" class="sr-only">`. Bind the click event listener statically outside of dynamic render loops to avoid duplicate listener attachment.
