@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "commercial-readiness-loop.yml"
 REMEDIATION_CONTRACT = ROOT / "scripts" / "ci" / "commercial_remediation_contract.md"

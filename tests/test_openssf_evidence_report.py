@@ -8,7 +8,6 @@ from appguardrail_core.reports import (
     render_report,
 )
 
-
 GENERATED_AT = "2026-08-04T08:00:00Z"
 
 

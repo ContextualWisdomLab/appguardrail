@@ -23,7 +23,7 @@ from .findings import SEVERITIES, severities_at_or_above
 CONFIG_NAME = ".appguardrail.json"
 
 
-def find_config(search_dirs: "list[Path]") -> "Path | None":
+def find_config(search_dirs: list[Path]) -> Path | None:
     """Return the first existing ``.appguardrail.json`` in ``search_dirs``."""
     seen = set()
     for directory in search_dirs:
@@ -37,7 +37,7 @@ def find_config(search_dirs: "list[Path]") -> "Path | None":
     return None
 
 
-def load_config(search_dirs: "list[Path]") -> dict[str, Any]:
+def load_config(search_dirs: list[Path]) -> dict[str, Any]:
     """Load and validate config from the first match, or {} if none.
 
     Raises RuntimeError on malformed JSON or invalid values so scans fail loud

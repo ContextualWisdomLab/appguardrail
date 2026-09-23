@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from appguardrail_core import reports as _reports
 from appguardrail_core.audit_events import (
@@ -18,8 +19,14 @@ from appguardrail_core.code_scanning import (
     AnalysisIdentity,
     AnalysisSnapshot,
     DriftAssessment,
+)
+from appguardrail_core.code_scanning import (
     build_snapshot as build_code_scanning_snapshot,
+)
+from appguardrail_core.code_scanning import (
     compare_snapshots as compare_code_scanning_snapshots,
+)
+from appguardrail_core.code_scanning import (
     normalize_analysis as normalize_code_scanning_analysis,
 )
 from appguardrail_core.controlplane_schema import (
@@ -64,19 +71,11 @@ from appguardrail_core.openssf_evidence import (
     OpenSSFEvidence,
     collect_openssf_evidence,
     evidence_to_finding,
+)
+from appguardrail_core.openssf_evidence import (
     parse_project_matches as parse_openssf_project_matches,
 )
 from appguardrail_core.openssf_report import augment_buyer_diligence_report
-from appguardrail_core.pinned_https import (
-    DestinationValidationError,
-    HTTPSDestination,
-    PinnedHTTPSConnection,
-    PinnedHTTPSFailure,
-    PinnedHTTPSResponse,
-    ResolvedAddress,
-    post_json_pinned_https,
-    resolve_public_https_destination,
-)
 from appguardrail_core.org_intelligence import (
     BuyerEvidenceMetric,
     BuyerEvidencePack,
@@ -90,6 +89,16 @@ from appguardrail_core.org_intelligence import (
     gate_action_bucket,
     render_org_readiness_report,
     summarize_pr_gates,
+)
+from appguardrail_core.pinned_https import (
+    DestinationValidationError,
+    HTTPSDestination,
+    PinnedHTTPSConnection,
+    PinnedHTTPSFailure,
+    PinnedHTTPSResponse,
+    ResolvedAddress,
+    post_json_pinned_https,
+    resolve_public_https_destination,
 )
 from appguardrail_core.retention_policy import (
     DEFAULT_RETENTION_DAYS,
@@ -113,7 +122,6 @@ from appguardrail_core.rules import (
     validate_rule_metadata,
 )
 from appguardrail_core.scan_paths import ScanPathContext, build_scan_path_context
-
 
 ReportContext = _reports.ReportContext
 _BASE_RENDERER_ATTRIBUTE = "_openssf_base_buyer_diligence_renderer"
@@ -145,50 +153,50 @@ _reports.render_buyer_diligence_report = render_buyer_diligence_report
 
 
 __all__ = [
-    "AnalysisEvidence",
-    "AnalysisIdentity",
-    "AnalysisSnapshot",
-    "AuditEvent",
-    "BuyerEvidenceMetric",
-    "BuyerEvidencePack",
     "CANONICAL_INDEX_NAMES",
     "CANONICAL_TABLE_NAMES",
     "CANONICAL_TRIGGER_NAMES",
     "CURRENT_SCHEMA_VERSION",
     "DEFAULT_RETENTION_DAYS",
     "DEPLOY_BLOCKING_SEVERITIES",
+    "GENESIS_EVENT_HASH",
+    "MAX_RETENTION_DAYS",
+    "MIN_RETENTION_DAYS",
+    "NON_BLOCKING_CONTEXTS",
+    "RETENTION_CATEGORIES",
+    "SEVERITIES",
+    "AnalysisEvidence",
+    "AnalysisIdentity",
+    "AnalysisSnapshot",
+    "AuditEvent",
+    "BuyerEvidenceMetric",
+    "BuyerEvidencePack",
     "DestinationValidationError",
     "DriftAssessment",
     "ExternalEngineDecision",
     "ExternalScanPlan",
-    "GENESIS_EVENT_HASH",
     "HTTPSDestination",
-    "MAX_RETENTION_DAYS",
-    "MIN_RETENTION_DAYS",
     "MetricResult",
-    "NON_BLOCKING_CONTEXTS",
     "OpenSSFEvidence",
     "OrgInventory",
-    "PurgePreview",
-    "PurgeReceipt",
     "PinnedHTTPSConnection",
     "PinnedHTTPSFailure",
     "PinnedHTTPSResponse",
     "PullRequestGateSummary",
-    "RETENTION_CATEGORIES",
+    "PurgePreview",
+    "PurgeReceipt",
     "ReportContext",
-    "ResolvedAddress",
     "RepositoryGateSummary",
+    "ResolvedAddress",
     "RetentionPolicy",
     "RetentionPolicyConflict",
     "RuleMetadata",
-    "SEVERITIES",
     "SaleReadinessInputs",
     "SaleReadinessScore",
+    "ScanPathContext",
     "SchemaInspection",
     "SchemaMigrationError",
     "SchemaMigrationResult",
-    "ScanPathContext",
     "StackProfile",
     "StalePurgePreview",
     "build_buyer_evidence_pack",

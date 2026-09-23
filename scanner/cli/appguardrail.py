@@ -42,7 +42,6 @@ Options:
 import argparse
 import fnmatch
 import functools
-import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 import json
 import os
 import re
@@ -52,22 +51,18 @@ import stat
 import subprocess
 import sys
 import tempfile
+from importlib import (
+    resources,  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
+)
 from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
-from appguardrail_core.controlplane import SafeRedirectHandler
-from appguardrail_core.pinned_https import (
-    DestinationValidationError,
-    PinnedHTTPSFailure,
-    post_json_pinned_https,
-)
 from appguardrail_core.external import build_external_scan_plan
-from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import NON_BLOCKING_CONTEXTS, normalize_findings
 from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
-from appguardrail_core.findings import normalize_findings
 from appguardrail_core.language import (
     LANGUAGE_EXTENSIONS,
     detect_language_axes,
@@ -79,9 +74,15 @@ from appguardrail_core.org_bundle import (
     gh_error_message,
     gh_pr_list,
     gh_repo_list,
+    render_org_evidence,
+    write_bundle,
 )
 from appguardrail_core.org_bundle import load_json as load_org_json
-from appguardrail_core.org_bundle import render_org_evidence, write_bundle
+from appguardrail_core.pinned_https import (
+    DestinationValidationError,
+    PinnedHTTPSFailure,
+    post_json_pinned_https,
+)
 from appguardrail_core.reports import (
     REPORT_TYPE_LABELS,
     ReportContext,
@@ -1187,7 +1188,7 @@ def cmd_init(args):
     """Install security rules into the project."""
     tool = getattr(args, "tool", "auto") or "auto"
     stack = getattr(args, "stack", None)
-    project_root = Path(".").resolve()
+    project_root = Path.cwd()
 
     installed = []
     skipped = []
@@ -1337,7 +1338,7 @@ def _external_tool_available(name: str, version_args=("--version",)):
     if not executable:
         return None
     try:
-        process = subprocess.run(  # noqa: S603 - executable resolved with shutil.which
+        process = subprocess.run(
             [executable, *version_args],
             shell=False,
             capture_output=True,
@@ -1888,7 +1889,7 @@ def cmd_fix(args):
 
 def cmd_monitor(args):
     """Install a GitHub Actions workflow that runs AppGuardrail on changes."""
-    project_root = Path(".").resolve()
+    project_root = Path.cwd()
     workflow_file = project_root / ".github" / "workflows" / "appguardrail-monitor.yml"
 
     if not workflow_file.resolve().is_relative_to(project_root):
@@ -1931,7 +1932,7 @@ def cmd_report(args):
         return 1
 
     try:
-        findings = _load_findings_json(Path(getattr(args, "findings")))
+        findings = _load_findings_json(Path(args.findings))
     except (TypeError, RuntimeError) as exc:
         _console_print(f"❌ Error: {exc}", file=sys.stderr)
         _console_print(
@@ -2062,7 +2063,7 @@ def _load_findings_json(path: Path):
 
 def cmd_hook(args):
     """Install a pre-commit hook to block commits with vulnerabilities."""
-    project_root = Path(".").resolve()
+    project_root = Path.cwd()
     git_dir = project_root / ".git"
     run_codegraph = getattr(args, "codegraph", False)
 
@@ -2170,15 +2171,11 @@ def _path_matches_glob(path: str, pattern: str) -> bool:
     """Match a normalized relative path against AppGuardrail rule globs."""
     path = path.replace("\\", "/")
     pattern = pattern.replace("\\", "/")
-    if path.startswith("./"):
-        path = path[2:]
-    if pattern.startswith("./"):
-        pattern = pattern[2:]
+    path = path.removeprefix("./")
+    pattern = pattern.removeprefix("./")
     if fnmatch.fnmatch(path, pattern):
         return True
-    if pattern.startswith("**/") and fnmatch.fnmatch(path, pattern[3:]):
-        return True
-    return False
+    return bool(pattern.startswith("**/") and fnmatch.fnmatch(path, pattern[3:]))
 
 
 @functools.lru_cache(maxsize=2048)
@@ -2190,9 +2187,7 @@ def _path_allowed_by_rule_cached(
         _path_matches_glob(path, glob) for glob in include_paths
     ):
         return False
-    if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
-        return False
-    return True
+    return not (exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths))
 
 
 def _path_allowed_by_rule(path: str, include_paths, exclude_paths) -> bool:
@@ -2511,7 +2506,7 @@ def _run_trivy_fs(scan_path: Path):
         )
 
     try:
-        process = subprocess.run(  # noqa: S603 - Trivy path resolved with shutil.which
+        process = subprocess.run(
             [
                 trivy,
                 "fs",
@@ -2590,7 +2585,7 @@ def _run_bandit_scan(scan_path: Path):
         command.append(str(scan_path))
 
     try:
-        process = subprocess.run(  # noqa: S603 - Bandit path resolved with shutil.which
+        process = subprocess.run(
             command,
             shell=False,
             capture_output=True,
@@ -2655,7 +2650,7 @@ def _run_ruff_security_scan(scan_path: Path):
         raise RuntimeError("ruff executable not found.")
 
     try:
-        process = subprocess.run(  # noqa: S603 - Ruff path resolved with shutil.which
+        process = subprocess.run(
             [
                 ruff,
                 "check",
@@ -2740,7 +2735,7 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+        process = subprocess.run(
             [
                 semgrep,
                 "scan",
@@ -2820,7 +2815,7 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+            process = subprocess.run(
                 [zap, "-t", target_url, "-J", str(report_path), "-I"],
                 shell=False,
                 capture_output=True,
@@ -2874,7 +2869,7 @@ def _run_codegraph_command(command, cwd: Path, action: str):
         raise RuntimeError(f"Unsupported CodeGraph {action} command.")
 
     try:
-        process = subprocess.run(  # noqa: S603 - command is checked against allowlist
+        process = subprocess.run(
             command,
             cwd=cwd,
             capture_output=True,
@@ -3271,7 +3266,7 @@ def make_dashboard_server(host, port, index_bytes, findings_path, tokens_css_byt
 
         def log_message(self, format, *args):  # keep the console quiet
             """Suppress default logging."""
-            return None
+            return
 
     return http.server.HTTPServer((host, port), _Handler)
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 SEVERITIES = ("CRITICAL", "HIGH", "WARNING", "INFO")
 DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
@@ -130,7 +131,7 @@ def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
 
 def is_deploy_blocking(
     finding: dict[str, Any],
-    blocking_severities: "set[str] | None" = None,
+    blocking_severities: set[str] | None = None,
 ) -> bool:
     """Return whether a finding should fail a deploy gate.
 

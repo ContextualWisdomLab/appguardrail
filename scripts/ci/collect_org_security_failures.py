@@ -11,7 +11,8 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from appguardrail_core.issueops import (
     is_failure,
@@ -41,7 +42,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         """Return no follow-up request, causing urllib to raise for redirects."""
-        return None
+        return
 
 
 class GitHub:
@@ -68,7 +69,7 @@ class GitHub:
             raise ValueError("GitHub API path must start with /")
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode() if data is not None else None
-        req = urllib.request.Request(  # noqa: S310 - GitHub API URL
+        req = urllib.request.Request(
             f"{self.api}{path}{query}",
             data=body,
             method=method,
@@ -81,7 +82,7 @@ class GitHub:
             },
         )
         try:
-            with self.opener.open(req, timeout=30) as res:  # noqa: S310
+            with self.opener.open(req, timeout=30) as res:
                 payload = res.read()
                 content_type = res.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:
@@ -116,13 +117,13 @@ class GitHub:
 
 def utc_now() -> dt.datetime:
     """Return the current UTC timestamp with timezone information."""
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)
 
 
 def parse_time(value: str) -> dt.datetime:
     """Parse GitHub ISO timestamps and ensure the result is timezone-aware."""
-    parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+    parsed = dt.datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
 
 
 def failure_metadata_summary(job: dict[str, Any]) -> str:
