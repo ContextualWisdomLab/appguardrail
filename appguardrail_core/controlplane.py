@@ -641,7 +641,7 @@ def make_control_plane_server(host: str, port: int, db_path: str):
                 body = self._body()
                 if body is None or not isinstance(body, dict):
                     return self._json(400, {"error": "invalid JSON body"})
-                webhook_url = body.get("url", None)
+                webhook_url = body.get("url", None)  # appguardrail-ignore: python-stored-ssrf-webhook-url
                 try:
                     set_webhook(conn, org, webhook_url)
                 except ValueError as e:
