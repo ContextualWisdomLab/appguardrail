@@ -23,6 +23,6 @@ def test_todo_skip_auth_requires_lexical_marker_tokens():
 
 
 def test_todo_skip_auth_keeps_real_deferred_security_marker():
-    """A real deferred-auth marker in production text remains detectable."""
+    """A real deferred-auth comment remains detectable."""
     pattern = _todo_skip_auth_pattern()
-    assert pattern.search("TODO: skip auth check before release") is not None
+    assert pattern.search("// TODO: skip auth check before release") is not None
