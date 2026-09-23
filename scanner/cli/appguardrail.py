@@ -1647,10 +1647,7 @@ def _is_safe_url(url: str) -> bool:
     if scheme not in {"http", "https"}:
         return False
 
-    if not parsed.hostname:
-        return False
-
-    host = parsed.hostname.lower()
+    host = (parsed.hostname or "").lower()
     raw = host.split("%", 1)[0].strip("[]")
 
     def is_bad_ip(ip) -> bool:
