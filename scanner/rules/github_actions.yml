@@ -4,7 +4,7 @@ rules:
   # structure, not temporary-looking names such as `once` or `repair`.
   - id: github-actions-mutable-branch-writer
     patterns:
-      - pattern-regex: '\A(?=[\s\S]*^[ \t]*contents[ \t]*:[ \t]*write[ \t]*(?:#.*)?$)(?=[\s\S]*\bgit[ \t]+push\b[^\n]*(?:github\.(?:head_ref|ref_name)|github\.event\.pull_request\.head\.ref|HEAD[ \t]*:))[\s\S]*\Z'
+      - pattern-regex: '\A(?=[\s\S]*^(?:[ \t]*contents[ \t]*:[ \t]*write|[ \t]*permissions[ \t]*:[ \t]*write-all)[ \t]*(?:#.*)?$)(?=[\s\S]*\bgit[ \t]+push\b[^\n]*(?:github\.(?:head_ref|ref_name)|github\.event\.pull_request\.head\.ref|HEAD[ \t]*:))[\s\S]*\Z'
     message: |
       This workflow combines repository write authority with an explicit push
       to mutable event-derived branch state. Contributor-controlled workflow
@@ -14,7 +14,7 @@ rules:
       release contract. [OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [generic]
-    prefilter: ["contents", "write", "git push"]
+    prefilter: ["write", "git push"]
     paths:
       include:
         - .github/workflows/*.yml
@@ -24,7 +24,7 @@ rules:
   # a separately persistent Actions registry identity and evades normal review.
   - id: github-actions-self-modifying-writer
     patterns:
-      - pattern-regex: '\A(?=[\s\S]*^[ \t]*contents[ \t]*:[ \t]*write[ \t]*(?:#.*)?$)(?=[\s\S]*(?:\bgit[ \t]+rm\b|\brm(?:[ \t]+-[A-Za-z]+)?\b|\bsed\b|\bperl\b)[^\n]*\.github/workflows/)[\s\S]*\Z'
+      - pattern-regex: '\A(?=[\s\S]*^(?:[ \t]*contents[ \t]*:[ \t]*write|[ \t]*permissions[ \t]*:[ \t]*write-all)[ \t]*(?:#.*)?$)(?=[\s\S]*(?:\bgit[ \t]+rm\b|\brm(?:[ \t]+-[A-Za-z]+)?\b|\b(?:sed|perl)[ \t]+(?:-[A-Za-z]*i[A-Za-z]*|--in-place)\b)[^\n]*[ \t"'']\.github/workflows/)(?=[\s\S]*\bgit[ \t]+commit\b)(?=[\s\S]*\bgit[ \t]+push\b)[\s\S]*\Z'
     message: |
       This write-capable workflow edits or deletes a workflow definition from
       its own execution path. Source deletion does not retire the persistent
@@ -33,7 +33,7 @@ rules:
       [OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [generic]
-    prefilter: ["contents", "write", ".github/workflows/"]
+    prefilter: ["write", ".github/workflows/", "git commit", "git push"]
     paths:
       include:
         - .github/workflows/*.yml

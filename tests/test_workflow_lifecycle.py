@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 import runpy
 import sys
@@ -230,6 +231,39 @@ def test_live_main_requires_a_token(tmp_path, monkeypatch) -> None:
         lifecycle.main(["--live", "--receipt-output", str(tmp_path / "receipts.json")])
         == 2
     )
+
+
+def test_live_main_converts_missing_client_imports_to_structured_failure(
+    tmp_path, monkeypatch
+) -> None:
+    """An installed core without repository scripts fails closed with exit 2."""
+    original_import = builtins.__import__
+
+    def without_repository_client(name, *args, **kwargs):
+        if name in {
+            "scripts.ci.commercial_readiness_loop",
+            "commercial_readiness_loop",
+        }:
+            raise ModuleNotFoundError(name)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_repository_client)
+    receipts = tmp_path / "receipts.json"
+    failure = tmp_path / "failure.json"
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--receipt-output",
+                str(receipts),
+                "--failure-output",
+                str(failure),
+            ]
+        )
+        == 2
+    )
+    assert json.loads(receipts.read_text()) == []
+    assert json.loads(failure.read_text())["error_type"] == "InventoryError"
 
 
 def test_branch_movement_case_encoding_and_malformed_paths_fail_closed() -> None:

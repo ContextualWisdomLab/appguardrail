@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scanner.cli.appguardrail import SCAN_RULES
+from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 
 def _matches(rule_id: str, workflow: str) -> bool:
@@ -39,6 +39,47 @@ jobs:
           git push origin HEAD
 """
     assert _matches("github-actions-self-modifying-writer", workflow)
+
+
+def test_write_all_reaches_scanner_level_mutable_branch_rule(tmp_path) -> None:
+    """The scanner prefilter must not discard GitHub's write-all shorthand."""
+    workflow = tmp_path / ".github" / "workflows" / "repair.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """
+on: pull_request_target
+permissions: write-all
+jobs:
+  repair:
+    steps:
+      - run: git push origin HEAD:${{ github.event.pull_request.head.ref }}
+""",
+        encoding="utf-8",
+    )
+    findings = _scan_file(workflow, tmp_path)
+    assert [finding["rule_id"] for finding in findings] == [
+        "github-actions-mutable-branch-writer"
+    ]
+
+
+def test_non_persistent_workflow_file_operations_are_not_reported() -> None:
+    """Read-only and uncommitted workspace cleanup are not repository writes."""
+    templates = (
+        "sed -n '1,20p' .github/workflows/ci.yml",
+        "git rm .github/workflows/copied.yml",
+        "rm -rf snapshot/.github/workflows/",
+    )
+    for command in templates:
+        workflow = f"""
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  inspect:
+    steps:
+      - run: {command}
+"""
+        assert not _matches("github-actions-self-modifying-writer", workflow)
 
 
 def test_read_only_diagnostic_and_protected_release_are_not_reported() -> None:

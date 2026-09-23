@@ -662,9 +662,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     GitHub,
                 )
             except ModuleNotFoundError:  # pragma: no cover - direct-script smoke tested
-                from commercial_readiness_loop import (  # type: ignore[no-redef]  # pylint: disable=import-outside-toplevel  # pragma: no cover
-                    GitHub,
-                )
+                try:
+                    from commercial_readiness_loop import (  # type: ignore[no-redef]  # pylint: disable=import-outside-toplevel  # pragma: no cover
+                        GitHub,
+                    )
+                except ModuleNotFoundError as exc:
+                    raise InventoryError(
+                        "live GitHub client unavailable: ModuleNotFoundError"
+                    ) from exc
 
             try:
                 token = os.environ.get("GITHUB_TOKEN", "")
