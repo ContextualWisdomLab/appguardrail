@@ -1,0 +1,2 @@
+- Add read-only, exact-default-SHA GitHub Actions registry reconciliation and
+  structural detection for mutable-branch writers and self-modifying workflows.

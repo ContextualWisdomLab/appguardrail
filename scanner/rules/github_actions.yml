@@ -1,4 +1,44 @@
 rules:
+  # A write token plus an explicit push back to contributor-controlled branch
+  # state is materially different from a reviewed release publisher. Match the
+  # structure, not temporary-looking names such as `once` or `repair`.
+  - id: github-actions-mutable-branch-writer
+    patterns:
+      - pattern-regex: '\A(?=[\s\S]*^[ \t]*contents[ \t]*:[ \t]*write[ \t]*(?:#.*)?$)(?=[\s\S]*\bgit[ \t]+push\b[^\n]*(?:github\.(?:head_ref|ref_name)|github\.event\.pull_request\.head\.ref|HEAD[ \t]*:))[\s\S]*\Z'
+    message: |
+      This workflow combines repository write authority with an explicit push
+      to mutable event-derived branch state. Contributor-controlled workflow
+      execution must not publish changes back into the branch under review.
+      Move the repair through a normal reviewed pull request or constrain a
+      separately reviewed publisher to an exact trusted protected-branch or
+      release contract. [OWASP A08:2021 - Software and Data Integrity Failures]
+    severity: HIGH
+    languages: [generic]
+    prefilter: ["contents", "write", "git push"]
+    paths:
+      include:
+        - .github/workflows/*.yml
+        - .github/workflows/*.yaml
+
+  # Deleting or editing workflow definitions from the workflow itself leaves
+  # a separately persistent Actions registry identity and evades normal review.
+  - id: github-actions-self-modifying-writer
+    patterns:
+      - pattern-regex: '\A(?=[\s\S]*^[ \t]*contents[ \t]*:[ \t]*write[ \t]*(?:#.*)?$)(?=[\s\S]*(?:\bgit[ \t]+rm\b|\brm(?:[ \t]+-[A-Za-z]+)?\b|\bsed\b|\bperl\b)[^\n]*\.github/workflows/)[\s\S]*\Z'
+    message: |
+      This write-capable workflow edits or deletes a workflow definition from
+      its own execution path. Source deletion does not retire the persistent
+      Actions registry identity. Use a normal reviewed branch and keep exact-ID
+      registry disablement in a separate owner-approved operator step.
+      [OWASP A08:2021 - Software and Data Integrity Failures]
+    severity: HIGH
+    languages: [generic]
+    prefilter: ["contents", "write", ".github/workflows/"]
+    paths:
+      include:
+        - .github/workflows/*.yml
+        - .github/workflows/*.yaml
+
   # A repository-local SARIF upload workflow needs a pull-request entry point
   # unless PR analysis is intentionally delegated to a centrally managed
   # required workflow. Delegated workflows can opt out explicitly with the

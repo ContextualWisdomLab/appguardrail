@@ -1,0 +1,1132 @@
+"""Fail-closed contracts for the read-only workflow-lifecycle inventory."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from appguardrail_core import workflow_lifecycle as inventory
+
+SHA = "a" * 40
+SHA_B = "b" * 40
+
+
+def _workflow(
+    workflow_id: int,
+    path: str,
+    *,
+    state: str = "active",
+    name: str | None = None,
+) -> dict[str, Any]:
+    """Return one GitHub Actions workflow registry record."""
+    return {
+        "id": workflow_id,
+        "name": name or Path(path).name,
+        "path": path,
+        "state": state,
+    }
+
+
+def _repo(
+    name: str,
+    workflows: list[dict[str, Any]],
+    tree_paths: list[str],
+    *,
+    archived: bool = False,
+    sha: str = SHA,
+    sha_after: str | None = None,
+    pages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Return one repository inventory fixture."""
+    return {
+        "name": name,
+        "archived": archived,
+        "default_branch": "main",
+        "default_branch_sha": sha,
+        "default_branch_sha_after": sha if sha_after is None else sha_after,
+        "tree_paths": tree_paths,
+        "workflow_pages": pages
+        if pages is not None
+        else [
+            {"total_count": len(workflows), "workflows": workflows, "_link_next": False}
+        ],
+    }
+
+
+def _payload(repositories: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return an organization inventory fixture."""
+    return {
+        "organization": "ContextualWisdomLab",
+        "observed_at": "2026-08-16T12:00:00Z",
+        "repository_inventory_complete": True,
+        "repositories": repositories,
+    }
+
+
+def test_reject_forbidden_token_and_allow_unrelated_names() -> None:
+    """Copilot tokens are forbidden; unrelated credential names are ignored."""
+    inventory.reject_forbidden_token("NVIDIA_NIM_API_KEY")
+    with pytest.raises(inventory.InventoryError, match="COPILOT_GITHUB_TOKEN"):
+        inventory.reject_forbidden_token("COPILOT_GITHUB_TOKEN")
+
+
+def test_refuse_registry_mutation() -> None:
+    """Disablement stays on a separately reviewed operator path."""
+    with pytest.raises(inventory.InventoryError, match="disable"):
+        inventory.refuse_registry_mutation("disable")
+
+
+def test_is_exact_sha() -> None:
+    """Only a 40-character lowercase hex digest is a bound SHA."""
+    assert inventory.is_exact_sha(SHA) is True
+    assert inventory.is_exact_sha("A" * 40) is False
+    assert inventory.is_exact_sha(1) is False
+    assert inventory.is_exact_sha("deadbeef") is False
+
+
+def test_parse_link_has_next() -> None:
+    """Link pagination is boolean and fail-closed on malformed headers."""
+    assert inventory.parse_link_has_next(None) is False
+    assert inventory.parse_link_has_next('<https://example/page/2>; rel="next"') is True
+    assert (
+        inventory.parse_link_has_next('<https://example/page/1>; rel="prev"') is False
+    )
+    with pytest.raises(inventory.InventoryError, match="malformed"):
+        inventory.parse_link_has_next("")
+    with pytest.raises(inventory.InventoryError, match="malformed"):
+        inventory.parse_link_has_next(1)
+
+
+def test_decode_registry_path_rejects_encoding_and_traversal() -> None:
+    """Percent-encoding, NULs, backslashes, and `..` fail closed."""
+    assert (
+        inventory.decode_registry_path(".github/workflows/ci.yml")
+        == ".github/workflows/ci.yml"
+    )
+    with pytest.raises(inventory.InventoryError, match=r"NUL|missing"):
+        inventory.decode_registry_path("")
+    with pytest.raises(inventory.InventoryError, match=r"NUL|missing"):
+        inventory.decode_registry_path(".github/workflows/ci.yml\x00")
+    with pytest.raises(inventory.InventoryError, match="backslash"):
+        inventory.decode_registry_path(".github\\workflows\\ci.yml")
+    with pytest.raises(inventory.InventoryError, match="percent-encoded"):
+        inventory.decode_registry_path(".github/workflows/%2e%2e/ci.yml")
+    with pytest.raises(inventory.InventoryError, match="traversal"):
+        inventory.decode_registry_path(".github/workflows/../../secret.yml")
+    assert (
+        inventory.decode_registry_path(".github/workflows//./ci.yml")
+        == ".github/workflows//./ci.yml"
+    )
+
+
+def test_path_predicates() -> None:
+    """Dynamic GitHub identities stay distinct from repository YAML files."""
+    assert inventory.is_dynamic_owned_path("dynamic/pages/pages-build-deployment")
+    assert inventory.is_repository_workflow_path(".github/workflows/ci.yml")
+    assert inventory.is_repository_workflow_path(".github/workflows/ci.yaml")
+    assert not inventory.is_repository_workflow_path(".GitHub/workflows/ci.yml")
+    assert not inventory.is_repository_workflow_path(".github/workflows/nested/ci.yml")
+    assert not inventory.is_repository_workflow_path(".github/workflows/ci.txt")
+    assert not inventory.is_dynamic_owned_path(".github/workflows/ci.yml")
+
+
+def test_interpret_status_and_single_retry() -> None:
+    """Visibility loss and 5xx fail closed after at most one retry."""
+    inventory.interpret_status(200, resource="workflows")
+    with pytest.raises(inventory.InventoryError, match="permission"):
+        inventory.interpret_status(401, resource="workflows")
+    with pytest.raises(inventory.InventoryError, match="permission"):
+        inventory.interpret_status(403, resource="workflows")
+    with pytest.raises(inventory.InventoryError, match="missing visibility"):
+        inventory.interpret_status(404, resource="workflows")
+    with pytest.raises(inventory.InventoryError, match="transient"):
+        inventory.interpret_status(503, resource="workflows")
+    with pytest.raises(inventory.InventoryError, match="unexpected"):
+        inventory.interpret_status(418, resource="workflows")
+
+    calls = {"n": 0}
+
+    def once_ok(url: str) -> tuple[int, dict[str, str], dict[str, str]]:
+        calls["n"] += 1
+        return 200, {"ok": url}, {"link": ""}
+
+    body, headers = inventory.fetch_with_one_retry(once_ok, "https://example/ok")
+    assert body == {"ok": "https://example/ok"}
+    assert headers == {"link": ""}
+    assert calls["n"] == 1
+
+    def recover(url: str) -> tuple[int, dict[str, str], dict[str, str]]:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            return 503, {}, {}
+        return 200, {"recovered": True}, {}
+
+    calls["n"] = 1
+    body, _headers = inventory.fetch_with_one_retry(recover, "https://example/retry")
+    assert body == {"recovered": True}
+
+    def stay_down(_url: str) -> tuple[int, dict[str, str], dict[str, str]]:
+        return 500, {}, {}
+
+    with pytest.raises(inventory.InventoryError, match="transient"):
+        inventory.fetch_with_one_retry(stay_down, "https://example/down")
+
+
+def test_classify_workflow_matrix() -> None:
+    """Every advertised class is produced from path, state, and tree presence."""
+    repo = ".github/workflows/ci.yml"
+    assert (
+        inventory.classify_workflow(
+            path="dynamic/pages/pages-build-deployment",
+            state="active",
+            source_present=None,
+        )
+        == "dynamic_owned"
+    )
+    assert (
+        inventory.classify_workflow(
+            path=".GitHub/workflows/ci.yml",
+            state="active",
+            source_present=None,
+        )
+        == "unresolved"
+    )
+    assert (
+        inventory.classify_workflow(path=repo, state="active", source_present=None)
+        == "unresolved"
+    )
+    assert (
+        inventory.classify_workflow(path=repo, state="active", source_present=True)
+        == "present_active"
+    )
+    assert (
+        inventory.classify_workflow(path=repo, state="active", source_present=False)
+        == "orphan_active"
+    )
+    assert (
+        inventory.classify_workflow(
+            path=repo, state="disabled_manually", source_present=True
+        )
+        == "present_disabled"
+    )
+    assert (
+        inventory.classify_workflow(
+            path=repo, state="disabled_inactivity", source_present=False
+        )
+        == "orphan_disabled"
+    )
+    assert (
+        inventory.classify_workflow(path=repo, state="mystery", source_present=True)
+        == "unresolved"
+    )
+
+
+def test_collect_workflow_pages_fail_closed() -> None:
+    """Partial pagination, drift, reuse, and empty next-pages fail closed."""
+    first = {
+        "total_count": 2,
+        "workflows": [_workflow(1, ".github/workflows/a.yml")],
+        "_link_next": True,
+    }
+    second = {
+        "total_count": 2,
+        "workflows": [_workflow(2, ".github/workflows/b.yml")],
+        "_link_next": False,
+    }
+    workflows, page_count = inventory.collect_workflow_pages(
+        [first, second], per_page=1
+    )
+    assert len(workflows) == 2
+    assert page_count == 2
+
+    with pytest.raises(inventory.InventoryError, match="per_page"):
+        inventory.collect_workflow_pages([], per_page=0)
+    with pytest.raises(inventory.InventoryError, match="no workflow pages"):
+        inventory.collect_workflow_pages([])
+    with pytest.raises(inventory.InventoryError, match="not an object"):
+        inventory.collect_workflow_pages([None])  # type: ignore[list-item]
+    with pytest.raises(inventory.InventoryError, match="workflows array"):
+        inventory.collect_workflow_pages([{"total_count": 0}])
+    with pytest.raises(inventory.InventoryError, match="total_count"):
+        inventory.collect_workflow_pages([{"total_count": -1, "workflows": []}])
+    with pytest.raises(inventory.InventoryError, match="drifted"):
+        inventory.collect_workflow_pages(
+            [
+                {
+                    "total_count": 2,
+                    "workflows": [_workflow(1, ".github/workflows/a.yml")],
+                    "_link_next": True,
+                },
+                {
+                    "total_count": 3,
+                    "workflows": [_workflow(2, ".github/workflows/b.yml")],
+                    "_link_next": False,
+                },
+            ],
+            per_page=1,
+        )
+    with pytest.raises(inventory.InventoryError, match="exceeds per_page"):
+        inventory.collect_workflow_pages(
+            [
+                {
+                    "total_count": 2,
+                    "workflows": [
+                        _workflow(1, ".github/workflows/a.yml"),
+                        _workflow(2, ".github/workflows/b.yml"),
+                    ],
+                    "_link_next": False,
+                }
+            ],
+            per_page=1,
+        )
+    with pytest.raises(inventory.InventoryError, match="not an object"):
+        inventory.collect_workflow_pages(
+            [{"total_count": 1, "workflows": ["bad"], "_link_next": False}]
+        )
+    with pytest.raises(inventory.InventoryError, match="truncated"):
+        inventory.collect_workflow_pages(
+            [
+                {
+                    "total_count": 2,
+                    "workflows": [_workflow(1, ".github/workflows/a.yml")],
+                    "_link_next": False,
+                }
+            ]
+        )
+    with pytest.raises(inventory.InventoryError, match="empty workflow page"):
+        inventory.collect_workflow_pages(
+            [{"total_count": 0, "workflows": [], "_link_next": True}]
+        )
+    with pytest.raises(inventory.InventoryError, match="truncated after last"):
+        inventory.collect_workflow_pages(
+            [
+                {
+                    "total_count": 1,
+                    "workflows": [_workflow(1, ".github/workflows/a.yml")],
+                    "_link_next": True,
+                }
+            ]
+        )
+    with pytest.raises(inventory.InventoryError, match="_link_next"):
+        inventory.collect_workflow_pages(
+            [{"total_count": 0, "workflows": [], "_link_next": "yes"}]
+        )
+    linked = {
+        "total_count": 0,
+        "workflows": [],
+        "link": '<https://example/page/1>; rel="prev"',
+    }
+    assert inventory.collect_workflow_pages([linked]) == ([], 1)
+    with pytest.raises(inventory.InventoryError, match="reused workflow id"):
+        inventory.collect_workflow_pages(
+            [
+                {
+                    "total_count": 2,
+                    "workflows": [
+                        _workflow(7, ".github/workflows/a.yml"),
+                        _workflow(7, ".github/workflows/renamed.yml"),
+                    ],
+                    "_link_next": False,
+                }
+            ]
+        )
+    with pytest.raises(inventory.InventoryError, match="positive integer"):
+        inventory.collect_workflow_pages(
+            [
+                {
+                    "total_count": 1,
+                    "workflows": [{"id": "7", "path": ".github/workflows/a.yml"}],
+                    "_link_next": False,
+                }
+            ]
+        )
+
+
+def test_inventory_records_only_consumed_pages() -> None:
+    """The audit ledger never counts unconsumed trailing page fixtures."""
+    terminal = {
+        "total_count": 1,
+        "workflows": [_workflow(1, ".github/workflows/ci.yml")],
+        "_link_next": False,
+    }
+    trailing = {
+        "total_count": 1,
+        "workflows": [_workflow(2, ".github/workflows/unread.yml")],
+        "_link_next": False,
+    }
+
+    result = inventory.inventory_repository(
+        _repo(
+            "naruon",
+            [],
+            [".github/workflows/ci.yml"],
+            pages=[terminal, trailing],
+        )
+    )
+
+    assert result["page_count"] == 1
+    assert result["workflow_count"] == 1
+    assert result["records"][0]["workflow_id"] == 1
+
+
+def test_collect_workflow_pages_accepts_case_insensitive_link_header() -> None:
+    """GitHub's canonical ``Link`` header spelling drives pagination."""
+    first = {
+        "total_count": 2,
+        "workflows": [_workflow(1, ".github/workflows/a.yml")],
+        "Link": '<https://example/page/2>; rel="next"',
+    }
+    second = {
+        "total_count": 2,
+        "workflows": [_workflow(2, ".github/workflows/b.yml")],
+        "Link": '<https://example/page/1>; rel="prev"',
+    }
+
+    workflows, page_count = inventory.collect_workflow_pages(
+        [first, second], per_page=1
+    )
+
+    assert [workflow["id"] for workflow in workflows] == [1, 2]
+    assert page_count == 2
+
+    ambiguous = dict(first, link='<https://example/page/2>; rel="next"')
+    with pytest.raises(inventory.InventoryError, match="ambiguous Link"):
+        inventory.collect_workflow_pages([ambiguous], per_page=1)
+
+
+def test_assert_default_branch_bound() -> None:
+    """A moved or malformed default-branch SHA aborts the inventory."""
+    assert inventory.assert_default_branch_bound(SHA, SHA) == SHA
+    with pytest.raises(inventory.InventoryError, match="moved"):
+        inventory.assert_default_branch_bound(SHA, SHA_B)
+    with pytest.raises(inventory.InventoryError, match="hex digest"):
+        inventory.assert_default_branch_bound("main", "main")
+
+
+def test_owner_issue_for_known_fleet() -> None:
+    """Known fleet orphans route to the existing owner issues."""
+    assert (
+        inventory.owner_issue_for("appguardrail")
+        == "ContextualWisdomLab/appguardrail#929"
+    )
+    assert inventory.owner_issue_for("naruon") == "ContextualWisdomLab/naruon#1324"
+    assert inventory.owner_issue_for("APPGUARDRAIL") == (
+        "ContextualWisdomLab/appguardrail#929"
+    )
+
+
+def test_disabled_orphan_routes_to_owner_issue() -> None:
+    """Disabled orphan evidence keeps its explicit owner route."""
+    result = inventory.inventory_repository(
+        _repo(
+            "appguardrail",
+            [_workflow(14, ".github/workflows/finalize-once.yml", state="deleted")],
+            [],
+        )
+    )
+    assert result["records"][0]["classification"] == "orphan_disabled"
+    assert result["records"][0]["owner_issue"] == (
+        "ContextualWisdomLab/appguardrail#929"
+    )
+
+
+def test_owner_issue_registry_covers_confirmed_fleet() -> None:
+    """Every confirmed fleet owner has an explicit, linkable issue route."""
+    assert inventory.KNOWN_OWNER_ISSUES == {
+        "appguardrail": "ContextualWisdomLab/appguardrail#929",
+        "bandscope": "ContextualWisdomLab/bandscope#847",
+        "clearfolio": "ContextualWisdomLab/clearfolio#423",
+        "codec-carver": "ContextualWisdomLab/codec-carver#401",
+        "contextual-orchestrator": "ContextualWisdomLab/contextual-orchestrator#122",
+        "DiagramWeave": "ContextualWisdomLab/DiagramWeave#27",
+        "disksage": "ContextualWisdomLab/disksage#191",
+        "EgressWeave": "ContextualWisdomLab/EgressWeave#202",
+        "fast-mlsirm": "ContextualWisdomLab/fast-mlsirm#809",
+        "four-pillars": "ContextualWisdomLab/four-pillars#33",
+        "inkspan": "ContextualWisdomLab/inkspan#278",
+        "keyverse": "ContextualWisdomLab/keyverse#99",
+        "naruon": "ContextualWisdomLab/naruon#1324",
+        "newsdom-api": "ContextualWisdomLab/newsdom-api#604",
+        "noema": "ContextualWisdomLab/noema#226",
+        "OriginWeave": "ContextualWisdomLab/OriginWeave#123",
+        "pg-erd-cloud": "ContextualWisdomLab/pg-erd-cloud#865",
+        "RankWeave": "ContextualWisdomLab/RankWeave#38",
+        "saju-caldav": "ContextualWisdomLab/saju-caldav#33",
+        "ThreadWeave": "ContextualWisdomLab/ThreadWeave#31",
+    }
+
+
+def test_inventory_repository_classifies_known_shapes() -> None:
+    """One-shot names, orphans, dynamic workflows, and archives stay honest."""
+    result = inventory.inventory_repository(
+        _repo(
+            "clearfolio",
+            [
+                _workflow(1, ".github/workflows/one-shot-cleanup.yml"),
+                _workflow(2, ".github/workflows/missing.yml"),
+                _workflow(
+                    3,
+                    "dynamic/pages/pages-build-deployment",
+                    name="pages",
+                ),
+                _workflow(
+                    4,
+                    ".github/workflows/old.yml",
+                    state="disabled_manually",
+                ),
+            ],
+            [".github/workflows/one-shot-cleanup.yml"],
+        )
+    )
+    classes = {
+        item["workflow_id"]: item["classification"] for item in result["records"]
+    }
+    assert classes[1] == "present_active"
+    assert classes[2] == "orphan_active"
+    assert classes[3] == "dynamic_owned"
+    assert classes[4] == "orphan_disabled"
+    orphan = next(item for item in result["records"] if item["workflow_id"] == 2)
+    assert orphan["owner_issue"] == "ContextualWisdomLab/clearfolio#423"
+
+    skipped = inventory.inventory_repository(_repo("old", [], [], archived=True))
+    assert skipped["skipped"] == "archived"
+    assert skipped["records"] == []
+
+
+def test_inventory_routes_inkspan_orphan_to_owner_issue() -> None:
+    """Inkspan orphan evidence reaches its confirmed central owner issue."""
+    result = inventory.inventory_repository(
+        _repo(
+            "inkspan",
+            [_workflow(20, ".github/workflows/apply-preparse-envelope-limits.yml")],
+            [],
+        )
+    )
+    assert result["records"][0]["classification"] == "orphan_active"
+    assert result["records"][0]["owner_issue"] == "ContextualWisdomLab/inkspan#278"
+
+
+def test_inventory_repository_rejects_malformed_records() -> None:
+    """Malformed repository fixtures fail closed before classification."""
+    with pytest.raises(inventory.InventoryError, match="valid slug"):
+        inventory.inventory_repository(_repo("bad name", [], []))
+    bad_flag = _repo("naruon", [], [])
+    bad_flag["archived"] = "no"
+    with pytest.raises(inventory.InventoryError, match="archived flag"):
+        inventory.inventory_repository(bad_flag)
+    bad_tree = _repo("naruon", [], [])
+    bad_tree["tree_paths"] = [1]
+    with pytest.raises(inventory.InventoryError, match="tree_paths"):
+        inventory.inventory_repository(bad_tree)
+    not_list = _repo("naruon", [], [])
+    not_list["tree_paths"] = ".github/workflows/ci.yml"
+    with pytest.raises(inventory.InventoryError, match="tree_paths"):
+        inventory.inventory_repository(not_list)
+    unnamed_orphan = inventory.inventory_repository(
+        _repo(
+            "unknown-repo",
+            [_workflow(8, ".github/workflows/missing.yml")],
+            [],
+        )
+    )
+    assert unnamed_orphan["records"][0]["classification"] == "orphan_active"
+    assert "owner_issue" not in unnamed_orphan["records"][0]
+    bad_pages = _repo("naruon", [], [])
+    bad_pages["workflow_pages"] = "pages"
+    with pytest.raises(inventory.InventoryError, match="workflow_pages"):
+        inventory.inventory_repository(bad_pages)
+    present_disabled = inventory.inventory_repository(
+        _repo(
+            "naruon",
+            [
+                _workflow(
+                    9,
+                    ".github/workflows/ci.yml",
+                    state="disabled_fork",
+                )
+            ],
+            [".github/workflows/ci.yml"],
+        )
+    )
+    assert present_disabled["records"][0]["classification"] == "present_disabled"
+    unresolved = inventory.inventory_repository(
+        _repo(
+            "naruon",
+            [_workflow(10, "not-a-workflow")],
+            [],
+        )
+    )
+    assert unresolved["records"][0]["classification"] == "unresolved"
+
+
+def test_payload_loading_rejects_duplicates_and_bounds() -> None:
+    """Empty, oversized, non-UTF-8, non-object, and duplicate-key payloads fail."""
+    with pytest.raises(inventory.InventoryError, match="empty"):
+        inventory.load_payload_bytes(b"")
+    with pytest.raises(inventory.InventoryError, match="exceeds"):
+        inventory.load_payload_bytes(b"{" + b"a" * (inventory.MAX_PAYLOAD_BYTES + 1))
+    with pytest.raises(inventory.InventoryError, match="UTF-8"):
+        inventory.load_payload_bytes(b"\xff")
+    with pytest.raises(inventory.InventoryError, match="not JSON"):
+        inventory.load_payload_bytes(b"{")
+    with pytest.raises(inventory.InventoryError, match="JSON object"):
+        inventory.load_payload_bytes(b"[]")
+    with pytest.raises(inventory.InventoryError, match="duplicate object key"):
+        inventory.reject_duplicate_keys([("a", 1), ("a", 2)])
+    payload = inventory.load_payload_bytes(b'{"organization":"ContextualWisdomLab"}')
+    assert payload["organization"] == "ContextualWisdomLab"
+
+
+def test_inventory_organization_and_unknown_classification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organization ledgers count classes and reject unknown ones."""
+    payload = _payload(
+        [
+            _repo(
+                "disksage",
+                [_workflow(1, ".github/workflows/gone.yml")],
+                [],
+            )
+        ]
+    )
+    ledger = inventory.inventory_organization(payload)
+    assert ledger["schema_version"] == "1"
+    assert ledger["repository_inventory_complete"] is True
+    assert ledger["assurance_posture"]["certification_claim"] is False
+    assert ledger["assurance_posture"]["operational_pii_mask"] is False
+    assert ledger["counts"]["orphan_active"] == 1
+    assert ledger["records"][0]["owner_issue"] == "ContextualWisdomLab/disksage#191"
+
+    with pytest.raises(inventory.InventoryError, match="organization"):
+        inventory.inventory_organization({"organization": "other"})
+    with pytest.raises(inventory.InventoryError, match="observed_at"):
+        inventory.inventory_organization(
+            {"organization": "ContextualWisdomLab", "observed_at": ""}
+        )
+    with pytest.raises(inventory.InventoryError, match="non-empty"):
+        inventory.inventory_organization(
+            {
+                "organization": "ContextualWisdomLab",
+                "observed_at": "2026-08-16T12:00:00Z",
+                "repositories": [],
+            }
+        )
+    with pytest.raises(inventory.InventoryError, match="not an object"):
+        inventory.inventory_organization(
+            {
+                "organization": "ContextualWisdomLab",
+                "observed_at": "2026-08-16T12:00:00Z",
+                "repository_inventory_complete": True,
+                "repositories": ["naruon"],
+            }
+        )
+
+    def lie(**_kwargs: object) -> str:
+        return "not-a-class"
+
+    monkeypatch.setattr(inventory, "classify_workflow", lie)
+    with pytest.raises(inventory.InventoryError, match="unknown classification"):
+        inventory.inventory_organization(
+            _payload(
+                [
+                    _repo(
+                        "naruon",
+                        [_workflow(1, ".github/workflows/ci.yml")],
+                        [".github/workflows/ci.yml"],
+                    )
+                ]
+            )
+        )
+
+
+def test_inventory_requires_complete_repository_visibility() -> None:
+    """A partial organization repository list cannot produce an audit ledger."""
+    payload = {
+        "organization": "ContextualWisdomLab",
+        "observed_at": "2026-08-16T12:00:00Z",
+        "repositories": [_repo("naruon", [], [])],
+    }
+    with pytest.raises(inventory.InventoryError, match="repository inventory"):
+        inventory.inventory_organization(payload)
+
+    payload["repository_inventory_complete"] = False
+    with pytest.raises(inventory.InventoryError, match="repository inventory"):
+        inventory.inventory_organization(payload)
+
+
+def test_write_ledger_and_main(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CLI writes a ledger, fails closed, and never mutates the registry."""
+    payload = _payload(
+        [
+            _repo(
+                "appguardrail",
+                [
+                    _workflow(1, ".github/workflows/apply-once.yml"),
+                    _workflow(2, ".github/workflows/ci.yml"),
+                ],
+                [".github/workflows/ci.yml"],
+            )
+        ]
+    )
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+    output = tmp_path / "ledger.json"
+    assert (
+        inventory.main(["--payload", str(payload_path), "--output", str(output)]) == 0
+    )
+    ledger = json.loads(output.read_text(encoding="utf-8"))
+    assert ledger["counts"]["orphan_active"] == 1
+    assert ledger["counts"]["present_active"] == 1
+    err = capsys.readouterr().err
+    assert "PASS:" in err
+
+    assert (
+        inventory.main(["--payload", str(payload_path), "--fail-on-orphan-active"]) == 1
+    )
+    captured = capsys.readouterr()
+    assert "FAIL:" in captured.err
+    assert '"schema_version"' in captured.out
+
+    assert inventory.main(["--payload", str(payload_path), "--mutate", "disable"]) == 2
+    assert "registry mutation" in capsys.readouterr().err
+
+    missing = tmp_path / "missing.json"
+    assert inventory.main(["--payload", str(missing)]) == 2
+    assert "not found" in capsys.readouterr().err
+
+    directory = tmp_path / "dir"
+    directory.mkdir()
+    assert inventory.main(["--payload", str(directory)]) == 2
+    assert "unable to read payload" in capsys.readouterr().err
+
+    payload_path.write_text("[]", encoding="utf-8")
+    assert inventory.main(["--payload", str(payload_path)]) == 2
+    assert "JSON object" in capsys.readouterr().err
+
+
+def test_main_reports_ledger_output_failures_separately(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CLI identifies an unwritable ledger path as an output failure."""
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_text(
+        json.dumps(_payload([_repo("naruon", [], [])])), encoding="utf-8"
+    )
+    output = tmp_path / "missing" / "ledger.json"
+
+    assert (
+        inventory.main(["--payload", str(payload_path), "--output", str(output)]) == 2
+    )
+    error = capsys.readouterr().err
+    assert "unable to write ledger" in error
+    assert "unable to read payload" not in error
+
+
+class _LiveClient:
+    """Record deterministic live API calls for collector tests."""
+
+    def __init__(self, responses: dict[str, Any]) -> None:
+        self.responses = responses
+        self.calls: list[str] = []
+
+    def request(self, path: str, *, method: str = "GET", payload: Any = None) -> Any:
+        """Return one canned response and retain its exact request path."""
+        if method in {"PUT", "POST"}:
+            self.calls.append(path)
+            return self.responses.get(path)
+        assert method == "GET"
+        assert payload is None
+        self.calls.append(path)
+        if path == "/orgs/ContextualWisdomLab" and path not in self.responses:
+            visible = sum(
+                len(value)
+                for key, value in self.responses.items()
+                if key.startswith("/orgs/ContextualWisdomLab/repos?")
+                and isinstance(value, list)
+            )
+            return {"public_repos": visible, "total_private_repos": 0}
+        value = self.responses[path]
+        if path.endswith("/commits/main") and isinstance(value, list):
+            return value.pop(0)
+        return value
+
+
+def test_collect_live_organization_paginates_and_rechecks_head() -> None:
+    """The live collector consumes every page and binds both head reads."""
+    repo = "ContextualWisdomLab/appguardrail"
+    responses = {
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1": [
+            {
+                "name": "appguardrail",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+            "truncated": False,
+            "tree": [{"type": "blob", "path": ".github/workflows/ci.yml"}],
+        },
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 2,
+            "workflows": [
+                _workflow(1, ".github/workflows/ci.yml"),
+                _workflow(2, ".github/workflows/gone.yml"),
+            ],
+        },
+    }
+    client = _LiveClient(responses)
+    payload, receipts = inventory.collect_live_organization(client)
+    ledger = inventory.inventory_organization(payload)
+    assert ledger["counts"]["orphan_active"] == 1
+    assert payload["repository_inventory_complete"] is True
+    assert len(receipts) == len(client.calls)
+    assert client.calls.count(f"/repos/{repo}/commits/main") == 2
+
+
+def test_collect_live_organization_requires_org_wide_visibility_proof() -> None:
+    """A syntactically complete visible page cannot hide unselected repositories."""
+    org_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    client = _LiveClient(
+        {
+            org_path: [
+                {
+                    "name": "public",
+                    "full_name": "ContextualWisdomLab/public",
+                    "archived": True,
+                }
+            ],
+            "/orgs/ContextualWisdomLab": {"public_repos": 1, "total_private_repos": 2},
+        }
+    )
+    with pytest.raises(inventory.InventoryError, match="visibility proof"):
+        inventory.collect_live_organization(client)
+
+
+def test_live_get_retries_one_actual_http_5xx() -> None:
+    """The production exception transport retries only one explicit HTTP 5xx."""
+
+    class Once:
+        calls = 0
+
+        def request(self, _path: str, **_kwargs: Any) -> Any:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("GitHub API failed: server unavailable (HTTP 503)")
+            return {"ok": True}
+
+    receipts: list[dict[str, Any]] = []
+    client = Once()
+    assert inventory._live_get(client, "/test", receipts) == {"ok": True}
+    assert client.calls == 2
+    assert len(receipts) == 1
+
+    class Down:
+        def request(self, _path: str, **_kwargs: Any) -> Any:
+            raise RuntimeError("GitHub API failed (HTTP 502)")
+
+    with pytest.raises(inventory.InventoryError, match="RuntimeError"):
+        inventory._live_get(Down(), "/test", [])
+
+
+@pytest.mark.parametrize(
+    "proof",
+    ([], {}, {"public_repos": "1", "total_private_repos": 0}),
+)
+def test_live_collector_rejects_malformed_visibility_proof(proof: object) -> None:
+    """Only numeric organization-wide repository totals prove completeness."""
+    org_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    with pytest.raises(inventory.InventoryError, match="visibility proof"):
+        inventory.collect_live_organization(
+            _LiveClient(
+                {
+                    org_path: [
+                        {
+                            "name": "old",
+                            "full_name": "ContextualWisdomLab/old",
+                            "archived": True,
+                        }
+                    ],
+                    "/orgs/ContextualWisdomLab": proof,
+                }
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "entry",
+    (
+        "not-an-object",
+        {"path": "x"},
+        {"type": "mystery", "path": "x"},
+        {"type": "blob"},
+    ),
+)
+def test_live_tree_rejects_every_malformed_entry(entry: object) -> None:
+    """Malformed tree members never become negative source evidence."""
+    repo = "ContextualWisdomLab/naruon"
+    org_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    responses = {
+        org_path: [
+            {
+                "name": "naruon",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+            "truncated": False,
+            "tree": [entry],
+        },
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 0,
+            "workflows": [],
+        },
+    }
+    with pytest.raises(inventory.InventoryError, match="tree entry"):
+        inventory.collect_live_organization(_LiveClient(responses))
+
+
+def test_live_tree_accepts_non_blob_entries_without_source_paths() -> None:
+    """Valid tree and submodule entries are checked but never workflow sources."""
+    repo = "ContextualWisdomLab/naruon"
+    org_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    responses = {
+        org_path: [
+            {
+                "name": "naruon",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+            "truncated": False,
+            "tree": [
+                {"type": "tree", "path": ".github"},
+                {"type": "commit", "path": "vendor"},
+            ],
+        },
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 0,
+            "workflows": [],
+        },
+    }
+    payload, _ = inventory.collect_live_organization(_LiveClient(responses))
+    assert payload["repositories"][0]["tree_paths"] == []
+
+
+def test_collect_live_organization_fails_on_truncated_tree_or_head_move() -> None:
+    """Incomplete trees and a moving default branch never produce a ledger."""
+    repo = "ContextualWisdomLab/naruon"
+    base = {
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1": [
+            {
+                "name": "naruon",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA_B}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {"truncated": False, "tree": []},
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 0,
+            "workflows": [],
+        },
+    }
+    with pytest.raises(inventory.InventoryError, match="moved"):
+        inventory.collect_live_organization(_LiveClient(base))
+    base[f"/repos/{repo}/commits/main"] = [{"sha": SHA}, {"sha": SHA}]
+    base[f"/repos/{repo}/git/trees/{SHA}?recursive=1"] = {"truncated": True, "tree": []}
+    with pytest.raises(inventory.InventoryError, match="truncated"):
+        inventory.collect_live_organization(_LiveClient(base))
+
+
+def test_live_collector_rejects_every_incomplete_api_shape() -> None:
+    """All malformed live inventory boundaries fail closed."""
+    org_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    with pytest.raises(inventory.InventoryError, match="organization"):
+        inventory.collect_live_organization(_LiveClient({}), "other")
+    for response, message in [({}, "repository inventory"), ([], "empty")]:
+        with pytest.raises(inventory.InventoryError, match=message):
+            inventory.collect_live_organization(_LiveClient({org_path: response}))
+
+    repo = "ContextualWisdomLab/naruon"
+    valid_repo = {
+        "name": "naruon",
+        "full_name": repo,
+        "archived": False,
+        "default_branch": "main",
+    }
+
+    def client_for(**updates: Any) -> _LiveClient:
+        responses: dict[str, Any] = {
+            org_path: [valid_repo],
+            f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+            f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+                "truncated": False,
+                "tree": [],
+            },
+            f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+                "total_count": 0,
+                "workflows": [],
+            },
+        }
+        responses.update(updates)
+        return _LiveClient(responses)
+
+    malformed_repositories = [
+        (
+            {"name": 1, "full_name": repo, "archived": False, "default_branch": "main"},
+            "identity",
+        ),
+        (
+            {
+                "name": "naruon",
+                "full_name": repo,
+                "archived": "no",
+                "default_branch": "main",
+            },
+            "metadata",
+        ),
+    ]
+    for malformed, message in malformed_repositories:
+        with pytest.raises(inventory.InventoryError, match=message):
+            inventory.collect_live_organization(_LiveClient({org_path: [malformed]}))
+    archived, _ = inventory.collect_live_organization(
+        _LiveClient(
+            {
+                org_path: [
+                    {
+                        "name": "old",
+                        "full_name": "ContextualWisdomLab/old",
+                        "archived": True,
+                    }
+                ]
+            }
+        )
+    )
+    assert archived["repositories"][0]["archived"] is True
+    with pytest.raises(inventory.InventoryError, match="SHA is invalid"):
+        inventory.collect_live_organization(
+            client_for(**{f"/repos/{repo}/commits/main": [{"sha": "bad"}]})
+        )
+    with pytest.raises(inventory.InventoryError, match="tree is malformed"):
+        inventory.collect_live_organization(
+            client_for(
+                **{
+                    f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+                        "truncated": False,
+                        "tree": {},
+                    }
+                }
+            )
+        )
+    with pytest.raises(inventory.InventoryError, match="tree entry"):
+        inventory.collect_live_organization(
+            client_for(
+                **{
+                    f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+                        "truncated": False,
+                        "tree": [{"type": "blob", "path": 1}],
+                    }
+                }
+            )
+        )
+    workflow_path = f"/repos/{repo}/actions/workflows?per_page=100&page=1"
+    for response, message in [
+        ([], "workflow inventory"),
+        ({"workflows": [], "total_count": "0"}, "total_count"),
+        ({"workflows": [], "total_count": 1}, "pagination"),
+    ]:
+        with pytest.raises(inventory.InventoryError, match=message):
+            inventory.collect_live_organization(client_for(**{workflow_path: response}))
+
+
+def test_live_collector_consumes_second_repository_and_workflow_pages() -> None:
+    """Full 100-item pages force the next API page instead of truncating."""
+    first_org = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    second_org = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=2"
+    )
+    archived = [
+        {
+            "name": f"repo-{index}",
+            "full_name": f"ContextualWisdomLab/repo-{index}",
+            "archived": True,
+        }
+        for index in range(100)
+    ]
+    payload, _ = inventory.collect_live_organization(
+        _LiveClient({first_org: archived, second_org: []})
+    )
+    assert len(payload["repositories"]) == 100
+
+    repo = "ContextualWisdomLab/naruon"
+    first = [
+        _workflow(index + 1, f".github/workflows/{index}.yml") for index in range(100)
+    ]
+    responses = {
+        first_org: [
+            {
+                "name": "naruon",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {"truncated": False, "tree": []},
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 101,
+            "workflows": first,
+        },
+        f"/repos/{repo}/actions/workflows?per_page=100&page=2": {
+            "total_count": 101,
+            "workflows": [_workflow(101, ".github/workflows/last.yml")],
+        },
+    }
+    payload, _ = inventory.collect_live_organization(_LiveClient(responses))
+    assert len(payload["repositories"][0]["workflow_pages"]) == 2
+
+
+def test_incomplete_inventory_fails_before_repository_classification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fleet completeness gate precedes all repository processing."""
+    payload = _payload([_repo("naruon", [], [])])
+    payload["repository_inventory_complete"] = False
+    monkeypatch.setattr(
+        inventory,
+        "inventory_repository",
+        lambda _record: pytest.fail(
+            "incomplete fleet reached repository classification"
+        ),
+    )
+    with pytest.raises(inventory.InventoryError, match="incomplete"):
+        inventory.inventory_organization(payload)
+
+
