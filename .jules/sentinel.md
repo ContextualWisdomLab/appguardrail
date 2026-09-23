@@ -127,3 +127,8 @@
 **Vulnerability:** The `/api/v1/webhook` POST endpoint in `appguardrail_core/controlplane.py` failed to validate the `url` property when accepting it into the database, leading to Stored SSRF risks. In addition, the core SSRF validation logic (`_is_safe_url`) in both the CLI and control-plane did not verify the input type (e.g. `isinstance(url, str)`). Passing non-string types (like integers) resulted in unhandled `AttributeError` exceptions inside `urllib.parse.urlparse`, which led to API 500 crashes on malicious JSON payloads.
 **Learning:** Network endpoints must explicitly validate the data type of user-provided configurations prior to execution or storage. Furthermore, webhooks configured by users should always be checked for SSRF when saved, as trusting them later assumes input has already been safely validated, bypassing downstream network guardrails.
 **Prevention:** Apply `_is_safe_url` checks directly upon ingestion (e.g., in `/api/v1/webhook`) and enforce type checks `if not isinstance(url, str): return False` prior to using library parsing functions like `urlparse`. Always return gracefully failing responses (like `400 Bad Request`) for unsafe URLs instead of allowing unhandled 500 server errors.
+
+## 2024-05-24 - 저장소 경계에서의 SSRF 보안 검증
+**Vulnerability:** 웹훅 URL에 대한 보안 검증(SSRF 검사)이 HTTP 핸들러에서만 수행되어, 다른 모듈에서 하위 스토리지 함수인 `set_webhook`을 직접 호출할 경우 취약점이 발생할 수 있었습니다.
+**Learning:** 보안 검증은 HTTP 핸들러의 입력 정리(Sanitization)에만 의존해서는 안 되며, 상태 변경이 일어나는 경계(스토리지 계층)에서 강제되어야 합니다. 이렇게 하면 내부 함수가 재사용될 때 검증이 우회되는 것을 방지할 수 있습니다.
+**Prevention:** 데이터가 커밋되기 전 가장 낮은 계층에서 입력 값 소독 및 보안 검사를 위임하여 모든 접근 경로에서 일관성을 보장해야 합니다. HTTP 핸들러에서는 `ValueError`를 처리하여 클라이언트에게 적절한 피드백을 제공하도록 합니다.
