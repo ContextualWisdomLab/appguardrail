@@ -230,7 +230,7 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
                 continue
             try:
                 items.append(str(item))
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
     except Exception:
         return tuple(items)
