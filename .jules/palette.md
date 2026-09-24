@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-08-16 - 파일 입력(File Input) 스타일링 및 접근성
-**Learning:** 네이티브 `<input type="file">` 요소는 브라우저마다 일관되게 스타일링하기가 매우 어려워 개발자들이 종종 숨기곤 합니다. 하지만 `aria-label`을 제거하거나 포커스 관리를 생략하면 접근성이 훼손되며, 네이티브 입력 요소에 전적으로 인라인 `onclick` 핸들러를 의존하면 동작이 강하게 결합되고 테스트 자동화(예: 클릭하여 파일 선택 창을 기대하는 동작)가 멈추기 쉽습니다.
-**Action:** 네이티브 `<button>`을 스타일링하여 파일 입력을 클릭하도록 프록시 트리거 역할을 하게 합니다. `.sr-only`와 `tabindex="-1"`을 추가하여 입력을 시각적으로는 숨기되, 요구되는 `aria-label`은 그대로 유지하여 레이블-인-네임(label-in-name) 요구 사항과 UI 계약 테스트를 충족시킵니다.
