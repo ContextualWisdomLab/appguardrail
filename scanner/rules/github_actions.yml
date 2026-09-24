@@ -4,7 +4,7 @@ rules:
   # structure, not temporary-looking names such as `once` or `repair`.
   - id: github-actions-mutable-branch-writer
     patterns:
-      - pattern-regex: '\A(?=[\s\S]*^(?:[ \t]*contents[ \t]*:[ \t]*write|[ \t]*permissions[ \t]*:[ \t]*write-all)[ \t]*(?:#.*)?$)(?=[\s\S]*\bgit[ \t]+push\b[^\n]*(?:github\.(?:head_ref|ref_name)|github\.event\.pull_request\.head\.ref|HEAD[ \t]*:))[\s\S]*\Z'
+      - pattern-regex: '\A(?=[\s\S]*^(?:[ \t]*contents[ \t]*:[ \t]*write|[ \t]*permissions[ \t]*:[ \t]*write-all)[ \t]*(?:#.*)?$)(?=[\s\S]*\bgit[ \t]+push\b[^\n]*github\.(?:head_ref|ref_name|event\.pull_request\.head\.ref))[\s\S]*\Z'
     message: |
       This workflow combines repository write authority with an explicit push
       to mutable event-derived branch state. Contributor-controlled workflow

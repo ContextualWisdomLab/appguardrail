@@ -30,7 +30,8 @@ branch movement fail closed rather than becoming clean evidence.
 The packaged source scanner separately reports two structural writer shapes:
 
 - `github-actions-mutable-branch-writer` detects a write token combined with a
-  push to an event-derived mutable branch;
+  push to an event-derived mutable branch. An explicit protected-branch target
+  does not trigger this rule;
 - `github-actions-self-modifying-writer` detects a write-capable workflow that
   edits or deletes `.github/workflows/**`.
 
