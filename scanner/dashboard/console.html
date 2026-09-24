@@ -121,10 +121,10 @@ async function load(){
     const latest=scans[0]||{severity_counts:{}};
     const c=latest.severity_counts||{};
     $("#stats").innerHTML=[
-      ["Latest deploy-blocking",latest.deploy_blocking||0],
-      ["New since last scan",latest.new_blocking||0],
-      ["Critical",c.CRITICAL||0],
-      ["Scans stored",scans.length],
+      ["Latest deploy-blocking",Number(latest.deploy_blocking)||0],
+      ["New since last scan",Number(latest.new_blocking)||0],
+      ["Critical",Number(c.CRITICAL)||0],
+      ["Scans stored",Number(scans.length)],
     ].map(([l,n])=>`<div class="stat"><div class="l">${l}</div><div class="n">${n}</div></div>`).join("");
     const ord=[...scans].reverse();
     const max=Math.max(1,...ord.map(s=>s.deploy_blocking||0));
@@ -155,7 +155,7 @@ async function detail(id,tr){
   try{
     const s=await api("/api/v1/scans/"+id);
     if(requestId!==currentDetailRequest)return;
-    const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
+    const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[String(f.severity).toUpperCase()]||'var(--info)'}">${esc(f.severity)}</span></td>
       <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
       <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
     d.innerHTML=`<button type="button" class="close-btn" aria-label="Close details">✕</button><strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
