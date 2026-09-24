@@ -39,7 +39,7 @@
 **Action:** Always declare the loading state explicitly by setting `aria-busy="true"` on the trigger element, and wrap dynamic status or error updates in containers with `aria-live="polite"` or `role="alert"`.
 
 ## 2024-05-24 - Do not use aria-label on table rows
-**Learning:** Setting `aria-label` on table rows (`<tr>`), even those with `role="button"`), overrides natural table cell reading and hides critical table data from screen reader users.
+**Learning:** Setting `aria-label` on table rows (`<tr>`), even those with `role="button"`, overrides natural table cell reading and hides critical table data from screen reader users.
 **Action:** Use the `title` attribute instead to preserve natural cell reading while providing visual tooltip feedback for mouse users.
 
 ## 2024-11-20 - Empty State Clear Filters CTA
