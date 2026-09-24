@@ -39,7 +39,7 @@
 **Action:** Always declare the loading state explicitly by setting `aria-busy="true"` on the trigger element, and wrap dynamic status or error updates in containers with `aria-live="polite"` or `role="alert"`.
 
 ## 2024-05-24 - Do not use aria-label on table rows
-**Learning:** Setting `aria-label` on table rows (`<tr>`), even those with `role="button"`, overrides natural table cell reading and hides critical table data from screen reader users.
+**Learning:** Setting `aria-label` on table rows (`<tr>`), even those with `role="button"`), overrides natural table cell reading and hides critical table data from screen reader users.
 **Action:** Use the `title` attribute instead to preserve natural cell reading while providing visual tooltip feedback for mouse users.
 
 ## 2024-11-20 - Empty State Clear Filters CTA
@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2024-05-19 - 외부 링크 시각적/보조 기술 피드백 추가
-**Learning:** 외부 링크(`target="_blank"`)를 제공할 때 시각적 피드백(아이콘)과 보조 기술(스크린 리더)을 위한 숨김 텍스트가 없으면 접근성이 크게 떨어지며, 긴 URL은 UI 레이아웃을 망가뜨릴 수 있다.
-**Action:** 외부 링크 렌더링 시 `<a>` 태그 내부에 `.sr-only` 설명 텍스트와 시각적 SVG 아이콘을 포함하고, 긴 텍스트 줄바꿈 처리를 위해 `style="word-break: break-all;"`을 적용해야 한다.
