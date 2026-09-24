@@ -9,7 +9,6 @@ import pytest
 
 from appguardrail_core import openssf_evidence as evidence
 
-
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_URL = "https://github.com/ContextualWisdomLab/appguardrail"
 VERIFIED_AT = "2026-08-04T09:00:00Z"

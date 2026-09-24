@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 AGENTS_PATH = Path(__file__).resolve().parents[1] / "AGENTS.md"
 
 

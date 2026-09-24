@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from pathlib import Path
 import sys
 import trace
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ def executable_lines(path: Path) -> frozenset[int]:
     """Return executable source lines excluding reviewed structural and no-cover lines."""
     resolved = path.resolve()
     source_lines = resolved.read_text(encoding="utf-8").splitlines()
-    discovered = trace._find_executable_linenos(str(resolved))  # noqa: SLF001
+    discovered = trace._find_executable_linenos(str(resolved))
     return frozenset(
         line_number
         for line_number in discovered

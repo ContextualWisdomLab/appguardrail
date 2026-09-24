@@ -11,10 +11,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Iterable, Mapping
-
+from typing import Any
 
 GENESIS_EVENT_HASH = "0" * 64
 MAX_AUDIT_SUMMARY_BYTES = 16_384

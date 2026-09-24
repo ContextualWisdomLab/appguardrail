@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 LOOP_PATH = ROOT / "scripts" / "ci" / "commercial_readiness_loop.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "commercial-readiness-loop.yml"

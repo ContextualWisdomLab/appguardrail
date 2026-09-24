@@ -11,14 +11,14 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from appguardrail_core.org_bundle import OrgBundleError
-from appguardrail_core.org_bundle import \
-    annotate_missing_pr_repositories as _annotate_missing_pr_repositories
+from appguardrail_core.org_bundle import OrgBundleError, render_org_evidence
+from appguardrail_core.org_bundle import (
+    annotate_missing_pr_repositories as _annotate_missing_pr_repositories,
+)
 from appguardrail_core.org_bundle import gh_error_message as _gh_error_message
 from appguardrail_core.org_bundle import gh_pr_list as _gh_pr_list
 from appguardrail_core.org_bundle import gh_repo_list as _gh_repo_list
 from appguardrail_core.org_bundle import load_json as _load_json
-from appguardrail_core.org_bundle import render_org_evidence
 from appguardrail_core.org_bundle import write_bundle as _write_bundle
 from appguardrail_core.org_bundle import write_json as _write_json
 

@@ -1,6 +1,11 @@
-from appguardrail_core.findings import (finding_sort_key, is_deploy_blocking,
-                                        normalize_finding, normalize_findings,
-                                        safe_report_snippet, severity_counts)
+from appguardrail_core.findings import (
+    finding_sort_key,
+    is_deploy_blocking,
+    normalize_finding,
+    normalize_findings,
+    safe_report_snippet,
+    severity_counts,
+)
 
 
 class ExplosiveText:
