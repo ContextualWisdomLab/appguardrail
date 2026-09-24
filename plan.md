@@ -1,0 +1,1 @@
+Ah, the first error was because the tests run `python -m pytest tests/test_console_dashboard_security.py` and those tests were actually reading `scanner/dashboard/console.html` which failed. However, wait! I already fixed `tests/test_console_dashboard_security.py` earlier and it passed locally, but I didn't push it or somehow it wasn't committed! Let me check the git history.
