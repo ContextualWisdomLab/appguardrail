@@ -106,12 +106,15 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    # ⚡ 최적화: 정규식 오버헤드를 방지하기 위한 빠른 부분 문자열 검사
+    if not message or "[" not in message:
+        return ()
+
+    # ⚡ 최적화: 제너레이터 평가 오버헤드를 제거하기 위한 루프 전개
+    seen = {}
+    for match in REFERENCE_RE.finditer(message):
+        seen[" ".join(match.group(1).split())] = None
+    return tuple(seen)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -174,8 +177,10 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
-    )
+    # ⚡ 최적화: dict.fromkeys() 제너레이터 오버헤드 제거를 위한 명시적 루프 전개
+    seen = {}
+    for group in groups:
+        for reference in group:
+            if reference:
+                seen[reference] = None
+    return tuple(seen)
