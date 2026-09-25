@@ -78,3 +78,26 @@ def test_validate_rule_metadata_reports_missing_public_reference():
 
     assert "missing references" in errors
     assert "missing public taxonomy reference" in errors
+
+def test_validate_rule_metadata_reports_malformed_references():
+    errors = validate_rule_metadata(
+        {
+            "rule_id": "demo",
+            "severity": "HIGH",
+            "category": "demo",
+            "references": ["CWE-99999", "OWASP A01:2021 - Broken Access Control"],
+            "remediation": "Fix it.",
+        }
+    )
+    assert "malformed reference: CWE-99999" in errors
+
+
+def test_build_rule_metadata_category_override_is_removed():
+    # If the user injects a reference, it should not override the passed category
+    metadata = build_rule_metadata(
+        "test-rule",
+        "HIGH",
+        "[CWE-918 - Server-Side Request Forgery]",
+        category="authz",
+    )
+    assert metadata.category == "authz"
