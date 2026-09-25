@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-08-01 - O(N^2) Penalty on dictionary index lookups
+**Learning:** In Python, casting a dictionary's keys to a list and calling `.index(key)` inside a loop degrades performance to O(N^2). This happens implicitly when creating SARIF results where every loop iteration rebuilds and scans the keys list.
+**Action:** To achieve O(1) lookups for insertion indices, maintain a parallel dictionary mapping keys to their index.
