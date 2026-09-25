@@ -106,12 +106,15 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    # Fast-path check: avoid regex allocations for messages without references
+    if not message or "[" not in message:
+        return ()
+
+    # Explicit loop avoids generator expression overhead in tuple/dict constructors
+    keys = {}
+    for match in REFERENCE_RE.finditer(message):
+        keys[" ".join(match.group(1).split())] = None
+    return tuple(keys)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -174,8 +177,10 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
-    )
+    # Unrolled explicit loop deduplicates via dict keys without generator overhead
+    keys = {}
+    for group in groups:
+        for reference in group:
+            if reference:
+                keys[reference] = None
+    return tuple(keys)

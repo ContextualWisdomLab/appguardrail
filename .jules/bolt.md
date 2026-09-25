@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-20 - 튜플 및 딕셔너리 생성자에서 제너레이터 표현식 최적화
+**Learning:** `dict.fromkeys(x for x in y)`와 같이 제너레이터 표현식을 생성자에 전달하면 Python 인터프리터 수준에서 프레임 생성 및 상태 추적 오버헤드가 발생하여 성능이 저하됩니다. 정규식 매칭이 많은 핫 패스(`extract_public_references`, `_merge_references`)에서 이 오버헤드는 눈에 띄게 나타납니다.
+**Action:** 제너레이터 표현식을 명시적인 `for` 루프로 전개(unroll)하여 지역 딕셔너리를 직접 채우는 방식으로 변경하세요. Python 3.7+부터는 딕셔너리 키의 삽입 순서가 보장되므로 정렬 및 중복 제거(deduplication) 로직을 안전하게 유지할 수 있으며 성능이 향상됩니다.
