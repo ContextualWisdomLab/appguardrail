@@ -94,7 +94,7 @@
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
   <button type="button" id="header-browse-findings" class="primary-action" style="margin-left:12px">Upload findings</button>
-  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" class="sr-only" hidden tabindex="-1">
+  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" class="sr-only" tabindex="-1">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app" tabindex="-1"></main>
@@ -392,11 +392,13 @@ addEventListener("keydown", e => {
 </script>
 
 <script>
-  const headerBrowseFindings = document.getElementById('header-browse-findings');
-  const headerFileInput = document.getElementById('file');
-  if(headerBrowseFindings && headerFileInput) {
-    headerBrowseFindings.addEventListener('click', () => headerFileInput.click());
-  }
+  (function() {
+    const headerBrowseFindings = document.getElementById('header-browse-findings');
+    const headerFileInput = document.getElementById('file');
+    if (headerBrowseFindings && headerFileInput) {
+      headerBrowseFindings.addEventListener('click', () => headerFileInput.click());
+    }
+  })();
 </script>
 </body>
 </html>
