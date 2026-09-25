@@ -55,6 +55,7 @@ jobs:
   changed-scope:
     name: Classify changed scope for Trivy
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -71,7 +72,9 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          code=true
+          # "unknown" until the complete PR file list is verified; only then
+          # write true/false. Local trivy-fs runs for anything except "true".
+          code=unknown
           if [ -n "${PR}" ] && [ -n "${EXPECTED_FILES}" ]; then
             changed=""
             for attempt in 1 2 3; do
@@ -92,21 +95,26 @@ jobs:
                 esac
               done <<<"$changed"
             else
-              echo "::notice::changed-scope could not read a complete PR file list; scanning everything."
+              code=unknown
+              echo "::notice::changed-scope could not read a complete PR file list; code=unknown, local Trivy fallback will run."
             fi
           fi
           echo "code=${code}" >> "$GITHUB_OUTPUT"
           echo "changed-scope code=${code}"
 
   trivy-fs:
+    name: trivy-fs (local fallback)
     needs: changed-scope
     # Central Security Scan runs trivy-fs for code-changing PRs to the default
     # branch. Run the local fallback for non-code PRs, plus pushes and PRs to
-    # other branches where the central required workflow does not apply.
+    # other branches where the central required workflow does not apply. Also
+    # run whenever changed-scope failed/was skipped or could not verify the
+    # complete file list (code=unknown), so failures lean toward scanning.
     if: >-
-      github.event_name != 'pull_request'
+      !cancelled() && (github.event_name != 'pull_request'
       || github.base_ref != github.event.repository.default_branch
-      || needs.changed-scope.outputs.code != 'true'
+      || needs.changed-scope.result != 'success'
+      || needs.changed-scope.outputs.code != 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
