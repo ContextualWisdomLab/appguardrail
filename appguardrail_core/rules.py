@@ -106,12 +106,13 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    if not message or "[" not in message:
+        return ()
+
+    seen = {}
+    for match in REFERENCE_RE.finditer(message):
+        seen[" ".join(match.group(1).split())] = None
+    return tuple(seen)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
