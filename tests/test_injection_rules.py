@@ -34,3 +34,13 @@ def test_hardcoded_anthropic_api_key():
     assert r["pattern"].search("key = 'sk-ant-api03-AbCdEf0123456789xyzXYZ_-abc'")
     assert not r["pattern"].search("key = 'sk-ant-'")  # too short
     assert not r["pattern"].search("token = 'sk-live-notananthropickey'")
+
+def test_python_command_injection():
+    r = _rule("python-command-injection")
+    assert r["severity"] == "CRITICAL"
+    assert r["pattern"].search("os.system('ls -l')")
+    assert r["pattern"].search("subprocess.run('ls -l', shell=True)")
+    assert r["pattern"].search("subprocess.Popen('ls -l', shell = True)")
+    assert r["pattern"].search("subprocess.call('ls -l', shell=1)")
+    assert not r["pattern"].search("subprocess.run(['ls', '-l'])")
+    assert not r["pattern"].search("subprocess.Popen(['ls', '-l'], shell=False)")
