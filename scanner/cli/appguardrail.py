@@ -2336,6 +2336,8 @@ def _finding_category(rule_id: str) -> str:
         )
     ):
         return "secrets"
+    if "ssrf" in rule:
+        return "ssrf"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
