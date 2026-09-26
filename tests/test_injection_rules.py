@@ -49,14 +49,18 @@ def test_python_command_injection():
 subprocess.run(build_command(user_input), shell=True)
 subprocess.Popen(command, shell = 1)
 subprocess.call(command, shell=enabled)
+wrapper.os.system(user_input)
+wrapper.subprocess.run(command, shell=True)
 """
     matches = _python_command_matches(source)
-    assert len(matches) == 4
+    assert len(matches) == 6
     assert [source.count("\n", 0, match.start()) + 1 for match in matches] == [
         1,
         2,
         3,
         4,
+        5,
+        6,
     ]
 
 

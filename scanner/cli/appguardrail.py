@@ -344,12 +344,15 @@ def _iter_python_command_injection_matches(content: str):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
         owner = node.func.value
-        if not isinstance(owner, ast.Name):
-            continue
+        owner_name = (
+            owner.id
+            if isinstance(owner, ast.Name)
+            else owner.attr if isinstance(owner, ast.Attribute) else None
+        )
 
-        is_os_system = owner.id == "os" and node.func.attr == "system"
+        is_os_system = owner_name == "os" and node.func.attr == "system"
         is_subprocess_shell = (
-            owner.id == "subprocess"
+            owner_name == "subprocess"
             and node.func.attr in _SUBPROCESS_SHELL_CALLS
             and any(
                 keyword.arg == "shell"
