@@ -41,8 +41,10 @@ jobs:
     assert _matches("github-actions-self-modifying-writer", workflow)
 
 
-def test_write_all_reaches_scanner_level_mutable_branch_rule(tmp_path) -> None:
-    """The scanner prefilter must not discard GitHub's write-all shorthand."""
+def test_write_all_and_spaced_push_reach_scanner_level_mutable_branch_rule(
+    tmp_path,
+) -> None:
+    """The prefilter must admit write-all and shell-valid push whitespace."""
     workflow = tmp_path / ".github" / "workflows" / "repair.yml"
     workflow.parent.mkdir(parents=True)
     workflow.write_text(
@@ -52,7 +54,7 @@ permissions: write-all
 jobs:
   repair:
     steps:
-      - run: git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - run: git  push origin HEAD:${{ github.event.pull_request.head.ref }}
 """,
         encoding="utf-8",
     )
@@ -78,7 +80,7 @@ jobs:
       - run: |
           git rm .github/workflows/self-edit.yml
           git  commit -m retire
-          git push origin HEAD:feature
+          git  push origin HEAD:feature
 """,
         encoding="utf-8",
     )

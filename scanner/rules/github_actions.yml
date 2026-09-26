@@ -14,7 +14,7 @@ rules:
       release contract. [OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [generic]
-    prefilter: ["write", "git push"]
+    prefilter: ["write", "git", "push"]
     paths:
       include:
         - .github/workflows/*.yml
@@ -33,7 +33,7 @@ rules:
       [OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [generic]
-    prefilter: ["write", ".github/workflows/", "commit", "git push"]
+    prefilter: ["write", ".github/workflows/", "commit", "git", "push"]
     paths:
       include:
         - .github/workflows/*.yml
