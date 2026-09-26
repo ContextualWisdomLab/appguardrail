@@ -77,3 +77,10 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2026-08-16 - Fast-path check for regex evaluations
+**Learning:** `REFERENCE_RE` is compiled at import. The remaining cost on messages with no public IDs is `finditer` scanner allocation. A native `"[" not in message` check skips that work because every valid match must start with `[`. Switching the CWE branch from `if` to `elif` is exclusive classification only: `OWASP ` and `CWE-` cannot both match the same reference, so it is not a 15–20% metadata speedup.
+**Action:** Guard compiled regex scans with a cheap required-substring check. Do not claim wall-clock improvement for exclusive `elif` classification unless a production-path benchmark is attached.
+
+## 2026-09-27 - Measure explicit reference-deduplication loops
+**Learning:** On CPython in the repair environment, nine repeats of 200,000 calls compared the integrated tree with its exact semantic parent `24d0a0000fab39398d57398030af3840f129813b`. Explicit insertion-ordered dictionaries reduced median `_merge_references` time from 0.111731 s to 0.064596 s and matching extraction from 0.303806 s to 0.247064 s. The preserved no-reference fast path measured 0.014028 s vs 0.013521 s. These are same-host microbenchmark results, not an end-to-end scanner latency claim.
+**Action:** Keep the required-substring fast path and semantic regression contract independent from the constant-factor loop refactor. Record workload, repeats, medians, runtime boundary, and limitations with every performance claim.
