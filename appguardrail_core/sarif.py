@@ -12,6 +12,7 @@ stays in lockstep with findings.py.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable
 from urllib.parse import urlsplit
 
@@ -61,8 +62,18 @@ def _help_uri(references: Iterable[Any]) -> str | None:
     """Return the first absolute web URI represented by a rule reference."""
     for reference in references:
         candidate = _OWASP_HELP_URIS.get(str(reference), str(reference).strip())
-        parsed = urlsplit(candidate)
-        if parsed.scheme in {"http", "https"} and parsed.netloc:
+        if any(
+            ord(character) <= 0x20 or ord(character) == 0x7F
+            for character in candidate
+        ):
+            continue
+        if re.search(r"%(?![0-9A-Fa-f]{2})", candidate):
+            continue
+        try:
+            parsed = urlsplit(candidate)
+        except ValueError:
+            continue
+        if parsed.scheme in {"http", "https"} and parsed.netloc and parsed.hostname:
             return candidate
     return None
 

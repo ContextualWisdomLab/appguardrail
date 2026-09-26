@@ -121,3 +121,47 @@ def test_help_uri_is_a_uri_and_reference_labels_remain_readable():
         assert parsed.scheme == "https"
         assert parsed.netloc
         assert rule["help"]["text"].startswith("OWASP ")
+
+
+def test_help_uri_skips_unparseable_reference_and_uses_later_valid_url():
+    """An unparseable reference cannot abort SARIF generation."""
+    findings = [
+        {
+            "severity": "WARNING",
+            "rule_id": "malformed-reference",
+            "message": "Reference metadata is malformed",
+            "file": "rules/example.yml",
+            "line": 1,
+            "references": ["https://[", "https://example.com/guidance"],
+        }
+    ]
+
+    rule = findings_to_sarif(findings)["runs"][0]["tool"]["driver"]["rules"][0]
+    assert rule["helpUri"] == "https://example.com/guidance"
+    assert rule["help"]["text"] == "https://[\nhttps://example.com/guidance"
+
+
+def test_help_uri_omits_http_references_with_invalid_uri_characters():
+    """Whitespace, controls, and incomplete escapes stay out of helpUri."""
+    findings = [
+        {
+            "severity": "INFO",
+            "rule_id": "invalid-uri-characters",
+            "message": "Reference metadata is not a URI",
+            "file": "rules/example.yml",
+            "line": 2,
+            "references": [
+                "https://exa mple.com/path",
+                "https://example.com/%zz",
+                "https://example.com/path\x01",
+            ],
+        }
+    ]
+
+    rule = findings_to_sarif(findings)["runs"][0]["tool"]["driver"]["rules"][0]
+    assert "helpUri" not in rule
+    assert rule["help"]["text"] == (
+        "https://exa mple.com/path\n"
+        "https://example.com/%zz\n"
+        "https://example.com/path\x01"
+    )
