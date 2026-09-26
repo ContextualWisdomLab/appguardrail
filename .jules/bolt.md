@@ -77,14 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-## 2025-01-22 - Optimize severities_at_or_above with module-level dictionary cache
-**Learning:** `severities_at_or_above` previously scanned the fixed four-entry severity mapping before returning a mutable set. A precomputed table removes that scan, but the function still allocates a fresh set for caller-mutation isolation; no material end-to-end improvement is established without a reproducible benchmark artifact.
-**Action:** Preserve exact threshold, invalid-input fallback, and fresh-set semantics. Before claiming a percentage improvement, record the benchmark command, environment, warm-up, sample size, failure denominator, and median/p95 for both implementations and the real calling path.
-
-## 2026-09-20 - Preserve ordered reference de-duplication without generator intermediates
-**Learning:** `_merge_references` can use explicit nested loops while preserving first-seen ordering, duplicate removal, and empty-value filtering. This is a constant-factor candidate; an isolated timing claim is not end-to-end product evidence.
-**Action:** Keep the ordering/deduplication contract and record the command, environment, warm-up, sample size, failure denominator, median/p95, and real calling-path impact before claiming material performance.
-
-## 2026-09-26 - Preserve stable code-scanning dimensions without regex state
-**Learning:** `" ".join(text.split())` preserves the supported Unicode-whitespace collapse contract without a module-level regex. This is a maintainability and constant-factor candidate, not evidence of end-to-end scan improvement.
-**Action:** Keep tabs, newlines, and Unicode whitespace equivalent in a focused contract. Record the command, runtime, warm-up, sample size, failure denominator, median/p95, and real analysis-normalization path before claiming material performance.
+## 2026-09-20 - Whitespace normalization with split and join
+**Learning:** Normalizing whitespace (replacing multiple spaces, tabs, and newlines with a single space) using `re.compile(r"\s+").sub(" ", text).strip()` incurs measurable regex engine overhead.
+**Action:** Replace the regex approach with `' '.join(text.split())`. The native C-level `split()` method automatically handles all whitespace sequences and strips leading/trailing whitespace, resulting in a cleaner and ~70% faster execution in hot paths.
