@@ -105,3 +105,5 @@
 
 ### 검증
 - `scanner/cli/appguardrail.py` 전체 코드에 대한 테스트 커버리지 100% 달성 및 기존 기능의 안정성 확보 검증.
+
+- Code-scanning dimension normalization now collapses tabs, newlines, and Unicode whitespace through the native split/join path; a focused equivalence contract is included, and no end-to-end performance improvement is claimed without reproducible median/p95 evidence.
