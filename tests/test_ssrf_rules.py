@@ -145,6 +145,23 @@ def _safe_source():
     )
 
 
+def _unrelated_rejected_sink_then_unsafe_source():
+    """Build an unrelated rejected sink followed by unsafe URL persistence."""
+    sink = "set_" + "webhook"
+    return "\n".join(
+        [
+            "def update_webhook(conn, org, body):",
+            '    webhook_url = (body or {}).get("url")',
+            "    try:",
+            f"        {sink}(conn, org, None)",
+            "    except ValueError:",
+            "        return",
+            f"    {sink}(conn, org, webhook_url)",
+            "",
+        ]
+    )
+
+
 def _production_guard_source():
     """Build the multiline fail-closed guard used by the control plane."""
     sink = "set_" + "webhook"
@@ -259,6 +276,13 @@ def test_packaged_rule_matches_conditional_rejection_guard():
 def test_packaged_rule_ignores_positive_guarded_persistence():
     """Do not flag a sink that is reachable only after positive validation."""
     assert not _rule()["pattern"].search(_positive_guard_source())
+
+
+def test_packaged_rule_matches_sink_after_unrelated_value_error_handler():
+    """An unrelated rejected sink must not hide later unsafe persistence."""
+    assert _rule()["pattern"].search(
+        _unrelated_rejected_sink_then_unsafe_source()
+    )
 
 
 def test_packaged_rule_matches_unprotected_sink_after_positive_guard():
