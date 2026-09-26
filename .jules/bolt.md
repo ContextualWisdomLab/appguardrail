@@ -84,3 +84,7 @@
 ## 2026-09-20 - Preserve ordered reference de-duplication without generator intermediates
 **Learning:** `_merge_references` can use explicit nested loops while preserving first-seen ordering, duplicate removal, and empty-value filtering. This is a constant-factor candidate; an isolated timing claim is not end-to-end product evidence.
 **Action:** Keep the ordering/deduplication contract and record the command, environment, warm-up, sample size, failure denominator, median/p95, and real calling-path impact before claiming material performance.
+
+## 2026-09-26 - Preserve stable code-scanning dimensions without regex state
+**Learning:** `" ".join(text.split())` preserves the supported Unicode-whitespace collapse contract without a module-level regex. This is a maintainability and constant-factor candidate, not evidence of end-to-end scan improvement.
+**Action:** Keep tabs, newlines, and Unicode whitespace equivalent in a focused contract. Record the command, runtime, warm-up, sample size, failure denominator, median/p95, and real analysis-normalization path before claiming material performance.
