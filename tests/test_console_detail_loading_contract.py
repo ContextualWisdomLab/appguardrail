@@ -29,6 +29,16 @@ def test_console_exposes_loading_busy_and_error_states():
     assert 'tr.removeAttribute("aria-busy");' in html
 
 
+def test_console_row_disables_interactions_while_loading():
+    """Interactive rows must explicitly disable interactions during loading states."""
+    html = _console_html()
+
+    assert 'tr.setAttribute("aria-disabled","true");' in html
+    assert 'tr.removeAttribute("aria-disabled");' in html
+    assert 'tr.scan[aria-disabled="true"]{opacity:0.6;cursor:not-allowed;pointer-events:none}' in html
+    assert 'if(tr && tr.getAttribute("aria-disabled")==="true") return;' in html
+
+
 def test_console_detail_scrolling_respects_reduced_motion():
     """Successful and failed detail requests must honor reduced-motion preferences."""
     html = _console_html()
