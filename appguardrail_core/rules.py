@@ -174,8 +174,7 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    # ⚡ Bolt: Unroll generator expression into explicit nested loops to avoid
-    # Python generator object creation and frame allocation overhead in hot paths.
+    # Preserve first-seen order without an intermediate generator.
     merged: dict[str, None] = {}
     for group in groups:
         for reference in group:
