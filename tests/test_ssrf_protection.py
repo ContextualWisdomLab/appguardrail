@@ -1,15 +1,19 @@
-import urllib.error
-import urllib.request
-
 import pytest
 
-from appguardrail_core.controlplane import SafeRedirectHandler, _is_safe_url
+from appguardrail_core import controlplane
+from appguardrail_core.controlplane import _is_safe_url, _send_alert
+from appguardrail_core.pinned_https import PinnedHTTPSResponse
 from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
-def test_is_safe_url_public_domains():
-    assert _is_safe_url("http://google.com/")
-    assert _is_safe_url("https://github.com/")
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+def test_is_safe_url_requires_public_https(validator):
+    assert not validator("http://8.8.8.8/")
+    assert validator("https://8.8.8.8/")
 
 @pytest.mark.parametrize(
     "validator",
@@ -23,6 +27,26 @@ def test_is_safe_url_public_domains():
 )
 def test_is_safe_url_invalid_types(validator, value):
     assert not validator(value)
+
+
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://",
+        "https://",
+        "http://user@",
+        "http:///",
+        "http://?query",
+        "http://#fragment",
+    ],
+)
+def test_is_safe_url_rejects_empty_hostname(validator, url):
+    assert not validator(url)
 
 
 def test_is_safe_url_ipv4_localhost():
@@ -64,9 +88,12 @@ def test_is_safe_url_unsupported_schemes():
     assert not _is_safe_url("gopher://example.com")
 
 
-def test_is_safe_url_unresolvable_domain():
-    # An unresolvable domain is considered safe by _is_safe_url
-    assert _is_safe_url("http://this-domain-should-not-exist-12345.com/")
+@pytest.mark.parametrize(
+    "url",
+    ["https://8.8.8.8:0/", "https://8.8.8.8:65536/", "https://8.8.8.8:not-a-port/"],
+)
+def test_is_safe_url_rejects_invalid_ports(url):
+    assert not _is_safe_url(url)
 
 
 def test_is_safe_url_mapped_ips():
@@ -92,35 +119,15 @@ def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
     )
 
 
-def test_safe_redirect_handler_rejects_internal_target():
-    handler = SafeRedirectHandler()
-    with pytest.raises(urllib.error.URLError) as exc:
-        handler.redirect_request(None, None, 302, "Found", None, "http://127.0.0.1/")
-    assert "Unsafe redirect target" in str(exc.value)
+def test_send_alert_uses_dns_pinned_https_transport(monkeypatch):
+    calls = []
 
+    def deliver(url, payload, *, timeout):
+        calls.append((url, payload, timeout))
+        return PinnedHTTPSResponse(204, "No Content", (), b"")
 
-def test_safe_redirect_handler_rejects_metadata_target():
-    handler = SafeRedirectHandler()
-    with pytest.raises(urllib.error.URLError) as exc:
-        handler.redirect_request(
-            None, None, 302, "Found", None, "http://169.254.169.254/latest/meta-data"
-        )
-    assert "Unsafe redirect target" in str(exc.value)
+    monkeypatch.setattr(controlplane, "post_json_pinned_https", deliver, raising=False)
 
-
-def test_safe_redirect_handler_allows_public_https(monkeypatch):
-    handler = SafeRedirectHandler()
-    sentinel = object()
-
-    def _fake_super_redirect(self, req, fp, code, msg, headers, newurl):
-        return sentinel
-
-    monkeypatch.setattr(
-        urllib.request.HTTPRedirectHandler,
-        "redirect_request",
-        _fake_super_redirect,
-    )
-    result = handler.redirect_request(
-        None, None, 302, "Found", None, "https://hooks.example.com/alert"
-    )
-    assert result is sentinel
+    payload = {"event": "drift.new_blocking"}
+    assert _send_alert("https://8.8.8.8/hook", payload)
+    assert calls == [("https://8.8.8.8/hook", payload, 10)]
