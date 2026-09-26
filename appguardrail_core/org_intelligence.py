@@ -123,30 +123,41 @@ def build_org_inventory(
 ) -> OrgInventory:
     """Build a stable organization inventory from GitHub repo JSON."""
     repo_list = list(repos)
-    nonforks = [repo for repo in repo_list if not _truthy(repo.get("isFork"))]
-    forks = [repo for repo in repo_list if _truthy(repo.get("isFork"))]
-    primary_languages = Counter(_primary_language(repo) for repo in repo_list)
-    default_branches = Counter(_default_branch(repo) for repo in repo_list)
-    unsupported = sorted(
-        {
-            _primary_language(repo)
-            for repo in nonforks
-            if _primary_language(repo) not in SUPPORTED_PRIMARY_LANGUAGES
-            and _primary_language(repo) != "Unknown"
-        }
-    )
-    supported_nonforks = sum(
-        1 for repo in nonforks if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
-    )
+    nonforks = []
+    forks = []
+    primary_languages = Counter()
+    default_branches = Counter()
+    unsupported_set = set()
+    supported_nonforks = 0
+    private_repositories = 0
+
+    for repo in repo_list:
+        is_fork = _truthy(repo.get("isFork"))
+        if is_fork:
+            forks.append(repo)
+        else:
+            nonforks.append(repo)
+
+        lang = _primary_language(repo)
+        primary_languages[lang] += 1
+        default_branches[_default_branch(repo)] += 1
+
+        if not is_fork:
+            if lang in SUPPORTED_PRIMARY_LANGUAGES:
+                supported_nonforks += 1
+            elif lang != "Unknown":
+                unsupported_set.add(lang)
+
+        if _truthy(repo.get("isPrivate")):
+            private_repositories += 1
+
     return OrgInventory(
-        total_repositories=len(repo_list),
+        total_repositories=len(nonforks) + len(forks),
         nonfork_repositories=len(nonforks),
         fork_repositories=len(forks),
-        private_repositories=sum(
-            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
-        ),
+        private_repositories=private_repositories,
         supported_nonfork_repositories=supported_nonforks,
-        unsupported_nonfork_languages=tuple(unsupported),
+        unsupported_nonfork_languages=tuple(sorted(unsupported_set)),
         primary_language_counts=_sorted_counts(primary_languages),
         default_branch_counts=_sorted_counts(default_branches),
         active_repository_target=active_repository_target,

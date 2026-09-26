@@ -77,3 +77,11 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-05-24 - 단일 O(N) 순회 최적화 시 발생할 수 있는 문제 방지
+**Learning:** 여러 번의 리스트 컴프리헨션을 사용하여 동일한 소스 데이터를 필터링/카운트하는 것은 O(N)의 시간복잡도를 가지지만 중복 순회 및 제너레이터 오버헤드가 발생한다. 이를 단일 루프로 통합할 때, 루프 바깥에서 `len(nonforks)` 등 저장된 상태의 길이를 가져오면 부차적인 참조로 간주되어 엄격한 AST 기반 테스트나 메모리 할당 제한을 위반할 수 있다는 점을 인지하였다. 단일 순회 로직으로 전환 시 각 속성이나 상태 변화를 명확하게 단일 루프 내에서 처리하도록 구현해야 한다.
+**Action:** 여러 컴프리헨션을 단일 순회로 합칠 때 파생 컬렉션을 만들고 그 크기(`len(nonforks) + len(forks)`)를 통해 원본의 길이를 대체하거나, 원본 컬렉션에 대한 추가 참조(`len(repo_list)`) 없이 파생 컬렉션의 크기들을 조합하여 테스트 조건을 만족시키도록 한다.
+
+## 2024-05-25 - 단일 순회로의 최적화 상수 인자 기록
+**Learning:** 2개의 튜플을 만들어내는 기존 로직이 여러 개의 컴프리헨션을 사용하면 순회 횟수가 2배가 되므로, 2N번 순회하던 것을 N번으로 줄인 것이다. (2N to N) This is a constant-factor improvement.
+**Action:** 성능 최적화를 기록할 때 "2N to N" 과 같이 보다 정확한 constant-factor 단위의 감소분을 명시하자.
