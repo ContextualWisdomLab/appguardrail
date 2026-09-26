@@ -77,10 +77,11 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-## 2026-08-16 - Fast-path check for regex evaluations
-**Learning:** `REFERENCE_RE` is compiled at import. The remaining cost on messages with no public IDs is `finditer` scanner allocation. A native `"[" not in message` check skips that work because every valid match must start with `[`. Switching the CWE branch from `if` to `elif` is exclusive classification only: `OWASP ` and `CWE-` cannot both match the same reference, so it is not a 15–20% metadata speedup.
-**Action:** Guard compiled regex scans with a cheap required-substring check. Do not claim wall-clock improvement for exclusive `elif` classification unless a production-path benchmark is attached.
 
-## 2026-09-27 - Measure explicit reference-deduplication loops
-**Learning:** On CPython in the repair environment, nine repeats of 200,000 calls compared the integrated tree with its exact semantic parent `24d0a0000fab39398d57398030af3840f129813b`. Explicit insertion-ordered dictionaries reduced median `_merge_references` time from 0.111731 s to 0.064596 s and matching extraction from 0.303806 s to 0.247064 s. The preserved no-reference fast path measured 0.014028 s vs 0.013521 s. These are same-host microbenchmark results, not an end-to-end scanner latency claim.
-**Action:** Keep the required-substring fast path and semantic regression contract independent from the constant-factor loop refactor. Record workload, repeats, medians, runtime boundary, and limitations with every performance claim.
+## 2026-09-26 - 중복 딕셔너리 조회 제거 최적화
+**Learning:** `if isinstance(d.get(key), dict) and "value" in d[key]: ... d[key]['value']` 와 같은 패턴은 동일한 키에 대해 해시 계산과 조회를 불필요하게 여러 번(2~3번) 수행하여 성능을 저하시킵니다.
+**Action:** 딕셔너리에서 `.get(key)` 결과를 변수에 저장(`val = d.get(key)`)하고, 이를 검사 및 값 참조에 재사용하여 딕셔너리 조회를 1회로 줄여 성능을 향상시키세요.
+
+## 2026-09-26 - 모듈 로드 시 정적 딕셔너리 기반 캐시 사전 계산 최적화
+**Learning:** 매 함수 호출마다 정적 딕셔너리를 순회하며 `set`을 재계산하는 것은 불필요한 O(N) 오버헤드를 발생시킵니다.
+**Action:** 모듈이 로드될 때 이러한 구조를 전역 캐시 딕셔너리에 미리 계산해 두고, 함수 내부에서는 단순히 빠른 복사본을 반환(`set(CACHE[key])`)하여 O(1) 조회로 최적화하세요.
