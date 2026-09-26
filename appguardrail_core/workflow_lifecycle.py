@@ -677,6 +677,7 @@ def write_failure_evidence(
                     encoding="utf-8",
                 )
             except OSError:
+                # Best-effort preservation must not mask the failure already in flight.
                 pass
 
 
