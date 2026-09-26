@@ -2,6 +2,8 @@
 
 Records live exact-head evidence for the commercial-readiness loop: #1036 skill-supply-chain repairs; #1173 quoted-shell plus assignment-value command-context RED/GREEN; non-force stack through Draft #1189 `c13142c` with every unique detector/test delta preserved; Draft #1189 quoted/unquoted Deno and CocoaPods publish fail-closed identities plus exact FP/FN boundaries; the canonical fail-closed assurance-state mapping; and the #1131/#1181 dashboard file-picker ownership, source-neutral predecessor, and browser-evidence boundary. This documents Proposed work and exact candidate evidence, not a protected capability, approval, release, or certification claim.
 
+Records #1331 exact `96a98d93...` as an ordinary two-parent integration with #1326, preserving the bracketed public-reference security contract while retaining only the measured `normalize_findings` list-comprehension delta. Fresh RED 1/1 becomes focused 17/17 and full 1,005/1,005 GREEN. The same-runtime benchmark records both the bounded latency result and 65,136-byte peak-allocation cost; nine hosted workflows remain queued and the PR remains Draft.
+
 ## Scoped refresh 2026-09-12
 
 Preserves the entire preceding baseline as the exact same Git blob `1953b92c6c6fcfbe9a30e2b78094c214c18e6fe6` in `docs/product-technical-gap-baseline-history-6d6d7749.md`. The canonical entry point keeps G-01 through G-08 meanings, the Context Map, assurance mapping and inherited obligations while distinguishing current scoped observations from unrefreshed historical lane states. No valid corpus or prerequisite is retired by this document organization.
