@@ -62,6 +62,32 @@ jobs:
     ]
 
 
+def test_variable_whitespace_commit_reaches_scanner_level_self_writer_rule(
+    tmp_path,
+) -> None:
+    """The prefilter must match shell-valid whitespace between git and commit."""
+    workflow = tmp_path / ".github" / "workflows" / "self-edit.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """
+on: workflow_dispatch
+permissions: write-all
+jobs:
+  retire:
+    steps:
+      - run: |
+          git rm .github/workflows/self-edit.yml
+          git  commit -m retire
+          git push origin HEAD:feature
+""",
+        encoding="utf-8",
+    )
+    findings = _scan_file(workflow, tmp_path)
+    assert "github-actions-self-modifying-writer" in {
+        finding["rule_id"] for finding in findings
+    }
+
+
 def test_protected_branch_publisher_is_not_a_mutable_branch_writer(tmp_path) -> None:
     """An explicit protected-branch target must not trigger the contributor rule."""
     workflow = tmp_path / ".github" / "workflows" / "publish.yml"

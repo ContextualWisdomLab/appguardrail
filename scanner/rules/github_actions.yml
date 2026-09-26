@@ -33,7 +33,7 @@ rules:
       [OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [generic]
-    prefilter: ["write", ".github/workflows/", "git commit", "git push"]
+    prefilter: ["write", ".github/workflows/", "commit", "git push"]
     paths:
       include:
         - .github/workflows/*.yml
