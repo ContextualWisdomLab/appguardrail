@@ -791,6 +791,87 @@ def test_collect_live_organization_paginates_and_rechecks_head() -> None:
     assert client.calls.count(f"/repos/{repo}/commits/main") == 2
 
 
+@pytest.mark.parametrize("changed_listing", [2, 3])
+def test_live_collection_rejects_same_count_repository_change(
+    changed_listing: int,
+) -> None:
+    """A repository replacement cannot hide behind an unchanged organization count."""
+    repo = "ContextualWisdomLab/appguardrail"
+    list_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    first = {
+        "id": 1,
+        "name": "appguardrail",
+        "full_name": repo,
+        "archived": False,
+        "default_branch": "main",
+    }
+    replacement = {
+        **first,
+        "id": 2,
+        "name": "replacement",
+        "full_name": "ContextualWisdomLab/replacement",
+    }
+
+    class ChangingClient(_LiveClient):
+        listings = 0
+
+        def request(
+            self, path: str, *, method: str = "GET", payload: Any = None
+        ) -> Any:
+            if path == list_path:
+                self.listings += 1
+                return [replacement if self.listings == changed_listing else first]
+            return super().request(path, method=method, payload=payload)
+
+    responses = {
+        "/orgs/ContextualWisdomLab": {"public_repos": 1, "total_private_repos": 0},
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {"truncated": False, "tree": []},
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 0,
+            "workflows": [],
+        },
+    }
+    with pytest.raises(inventory.InventoryError, match="repository inventory changed"):
+        inventory.collect_live_organization(ChangingClient(responses))
+
+
+def test_live_collection_bounds_repository_pages() -> None:
+    """An endless full-page response cannot keep the fleet collector running."""
+
+    class FullPageClient:
+        def request(
+            self, path: str, *, method: str = "GET", payload: Any = None
+        ) -> Any:
+            assert method == "GET" and payload is None
+            assert path.startswith("/orgs/ContextualWisdomLab/repos?")
+            return [{"full_name": f"ContextualWisdomLab/repo-{i}"} for i in range(100)]
+
+    with pytest.raises(inventory.InventoryError, match="pagination exceeded limit"):
+        inventory.collect_live_organization(FullPageClient())
+
+
+def test_live_collection_rejects_unhashable_repository_identity() -> None:
+    """Malformed repository metadata cannot become a stable fleet identity."""
+    org_path = (
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1"
+    )
+    client = _LiveClient(
+        {
+            org_path: [
+                {"id": [], "full_name": "ContextualWisdomLab/example", "archived": True}
+            ],
+            "/orgs/ContextualWisdomLab": {"public_repos": 1, "total_private_repos": 0},
+        }
+    )
+    with pytest.raises(
+        inventory.InventoryError, match="repository identity is malformed"
+    ):
+        inventory.collect_live_organization(client)
+
+
 def test_collect_live_organization_requires_org_wide_visibility_proof() -> None:
     """A syntactically complete visible page cannot hide unselected repositories."""
     org_path = (
@@ -1128,5 +1209,3 @@ def test_incomplete_inventory_fails_before_repository_classification(
     )
     with pytest.raises(inventory.InventoryError, match="incomplete"):
         inventory.inventory_organization(payload)
-
-
