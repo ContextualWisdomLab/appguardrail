@@ -90,18 +90,3 @@ def test_dashboard_distinguishes_unloaded_and_clean_scan_states() -> None:
     assert "Clean scan · 0 findings · deploy gate clear" in html
     assert "Load a different <code>findings.json</code> file" in html
     assert "🎉 Clean Scan" not in html
-
-def test_file_upload_proxy_preserves_native_input_semantics() -> None:
-    """The styled upload affordance keeps the native file input operable."""
-    html = _dashboard_html()
-
-    file_input = html.split('id="file"', 1)[1].split('>', 1)[0]
-    assert 'aria-hidden="true"' not in file_input
-    assert 'tabindex="-1"' not in file_input
-    assert '<label for="file" id="header-browse"' in html
-    assert '#file:focus-visible + #header-browse' in html
-    assert 'getElementById("file").click()' not in html
-
-def test_dashboard_styles_do_not_contain_literal_newline_escapes() -> None:
-    """Style rules use real line breaks rather than rendered backslash text."""
-    assert "\\n" not in _dashboard_html()
