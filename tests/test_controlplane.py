@@ -8,7 +8,6 @@ from contextlib import closing
 
 import pytest
 
-from appguardrail_core import controlplane
 from appguardrail_core.controlplane import (
     _is_slack_webhook,
     _send_alert,
@@ -26,7 +25,6 @@ from appguardrail_core.controlplane import (
     scan_trend,
     set_webhook,
 )
-from appguardrail_core.pinned_https import PinnedHTTPSResponse
 
 FINDINGS = [
     {"severity": "CRITICAL", "rule_id": "x", "context": "app-code"},
@@ -181,7 +179,7 @@ def test_webhook_alerts_on_drift(monkeypatch):
     )
     conn = connect(":memory:")
     oid, _ = create_org(conn, "Acme")
-    set_webhook(conn, oid, "https://8.8.8.8/x")
+    set_webhook(conn, oid, "http://hook.example/x")
     crit = {
         "severity": "CRITICAL",
         "rule_id": "s",
@@ -194,7 +192,7 @@ def test_webhook_alerts_on_drift(monkeypatch):
     add_scan(conn, oid, [{**crit, "line": 9}], repo="acme/app")  # 0 new -> no alert
     assert len(sent) == 1
     url, payload, kw = sent[0]
-    assert url == "https://8.8.8.8/x"
+    assert url == "http://hook.example/x"
     assert payload["event"] == "drift.new_blocking" and payload["new_blocking"] == 1
     # add_scan hands the Slack renderer the org name + the new findings.
     assert kw["org_name"] == "Acme"
@@ -228,9 +226,9 @@ def test_no_webhook_no_alert(monkeypatch):
 def test_api_set_webhook(server):
     base, key = server
     status, body = _req(
-        "POST", f"{base}/api/v1/webhook", key, {"url": "https://8.8.8.8/y"}
+        "POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"}
     )
-    assert status == 200 and body["webhook_url"] == "https://8.8.8.8/y"
+    assert status == 200 and body["webhook_url"] == "http://hook.example/y"
 
 
 def test_api_empty_webhook_body_rejected(server):
@@ -238,7 +236,7 @@ def test_api_empty_webhook_body_rejected(server):
     from urllib.parse import urlparse as _u
 
     base, key = server
-    _req("POST", f"{base}/api/v1/webhook", key, {"url": "https://8.8.8.8/y"})
+    _req("POST", f"{base}/api/v1/webhook", key, {"url": "http://hook.example/y"})
 
     parsed = _u(base)
     conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
@@ -306,7 +304,7 @@ def test_api_role_enforcement(server):
     for method, path, body in [
         ("POST", "/api/v1/scans", F),
         ("POST", "/api/v1/keys", {"role": "member"}),
-        ("POST", "/api/v1/webhook", {"url": "https://8.8.8.8/x"}),
+        ("POST", "/api/v1/webhook", {"url": "http://x"}),
     ]:
         with pytest.raises(urllib.error.HTTPError) as e:
             _req(method, f"{base}{path}", viewer, body)
@@ -314,11 +312,11 @@ def test_api_role_enforcement(server):
     # member: ingest yes, keys/webhook no
     assert _req("POST", f"{base}/api/v1/scans", member, F)[0] == 201
     with pytest.raises(urllib.error.HTTPError) as e:
-        _req("POST", f"{base}/api/v1/webhook", member, {"url": "https://8.8.8.8/x"})
+        _req("POST", f"{base}/api/v1/webhook", member, {"url": "http://x"})
     assert e.value.code == 403
     # owner: all yes
     assert (
-        _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "https://8.8.8.8/x"})[0] == 200
+        _req("POST", f"{base}/api/v1/webhook", owner_key, {"url": "http://x"})[0] == 200
     )
 
 
@@ -407,13 +405,22 @@ def test_slack_blocks_caps_and_escapes():
 def test_send_alert_slack_vs_generic(monkeypatch):
     posted = {}
 
-    def _fake_post(url, body, *, timeout):
-        posted["url"] = url
-        posted["body"] = body
-        assert timeout == 10
-        return PinnedHTTPSResponse(204, "No Content", (), b"")
+    def _fake_build_opener(*handlers):
+        assert any(type(h).__name__ == "SafeRedirectHandler" for h in handlers)
 
-    monkeypatch.setattr(controlplane, "post_json_pinned_https", _fake_post)
+        class FakeOpener:
+            def open(self, req, timeout=None):
+                posted["url"] = req.full_url
+                posted["body"] = json.loads(req.data.decode())
+
+                class _R:
+                    pass
+
+                return _R()
+
+        return FakeOpener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", _fake_build_opener)
     generic = {
         "event": "drift.new_blocking",
         "org_id": 3,

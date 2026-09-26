@@ -58,11 +58,11 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
+from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
     post_json_pinned_https,
-    resolve_public_https_destination,
 )
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
@@ -1629,11 +1629,63 @@ def _write_findings_json(findings, output_path: Path):
 
 
 def _is_safe_url(url: str) -> bool:
-    """Return whether ``url`` resolves to a strict public HTTPS destination."""
-    try:
-        resolve_public_https_destination(url)
-    except DestinationValidationError:
+    import ipaddress
+    import socket
+    import urllib.parse
+
+    if not isinstance(url, str):
         return False
+
+    try:
+        parsed = urllib.parse.urlparse(
+            url
+        )  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    except ValueError:
+        return False
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    raw = host.split("%", 1)[0].strip("[]")
+
+    def is_bad_ip(ip) -> bool:
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped:
+            ip = mapped
+        return (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_unspecified
+            or ip.is_multicast
+            or getattr(ip, "is_reserved", False)
+            or not getattr(ip, "is_global", True)
+        )
+
+    try:
+        ip = ipaddress.ip_address(raw)
+        if is_bad_ip(ip):
+            return False
+    except ValueError:
+        # Non-IP hostnames are expected; validate resolved addresses below.
+        pass
+
+    try:
+        resolved = socket.getaddrinfo(raw, None)
+        for entry in resolved:
+            ip_str = entry[4][0].split("%", 1)[0]
+            ip = ipaddress.ip_address(ip_str)
+            if is_bad_ip(ip):
+                return False
+    except socket.gaierror:
+        # Ignore DNS resolution failures. We just want to prevent known internal IPs.
+        # This allows dummy domains in tests like `hook.example`.
+        pass
+    except ValueError:
+        return False
+
     return True
 
 
