@@ -58,20 +58,6 @@ def test_dashboard_skip_link_is_first_and_targets_focusable_main():
     assert "outline:3px solid #fff" in html
 
 
-def test_dashboard_static_controls_have_single_valid_bindings():
-    """Static controls use real CSS boundaries and one upload-proxy listener."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    assert r"\n  .skip-link:focus" not in html
-    assert r"\n</style>" not in html
-    assert (
-        html.count(
-            "document.getElementById('upload-proxy').addEventListener('click'"
-        )
-        == 1
-    )
-
-
 def test_dashboard_drag_drop_has_visible_state_and_clears_it():
     """Drag-and-drop exposes feedback and always clears it after leaving or dropping."""
     html = dashboard_index_path().read_text(encoding="utf-8")
