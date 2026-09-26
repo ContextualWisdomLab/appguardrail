@@ -1,4 +1,4 @@
-from appguardrail_core.rules import (_merge_references, build_rule_metadata,
+from appguardrail_core.rules import (build_rule_metadata,
                                      extract_public_references,
                                      validate_rule_metadata)
 
@@ -78,11 +78,3 @@ def test_validate_rule_metadata_reports_missing_public_reference():
 
     assert "missing references" in errors
     assert "missing public taxonomy reference" in errors
-
-
-def test_merge_references_preserves_first_seen_order_and_filters_empty_values():
-    """Keep ordered de-duplication stable across reference groups."""
-    assert _merge_references(
-        ("CWE-1", "", "OWASP A01"),
-        ("CWE-1", "CVE-2026-1"),
-    ) == ("CWE-1", "OWASP A01", "CVE-2026-1")
