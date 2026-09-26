@@ -78,6 +78,13 @@ def test_python_command_injection_preserves_non_ascii_source_offset():
     assert source[match.start() :].startswith("os.system")
 
 
+def test_python_command_injection_uses_python_newline_boundaries():
+    for separator in ("\f", "\u2028"):
+        source = f"label = 'text{separator}'\nos.system(command)\n"
+        match = _python_command_matches(source)[0]
+        assert source[match.start() :].startswith("os.system")
+
+
 def test_python_command_injection_falls_back_for_invalid_python():
     matches = _python_command_matches("if (\n    os.system(user_input)\n")
     assert len(matches) == 1

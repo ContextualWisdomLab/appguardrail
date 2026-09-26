@@ -335,12 +335,10 @@ def _iter_python_command_injection_matches(content: str):
         yield from _PYTHON_COMMAND_INJECTION_PATTERN.finditer(content)
         return
 
-    lines = content.splitlines(keepends=True)
-    line_starts = []
-    offset = 0
-    for line in lines:
-        line_starts.append(offset)
-        offset += len(line)
+    line_starts = [0]
+    line_starts.extend(
+        match.end() for match in re.finditer(r"\r\n|\r|\n", content)
+    )
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
@@ -365,12 +363,18 @@ def _iter_python_command_injection_matches(content: str):
         if not (is_os_system or is_subprocess_shell):
             continue
 
-        line = lines[node.lineno - 1]
+        line_start = line_starts[node.lineno - 1]
+        line_end = (
+            line_starts[node.lineno]
+            if node.lineno < len(line_starts)
+            else len(content)
+        )
+        line = content[line_start:line_end]
         column = len(
             line.encode("utf-8")[: node.col_offset].decode("utf-8", "ignore")
         )
         match = _EMPTY_PATTERN.match(
-            content, line_starts[node.lineno - 1] + column
+            content, line_start + column
         )
         if match is not None:
             yield match
