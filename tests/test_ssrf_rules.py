@@ -136,9 +136,10 @@ def _safe_source():
         [
             "def update_webhook(conn, org, body):",
             '    webhook_url = (body or {}).get("url")',
-            "    if webhook_url and not _is_safe_url(webhook_url):",
-            "        raise ValueError(\"unsafe webhook url\")",
-            f"    {sink}(conn, org, webhook_url)",
+            "    try:",
+            f"        {sink}(conn, org, webhook_url)",
+            "    except ValueError:",
+            "        return",
             "",
         ]
     )
