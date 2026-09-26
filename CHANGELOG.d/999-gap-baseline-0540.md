@@ -4,7 +4,7 @@ Records live exact-head evidence for the commercial-readiness loop: #1036 skill-
 
 Records #1331 exact `96a98d93...` as an ordinary two-parent integration with #1326, preserving the bracketed public-reference security contract while retaining only the measured `normalize_findings` list-comprehension delta. Fresh RED 1/1 becomes focused 17/17 and full 1,005/1,005 GREEN. The same-runtime benchmark records both the bounded latency result and 65,136-byte peak-allocation cost; nine hosted workflows remain queued and the PR remains Draft.
 
-Records #1069 and #1237 as retired unmerged solely by verified complete successor carryover into #1326. The successor preserves their explicit dictionary loops and valid ordering/filtering semantics while adding the scanner fast path, public-reference contract, executable fixtures, CHANGELOG, and bounded benchmark evidence. Also pins #1314's tree-identical current exact `1c21254a...` without transferring predecessor Checks or review.
+Records #1069, #1237, and current-head #1297 exact `7ec0a6e9...` as retired unmerged solely by verified complete successor carryover into #1326. The successor preserves their explicit dictionary loops, scanner fast path, and valid ordering/filtering semantics while adding the public-reference contract, executable fixtures, CHANGELOG, and bounded benchmark evidence. #1297's unsupported universal unrolling doctrine is explicitly excluded. Also pins #1314's tree-identical current exact `1c21254a...` without transferring predecessor Checks or review.
 
 ## Scoped refresh 2026-09-12
 
