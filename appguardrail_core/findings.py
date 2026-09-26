@@ -105,11 +105,16 @@ def normalize_findings(
     *,
     snippet_max_len: int = 400,
 ) -> tuple[dict[str, Any], ...]:
-    """Normalize a finding collection into a stable tuple."""
-    return tuple(
+    """Normalize a finding collection into a stable tuple.
+
+    Performance: uses a list comprehension inside tuple() to bypass
+    generator instantiation overhead while avoiding the repeated method
+    resolution overhead of list.append in a manual for loop.
+    """
+    return tuple([
         normalize_finding(finding, snippet_max_len=snippet_max_len)
         for finding in findings
-    )
+    ])
 
 
 def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
