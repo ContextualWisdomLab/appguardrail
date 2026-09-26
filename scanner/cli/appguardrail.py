@@ -315,6 +315,10 @@ jobs:
 _PYTHON_COMMAND_INJECTION_PATTERN = re.compile(
     r"(?i)(?:os\.system\s*\(|subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^)]*shell\s*=\s*(?:True|1))"
 )
+_EMPTY_PATTERN = re.compile("")
+_SUBPROCESS_SHELL_CALLS = frozenset(
+    {"Popen", "run", "call", "check_call", "check_output"}
+)
 
 
 def _iter_python_command_injection_matches(content: str):
@@ -332,55 +336,51 @@ def _iter_python_command_injection_matches(content: str):
         return
 
     line_starts = [0]
-    for match in re.finditer(r'\r\n|\n|\r', content):
-        line_starts.append(match.end())
-
-    def _make_match(lineno, length, group_str):
-        if lineno < 1 or lineno > len(line_starts):
-            return None
-        start = line_starts[lineno - 1]
-
-        class MockMatch:
-            def start(self): return start
-            def end(self): return start + length
-            def group(self, index=0): return group_str
-        return MockMatch()
+    line_starts.extend(
+        match.end() for match in re.finditer(r"\r\n|\r|\n", content)
+    )
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                attr = node.func.attr
-                value = node.func.value
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        owner = node.func.value
+        owner_name = (
+            owner.id
+            if isinstance(owner, ast.Name)
+            else owner.attr if isinstance(owner, ast.Attribute) else None
+        )
 
-                # Check for os.system or *.os.system
-                is_os_system = False
-                if attr == "system":
-                    if isinstance(value, ast.Name) and value.id == "os":
-                        is_os_system = True
-                    elif isinstance(value, ast.Attribute) and value.attr == "os":
-                        is_os_system = True
+        is_os_system = owner_name == "os" and node.func.attr == "system"
+        is_subprocess_shell = (
+            owner_name == "subprocess"
+            and node.func.attr in _SUBPROCESS_SHELL_CALLS
+            and any(
+                keyword.arg == "shell"
+                and not (
+                    isinstance(keyword.value, ast.Constant)
+                    and keyword.value.value in (False, 0, None)
+                )
+                for keyword in node.keywords
+            )
+        )
+        if not (is_os_system or is_subprocess_shell):
+            continue
 
-                if is_os_system:
-                    m = _make_match(node.lineno, 11, "os.system(...)")
-                    if m:
-                        yield m
-
-                # Check for subprocess.* or *.subprocess.*
-                is_subprocess = False
-                if attr in ("Popen", "run", "call", "check_call", "check_output"):
-                    if isinstance(value, ast.Name) and value.id == "subprocess":
-                        is_subprocess = True
-                    elif isinstance(value, ast.Attribute) and value.attr == "subprocess":
-                        is_subprocess = True
-
-                if is_subprocess:
-                    for kw in node.keywords:
-                        if kw.arg == "shell":
-                            if isinstance(kw.value, ast.Constant) and kw.value.value in (True, 1):
-                                m = _make_match(node.lineno, 30, f"subprocess.{attr}(..., shell=True)")
-                                if m:
-                                    yield m
-                                    break
+        line_start = line_starts[node.lineno - 1]
+        line_end = (
+            line_starts[node.lineno]
+            if node.lineno < len(line_starts)
+            else len(content)
+        )
+        line = content[line_start:line_end]
+        column = len(
+            line.encode("utf-8")[: node.col_offset].decode("utf-8", "ignore")
+        )
+        match = _EMPTY_PATTERN.match(
+            content, line_start + column
+        )
+        if match is not None:
+            yield match
 
 
 SCAN_RULES = [
@@ -526,10 +526,10 @@ SCAN_RULES = [
     {
         "id": "python-command-injection",
         "pattern": _PYTHON_COMMAND_INJECTION_PATTERN,
+        "finder": _iter_python_command_injection_matches,
         "severity": "CRITICAL",
-        "message": "Potential Command Injection detected: shell=True used in Python subprocess/os command. [OWASP A03:2021 - Injection]",
+        "message": "Potential shell command execution detected: os.system() or subprocess with a non-false shell argument. Verify that no untrusted data reaches the command. [OWASP A03:2021 - Injection]",
         "extensions": [".py"],
-        "finditer": _iter_python_command_injection_matches,
     },
     {
         "id": "path-traversal-risk",
@@ -2226,7 +2226,7 @@ def _get_applicable_rules(ext: str):
                 rule["id"],
                 rule["severity"],
                 rule["message"],
-                rule.get("finditer") or rule["pattern"].finditer,
+                rule["finder"] if "finder" in rule else rule["pattern"].finditer,
                 tuple(rule.get("include_paths") or ()),
                 tuple(rule.get("exclude_paths") or ()),
                 tuple(rule.get("required_substrings") or ()),
