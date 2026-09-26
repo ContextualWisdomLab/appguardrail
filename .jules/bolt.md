@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2026-09-18 - 정적 딕셔너리 기반의 반복 연산 캐싱 (Caching Repeated Operations on Static Dictionaries)
+**Learning:** `_SEVERITY_ORDER`와 같이 모듈 수준에서 정의된 정적인 작은 딕셔너리에 대해 매 함수 호출마다 `.items()` 제너레이터를 순회하며 새로운 집합(set)을 생성하는 것은 핫 루프에서 불필요한 연산 낭비를 초래합니다.
+**Action:** 파이썬 핫 경로에서는 정적인 집합 및 리스트 구조를 모듈 로드 시점에 미리 계산하여 캐시 딕셔너리(`_SEVERITIES_ABOVE_CACHE`)에 저장하십시오. 함수 호출 시에는 `set(CACHE[key])` 형태로 O(1) 딕셔너리 조회를 통해 복사본을 반환하게 하면 실행 속도를 크게 개선할 수 있습니다.
