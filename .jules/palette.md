@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-09-26 - Native file-input proxy semantics
+**Learning:** `aria-hidden="true"` removes a file input from the accessibility tree, and `tabindex="-1"` removes its native keyboard stop; DOM presence alone does not preserve accessible semantics.
+**Action:** Keep the native file input focusable with the existing visually-hidden class, associate a styled `<label for="file">`, forward `:focus-visible` styling to that label, and avoid a custom JavaScript click proxy.
