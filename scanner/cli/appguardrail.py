@@ -40,6 +40,7 @@ Options:
 """
 
 import argparse
+import ast
 import fnmatch
 import functools
 import importlib.resources as resources  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
@@ -311,6 +312,77 @@ jobs:
 # Scan patterns
 # ---------------------------------------------------------------------------
 
+_PYTHON_COMMAND_INJECTION_PATTERN = re.compile(
+    r"(?i)(?:os\.system\s*\(|subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^)]*shell\s*=\s*(?:True|1))"
+)
+_EMPTY_PATTERN = re.compile("")
+_SUBPROCESS_SHELL_CALLS = frozenset(
+    {"Popen", "run", "call", "check_call", "check_output"}
+)
+
+
+def _iter_python_command_injection_matches(content: str):
+    """Yield match-compatible positions for statically identifiable shell calls.
+
+    Valid Python is parsed so comments and string literals do not become
+    deploy-blocking findings. Syntax-invalid input falls back to the legacy
+    regular expression instead of silently dropping previously detectable
+    evidence.
+    """
+    try:
+        tree = ast.parse(content)
+    except (SyntaxError, ValueError):
+        yield from _PYTHON_COMMAND_INJECTION_PATTERN.finditer(content)
+        return
+
+    line_starts = [0]
+    line_starts.extend(
+        match.end() for match in re.finditer(r"\r\n|\r|\n", content)
+    )
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        owner = node.func.value
+        owner_name = (
+            owner.id
+            if isinstance(owner, ast.Name)
+            else owner.attr if isinstance(owner, ast.Attribute) else None
+        )
+
+        is_os_system = owner_name == "os" and node.func.attr == "system"
+        is_subprocess_shell = (
+            owner_name == "subprocess"
+            and node.func.attr in _SUBPROCESS_SHELL_CALLS
+            and any(
+                keyword.arg == "shell"
+                and not (
+                    isinstance(keyword.value, ast.Constant)
+                    and keyword.value.value in (False, 0, None)
+                )
+                for keyword in node.keywords
+            )
+        )
+        if not (is_os_system or is_subprocess_shell):
+            continue
+
+        line_start = line_starts[node.lineno - 1]
+        line_end = (
+            line_starts[node.lineno]
+            if node.lineno < len(line_starts)
+            else len(content)
+        )
+        line = content[line_start:line_end]
+        column = len(
+            line.encode("utf-8")[: node.col_offset].decode("utf-8", "ignore")
+        )
+        match = _EMPTY_PATTERN.match(
+            content, line_start + column
+        )
+        if match is not None:
+            yield match
+
+
 SCAN_RULES = [
     {
         "id": "python-insecure-deserialization",
@@ -453,11 +525,10 @@ SCAN_RULES = [
     },
     {
         "id": "python-command-injection",
-        "pattern": re.compile(
-            r"(?i)(?:os\.system|subprocess\.(?:Popen|run|call|check_call|check_output))\s*\([^)]*shell\s*=\s*True"
-        ),
+        "pattern": _PYTHON_COMMAND_INJECTION_PATTERN,
+        "finder": _iter_python_command_injection_matches,
         "severity": "CRITICAL",
-        "message": "Potential Command Injection detected: shell=True used in Python subprocess/os command. [OWASP A03:2021 - Injection]",
+        "message": "Potential shell command execution detected: os.system() or subprocess with a non-false shell argument. Verify that no untrusted data reaches the command. [OWASP A03:2021 - Injection]",
         "extensions": [".py"],
     },
     {
@@ -2155,7 +2226,7 @@ def _get_applicable_rules(ext: str):
                 rule["id"],
                 rule["severity"],
                 rule["message"],
-                rule["pattern"].finditer,
+                rule["finder"] if "finder" in rule else rule["pattern"].finditer,
                 tuple(rule.get("include_paths") or ()),
                 tuple(rule.get("exclude_paths") or ()),
                 tuple(rule.get("required_substrings") or ()),
