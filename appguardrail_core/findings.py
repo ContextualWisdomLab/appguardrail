@@ -105,11 +105,15 @@ def normalize_findings(
     *,
     snippet_max_len: int = 400,
 ) -> tuple[dict[str, Any], ...]:
-    """Normalize a finding collection into a stable tuple."""
-    return tuple(
+    """Normalize findings into a stable tuple using one measured list pass.
+
+    The temporary list trades bounded allocation for lower same-runtime
+    latency; remeasure both before changing this collection boundary.
+    """
+    return tuple([
         normalize_finding(finding, snippet_max_len=snippet_max_len)
         for finding in findings
-    )
+    ])
 
 
 def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
