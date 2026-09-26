@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2024-09-25 - Native File Input Proxy Accessibility
-**Learning:** 네이티브 `<input type="file">`를 감추고 커스텀 버튼으로 프록시할 때, `hidden` 속성을 사용하면 `display: none`이 적용되어 AOM(Accessibility Object Model)에서 완전히 제거됩니다. 이로 인해 스크린 리더 사용자가 해당 요소의 접근성 이름(`aria-label`)을 인식할 수 없게 되며, 시각적 크기(인라인 스타일)에 의존하는 UI 컴포넌트의 디자인 타겟 사이즈 계약 테스트에서 실패할 수 있습니다.
-**Action:** 접근성 및 디자인 계약을 유지하면서 네이티브 파일 입력을 숨기려면 `hidden` 속성 대신 `class="sr-only" tabindex="-1" aria-hidden="true"`를 사용하고, 인라인 스타일 사이즈 속성은 프록시 버튼 대신 원래 요소에 보존해야 합니다. 또한 이벤트 핸들러를 HTML 내에 인라인으로 작성하지 않고 명시적인 리스너를 추가하여 CSP(Content Security Policy) 준수를 유지하십시오.
