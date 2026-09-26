@@ -104,4 +104,4 @@ def test_file_upload_proxy_preserves_native_input_semantics() -> None:
 
 def test_dashboard_styles_do_not_contain_literal_newline_escapes() -> None:
     """Style rules use real line breaks rather than rendered backslash text."""
-    assert "\\\\n" not in _dashboard_html()
+    assert "\\n" not in _dashboard_html()
