@@ -85,3 +85,36 @@ No database entity or relationship is introduced by #1272. The dashboard consume
 ## Release decision
 
 Keep appguardrail#1272 **Draft/Proposed** until exact-head CI and security checks are terminal GREEN, actionable review threads are resolved, current-head independent approval exists, and applicable browser, accessibility, responsive, locale, performance, and recovery rows pass. No release or GitHub Pages publication is claimed.
+
+
+## Native findings-file input acceptance — appguardrail#1329
+
+Product source remains single-writer appguardrail#1329. Exact recovery head: `66a5e0e142d8cb5521bc9e2282bb7e5a1f73bae4`.
+
+### PRD / TRD / Context Map
+
+An analyst must open a findings JSON file through the operating-system picker with native keyboard, pointer, touch and assistive-technology semantics. The product keeps the native `input[type=file]` as the interaction owner, associates a styled label, forwards `:focus-visible` to the label, and does not introduce a JavaScript click proxy. Imported JSON remains scanner domain input; the presentation layer does not replace finding truth.
+
+```mermaid
+flowchart LR
+  Analyst -->|activate label/input| NativePicker[Native File Picker]
+  NativePicker -->|selected file| Dashboard[Scanner Dashboard]
+  Dashboard -->|parse| Findings[Finding Report]
+```
+
+No database entity or relationship changes.
+
+### Exact-head acceptance matrix
+
+| Concern | Evidence | Status |
+|---|---|---|
+| Native semantics | Focusable input, associated label, no `aria-hidden`/`tabindex=-1` | Source PASS |
+| Keyboard/focus | Focus indicator forwarded to styled label | Source PASS; browser/AT pending |
+| Determinism | Regression contract rejects JS click proxy and literal `\\n` CSS | Source PASS |
+| Pointer/touch | Native activation expected | Chromium/Firefox/WebKit and touch evidence missing |
+| Responsive/locales | Header wrapping at 320/768/desktop and 8 locales | FAIL |
+| Import/error/recovery | valid/invalid/large file, cancel, retry, reload, offline | FAIL |
+| Performance | realistic large report parse/render median and p95 | FAIL |
+| Hosted validation | exact-head CI/security and independent approval | Pending |
+
+Repeated successor regression at `280a278e…` removed the contracts and restored the inaccessible proxy. Ordinary-forward recovery restored tests `b1923ce3…`/`df548fba…`, product `9cc0068b…`, guidance `1f40de72…`, and CHANGELOG `66a5e0e1…`. Keep Draft until the remaining matrix is GREEN.
