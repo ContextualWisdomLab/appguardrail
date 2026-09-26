@@ -163,7 +163,7 @@ def test_read_only_adapter_rejects_every_mutating_shape() -> None:
 
 
 def test_live_main_writes_receipts_and_fail_closed_evidence(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, capsys
 ) -> None:
     """The live CLI persists both successful and partial collection receipts."""
     from scripts.ci import commercial_readiness_loop
@@ -221,6 +221,53 @@ def test_live_main_writes_receipts_and_fail_closed_evidence(
     )
     assert json.loads(receipt_path.read_text())[0]["path"] == "/partial"
     assert json.loads(failure_path.read_text())["status"] == "failed"
+
+    missing_path = tmp_path / "missing" / "evidence.json"
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--receipt-output",
+                str(missing_path),
+                "--failure-output",
+                str(failure_path),
+            ]
+        )
+        == 2
+    )
+    assert json.loads(failure_path.read_text())["error_type"] == "InventoryError"
+
+    monkeypatch.setattr(lifecycle, "collect_live_organization", collect)
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--receipt-output",
+                str(missing_path),
+                "--failure-output",
+                str(failure_path),
+            ]
+        )
+        == 2
+    )
+    assert json.loads(failure_path.read_text())["error_type"] == "FileNotFoundError"
+    assert "unable to write receipts" in capsys.readouterr().err
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--receipt-output",
+                str(receipt_path),
+                "--failure-output",
+                str(failure_path),
+                "--output",
+                str(missing_path),
+            ]
+        )
+        == 2
+    )
+    assert json.loads(failure_path.read_text())["error_type"] == "FileNotFoundError"
+    assert "unable to write ledger" in capsys.readouterr().err
 
 
 def test_live_main_requires_a_token(tmp_path, monkeypatch) -> None:
