@@ -2186,12 +2186,18 @@ def _path_allowed_by_rule_cached(
     path: str, include_paths: tuple, exclude_paths: tuple
 ) -> bool:
     """Return whether a path passes optional YAML include/exclude filters (cached)."""
-    if include_paths and not any(
-        _path_matches_glob(path, glob) for glob in include_paths
-    ):
-        return False
-    if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
-        return False
+    if include_paths:
+        matched = False
+        for glob in include_paths:
+            if _path_matches_glob(path, glob):
+                matched = True
+                break
+        if not matched:
+            return False
+    if exclude_paths:
+        for glob in exclude_paths:
+            if _path_matches_glob(path, glob):
+                return False
     return True
 
 
@@ -2322,33 +2328,28 @@ def _finding_category(rule_id: str) -> str:
         return "dependency"
     if "jwt-decode" in rule:
         return "authz"
-    if any(
-        token in rule
-        for token in (
-            "secret",
-            "jwt",
-            "password",
-            "database-url",
-            "credential",
-            "api-key",
-            "token",
-            "openai",
-        )
+    for token in (
+        "secret",
+        "jwt",
+        "password",
+        "database-url",
+        "credential",
+        "api-key",
+        "token",
+        "openai",
     ):
-        return "secrets"
+        if token in rule:
+            return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    if any(
-        token in rule for token in ("auth", "session", "admin", "route-without-auth")
-    ):
-        return "authz"
-    if any(
-        token in rule
-        for token in ("eval", "sql", "command", "subprocess", "path-traversal")
-    ):
-        return "injection"
+    for token in ("auth", "session", "admin", "route-without-auth"):
+        if token in rule:
+            return "authz"
+    for token in ("eval", "sql", "command", "subprocess", "path-traversal"):
+        if token in rule:
+            return "injection"
     return "misconfig"
 
 
@@ -2975,10 +2976,14 @@ def _scan_file(
                 exclude_paths,
                 required_substrings,
             ) in applicable_rules:
-                if required_substrings and not all(
-                    substring in content for substring in required_substrings
-                ):
-                    continue
+                if required_substrings:
+                    missing_substring = False
+                    for substring in required_substrings:
+                        if substring not in content:
+                            missing_substring = True
+                            break
+                    if missing_substring:
+                        continue
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
                         rel_path_for_filters = _display_path(
