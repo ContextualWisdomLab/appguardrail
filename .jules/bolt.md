@@ -77,11 +77,14 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2026-08-16 - Fast-path check for regex evaluations
+**Learning:** `REFERENCE_RE` is compiled at import. The remaining cost on messages with no public IDs is `finditer` scanner allocation. A native `"[" not in message` check skips that work because every valid match must start with `[`. Switching the CWE branch from `if` to `elif` is exclusive classification only: `OWASP ` and `CWE-` cannot both match the same reference, so it is not a 15–20% metadata speedup.
+**Action:** Guard compiled regex scans with a cheap required-substring check. Do not claim wall-clock improvement for exclusive `elif` classification unless a production-path benchmark is attached.
 
-## 2024-07-21 - Python Generator Overhead in Hot Paths
-**Learning:** Python에서 `tuple()`이나 `dict.fromkeys()` 같은 생성자에 제너레이터 표현식(generator expression, 예: `tuple(x for x in y)`)을 전달하면, 반복마다 제너레이터 객체를 생성하고 평가하는 오버헤드가 발생합니다. 성능이 중요한 핫루프(hot path)에서는 이러한 오버헤드가 누적되어 성능 저하를 유발합니다.
-**Action:** 제너레이터 표현식을 사용하는 대신, 명시적인 `for` 루프를 사용하여 리스트나 딕셔너리를 직접 채운 후 변환(예: `tuple(result_list)`)하도록 언롤링(unroll)하십시오. 이를 통해 제너레이터 인스턴스화 비용을 우회하고 실행 속도를 개선할 수 있습니다.
+## 2026-09-27 - Measure explicit reference-deduplication loops
+**Learning:** On CPython in the repair environment, nine repeats of 200,000 calls compared the integrated tree with its exact semantic parent `24d0a0000fab39398d57398030af3840f129813b`. Explicit insertion-ordered dictionaries reduced median `_merge_references` time from 0.111731 s to 0.064596 s and matching extraction from 0.303806 s to 0.247064 s. The preserved no-reference fast path measured 0.014028 s vs 0.013521 s. These are same-host microbenchmark results, not an end-to-end scanner latency claim.
+**Action:** Keep the required-substring fast path and semantic regression contract independent from the constant-factor loop refactor. Record workload, repeats, medians, runtime boundary, and limitations with every performance claim.
 
-## 2024-07-21 - Python Comprehension over Explicit Loops and Generators
-**Learning:** Python 핫루프에서 `tuple(x for x in y)`와 같은 제너레이터 표현식은 제너레이터 객체 생성 및 평가로 인한 오버헤드가 발생합니다. 반면 명시적인 `for` 루프에 `list.append`를 사용하는 것은 객체 메서드 검색과 호출 오버헤드로 인해 종종 제너레이터보다 더 느릴 수 있으며, 가독성을 심각하게 해칩니다. 가장 빠르고 파이썬다운(Idiomatic) 최적화 방법은 List/Dict Comprehension(`tuple([x for x in y])` 또는 `tuple({x: None for x in y})`)을 사용하는 것입니다.
-**Action:** `tuple()` 생성자나 딕셔너리 생성 시 제너레이터 인스턴스화 오버헤드를 피하려면 가독성과 성능을 동시에 잡을 수 있는 Comprehension 문법을 사용하십시오.
+## 2026-09-27 - Bound comprehension speed against temporary allocation
+**Learning:** On the same CPython process, 15 repeats of 2,000 calls over 100 findings measured a 0.178523 s generator median and 0.170497 s list-comprehension median. For 10,000 findings, `tracemalloc` peak increased from 4,740,024 to 4,805,160 bytes. This bounded result does not support a blanket 10–15% claim or a rule that comprehensions always beat loops.
+**Action:** Choose generator, comprehension, or explicit-loop collection construction from a representative same-runtime benchmark that records time and peak allocation. Preserve semantic/security prerequisites independently of a local constant-factor result.
