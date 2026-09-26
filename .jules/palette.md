@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-16 - File Input Proxy Pattern AOM Preservation
+**Learning:** Native `<input type="file">` elements are notoriously difficult to style consistently across browsers, leading to patterns where developers hide the input using `display: none` or the `hidden` attribute. However, these CSS techniques completely remove the element from the Accessibility Object Model (AOM), rendering them invisible to screen readers and causing accessibility audits (like axe-core) to fail or warning about orphaned labels.
+**Action:** When styling a file input by proxying clicks from a custom `<button>`, hide the native `<input type="file">` element using `class="sr-only" tabindex="-1" aria-hidden="true"` instead of `hidden` or inline `display: none`. This keeps the element in the DOM and AOM, satisfying strict accessibility tree constraints while visually replacing it with the styled proxy button.
