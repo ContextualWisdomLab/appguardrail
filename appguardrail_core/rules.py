@@ -105,12 +105,18 @@ class RuleMetadata:
 
 
 def extract_public_references(message: str) -> tuple[str, ...]:
-    """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    # Explicit loop avoids generator expression overhead in tuple/dict constructors
-    keys = {}
-    for match in REFERENCE_RE.finditer(message or ""):
-        keys[" ".join(match.group(1).split())] = None
-    return tuple(keys)
+    """Extract bracketed OWASP, CWE, and CVE IDs already written in rule copy.
+
+    Only ``[OWASP …]``, ``[CWE-…]``, and ``[CVE-…]`` forms are kept. Plain-text
+    mentions are ignored so a finding report stays limited to the IDs the rule
+    author already published. Messages without ``[`` skip the regex scanner.
+    """
+    if not message or "[" not in message:
+        return ()
+    references: dict[str, None] = {}
+    for match in REFERENCE_RE.finditer(message):
+        references[" ".join(match.group(1).split())] = None
+    return tuple(references)
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -141,7 +147,7 @@ def build_rule_metadata(
     for ref in references:
         if ref.startswith("OWASP "):
             owasp_list.append(ref)
-        if ref.startswith("CWE-"):
+        elif ref.startswith("CWE-"):
             cwe_list.append(ref)
 
     return RuleMetadata(
@@ -173,10 +179,10 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    # Unrolled explicit loop deduplicates via dict keys without generator overhead
-    keys = {}
+    """Merge non-empty references once while preserving first-seen order."""
+    references: dict[str, None] = {}
     for group in groups:
         for reference in group:
             if reference:
-                keys[reference] = None
-    return tuple(keys)
+                references[reference] = None
+    return tuple(references)
