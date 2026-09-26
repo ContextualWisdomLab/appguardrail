@@ -77,10 +77,6 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
-function severityColor(value){
-  const severity=String(value||"INFO").toUpperCase();
-  return Object.prototype.hasOwnProperty.call(SEV,severity)?SEV[severity]:"var(--info)";
-}
 let KEY=sessionStorage.getItem("ag_key")||"";
 let currentDetailRequest=0;
 let lastDetailFocus=null;
@@ -159,7 +155,7 @@ async function detail(id,tr){
   try{
     const s=await api("/api/v1/scans/"+id);
     if(requestId!==currentDetailRequest)return;
-    const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${severityColor(f.severity)}">${esc(f.severity)}</span></td>
+    const rows=(s.findings||[]).map(f=>`<tr><td><span class="pill" style="background:${SEV[f.severity]||'var(--info)'}">${esc(f.severity)}</span></td>
       <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
       <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`).join("");
     d.innerHTML=`<button type="button" class="close-btn" aria-label="Close details">✕</button><strong>Scan #${esc(s.id)}</strong> <span class="muted">${esc(s.created_at)} · ${esc(s.repo||"—")}</span>
