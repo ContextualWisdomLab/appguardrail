@@ -118,3 +118,10 @@ No database entity or relationship changes.
 | Hosted validation | exact-head CI/security and independent approval | Pending |
 
 Repeated successor regression at `280a278e…` removed the contracts and restored the inaccessible proxy. Ordinary-forward recovery restored tests `b1923ce3…`/`df548fba…`, product `9cc0068b…`, guidance `1f40de72…`, and CHANGELOG `66a5e0e1…`. Keep Draft until the remaining matrix is GREEN.
+
+
+## Duplicate external-reference writer — appguardrail#1332
+
+[appguardrail#1332](https://github.com/ContextualWisdomLab/appguardrail/pull/1332) is Draft/Proposed at exact head `e1d46111bb1c46e4495c5d96e8c976d48a0532fc`. The same dashboard external-reference surface is already owned by canonical appguardrail#1272 at `db690d5f6a87318795ac813d269e3c72a9f8b7ac`, which preserves the reusable `.external-reference` class, `noopener noreferrer`, non-focusable `aria-hidden` SVG, visible new-context text, focused regression contract, CHANGELOG, and this Gap ledger.
+
+#1332 is not a complete successor: it uses only `rel="noopener"`, exposes the SVG to assistive technology, lacks a focused contract, and applies `word-break: break-all` to every anchor rather than the bounded external-reference component. Preserve its proposal and Korean-copy intent, but do not create a second product writer or close it until protected integration proves complete blob/requirement carryover. Exact-head Tests, Security, Semgrep and CodeQL are queued; real browser/AT/responsive/eight-locale/recovery evidence and current independent approval remain absent.
