@@ -1,3 +1,7 @@
+## 2026-09-27 - Accessible File Input Button
+**Learning:** Native `<input type="file">` elements are notoriously difficult to style uniformly across browsers while maintaining accessibility. A common UX pattern is to hide the native input visually and proxy clicks via a styled `<button>`. However, simply using `hidden` or `display: none` on the input removes it from the Accessibility Object Model (AOM). The correct approach is to use `aria-hidden="true" class="sr-only" tabindex="-1"` on the input, ensuring it remains programmatically available while preventing duplicate focus stops, and pointing the button to trigger it via JavaScript.
+**Action:** Always pair a styled proxy button with a visually hidden, but not fully removed, native file input. Avoid inline styles that affect target sizing (e.g. `min-height: unset`) on proxy buttons to maintain design sizing contracts. Ensure UI contract tests verify the presence of the proxy button's visual text rather than the native input's `aria-label`.
+
 ## 2024-05-19 - Init Command UX Improvement
 **Learning:** CLI outputs with inline repetitive warnings (e.g. `already contains rules — skipping`) can clutter terminal visibility and diminish developer experience.
 **Action:** Group skipped/unchanged files separately from modified ones (e.g., in a single `Skipped (already configured):` section) to create clean, scannable terminal output.
