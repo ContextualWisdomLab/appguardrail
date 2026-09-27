@@ -141,3 +141,20 @@ Repeated successor regression at `280a278e…` removed the contracts and restore
 ## Duplicate external-link proposal — appguardrail#1011
 
 [PR #1011](https://github.com/ContextualWisdomLab/appguardrail/pull/1011) is Draft/Proposed at evidence head `d4d039a515d8609b199e1aec4d907b950afeec22`. It edits the same external-reference surface as this canonical writer. Its English-only `aria-label` replaces the visible URL's accessible name, carries only `noopener`, lacks a visible context-change cue and does not use released ko/en/ja/zh/vi/es/de/fr resources. Preserve the proposal, but accept it only after complete carryover of the canonical exact-name, `noopener noreferrer`, decorative-icon, visible+AT disclosure, focused contract, browser and locale requirements.
+
+
+### appguardrail#1011 successor review — exact `02e63d7ebdb064d98f60e4821fa0a9d9112187f8`
+
+The ordinary child repairs the earlier accessible-name and outbound-link gaps without moving domain truth: the visible URL remains in the computed name; an `sr-only` suffix announces the new browsing context; a visible `↗` is decorative; and `rel="noopener noreferrer"` closes the opener/referrer boundary. A focused HTML-parser contract now rejects loss of those link attributes and cues.
+
+| Concern | Exact-head evidence | Status |
+|---|---|---|
+| Visible/exact accessible name | Visible URL plus nonvisual context suffix | Source contract PASS |
+| Security boundary | `noopener noreferrer` | Source contract PASS |
+| Visual/AT cue | Visible decorative arrow plus `sr-only` text | Source contract PASS |
+| Browser interaction | Source/parser test only | Real pointer, touch, keyboard, focus-return and screen-reader replay FAIL |
+| Responsive/locales | English suffix is embedded in static generated HTML | 320/768/desktop and ko/en/ja/zh/vi/es/de/fr FAIL |
+| Failure/recovery | Link navigation is outbound and non-mutating | Blocked URL, offline, permission/read-only and retry applicability pending |
+| Hosted admission | No qualifying current-head approval established | Exact-head required Checks and independent approval pending |
+
+#1011 remains Draft/Proposed. Do not merge it independently or replace this canonical writer unless complete source, contract, browser, locale, CHANGELOG and Gap requirements are proven carried forward.
