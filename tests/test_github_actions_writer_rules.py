@@ -66,7 +66,15 @@ jobs:
     ]
 
 
-@pytest.mark.parametrize("permission", ['contents: "write"', "permissions: 'write-all'"])
+@pytest.mark.parametrize(
+    "permission",
+    [
+        'permissions:\n  contents: "write"',
+        '"permissions":\n  "contents": \'write\'',
+        "permissions: 'write-all'",
+        "permissions: {contents: write}",
+    ],
+)
 def test_quoted_write_permission_reaches_mutable_branch_rule(
     tmp_path, permission: str
 ) -> None:
@@ -90,7 +98,15 @@ jobs:
     }
 
 
-@pytest.mark.parametrize("permission", ['contents: "write"', "permissions: 'write-all'"])
+@pytest.mark.parametrize(
+    "permission",
+    [
+        'permissions:\n  contents: "write"',
+        '"permissions":\n  "contents": \'write\'',
+        "permissions: 'write-all'",
+        "permissions: {contents: write}",
+    ],
+)
 def test_quoted_write_permission_reaches_self_modifying_rule(
     tmp_path, permission: str
 ) -> None:
@@ -115,6 +131,143 @@ jobs:
     assert "github-actions-self-modifying-writer" in {
         finding["rule_id"] for finding in findings
     }
+
+
+def test_comment_only_writer_commands_are_not_reported(tmp_path) -> None:
+    """YAML and shell comments are not executable repository mutations."""
+    workflow = tmp_path / ".github" / "workflows" / "comments.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  inspect:
+    steps:
+      - run: |
+          echo read-only
+          # git push origin HEAD:${{ github.head_ref }}
+          # git rm .github/workflows/comments.yml
+          # git commit -m retire
+          # git push origin HEAD:feature
+""",
+        encoding="utf-8",
+    )
+    rule_ids = {finding["rule_id"] for finding in _scan_file(workflow, tmp_path)}
+    assert "github-actions-mutable-branch-writer" not in rule_ids
+    assert "github-actions-self-modifying-writer" not in rule_ids
+
+
+def test_continued_mutable_push_is_reported(tmp_path) -> None:
+    """A shell line continuation cannot hide an event-derived push target."""
+    workflow = tmp_path / ".github" / "workflows" / "continued.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """
+on: pull_request_target
+permissions: {contents: write}
+jobs:
+  repair:
+    steps:
+      - run: |
+          git push origin \\
+            HEAD:${{ github.head_ref }}
+""",
+        encoding="utf-8",
+    )
+    rule_ids = {finding["rule_id"] for finding in _scan_file(workflow, tmp_path)}
+    assert "github-actions-mutable-branch-writer" in rule_ids
+
+
+def test_indirect_mutable_push_is_reported(tmp_path) -> None:
+    """A shell variable cannot hide an event-derived push target."""
+    workflow = tmp_path / ".github" / "workflows" / "indirect.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """
+on: pull_request_target
+permissions:
+  contents: write
+jobs:
+  repair:
+    steps:
+      - run: |
+          target=${{ github.head_ref }}
+          git push origin HEAD:$target
+""",
+        encoding="utf-8",
+    )
+    rule_ids = {finding["rule_id"] for finding in _scan_file(workflow, tmp_path)}
+    assert "github-actions-mutable-branch-writer" in rule_ids
+
+
+def test_continued_workflow_mutation_is_reported(tmp_path) -> None:
+    """A continued workflow path remains a persistent self-modification."""
+    workflow = tmp_path / ".github" / "workflows" / "continued-self.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """
+on: workflow_dispatch
+permissions: {contents: write}
+jobs:
+  retire:
+    steps:
+      - run: |
+          git rm \\
+            .github/workflows/continued-self.yml
+          git commit -m retire
+          git push origin HEAD:feature
+""",
+        encoding="utf-8",
+    )
+    rule_ids = {finding["rule_id"] for finding in _scan_file(workflow, tmp_path)}
+    assert "github-actions-self-modifying-writer" in rule_ids
+
+
+def test_non_executable_writer_text_and_protected_ref_are_not_reported(
+    tmp_path,
+) -> None:
+    """Strings, run-body permission text, and protected pushes stay benign."""
+    templates = {
+        "echo.yml": """
+on: workflow_dispatch
+permissions: {contents: write}
+jobs:
+  inspect:
+    steps:
+      - run: echo "git push origin HEAD:${{ github.head_ref }}"
+""",
+        "run-permission.yml": """
+on: workflow_dispatch
+jobs:
+  inspect:
+    steps:
+      - run: |
+          contents: write
+          git push origin HEAD:${{ github.head_ref }}
+""",
+        "protected.yml": """
+on:
+  push:
+    branches: [develop]
+permissions:
+  contents: write
+jobs:
+  publish:
+    steps:
+      - run: git push origin HEAD:${{ github.ref_name }}
+""",
+    }
+    for name, text in templates.items():
+        workflow = tmp_path / ".github" / "workflows" / name
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        workflow.write_text(text, encoding="utf-8")
+        rule_ids = {
+            finding["rule_id"] for finding in _scan_file(workflow, tmp_path)
+        }
+        assert "github-actions-mutable-branch-writer" not in rule_ids, name
+        assert "github-actions-self-modifying-writer" not in rule_ids, name
 
 
 def test_variable_whitespace_commit_reaches_scanner_level_self_writer_rule(

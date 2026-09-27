@@ -4,7 +4,7 @@ rules:
   # structure, not temporary-looking names such as `once` or `repair`.
   - id: github-actions-mutable-branch-writer
     patterns:
-      - pattern-regex: '\A(?=[\s\S]*^(?:[ \t]*contents[ \t]*:[ \t]*(?:write|"write"|''write'')|[ \t]*permissions[ \t]*:[ \t]*(?:write-all|"write-all"|''write-all''))[ \t]*(?:#.*)?$)(?=[\s\S]*\bgit[ \t]+push\b[^\n]*github\.(?:head_ref|ref_name|event\.pull_request\.head\.ref))[\s\S]*\Z'
+      - pattern-regex: '\A(?=[\s\S]*^[ \t]*(?:permissions|"permissions"|''permissions'')[ \t]*:)(?=[\s\S]*^[ \t]*(?:(?:contents|"contents"|''contents'')[ \t]*:[ \t]*(?:write|"write"|''write'')|(?:permissions|"permissions"|''permissions'')[ \t]*:[ \t]*(?:(?:write-all|"write-all"|''write-all'')|\{[^}\n]*(?:contents|"contents"|''contents'')[ \t]*:[ \t]*(?:write|"write"|''write'')[^}\n]*\}))[ \t]*(?:#.*)?$)(?:(?=[\s\S]*^[ \t]*(?![^#\n]*\b(?:echo|printf)\b[^#\n]*\bgit[ \t]+push\b)[^#\n]*\bgit[ \t]+push\b[^#\n]*(?:\\\n[ \t]*[^#\n]*)*github\.(?:head_ref|event\.pull_request\.head\.ref))|(?=[\s\S]*^[ \t]*(?P<mutable_var>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[^#\n]*github\.(?:head_ref|event\.pull_request\.head\.ref)[^#\n]*$)(?=[\s\S]*^[ \t]*(?![^#\n]*\b(?:echo|printf)\b[^#\n]*\bgit[ \t]+push\b)[^#\n]*\bgit[ \t]+push\b[^#\n]*(?:\\\n[ \t]*[^#\n]*)*HEAD:[ \t]*(?:\$(?P=mutable_var)|\$\{(?P=mutable_var)\})))[\s\S]*\Z'
     message: |
       This workflow combines repository write authority with an explicit push
       to mutable event-derived branch state. Contributor-controlled workflow
@@ -24,7 +24,7 @@ rules:
   # a separately persistent Actions registry identity and evades normal review.
   - id: github-actions-self-modifying-writer
     patterns:
-      - pattern-regex: '\A(?=[\s\S]*^(?:[ \t]*contents[ \t]*:[ \t]*(?:write|"write"|''write'')|[ \t]*permissions[ \t]*:[ \t]*(?:write-all|"write-all"|''write-all''))[ \t]*(?:#.*)?$)(?=[\s\S]*(?:\bgit[ \t]+rm\b|\brm(?:[ \t]+-[A-Za-z]+)?\b|\b(?:sed|perl)[ \t]+(?:-[A-Za-z]*i[A-Za-z]*|--in-place)\b)[^\n]*[ \t"'']\.github/workflows/)(?=[\s\S]*\bgit[ \t]+commit\b)(?=[\s\S]*\bgit[ \t]+push\b)[\s\S]*\Z'
+      - pattern-regex: '\A(?=[\s\S]*^[ \t]*(?:permissions|"permissions"|''permissions'')[ \t]*:)(?=[\s\S]*^[ \t]*(?:(?:contents|"contents"|''contents'')[ \t]*:[ \t]*(?:write|"write"|''write'')|(?:permissions|"permissions"|''permissions'')[ \t]*:[ \t]*(?:(?:write-all|"write-all"|''write-all'')|\{[^}\n]*(?:contents|"contents"|''contents'')[ \t]*:[ \t]*(?:write|"write"|''write'')[^}\n]*\}))[ \t]*(?:#.*)?$)(?=[\s\S]*^[ \t]*(?![^#\n]*\b(?:echo|printf)\b[^#\n]*(?:\bgit[ \t]+rm\b|\brm\b|\b(?:sed|perl)\b))[^#\n]*(?:\bgit[ \t]+rm\b|\brm(?:[ \t]+-[A-Za-z]+)?\b|\b(?:sed|perl)[ \t]+(?:-[A-Za-z]*i[A-Za-z]*|--in-place)\b)[^#\n]*(?:\\\n[ \t]*[^#\n]*)*[ \t"'']\.github/workflows/)(?=[\s\S]*^[ \t]*(?![^#\n]*\b(?:echo|printf)\b[^#\n]*\bgit[ \t]+commit\b)[^#\n]*\bgit[ \t]+commit\b)(?=[\s\S]*^[ \t]*(?![^#\n]*\b(?:echo|printf)\b[^#\n]*\bgit[ \t]+push\b)[^#\n]*\bgit[ \t]+push\b)[\s\S]*\Z'
     message: |
       This write-capable workflow edits or deletes a workflow definition from
       its own execution path. Source deletion does not retire the persistent

@@ -19,9 +19,16 @@ GITHUB_TOKEN=... python -m appguardrail_core.workflow_lifecycle \
   --fail-on-orphan-active
 ```
 
+The installed package includes the fixed-origin, GET-only GitHub transport
+used by this command; it does not depend on repository-local CI scripts.
+
 The detector paginates repositories and workflows, binds every repository to
 an unchanged 40-character default-branch SHA, validates the full recursive
-tree, and records content hashes for API receipts. It separates
+tree, re-reads workflow IDs, paths, and states before accepting the snapshot,
+then rechecks the default-branch SHA, and records content hashes for API
+receipts. Ledger, receipt, and failure paths must be distinct. Their files are
+atomically replaced; a failed live run invalidates an existing clean ledger and
+a successful run removes stale failure evidence. It separates
 `present_active`, `present_disabled`, `orphan_active`, `orphan_disabled`,
 `dynamic_owned`, and `unresolved`. Permission loss, 404 ambiguity, exhausted
 5xx retry, malformed data, incomplete pagination, reused workflow IDs, and

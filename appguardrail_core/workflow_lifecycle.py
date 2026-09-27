@@ -16,17 +16,23 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.error import HTTPError
 from urllib.parse import quote
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 SCHEMA_VERSION = "1"
 CAPABILITY = "workflow_lifecycle_inventory"
 MAX_PAYLOAD_BYTES = 1_048_576
 PER_PAGE_DEFAULT = 100
 MAX_PAGES = 100
+GITHUB_API = "https://api.github.com"
+USER_AGENT = "appguardrail-workflow-lifecycle"
 HEX_SHA = re.compile(r"^[0-9a-f]{40}$")
 HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 REPO_SLUG = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -85,8 +91,50 @@ class GitHubTransport(Protocol):
         """Return the decoded JSON response for one bounded request."""
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    """Prevent an authenticated GitHub request from leaving its fixed origin."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Reject redirects by declining to construct a follow-up request."""
+        del req, fp, code, msg, headers, newurl
+
+
+class _GitHubReadOnlyClient:
+    """Packaged, fixed-origin GitHub REST transport for live inventory."""
+
+    def __init__(self, token: str) -> None:
+        """Bind one token to the public GitHub API without mutation methods."""
+        self._token = token
+        self._opener = build_opener(_NoRedirect)
+
+    def request(self, path: str, *, method: str = "GET", payload: Any = None) -> Any:
+        """Return one decoded GET response from the fixed GitHub API origin."""
+        if method != "GET" or payload is not None:
+            raise InventoryError("workflow lifecycle transport is read-only")
+        if not path.startswith("/") or path.startswith("//"):
+            raise InventoryError("GitHub API path must be origin-relative")
+        request = Request(
+            f"{GITHUB_API}{path}",
+            method="GET",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self._token}",
+                "User-Agent": USER_AGENT,
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        try:
+            with self._opener.open(request, timeout=30) as response:
+                body = response.read()
+        except HTTPError as exc:
+            raise RuntimeError(f"GitHub GET failed: {exc.code}") from exc
+        if not body:
+            return None
+        return json.loads(body.decode("utf-8"))
+
+
 class _ReadOnlyGitHubAdapter:
-    """Adapt AppGuardrail's fixed-origin GitHub client to GET-only inventory."""
+    """Enforce GET-only inventory at a second transport boundary."""
 
     def __init__(self, client: Any) -> None:
         """Wrap one fixed-origin AppGuardrail GitHub client."""
@@ -96,7 +144,7 @@ class _ReadOnlyGitHubAdapter:
         """Permit only unactionable GETs through the shared GitHub transport."""
         if method != "GET" or payload is not None:
             raise InventoryError("workflow lifecycle transport is read-only")
-        return self._client.request("GET", path)
+        return self._client.request(path, method="GET")
 
 
 def _live_get(
@@ -197,6 +245,55 @@ def collect_live_organization(
         or identities(second) != baseline
     ):
         raise InventoryError("repository inventory changed during pagination")
+
+    def list_workflows(
+        full_name: str, repository_name: str
+    ) -> tuple[list[dict[str, Any]], frozenset[tuple[object, object, object]]]:
+        pages: list[dict[str, Any]] = []
+        page = 1
+        consumed = 0
+        while True:
+            if page > MAX_PAGES:
+                raise InventoryError(
+                    f"{repository_name} workflow pagination exceeded limit"
+                )
+            path = (
+                f"/repos/{full_name}/actions/workflows?per_page=100&page={page}"
+            )
+            body = _live_get(client, path, receipts)
+            if not isinstance(body, dict) or not isinstance(
+                body.get("workflows"), list
+            ):
+                raise InventoryError(
+                    f"{repository_name} workflow inventory is malformed"
+                )
+            total = body.get("total_count")
+            if not isinstance(total, int) or total < 0:
+                raise InventoryError(
+                    f"{repository_name} workflow total_count is malformed"
+                )
+            consumed += len(body["workflows"])
+            has_next = consumed < total
+            pages.append({**body, "_link_next": has_next})
+            if not has_next:
+                break
+            if not body["workflows"]:
+                raise InventoryError(
+                    f"{repository_name} workflow pagination is truncated"
+                )
+            page += 1
+        workflows, _ = collect_workflow_pages(pages)
+        try:
+            workflow_identities = frozenset(
+                (item.get("id"), item.get("path"), item.get("state"))
+                for item in workflows
+            )
+        except TypeError as exc:
+            raise InventoryError(
+                f"{repository_name} workflow identity is malformed"
+            ) from exc
+        return pages, workflow_identities
+
     records: list[dict[str, Any]] = []
     for repository in repositories:
         name = repository.get("name")
@@ -249,28 +346,10 @@ def collect_live_organization(
                 raise InventoryError(f"{name} default-branch tree entry is malformed")
             if item_type == "blob":
                 tree_paths.append(path)
-        workflow_pages: list[dict[str, Any]] = []
-        workflow_page = 1
-        while True:
-            workflow_path = f"/repos/{full_name}/actions/workflows?per_page=100&page={workflow_page}"
-            body = _live_get(client, workflow_path, receipts)
-            if not isinstance(body, dict) or not isinstance(
-                body.get("workflows"), list
-            ):
-                raise InventoryError(f"{name} workflow inventory is malformed")
-            total = body.get("total_count")
-            if not isinstance(total, int) or total < 0:
-                raise InventoryError(f"{name} workflow total_count is malformed")
-            consumed = sum(len(item["workflows"]) for item in workflow_pages) + len(
-                body["workflows"]
-            )
-            has_next = consumed < total
-            workflow_pages.append({**body, "_link_next": has_next})
-            if not has_next:
-                break
-            if not body["workflows"]:
-                raise InventoryError(f"{name} workflow pagination is truncated")
-            workflow_page += 1
+        workflow_pages, workflow_identities = list_workflows(full_name, name)
+        _, final_workflow_identities = list_workflows(full_name, name)
+        if final_workflow_identities != workflow_identities:
+            raise InventoryError(f"{name} workflow registry changed during scan")
         end = _live_get(client, commit_path, receipts)
         end_sha = end.get("sha") if isinstance(end, Mapping) else None
         assert_default_branch_bound(start_sha, end_sha)
@@ -648,33 +727,53 @@ def write_ledger(ledger: Mapping[str, Any], output: Path | None) -> str:
     """Serialize the ledger as UTF-8 JSON with a trailing newline."""
     text = json.dumps(ledger, indent=2, sort_keys=True) + "\n"
     if output is not None:
-        output.write_text(text, encoding="utf-8")
+        _write_atomic_text(output, text)
     return text
+
+
+def _write_atomic_text(output: Path, text: str) -> None:
+    """Replace one evidence file only after its complete content is durable."""
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=output.parent, prefix=f".{output.name}.", suffix=".tmp"
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, output)
+    except Exception:
+        with suppress(OSError):
+            os.close(descriptor)
+        with suppress(OSError):
+            temporary.unlink(missing_ok=True)
+        raise
 
 
 def write_failure_evidence(
     receipt_output: str | None,
     failure_output: str | None,
+    ledger_output: str | None,
     receipts: list[dict[str, Any]],
     error: Exception,
 ) -> None:
     """Keep available evidence when a live collection or output write fails."""
+    failure = {
+        "capability": CAPABILITY,
+        "status": "failed",
+        "error_type": type(error).__name__,
+    }
     for path, content in (
         (receipt_output, receipts),
-        (
-            failure_output,
-            {
-                "capability": CAPABILITY,
-                "status": "failed",
-                "error_type": type(error).__name__,
-            },
-        ),
+        (failure_output, failure),
+        (ledger_output, failure),
     ):
         if path:
             try:
-                Path(path).write_text(
+                _write_atomic_text(
+                    Path(path),
                     json.dumps(content, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8",
                 )
             except OSError:
                 # Best-effort preservation must not mask the failure already in flight.
@@ -708,6 +807,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         help=argparse.SUPPRESS,
     )
     args = parser.parse_args(argv)
+    if args.live:
+        evidence_paths = [
+            Path(value)
+            for value in (args.output, args.receipt_output, args.failure_output)
+            if value
+        ]
+        resolved_paths = [path.resolve() for path in evidence_paths]
+        aliased = len(set(resolved_paths)) != len(resolved_paths)
+        if not aliased:
+            for index, left in enumerate(evidence_paths):
+                for right in evidence_paths[index + 1 :]:
+                    if left.exists() and right.exists() and left.samefile(right):
+                        aliased = True
+                        break
+                if aliased:
+                    break
+        if aliased:
+            print("ERROR: live evidence paths must be distinct", file=sys.stderr)
+            return 2
     if args.mutate:
         try:
             refuse_registry_mutation(args.mutate)
@@ -720,24 +838,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not args.receipt_output:
                 raise InventoryError("--receipt-output is required for --live")
             try:
-                from scripts.ci.commercial_readiness_loop import (  # pylint: disable=import-outside-toplevel
-                    GitHub,
-                )
-            except ModuleNotFoundError:  # pragma: no cover - direct-script smoke tested
-                try:
-                    from commercial_readiness_loop import (  # type: ignore[no-redef]  # pylint: disable=import-outside-toplevel  # pragma: no cover
-                        GitHub,
-                    )
-                except ModuleNotFoundError as exc:
-                    raise InventoryError(
-                        "live GitHub client unavailable: ModuleNotFoundError"
-                    ) from exc
-
-            try:
                 token = os.environ.get("GITHUB_TOKEN", "")
                 if not token:
                     raise InventoryError("GITHUB_TOKEN is required for live inventory")
-                client = _ReadOnlyGitHubAdapter(GitHub(token))
+                client = _ReadOnlyGitHubAdapter(_GitHubReadOnlyClient(token))
             except Exception as exc:
                 raise InventoryError(
                     f"live GitHub credential unavailable: {type(exc).__name__}"
@@ -758,27 +862,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     except InventoryError as exc:
         if args.live:
             write_failure_evidence(
-                args.receipt_output, args.failure_output, live_receipts, exc
+                args.receipt_output,
+                args.failure_output,
+                args.output,
+                live_receipts,
+                exc,
             )
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     if args.live:
         try:
-            Path(args.receipt_output).write_text(
+            _write_atomic_text(
+                Path(args.receipt_output),
                 json.dumps(receipts, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
             )
         except OSError as exc:
-            write_failure_evidence(None, args.failure_output, live_receipts, exc)
+            write_failure_evidence(
+                None, args.failure_output, args.output, live_receipts, exc
+            )
             print(f"ERROR: unable to write receipts: {exc}", file=sys.stderr)
             return 2
     try:
         text = write_ledger(ledger, Path(args.output) if args.output else None)
     except (FileNotFoundError, OSError) as exc:
         if args.live:
-            write_failure_evidence(None, args.failure_output, live_receipts, exc)
+            write_failure_evidence(
+                None, args.failure_output, args.output, live_receipts, exc
+            )
         print(f"ERROR: unable to write ledger: {exc}", file=sys.stderr)
         return 2
+    if args.live and args.failure_output:
+        try:
+            Path(args.failure_output).unlink(missing_ok=True)
+        except OSError as exc:
+            write_failure_evidence(None, None, args.output, live_receipts, exc)
+            print(f"ERROR: unable to clear stale failure evidence: {exc}", file=sys.stderr)
+            return 2
     if args.output is None:
         sys.stdout.write(text)
     orphan_active = ledger["counts"]["orphan_active"]

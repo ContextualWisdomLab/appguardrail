@@ -789,6 +789,91 @@ def test_collect_live_organization_paginates_and_rechecks_head() -> None:
     assert payload["repository_inventory_complete"] is True
     assert len(receipts) == len(client.calls)
     assert client.calls.count(f"/repos/{repo}/commits/main") == 2
+    assert client.calls[-3:] == [
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1",
+        f"/repos/{repo}/commits/main",
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1",
+    ]
+
+
+def test_live_collection_rejects_concurrent_workflow_registry_change() -> None:
+    """A stable Git commit cannot mask a concurrent registry state change."""
+    repo = "ContextualWisdomLab/appguardrail"
+    workflow_path = f"/repos/{repo}/actions/workflows?per_page=100&page=1"
+    responses = {
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1": [
+            {
+                "name": "appguardrail",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+            "truncated": False,
+            "tree": [{"type": "blob", "path": ".github/workflows/ci.yml"}],
+        },
+        workflow_path: {
+            "total_count": 1,
+            "workflows": [_workflow(1, ".github/workflows/ci.yml")],
+        },
+    }
+
+    class ChangingWorkflowClient(_LiveClient):
+        workflow_reads = 0
+
+        def request(
+            self, path: str, *, method: str = "GET", payload: Any = None
+        ) -> Any:
+            response = super().request(path, method=method, payload=payload)
+            if path == workflow_path:
+                self.workflow_reads += 1
+                if self.workflow_reads == 2:
+                    return {
+                        "total_count": 1,
+                        "workflows": [
+                            _workflow(
+                                1,
+                                ".github/workflows/ci.yml",
+                                state="disabled_manually",
+                            )
+                        ],
+                    }
+            return response
+
+    with pytest.raises(inventory.InventoryError, match="workflow registry changed"):
+        inventory.collect_live_organization(ChangingWorkflowClient(responses))
+
+
+def test_live_collection_bounds_workflow_pages(monkeypatch) -> None:
+    """An endless workflow inventory cannot exceed the shared page bound."""
+    monkeypatch.setattr(inventory, "MAX_PAGES", 1)
+    repo = "ContextualWisdomLab/appguardrail"
+    responses = {
+        "/orgs/ContextualWisdomLab/repos?type=all&sort=full_name&per_page=100&page=1": [
+            {
+                "name": "appguardrail",
+                "full_name": repo,
+                "archived": False,
+                "default_branch": "main",
+            }
+        ],
+        f"/repos/{repo}/commits/main": [{"sha": SHA}, {"sha": SHA}],
+        f"/repos/{repo}/git/trees/{SHA}?recursive=1": {
+            "truncated": False,
+            "tree": [],
+        },
+        f"/repos/{repo}/actions/workflows?per_page=100&page=1": {
+            "total_count": 101,
+            "workflows": [
+                _workflow(index, f".github/workflows/{index}.yml")
+                for index in range(100)
+            ],
+        },
+    }
+    with pytest.raises(inventory.InventoryError, match="workflow pagination exceeded"):
+        inventory.collect_live_organization(_LiveClient(responses))
 
 
 @pytest.mark.parametrize("changed_listing", [2, 3])
@@ -1140,6 +1225,19 @@ def test_live_collector_rejects_every_incomplete_api_shape() -> None:
         ([], "workflow inventory"),
         ({"workflows": [], "total_count": "0"}, "total_count"),
         ({"workflows": [], "total_count": 1}, "pagination"),
+        (
+            {
+                "workflows": [
+                    {
+                        "id": 1,
+                        "path": ".github/workflows/ci.yml",
+                        "state": [],
+                    }
+                ],
+                "total_count": 1,
+            },
+            "workflow identity",
+        ),
     ]:
         with pytest.raises(inventory.InventoryError, match=message):
             inventory.collect_live_organization(client_for(**{workflow_path: response}))

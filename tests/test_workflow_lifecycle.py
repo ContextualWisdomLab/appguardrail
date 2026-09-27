@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import os
 import runpy
 import sys
 
@@ -148,7 +149,8 @@ def test_read_only_adapter_rejects_every_mutating_shape() -> None:
     """The shared transport cannot be used for a workflow mutation."""
 
     class Client:
-        def request(self, method: str, path: str):
+        def request(self, path: str, *, method: str = "GET", payload=None):
+            assert payload is None
             return {"method": method, "path": path}
 
     adapter = lifecycle._ReadOnlyGitHubAdapter(Client())
@@ -162,17 +164,74 @@ def test_read_only_adapter_rejects_every_mutating_shape() -> None:
         adapter.request("/repos/example", payload={})
 
 
+def test_packaged_client_is_fixed_origin_get_only(monkeypatch) -> None:
+    """The installed transport cannot redirect or accept absolute paths."""
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return b'{"ok": true}'
+
+    class Opener:
+        def open(self, request, timeout: int):
+            assert request.full_url == "https://api.github.com/orgs/example"
+            assert request.get_method() == "GET"
+            assert timeout == 30
+            return Response()
+
+    client = lifecycle._GitHubReadOnlyClient("test-token")
+    monkeypatch.setattr(client, "_opener", Opener())
+    assert client.request("/orgs/example") == {"ok": True}
+    assert lifecycle._ReadOnlyGitHubAdapter(client).request("/orgs/example") == {
+        "ok": True
+    }
+    with pytest.raises(lifecycle.InventoryError, match="read-only"):
+        client.request("/orgs/example", method="POST")
+    with pytest.raises(lifecycle.InventoryError, match="origin-relative"):
+        client.request("//attacker.example/path")
+    assert lifecycle._NoRedirect().redirect_request(None, None, 302, "", {}, "") is None
+
+
+def test_packaged_client_bounds_empty_and_http_error_responses(monkeypatch) -> None:
+    """Empty success and terminal HTTP failure have deterministic outcomes."""
+
+    class EmptyResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return b""
+
+    class EmptyOpener:
+        def open(self, _request, timeout: int):
+            assert timeout == 30
+            return EmptyResponse()
+
+    client = lifecycle._GitHubReadOnlyClient("test-token")
+    monkeypatch.setattr(client, "_opener", EmptyOpener())
+    assert client.request("/empty") is None
+
+    class ErrorOpener:
+        def open(self, request, timeout: int):
+            raise lifecycle.HTTPError(request.full_url, 403, "forbidden", {}, None)
+
+    monkeypatch.setattr(client, "_opener", ErrorOpener())
+    with pytest.raises(RuntimeError, match="failed: 403"):
+        client.request("/forbidden")
+
+
 def test_live_main_writes_receipts_and_fail_closed_evidence(
     tmp_path, monkeypatch, capsys
 ) -> None:
     """The live CLI persists both successful and partial collection receipts."""
-    from scripts.ci import commercial_readiness_loop
-
-    class GitHub:
-        def __init__(self, token: str):
-            assert token == "test-token"
-
-    monkeypatch.setattr(commercial_readiness_loop, "GitHub", GitHub)
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     receipt_path = tmp_path / "receipts.json"
     failure_path = tmp_path / "failure.json"
@@ -211,6 +270,8 @@ def test_live_main_writes_receipts_and_fail_closed_evidence(
         lifecycle.main(
             [
                 "--live",
+                "--output",
+                str(output_path),
                 "--receipt-output",
                 str(receipt_path),
                 "--failure-output",
@@ -221,6 +282,7 @@ def test_live_main_writes_receipts_and_fail_closed_evidence(
     )
     assert json.loads(receipt_path.read_text())[0]["path"] == "/partial"
     assert json.loads(failure_path.read_text())["status"] == "failed"
+    assert json.loads(output_path.read_text())["status"] == "failed"
 
     missing_path = tmp_path / "missing" / "evidence.json"
     assert (
@@ -270,6 +332,163 @@ def test_live_main_writes_receipts_and_fail_closed_evidence(
     assert "unable to write ledger" in capsys.readouterr().err
 
 
+def test_success_removes_stale_live_failure_evidence(tmp_path, monkeypatch) -> None:
+    """A successful live run cannot coexist with an earlier failure artifact."""
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(
+        lifecycle,
+        "collect_live_organization",
+        lambda _client, *, receipts: (
+            {"organization": "ContextualWisdomLab"},
+            receipts,
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "inventory_organization",
+        lambda _payload: {"counts": {"orphan_active": 0}, "records": []},
+    )
+    failure_path = tmp_path / "failure.json"
+    failure_path.write_text('{"status":"failed"}\n', encoding="utf-8")
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--output",
+                str(tmp_path / "ledger.json"),
+                "--receipt-output",
+                str(tmp_path / "receipts.json"),
+                "--failure-output",
+                str(failure_path),
+            ]
+        )
+        == 0
+    )
+    assert not failure_path.exists()
+
+
+def test_atomic_evidence_write_preserves_previous_file_on_replace_failure(
+    tmp_path, monkeypatch
+) -> None:
+    """A failed replacement cannot expose a partial evidence document."""
+    output = tmp_path / "ledger.json"
+    output.write_text("previous\n", encoding="utf-8")
+
+    def fail_replace(_source, _target) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(lifecycle.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="replace failed"):
+        lifecycle._write_atomic_text(output, "replacement\n")
+    assert output.read_text(encoding="utf-8") == "previous\n"
+    assert list(tmp_path.glob(".ledger.json.*.tmp")) == []
+
+
+def test_stale_failure_cleanup_failure_invalidates_ledger(tmp_path, monkeypatch) -> None:
+    """An undeletable failure artifact prevents a contradictory success result."""
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(
+        lifecycle,
+        "collect_live_organization",
+        lambda _client, *, receipts: (
+            {"organization": "ContextualWisdomLab"},
+            receipts,
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "inventory_organization",
+        lambda _payload: {"counts": {"orphan_active": 0}, "records": []},
+    )
+    failure_path = tmp_path / "failure.json"
+    failure_path.write_text('{"status":"failed"}\n', encoding="utf-8")
+    original_unlink = lifecycle.Path.unlink
+
+    def fail_failure_unlink(path, *args, **kwargs):
+        if path == failure_path:
+            raise OSError("unlink failed")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(lifecycle.Path, "unlink", fail_failure_unlink)
+    output = tmp_path / "ledger.json"
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--output",
+                str(output),
+                "--receipt-output",
+                str(tmp_path / "receipts.json"),
+                "--failure-output",
+                str(failure_path),
+            ]
+        )
+        == 2
+    )
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        [
+            "--output",
+            "evidence.json",
+            "--receipt-output",
+            "evidence.json",
+            "--failure-output",
+            "failure.json",
+        ],
+        [
+            "--output",
+            "evidence.json",
+            "--receipt-output",
+            "receipts.json",
+            "--failure-output",
+            "evidence.json",
+        ],
+        [
+            "--output",
+            "ledger.json",
+            "--receipt-output",
+            "evidence.json",
+            "--failure-output",
+            "evidence.json",
+        ],
+    ],
+)
+def test_live_main_rejects_aliased_evidence_paths(
+    tmp_path, monkeypatch, arguments
+) -> None:
+    """Success, receipt, and failure artifacts require distinct identities."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    assert lifecycle.main(["--live", *arguments]) == 2
+    assert not (tmp_path / "evidence.json").exists()
+
+
+def test_live_main_rejects_hardlinked_evidence_paths(tmp_path, monkeypatch) -> None:
+    """Different spellings of one existing inode are still one artifact."""
+    output = tmp_path / "ledger.json"
+    receipt = tmp_path / "receipts.json"
+    output.write_text("existing\n", encoding="utf-8")
+    os.link(output, receipt)
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    assert (
+        lifecycle.main(
+            [
+                "--live",
+                "--output",
+                str(output),
+                "--receipt-output",
+                str(receipt),
+            ]
+        )
+        == 2
+    )
+    assert output.read_text(encoding="utf-8") == "existing\n"
+
+
 def test_live_main_requires_a_token(tmp_path, monkeypatch) -> None:
     """Missing credentials fail before any GitHub request."""
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -280,10 +499,10 @@ def test_live_main_requires_a_token(tmp_path, monkeypatch) -> None:
     )
 
 
-def test_live_main_converts_missing_client_imports_to_structured_failure(
+def test_live_main_uses_packaged_client_without_repository_scripts(
     tmp_path, monkeypatch
 ) -> None:
-    """An installed core without repository scripts fails closed with exit 2."""
+    """An installed core keeps documented live inventory functional."""
     original_import = builtins.__import__
 
     def without_repository_client(name, *args, **kwargs):
@@ -295,22 +514,38 @@ def test_live_main_converts_missing_client_imports_to_structured_failure(
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", without_repository_client)
+
+    class GitHub:
+        def __init__(self, token: str):
+            assert token == "test-token"
+
+    monkeypatch.setattr(lifecycle, "_GitHubReadOnlyClient", GitHub, raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setattr(
+        lifecycle,
+        "collect_live_organization",
+        lambda _client, *, receipts: (
+            {"organization": "ContextualWisdomLab"},
+            receipts,
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "inventory_organization",
+        lambda _payload: {"counts": {"orphan_active": 0}, "records": []},
+    )
     receipts = tmp_path / "receipts.json"
-    failure = tmp_path / "failure.json"
     assert (
         lifecycle.main(
             [
                 "--live",
                 "--receipt-output",
                 str(receipts),
-                "--failure-output",
-                str(failure),
             ]
         )
-        == 2
+        == 0
     )
     assert json.loads(receipts.read_text()) == []
-    assert json.loads(failure.read_text())["error_type"] == "InventoryError"
 
 
 def test_branch_movement_case_encoding_and_malformed_paths_fail_closed() -> None:
