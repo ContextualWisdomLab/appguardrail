@@ -77,3 +77,23 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2026-08-16 - Fast-path check for regex evaluations
+**Learning:** `REFERENCE_RE` is compiled at import. The remaining cost on messages with no public IDs is `finditer` scanner allocation. A native `"[" not in message` check skips that work because every valid match must start with `[`. Switching the CWE branch from `if` to `elif` is exclusive classification only: `OWASP ` and `CWE-` cannot both match the same reference, so it is not a 15–20% metadata speedup.
+**Action:** Guard compiled regex scans with a cheap required-substring check. Do not claim wall-clock improvement for exclusive `elif` classification unless a production-path benchmark is attached.
+
+## 2026-09-27 - Measure explicit reference-deduplication loops
+**Learning:** On CPython in the repair environment, nine repeats of 200,000 calls compared the integrated tree with its exact semantic parent `24d0a0000fab39398d57398030af3840f129813b`. Explicit insertion-ordered dictionaries reduced median `_merge_references` time from 0.111731 s to 0.064596 s and matching extraction from 0.303806 s to 0.247064 s. The preserved no-reference fast path measured 0.014028 s vs 0.013521 s. These are same-host microbenchmark results, not an end-to-end scanner latency claim.
+**Action:** Keep the required-substring fast path and semantic regression contract independent from the constant-factor loop refactor. Record workload, repeats, medians, runtime boundary, and limitations with every performance claim.
+
+## 2026-09-27 - Bound comprehension speed against temporary allocation
+**Learning:** On the same CPython process, 15 repeats of 2,000 calls over 100 findings measured a 0.178523 s generator median and 0.170497 s list-comprehension median. For 10,000 findings, `tracemalloc` peak increased from 4,740,024 to 4,805,160 bytes. This bounded result does not support a blanket 10–15% claim or a rule that comprehensions always beat loops.
+**Action:** Choose generator, comprehension, or explicit-loop collection construction from a representative same-runtime benchmark that records time and peak allocation. Preserve semantic/security prerequisites independently of a local constant-factor result.
+
+## 2026-09-26 - 중복 딕셔너리 조회 제거 최적화
+**Learning:** `if isinstance(d.get(key), dict) and "value" in d[key]: ... d[key]['value']` 같은 코드는 같은 키를 반복 조회합니다. `.get(key)` 결과를 한 번 저장하면 동일한 의미를 더 직접적으로 표현하지만, 실제 wall-clock 효과는 딕셔너리 크기와 호출 경로에 따라 달라집니다.
+**Action:** 의미가 동일할 때 저장한 조회 결과를 재사용하되, 성능 향상을 주장하려면 production hot path를 측정하세요.
+
+## 2026-09-26 - 모듈 로드 시 정적 딕셔너리 기반 캐시 사전 계산 최적화
+**Learning:** `severities_at_or_above`의 네 값은 정적이므로 immutable `frozenset`을 미리 계산해도 의미가 유지됩니다. 캐시 조회는 O(1)이지만 독립된 반환값을 위한 `set(CACHE[key])` 복사는 O(k)이므로 함수 전체가 O(1)이 되지는 않습니다.
+**Action:** 작은 정적 파생값은 immutable cache로 공유하고 호출자에게 복사본을 반환하세요. wall-clock 개선은 대표 workload 측정 전에는 주장하지 마세요.

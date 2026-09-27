@@ -3221,11 +3221,12 @@ def render_tokens_css(tokens: dict) -> str:
     lines.append("}")
 
     hc = tokens.get("high-contrast") or {}
-    hc_lines = [
-        f"    {css_var}: {hc[key]['value']};"
-        for key, css_var in _COLOR_CSS_VARS.items()
-        if isinstance(hc.get(key), dict) and "value" in hc[key]
-    ]
+    hc_lines = []
+    for key, css_var in _COLOR_CSS_VARS.items():
+        val = hc.get(key)
+        if isinstance(val, dict) and "value" in val:
+            hc_lines.append(f"    {css_var}: {val['value']};")
+
     if hc_lines:
         lines.append("@media (prefers-contrast: more){")
         lines.append("  :root{")
