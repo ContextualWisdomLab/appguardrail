@@ -6,6 +6,8 @@ Records #1331 exact `96a98d93...` as an ordinary two-parent integration with #13
 
 Records final #1326 exact `7a4f3f13...` as closed unmerged after its writer repeated a stale-snapshot deletion following ordinary repair `0ac775da...`. Existing #1331 exact `4fa0e93a...`, tree `a5d36aa5...`, completely carries the valid severity-cache/CSS deltas, restores every security contract/test/CHANGELOG delta, retains measured normalization, and corrects unsupported universal O(1)/speedup doctrine. Related 45/45 and full 1,005/1,005 are GREEN; retirement transfers no Checks or approval.
 
+Records tree-identical live children #1292 `d439c12c...` and #1327 `0eb7363e...` without treating their source-neutral commit messages as source, repair, review, or verification evidence. #1292 has seven exact-head hosted successes with CodeQL PR and Security Scan still queued; #1327 has all nine workflows queued. Both remain Draft and require unchanged-head terminal gates plus qualifying review.
+
 Records #1069, current-head #1224 exact `650e3278...`, #1237, current-head #1297 exact `7ec0a6e9...`, and current-head #1317 exact `02343b07...` as retired unmerged solely by verified complete successor carryover into #1326. The successor preserves their explicit dictionary loops, scanner fast path, and valid ordering/filtering semantics while adding the public-reference contract, executable fixtures, CHANGELOG, and bounded benchmark evidence. #1224/#1297/#1317's unsupported universal unrolling and fixed speedup claims are explicitly excluded. Also pins #1314's tree-identical current exact `1c21254a...` without transferring predecessor Checks or review.
 
 ## Scoped refresh 2026-09-12
