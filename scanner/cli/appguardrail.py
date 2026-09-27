@@ -1673,6 +1673,15 @@ def _is_safe_url(url: str) -> bool:
         pass
 
     try:
+        packed = socket.inet_aton(raw)
+        ip_str = socket.inet_ntoa(packed)
+        ip = ipaddress.ip_address(ip_str)
+        if is_bad_ip(ip):
+            return False
+    except OSError:
+        pass
+
+    try:
         resolved = socket.getaddrinfo(raw, None)
         for entry in resolved:
             ip_str = entry[4][0].split("%", 1)[0]
