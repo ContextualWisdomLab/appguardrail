@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-21 - Optimize multiple properties derivation from a single source
+**Learning:** `build_org_inventory` and `summarize_pr_gates` derive multiple properties from the same collection. Combining these iterations into one explicit loop reduces the redundant passes and reduces element visits. Since this remains an O(N) complexity change, this is a constant-factor optimization rather than an asymptotic complexity improvement.
+**Action:** Consolidate multiple comprehensions when derived from a shared iterable source, to decrease unnecessary collection passes.
