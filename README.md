@@ -335,6 +335,12 @@ scan. This gives human reviewers and AI review agents better call-graph context
 for authorization, webhook, secret-handling, and other security-sensitive flows.
 The repository Security Process workflow also runs AppGuardrail with CodeGraph
 enabled, so pull requests get the same structural security context in CI.
+For pull requests to the default branch, the central required Security Scan
+handles code-changing Trivy coverage; the local Security Process keeps Trivy
+coverage for documentation/image-only changes, pushes, and pull requests to
+other branches. The local Trivy scan also runs whenever the changed-file list
+cannot be fully verified or the classification job fails, so errors lean toward
+scanning.
 
 ### Generate a security review prompt
 
