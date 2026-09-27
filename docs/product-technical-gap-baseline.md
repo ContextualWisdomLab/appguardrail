@@ -125,3 +125,19 @@ Repeated successor regression at `280a278e…` removed the contracts and restore
 [appguardrail#1332](https://github.com/ContextualWisdomLab/appguardrail/pull/1332) is Draft/Proposed at exact head `e1d46111bb1c46e4495c5d96e8c976d48a0532fc`. The same dashboard external-reference surface is already owned by canonical appguardrail#1272 at `db690d5f6a87318795ac813d269e3c72a9f8b7ac`, which preserves the reusable `.external-reference` class, `noopener noreferrer`, non-focusable `aria-hidden` SVG, visible new-context text, focused regression contract, CHANGELOG, and this Gap ledger.
 
 #1332 is not a complete successor: it uses only `rel="noopener"`, exposes the SVG to assistive technology, lacks a focused contract, and applies `word-break: break-all` to every anchor rather than the bounded external-reference component. Preserve its proposal and Korean-copy intent, but do not create a second product writer or close it until protected integration proves complete blob/requirement carryover. Exact-head Tests, Security, Semgrep and CodeQL are queued; real browser/AT/responsive/eight-locale/recovery evidence and current independent approval remain absent.
+
+## Console busy-state proposal — appguardrail#1010
+
+[PR #1010](https://github.com/ContextualWisdomLab/appguardrail/pull/1010) is Draft/Proposed at evidence head `a3ee0bf4f164726f22a455299ceb21e753e9a5e4`. Its bounded CSS changes opacity/cursor for existing `aria-busy` controls but does not itself establish busy ownership or lifecycle behavior.
+
+| Concern | Required acceptance | Status |
+|---|---|---|
+| Busy identity | Only the active action exposes busy state; unrelated actions remain correctly named | Open |
+| Duplicate activation | pointer, touch, Enter and Space cannot duplicate an in-flight command | Open |
+| Lifecycle | success, error, offline, retry, abort, stale response and focus recovery | Open |
+| Motion/responsive/locales | reduced-motion plus 320/768/desktop and eight-locale evidence | Open |
+| Performance | realistic dashboard update median/p95 and failure denominator | Open |
+
+## Duplicate external-link proposal — appguardrail#1011
+
+[PR #1011](https://github.com/ContextualWisdomLab/appguardrail/pull/1011) is Draft/Proposed at evidence head `d4d039a515d8609b199e1aec4d907b950afeec22`. It edits the same external-reference surface as this canonical writer. Its English-only `aria-label` replaces the visible URL's accessible name, carries only `noopener`, lacks a visible context-change cue and does not use released ko/en/ja/zh/vi/es/de/fr resources. Preserve the proposal, but accept it only after complete carryover of the canonical exact-name, `noopener noreferrer`, decorative-icon, visible+AT disclosure, focused contract, browser and locale requirements.
