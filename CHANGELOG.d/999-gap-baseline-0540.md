@@ -8,6 +8,8 @@ Records final #1326 exact `7a4f3f13...` as closed unmerged after its writer repe
 
 Records tree-identical live children #1292 `d439c12c...` and #1327 `0eb7363e...` without treating their source-neutral commit messages as source, repair, review, or verification evidence. #1292 has seven exact-head hosted successes with CodeQL PR and Security Scan still queued; #1327 has all nine workflows queued. Both remain Draft and require unchanged-head terminal gates plus qualifying review.
 
+Records #1324 live `a2d4968d...` as a source-neutral child of verified tree `5e031529...`: its zero-file detector-restoration message is not new repair evidence. All nine live exact-head workflows remain queued, so the semantic detector owner stays Draft pending unchanged-head gates and qualifying review.
+
 Records #1069, current-head #1224 exact `650e3278...`, #1237, current-head #1297 exact `7ec0a6e9...`, and current-head #1317 exact `02343b07...` as retired unmerged solely by verified complete successor carryover into #1326. The successor preserves their explicit dictionary loops, scanner fast path, and valid ordering/filtering semantics while adding the public-reference contract, executable fixtures, CHANGELOG, and bounded benchmark evidence. #1224/#1297/#1317's unsupported universal unrolling and fixed speedup claims are explicitly excluded. Also pins #1314's tree-identical current exact `1c21254a...` without transferring predecessor Checks or review.
 
 ## Scoped refresh 2026-09-12
