@@ -68,6 +68,21 @@ def test_normalize_analysis_uses_nested_tool_and_stable_dimensions() -> None:
     )
 
 
+
+def test_normalize_analysis_collapses_unicode_whitespace() -> None:
+    """Keep stable dimensions equivalent across supported whitespace forms."""
+    evidence = normalize_analysis(
+        _analysis(
+            analysis_key="workflow:\t scan\njob",
+            environment="matrix.os=ubuntu-latest\u2003matrix.python=3.12",
+        )
+    )
+
+    assert evidence.identity.analysis_key == "workflow: scan job"
+    assert evidence.identity.environment == (
+        "matrix.os=ubuntu-latest matrix.python=3.12"
+    )
+
 def test_normalize_analysis_preserves_matrix_dimensions() -> None:
     """Different matrix jobs must remain independent coverage identities."""
     linux = normalize_analysis(

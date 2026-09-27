@@ -156,12 +156,18 @@ def is_deploy_blocking(
     return sev in severities and ctx not in NON_BLOCKING_CONTEXTS
 
 
+_SEVERITIES_AT_OR_ABOVE_CACHE = {
+    idx: {sev for sev, order in _SEVERITY_ORDER.items() if order <= idx}
+    for idx in _SEVERITY_ORDER.values()
+}
+
+
 def severities_at_or_above(min_severity: str) -> set[str]:
     """Severity names at or above ``min_severity`` (CRITICAL is highest)."""
     idx = _SEVERITY_ORDER.get(str(min_severity).upper())
     if idx is None:
         return set(DEPLOY_BLOCKING_SEVERITIES)
-    return {sev for sev, order in _SEVERITY_ORDER.items() if order <= idx}
+    return set(_SEVERITIES_AT_OR_ABOVE_CACHE[idx])
 
 
 def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
