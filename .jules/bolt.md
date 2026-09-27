@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-20 - 딕셔너리 이중 조회 해싱 오버헤드 최적화 (Optimize double dictionary lookup hashing overhead)
+**Learning:** `appguardrail_core/code_scanning.py`의 `compare_snapshots`와 같은 핫 패스에서 `if key not in dict`로 존재 여부를 확인한 후 `dict[key]`로 값을 다시 가져오는 방식은 딕셔너리를 두 번 해싱하고 조회하게 만들어 성능 저하를 일으킵니다.
+**Action:** `dict.get(key)`를 단일 호출하여 반환값이 `None`인지 확인하는 방식으로 변경하여 이중 해싱 오버헤드를 제거합니다. 이 최적화는 큰 딕셔너리를 다루는 루프에서 실행 시간을 유의미하게 단축시킵니다.
