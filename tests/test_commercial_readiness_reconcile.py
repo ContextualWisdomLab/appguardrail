@@ -168,9 +168,7 @@ def test_main_prints_machine_readable_result(
     monkeypatch.setenv("GH_TOKEN", "workflow-token")
     monkeypatch.setattr(loop, "GitHub", lambda token: client)
 
-    assert reconcile.main(
-        ["--repository", "ContextualWisdomLab/appguardrail"]
-    ) == 0
+    assert reconcile.main(["--repository", "ContextualWisdomLab/appguardrail"]) == 0
 
     assert json.loads(capsys.readouterr().out) == {
         "action": "noop",

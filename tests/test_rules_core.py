@@ -1,6 +1,8 @@
-from appguardrail_core.rules import (build_rule_metadata,
-                                     extract_public_references,
-                                     validate_rule_metadata)
+from appguardrail_core.rules import (
+    build_rule_metadata,
+    extract_public_references,
+    validate_rule_metadata,
+)
 
 
 def test_extract_public_references_from_rule_message():

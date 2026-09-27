@@ -1,8 +1,12 @@
-from appguardrail_core.reports import (ReportContext, render_agency_report,
-                                       render_buyer_diligence_report,
-                                       render_fix_pack,
-                                       render_founder_friendly_report,
-                                       render_report, supported_report_types)
+from appguardrail_core.reports import (
+    ReportContext,
+    render_agency_report,
+    render_buyer_diligence_report,
+    render_fix_pack,
+    render_founder_friendly_report,
+    render_report,
+    supported_report_types,
+)
 
 
 def sample_findings():

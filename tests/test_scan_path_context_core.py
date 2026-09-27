@@ -11,7 +11,9 @@ import pytest
 from appguardrail_core.scan_paths import ScanPathContext, build_scan_path_context
 
 
-def test_directory_context_preserves_existing_relative_path_semantics(tmp_path: Path) -> None:
+def test_directory_context_preserves_existing_relative_path_semantics(
+    tmp_path: Path,
+) -> None:
     """Directory scans classify the root once and reuse a separator-safe prefix."""
     context = build_scan_path_context(tmp_path, base_path_is_file=False)
     child = tmp_path / "src" / ".hidden.py"
@@ -46,7 +48,9 @@ def test_single_file_context_uses_working_directory_and_filename_fallback(
     assert context.relative_candidate(outside_target) == "outside.py"
 
 
-def test_context_is_immutable_and_rejects_invalid_builder_inputs(tmp_path: Path) -> None:
+def test_context_is_immutable_and_rejects_invalid_builder_inputs(
+    tmp_path: Path,
+) -> None:
     """Callers cannot mutate cached identity or smuggle a non-Boolean classification."""
     context = build_scan_path_context(tmp_path, base_path_is_file=False)
 
@@ -80,7 +84,9 @@ def test_builder_performs_one_classification_only_when_caller_has_no_result(
     assert calls == [tmp_path]
 
 
-def test_context_handles_separator_boundaries_without_prefix_collision(tmp_path: Path) -> None:
+def test_context_handles_separator_boundaries_without_prefix_collision(
+    tmp_path: Path,
+) -> None:
     """A sibling whose name merely starts with the root is never treated as a child."""
     root = tmp_path / "repo"
     root.mkdir()

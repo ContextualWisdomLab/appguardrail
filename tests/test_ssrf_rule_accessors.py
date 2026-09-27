@@ -72,6 +72,4 @@ def test_scan_file_emits_finding_for_subscript_variable_flow(tmp_path):
 
 def test_packaged_rule_ignores_validated_subscript_flow():
     """Do not flag a subscript source protected by a fail-closed guard."""
-    assert not _rule()["pattern"].search(
-        _source('body["url"]', validated=True)
-    )
+    assert not _rule()["pattern"].search(_source('body["url"]', validated=True))

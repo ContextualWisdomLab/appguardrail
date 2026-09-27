@@ -6,9 +6,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Iterable
 
-from appguardrail_core.findings import (SEVERITIES, finding_sort_key,
-                                        is_deploy_blocking, normalize_finding,
-                                        severity_counts)
+from appguardrail_core.findings import (
+    SEVERITIES,
+    finding_sort_key,
+    is_deploy_blocking,
+    normalize_finding,
+    severity_counts,
+)
 
 
 @dataclass(frozen=True)

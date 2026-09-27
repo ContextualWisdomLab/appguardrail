@@ -106,7 +106,12 @@ def test_module_cli_collects_live_evidence_when_source_is_absent(
 
     monkeypatch.setattr(evidence, "collect_openssf_evidence", fake_collect)
 
-    assert evidence.main(["--repository-url", REPOSITORY_URL, "--verified-at", VERIFIED_AT]) == 0
+    assert (
+        evidence.main(
+            ["--repository-url", REPOSITORY_URL, "--verified-at", VERIFIED_AT]
+        )
+        == 0
+    )
     assert calls == [(REPOSITORY_URL, VERIFIED_AT)]
     assert json.loads(capsys.readouterr().out)["findings"][0]["badge_tier"] == "passing"
 
@@ -179,9 +184,12 @@ def test_module_cli_reports_source_and_output_io_errors(
 ) -> None:
     """Unreadable inputs and unwritable outputs return concise non-zero results."""
     missing = tmp_path / "missing.json"
-    assert evidence.main(
-        ["--repository-url", REPOSITORY_URL, "--source-json", str(missing)]
-    ) == 1
+    assert (
+        evidence.main(
+            ["--repository-url", REPOSITORY_URL, "--source-json", str(missing)]
+        )
+        == 1
+    )
     assert "cannot read" in capsys.readouterr().err.lower()
 
     source = tmp_path / "source.json"
@@ -192,16 +200,19 @@ def test_module_cli_reports_source_and_output_io_errors(
         raise OSError("read-only")
 
     monkeypatch.setattr(evidence.Path, "write_text", fail_write)
-    assert evidence.main(
-        [
-            "--repository-url",
-            REPOSITORY_URL,
-            "--source-json",
-            str(source),
-            "--out",
-            str(tmp_path / "out.json"),
-        ]
-    ) == 1
+    assert (
+        evidence.main(
+            [
+                "--repository-url",
+                REPOSITORY_URL,
+                "--source-json",
+                str(source),
+                "--out",
+                str(tmp_path / "out.json"),
+            ]
+        )
+        == 1
+    )
     assert "cannot write" in capsys.readouterr().err.lower()
 
 

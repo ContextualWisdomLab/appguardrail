@@ -137,7 +137,7 @@ def _safe_source():
             "def update_webhook(conn, org, body):",
             '    webhook_url = (body or {}).get("url")',
             "    if webhook_url and not _is_safe_url(webhook_url):",
-            "        raise ValueError(\"unsafe webhook url\")",
+            '        raise ValueError("unsafe webhook url")',
             f"    {sink}(conn, org, webhook_url)",
             "",
         ]
@@ -262,9 +262,7 @@ def test_packaged_rule_ignores_positive_guarded_persistence():
 
 def test_packaged_rule_matches_unprotected_sink_after_positive_guard():
     """A guarded sink must not hide a later unprotected persistence sink."""
-    assert _rule()["pattern"].search(
-        _positive_guard_then_unprotected_sink_source()
-    )
+    assert _rule()["pattern"].search(_positive_guard_then_unprotected_sink_source())
 
 
 def test_packaged_rule_ignores_fail_closed_guarded_persistence():

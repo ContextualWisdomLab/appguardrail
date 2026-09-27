@@ -195,7 +195,9 @@ def test_preview_hash_is_independent_of_input_mapping_order() -> None:
         preview_id="purge-preview-1",
         legal_hold_revision=3,
         created_at=AS_OF,
-        eligible_counts={category: index for index, category in enumerate(RETENTION_CATEGORIES)},
+        eligible_counts={
+            category: index for index, category in enumerate(RETENTION_CATEGORIES)
+        },
         held_counts={category: 0 for category in RETENTION_CATEGORIES},
     )
     second = build_purge_preview(
@@ -406,7 +408,9 @@ def test_manual_preview_mutation_is_detected_before_execution() -> None:
         eligible_counts={category: 0 for category in RETENTION_CATEGORIES},
         held_counts={category: 0 for category in RETENTION_CATEGORIES},
     )
-    tampered = replace(preview, eligible_counts={**preview.eligible_counts, "scan_history": 9})
+    tampered = replace(
+        preview, eligible_counts={**preview.eligible_counts, "scan_history": 9}
+    )
 
     with pytest.raises(ValueError, match="preview hash"):
         verify_purge_preview(tampered, policy_revision=1, legal_hold_revision=0)

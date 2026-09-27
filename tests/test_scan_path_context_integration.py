@@ -50,7 +50,9 @@ def test_cmd_scan_reuses_one_exact_context_for_large_stream(tmp_path: Path) -> N
         return []
 
     with (
-        patch("scanner.cli.appguardrail._collect_files", side_effect=fake_collect_files),
+        patch(
+            "scanner.cli.appguardrail._collect_files", side_effect=fake_collect_files
+        ),
         patch("scanner.cli.appguardrail._scan_file", side_effect=fake_scan_file),
     ):
         assert cli.cmd_scan(_scan_args(tmp_path)) == 0
@@ -66,7 +68,9 @@ def test_cmd_scan_reuses_one_exact_context_for_large_stream(tmp_path: Path) -> N
     assert not first_context.base_path_is_file
 
 
-def test_cmd_scan_classifies_root_once_and_never_inside_file_calls(tmp_path: Path) -> None:
+def test_cmd_scan_classifies_root_once_and_never_inside_file_calls(
+    tmp_path: Path,
+) -> None:
     """The deterministic operation-count benchmark is one root classification per scan."""
     files = tuple(tmp_path / f"file_{index}.py" for index in range(10_000))
     classification_calls: list[Path] = []

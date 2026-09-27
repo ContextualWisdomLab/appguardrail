@@ -50,7 +50,9 @@ def test_hostname_rejects_overlong_identity_after_idna_normalization() -> None:
     hostname = "a." * 127 + "a"
     assert len(hostname) == 255
 
-    with pytest.raises(transport.DestinationValidationError, match="hostname is invalid"):
+    with pytest.raises(
+        transport.DestinationValidationError, match="hostname is invalid"
+    ):
         transport.resolve_public_https_destination(
             f"https://{hostname}/path",
             resolver=lambda *_args: pytest.fail("resolver must not run"),

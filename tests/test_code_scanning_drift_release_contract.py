@@ -47,7 +47,9 @@ def test_operator_documentation_explains_evidence_and_permission_boundaries() ->
     assert "naruon" in text
 
 
-def test_changelog_fragment_describes_live_state_detection_without_overclaiming() -> None:
+def test_changelog_fragment_describes_live_state_detection_without_overclaiming() -> (
+    None
+):
     """Release notes must distinguish confirmed drift from unknown GitHub state."""
     text = CHANGELOG_PATH.read_text(encoding="utf-8")
 

@@ -47,12 +47,8 @@ def test_normalize_analysis_uses_nested_tool_and_stable_dimensions() -> None:
     pull = normalize_analysis(
         _analysis(
             analysis_id=2,
-            analysis_key=(
-                ".github/workflows/security.yml:scan refs/pull/862/merge"
-            ),
-            environment=(
-                "ubuntu-latest sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-            ),
+            analysis_key=(".github/workflows/security.yml:scan refs/pull/862/merge"),
+            environment=("ubuntu-latest sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
             ref="refs/pull/862/merge",
             commit_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         )

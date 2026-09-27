@@ -37,7 +37,13 @@ def test_late_auth_rule_reports_data_access_before_authentication() -> None:
     """An approved authentication call after data access remains a finding."""
     rule = _rule_block("auth-after-data-access")
 
-    assert "$DB.$QUERY(...)\n                ...\n                const session = await getSession(...)" in rule
-    assert "$DB.$QUERY(...)\n                ...\n                const user = await requireAuth(...)" in rule
+    assert (
+        "$DB.$QUERY(...)\n                ...\n                const session = await getSession(...)"
+        in rule
+    )
+    assert (
+        "$DB.$QUERY(...)\n                ...\n                const user = await requireAuth(...)"
+        in rule
+    )
     assert "metavariable: $DB" in rule
     assert "severity: CRITICAL" in rule

@@ -57,9 +57,7 @@ _LEGACY_TO_CANONICAL = {
     "keys": "access_keys",
 }
 _REQUIRED_LEGACY_COLUMNS = {
-    "orgs": frozenset(
-        {"id", "name", "api_key_hash", "created_at", "webhook_url"}
-    ),
+    "orgs": frozenset({"id", "name", "api_key_hash", "created_at", "webhook_url"}),
     "scans": frozenset(
         {
             "id",
@@ -74,9 +72,7 @@ _REQUIRED_LEGACY_COLUMNS = {
             "findings",
         }
     ),
-    "keys": frozenset(
-        {"id", "org_id", "key_hash", "role", "label", "created_at"}
-    ),
+    "keys": frozenset({"id", "org_id", "key_hash", "role", "label", "created_at"}),
 }
 
 
@@ -416,7 +412,10 @@ def _validate_current_schema(inspection: SchemaInspection) -> None:
         raise SchemaMigrationError(
             "schema version 2 is incomplete; missing objects: " + ", ".join(missing)
         )
-    if LEGACY_TABLE_NAMES & inspection.table_names or "idx_scans_org" in inspection.index_names:
+    if (
+        LEGACY_TABLE_NAMES & inspection.table_names
+        or "idx_scans_org" in inspection.index_names
+    ):
         raise SchemaMigrationError("schema version 2 still contains legacy objects")
 
 

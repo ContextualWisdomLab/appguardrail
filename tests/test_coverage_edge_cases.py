@@ -4,12 +4,21 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scanner.cli.appguardrail import (_confidence, _finding_category,
-                                      _finding_context, _is_deploy_blocking,
-                                      _run_codegraph_command,
-                                      _run_codegraph_index, _run_trivy_fs,
-                                      _scan_file, _trivy_findings, _trivy_line,
-                                      _trivy_severity, _trivy_target, cmd_scan)
+from scanner.cli.appguardrail import (
+    _confidence,
+    _finding_category,
+    _finding_context,
+    _is_deploy_blocking,
+    _run_codegraph_command,
+    _run_codegraph_index,
+    _run_trivy_fs,
+    _scan_file,
+    _trivy_findings,
+    _trivy_line,
+    _trivy_severity,
+    _trivy_target,
+    cmd_scan,
+)
 from tests.test_appguardrail_coverage import ScanArgs
 
 
