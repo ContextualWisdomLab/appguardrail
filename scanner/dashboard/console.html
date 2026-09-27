@@ -36,6 +36,7 @@
   th{font-size:11px;color:var(--muted);text-transform:uppercase}
   tr.scan{cursor:pointer}
   tr.scan:hover{background:var(--bg)}
+  tr.scan[aria-disabled="true"]{opacity:0.6;cursor:not-allowed;pointer-events:none}
   input:focus-visible, button:focus-visible, tr.scan:focus-visible, .bar:focus-visible, #detail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .close-btn{float:right;border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--muted);padding:0 4px;margin-top:-2px}
   .close-btn:hover{color:var(--text)}
@@ -88,6 +89,7 @@ function closeDetail(){
   detail.innerHTML="";
   if(lastDetailFocus instanceof HTMLElement && lastDetailFocus.isConnected){
     lastDetailFocus.removeAttribute("aria-busy");
+    lastDetailFocus.removeAttribute("aria-disabled");
     delete lastDetailFocus.dataset.detailRequest;
     lastDetailFocus.focus();
   }
@@ -142,6 +144,7 @@ async function load(){
     $("#msg").innerHTML=`<span class="err">${esc(e.message)}</span>`; }
 }
 async function detail(id,tr){
+  if(tr && tr.getAttribute("aria-disabled")==="true") return;
   const requestId=++currentDetailRequest;
   const d=$("#detail");
   lastDetailFocus=tr||document.activeElement;
@@ -149,6 +152,7 @@ async function detail(id,tr){
   if(tr){
     tr.dataset.detailRequest=String(requestId);
     tr.setAttribute("aria-busy","true");
+    tr.setAttribute("aria-disabled","true");
   }
   d.classList.remove("hidden");
   d.innerHTML='<div aria-live="polite" class="muted">Loading scan details...</div>';
@@ -173,6 +177,7 @@ async function detail(id,tr){
   }finally{
     if(tr&&tr.dataset.detailRequest===String(requestId)){
       tr.removeAttribute("aria-busy");
+      tr.removeAttribute("aria-disabled");
       delete tr.dataset.detailRequest;
     }
   }
