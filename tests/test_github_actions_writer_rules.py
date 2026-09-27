@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 
@@ -62,6 +64,57 @@ jobs:
     assert [finding["rule_id"] for finding in findings] == [
         "github-actions-mutable-branch-writer"
     ]
+
+
+@pytest.mark.parametrize("permission", ['contents: "write"', "permissions: 'write-all'"])
+def test_quoted_write_permission_reaches_mutable_branch_rule(
+    tmp_path, permission: str
+) -> None:
+    """Quoted YAML scalars retain the same repository write authority."""
+    workflow = tmp_path / ".github" / "workflows" / "repair.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        f"""
+on: pull_request_target
+{permission}
+jobs:
+  repair:
+    steps:
+      - run: git push origin HEAD:${{{{ github.event.pull_request.head.ref }}}}
+""",
+        encoding="utf-8",
+    )
+    findings = _scan_file(workflow, tmp_path)
+    assert "github-actions-mutable-branch-writer" in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize("permission", ['contents: "write"', "permissions: 'write-all'"])
+def test_quoted_write_permission_reaches_self_modifying_rule(
+    tmp_path, permission: str
+) -> None:
+    """Quoted authority must not hide a persistent workflow mutation."""
+    workflow = tmp_path / ".github" / "workflows" / "self-edit.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        f"""
+on: workflow_dispatch
+{permission}
+jobs:
+  retire:
+    steps:
+      - run: |
+          git rm .github/workflows/self-edit.yml
+          git commit -m retire
+          git push origin HEAD:feature
+""",
+        encoding="utf-8",
+    )
+    findings = _scan_file(workflow, tmp_path)
+    assert "github-actions-self-modifying-writer" in {
+        finding["rule_id"] for finding in findings
+    }
 
 
 def test_variable_whitespace_commit_reaches_scanner_level_self_writer_rule(
