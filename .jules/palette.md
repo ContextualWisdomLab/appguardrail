@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2026-09-15 - Add Copy button to preformatted snippet blocks
+**Learning:** Adding a copy button inside `<pre>` or `.sec` blocks makes it much easier for developers to extract multi-line code/commands (like fixes or verification steps) from the dashboard dialogs. Using inline JavaScript with `navigator.clipboard.writeText` and `setTimeout` provides instant feedback ("Copied!") without needing extra complex state management, while `aria-label` ensures screen reader users understand the button's purpose.
+**Action:** Use this lightweight, accessible copy button pattern for any future UI components that present terminal commands or code blocks.
