@@ -30,3 +30,44 @@ def test_cancelled_diagnosis_requires_a_conclusive_rerun():
 
     assert "who or what cancelled the run" in text
     assert "conclusive result" in text
+
+
+def test_codeql_pending_receiver_diagnosis_routes_to_canonical_settlement_owner():
+    """A pending delegated verdict must not be presented as a leaf source finding."""
+    text = issueops.diagnosis(
+        {
+            "workflow": "CodeQL PR",
+            "job_name": "CodeQL compatibility analysis (python)",
+            "conclusion": "failure",
+            "snippet": (
+                "VERDICT_STATE: pending\n"
+                "::error::CodeQL scan dispatched. The dispatch workflow will rerun "
+                "this exact failed CodeQL job after publishing its terminal verdict."
+            ),
+        }
+    )
+
+    assert "does not establish a source-code security finding" in text
+    assert "canonical `.github` CodeQL producer" in text
+    assert "same repository, PR, base, head, language, and required run/job" in text
+    assert "Do not broadly rerun" in text
+
+
+def test_generic_codeql_failure_does_not_claim_a_settlement_ordering_defect():
+    """Other CodeQL failures retain the evidence-neutral security diagnosis."""
+    text = issueops.diagnosis(
+        {
+            "workflow": "CodeQL PR",
+            "job_name": "CodeQL compatibility analysis (python)",
+            "conclusion": "failure",
+            "snippet": (
+                'echo "::error::CodeQL scan dispatched. The dispatch workflow will '
+                'rerun this exact failed CodeQL job after publishing its terminal verdict."\n'
+                "VERDICT_STATE: failure\n"
+                "##[error]CodeQL dispatch scan for python did not pass (state=failure)."
+            ),
+        }
+    )
+
+    assert "does not establish a source-code security finding" not in text
+    assert "canonical `.github` CodeQL producer" not in text

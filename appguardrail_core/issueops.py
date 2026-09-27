@@ -63,6 +63,15 @@ PRIMARY_LOG_RE = [
     )
 ]
 FALLBACK_LOG_RE = [re.compile(r"\bfailed\b|\berror\b|\bfatal\b", re.IGNORECASE)]
+CODEQL_PENDING_VERDICT_RE = re.compile(
+    r"^\s*VERDICT_STATE:\s*pending\s*$", re.IGNORECASE | re.MULTILINE
+)
+CODEQL_SETTLEMENT_ERROR_RE = re.compile(
+    r"^\s*(?:##\[error\]|::error::)CodeQL scan dispatched\. "
+    r"The dispatch workflow will rerun this exact failed CodeQL job after "
+    r"publishing its terminal verdict\.\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def is_failure(conclusion: str | None) -> bool:
@@ -242,8 +251,27 @@ def diagnosis(finding: dict[str, Any]) -> str:
     """Render safe, actionable diagnosis and remediation from trusted metadata."""
     names = f"{finding.get('workflow', '')} {finding.get('job_name', '')}".lower()
     conclusion = str(finding.get("conclusion") or "unknown").lower()
+    snippet = str(finding.get("snippet") or "")
 
-    if "strix" in names:
+    if (
+        "codeql" in names
+        and conclusion == "failure"
+        and CODEQL_PENDING_VERDICT_RE.search(snippet)
+        and CODEQL_SETTLEMENT_ERROR_RE.search(snippet)
+    ):
+        likely_cause = (
+            "The CodeQL compatibility receiver failed closed before an authenticated "
+            "terminal producer verdict was available. This evidence does not establish "
+            "a source-code security finding; it identifies a delegated verdict "
+            "publication or exact-job settlement boundary."
+        )
+        actions = [
+            "Inspect the canonical `.github` CodeQL producer and settlement jobs for the same repository, PR, base, head, language, and required run/job.",
+            "Distinguish a terminal scanner finding from dispatch, permission, publication, and receiver-ordering failures using the producer SARIF and job logs.",
+            "Repair the canonical producer or settlement owner, preserve the exact target head, and require an authenticated terminal verdict before merge.",
+            "Do not broadly rerun, add a no-op wake commit, synthesize a status, or copy the central workflow into the affected repository.",
+        ]
+    elif "strix" in names:
         likely_cause = (
             "The Strix security gate did not complete successfully. This metadata alone "
             "does not prove that a vulnerability was found; scanner setup, execution, "
