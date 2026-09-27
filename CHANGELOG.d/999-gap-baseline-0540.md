@@ -4,6 +4,8 @@ Records live exact-head evidence for the commercial-readiness loop: #1036 skill-
 
 Records #1331 exact `96a98d93...` as an ordinary two-parent integration with #1326, preserving the bracketed public-reference security contract while retaining only the measured `normalize_findings` list-comprehension delta. Fresh RED 1/1 becomes focused 17/17 and full 1,005/1,005 GREEN. The same-runtime benchmark records both the bounded latency result and 65,136-byte peak-allocation cost; nine hosted workflows remain queued and the PR remains Draft.
 
+Records #1326 exact `0ac775da...`, tree `3685d26d...`, as an ordinary repair child of stale-snapshot commit `58588f36...`. Restores the deleted no-reference scanner bypass, bracketed OWASP/CWE/CVE contract, exclusive classification, four regressions, and security CHANGELOG while retaining the concurrent child's valid severity cache and CSS lookup delta. RED 1/8 becomes focused 9/9, related 37/37, and full 1,005/1,005 GREEN; no unmeasured speedup is claimed.
+
 Records #1069, current-head #1224 exact `650e3278...`, #1237, current-head #1297 exact `7ec0a6e9...`, and current-head #1317 exact `02343b07...` as retired unmerged solely by verified complete successor carryover into #1326. The successor preserves their explicit dictionary loops, scanner fast path, and valid ordering/filtering semantics while adding the public-reference contract, executable fixtures, CHANGELOG, and bounded benchmark evidence. #1224/#1297/#1317's unsupported universal unrolling and fixed speedup claims are explicitly excluded. Also pins #1314's tree-identical current exact `1c21254a...` without transferring predecessor Checks or review.
 
 ## Scoped refresh 2026-09-12
