@@ -10,6 +10,10 @@ NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
 
 _SEVERITY_ORDER = {severity: index for index, severity in enumerate(SEVERITIES)}
 _SEV_SET = frozenset(SEVERITIES)
+_AT_OR_ABOVE_CACHE = {
+    sev: frozenset(s for s, order in _SEVERITY_ORDER.items() if order <= idx)
+    for sev, idx in _SEVERITY_ORDER.items()
+}
 
 
 def normalize_finding(
@@ -162,10 +166,11 @@ def is_deploy_blocking(
 
 def severities_at_or_above(min_severity: str) -> set[str]:
     """Severity names at or above ``min_severity`` (CRITICAL is highest)."""
-    idx = _SEVERITY_ORDER.get(str(min_severity).upper())
-    if idx is None:
+    # Return a fast copy from the pre-computed cache to avoid O(N) recomputation
+    cached = _AT_OR_ABOVE_CACHE.get(str(min_severity).upper())
+    if cached is None:
         return set(DEPLOY_BLOCKING_SEVERITIES)
-    return {sev for sev, order in _SEVERITY_ORDER.items() if order <= idx}
+    return set(cached)
 
 
 def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
