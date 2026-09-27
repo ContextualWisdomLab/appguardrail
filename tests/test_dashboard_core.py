@@ -305,6 +305,33 @@ def test_dashboard_search_escape_clears_input():
 
 
 def test_dashboard_dialog_external_link_accessibility():
-    """External links in the dialog must warn screen reader users of the context switch."""
+    """External links in the dialog must warn screen reader users of the context switch without replacing the visible name."""
     html = dashboard_index_path().read_text(encoding="utf-8")
-    assert 'aria-label="${esc(r)} (opens in a new tab)"' in html
+    detail_markup = re.search(
+        r"const refs = \(f\.references\|\|\[\]\)\.map\(r=>`(?P<markup>.*?)`\)\.join\('<br>'\);",
+        html,
+        flags=re.DOTALL,
+    )
+    assert detail_markup is not None
+
+    class RefLinkParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.links = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "a":
+                self.links.append(dict(attrs))
+
+    parser = RefLinkParser()
+    parser.feed(detail_markup.group("markup"))
+
+    assert len(parser.links) > 0
+    link = parser.links[0]
+    assert link.get("target") == "_blank"
+    assert link.get("rel") == "noopener noreferrer"
+
+    # Also verify the appended visual cues are present in the raw markup string
+    markup = detail_markup.group("markup")
+    assert '<span class="sr-only"> (opens in a new tab)</span>' in markup
+    assert '<span aria-hidden="true"> ↗</span>' in markup
