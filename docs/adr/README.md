@@ -11,6 +11,8 @@
 | [0005](0005-remediation-authority.md) | Deterministic autofix is limited to proven semantics-preserving transforms | Accepted |
 | [0006](0006-automation-authority.md) | Autonomous development remains separate from independent merge/release authority | Accepted |
 
+Accepted ADRs 0001–0006 now include APA 7th References with DOI/URL locators.
+
 ## ADR triggers
 
 Create or update an ADR when changing detector truth semantics, issue obligation coverage, built-in versus external execution, autofix authority, persistent tenant schema/authz, outbound webhook/DAST egress, normalized finding/SARIF identity, or autonomous/release credentials.
