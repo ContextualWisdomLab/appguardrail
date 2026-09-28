@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-09-28 - Optimizing String Generator Overhead and Regex
+**Learning:** `any(token in rule for token in TUPLE)` adds significant generator overhead in hot paths like `_finding_category`, making it 3x slower than explicit `or` chains. Furthermore, running regex like `REFERENCE_RE.finditer(message)` on standard strings is slow when most messages don't match.
+**Action:** Replace `any(...)` with explicit `or` chains for fixed-size token checks in critical loops. For regex searches over strings, use a fast-path pre-check using `in` (e.g. `if "CWE-" not in message: return ()`) to bypass the regex engine completely.
