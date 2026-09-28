@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-21 - Optimize list deduplication using dict comprehensions
+**Learning:** Python에서 `dict.fromkeys(generator)`를 사용하여 중복을 제거할 때, 제너레이터 표현식을 딕셔너리 생성자에 전달하면 프레임 할당 및 메서드 해석 오버헤드(`LOAD_METHOD`/`CALL_METHOD`)로 인해 성능 저하가 발생합니다.
+**Action:** 제너레이터 표현식 대신 딕셔너리 컴프리헨션(e.g., `tuple({x: None for x in y})`)을 사용하여 C-level 속도로 실행되도록 최적화합니다. 이는 constant-factor 성능 향상을 제공합니다.
