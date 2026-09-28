@@ -235,6 +235,30 @@ def summary(finding: dict[str, Any]) -> str:
         ("Run", finding["run_url"]),
         ("Job", finding["job_url"]),
     ]
+    evidence = finding.get("source_evidence")
+    if isinstance(evidence, dict):
+        assessment = evidence.get("assessment")
+        identity = evidence.get("source_identity")
+        if isinstance(assessment, dict) and isinstance(identity, dict):
+            rows.extend(
+                [
+                    (
+                        "Source evidence status",
+                        f"`{assessment.get('status', 'unknown')}`",
+                    ),
+                    (
+                        "Source evidence reason",
+                        f"`{assessment.get('reason', 'unknown')}`",
+                    ),
+                    ("probe_ref", f"`{evidence.get('probe_ref', 'unknown')}`"),
+                    ("acquirer_ref", f"`{evidence.get('acquirer_ref', 'unknown')}`"),
+                    (
+                        "Source artifact SHA-256",
+                        f"`{identity.get('artifact_sha256') or 'unknown'}`",
+                    ),
+                    ("Source revision", f"`{identity.get('revision') or 'unknown'}`"),
+                ]
+            )
     return "\n".join(f"- {key}: {value}" for key, value in rows)
 
 

@@ -63,6 +63,18 @@ flowchart LR
 
 A registry maps requirement identity to executable detector family; it cannot assert the detector answer. PR #911 is active-PR implementation of this contract.
 
+### Source-bound workflow evidence
+
+The organization security collector acquires GitHub Actions run and job
+responses through the pinned REST client, then derives a canonical
+source-bound evidence envelope from the job conclusion. The envelope includes
+fixed `probe_ref`/`acquirer_ref`, repository and revision identity, a generated
+run/job artifact reference, bounded-source SHA-256, freshness, and a typed
+`clean`/`detected`/`unknown` assessment. The hash covers selected run/job
+metadata and step conclusions only; logs and caller-provided result fields are
+never evidence. `detected` is a failed security control, not proof of a
+vulnerability. Legacy collector findings remain a compatibility boundary.
+
 ## SSRF architecture
 
 ```mermaid
@@ -86,6 +98,10 @@ Stored SSRF prevention and scanner detection are separate controls. The control-
 ## Control-plane boundary
 
 Current standalone control plane is stdlib HTTP + SQLite, with tenant API-key roles and scan/history/drift/webhook configuration. Persistent organization identity is resolved from authenticated key context, not untrusted payload strings. Enterprise replacement of SQLite is behind stable repository service functions and requires migrations/authz/recovery evidence.
+
+Canonical source-bound workflow evidence is preserved inside normalized scan
+findings and returned by authenticated scan detail. The control plane does not
+reclassify an `unknown` source assessment as clean or as a deploy blocker.
 
 ## Remediation authority
 

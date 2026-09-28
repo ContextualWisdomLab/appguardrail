@@ -25,6 +25,7 @@ from appguardrail_core.issueops import (
     seen_key,
     title,
 )
+from appguardrail_core.source_evidence import acquire_workflow_evidence
 
 API = "https://api.github.com"
 UA = "appguardrail-org-security-failure-collector"
@@ -179,6 +180,32 @@ def build_finding(
     }
 
 
+def build_source_bound_finding(
+    repo: str,
+    run: dict[str, Any],
+    job: dict[str, Any],
+    *,
+    now: dt.datetime | None = None,
+    seen_artifact_refs: set[str] = frozenset(),
+    max_age_hours: int = DEFAULT_LOOKBACK_HOURS,
+) -> dict[str, Any]:
+    """Attach source-authoritative evidence to the legacy collector envelope."""
+    evidence = acquire_workflow_evidence(
+        repo,
+        run,
+        job,
+        now=now if now is not None else utc_now(),
+        seen_artifact_refs=seen_artifact_refs,
+        max_age_hours=max_age_hours,
+    )
+    assessment = evidence.get("assessment")
+    if not isinstance(assessment, dict) or assessment.get("status") != "detected":
+        return {"source_evidence": evidence}
+    finding = build_finding(repo, run, job)
+    finding["source_evidence"] = evidence
+    return finding
+
+
 def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str, Any]]:
     """Collect failed security workflow jobs across the configured organization."""
     if args.run_url:
@@ -194,8 +221,10 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
             if r.get("full_name") and not r.get("archived") and not r.get("fork")
         ]
         fixed_runs = {}
-    cutoff = utc_now() - dt.timedelta(hours=args.lookback_hours)
+    collection_now = utc_now()
+    cutoff = collection_now - dt.timedelta(hours=args.lookback_hours)
     findings: list[dict[str, Any]] = []
+    seen_artifact_refs: set[str] = set()
     for repo_info in repos:
         repo = repo_info["full_name"]
         if not repo.startswith(f"{args.owner}/"):
@@ -217,7 +246,25 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
                 ) and is_security_name(
                     run.get("name"), job.get("workflow_name"), job.get("name")
                 ):
-                    findings.append(build_finding(repo, run, job))
+                    finding = build_source_bound_finding(
+                        repo,
+                        run,
+                        job,
+                        now=collection_now,
+                        seen_artifact_refs=seen_artifact_refs,
+                        max_age_hours=args.lookback_hours,
+                    )
+                    assessment = finding.get("source_evidence", {}).get(
+                        "assessment", {}
+                    )
+                    if assessment.get("status") != "detected":
+                        continue
+                    findings.append(finding)
+                    artifact_ref = finding["source_evidence"]["source_identity"].get(
+                        "artifact_ref"
+                    )
+                    if artifact_ref:
+                        seen_artifact_refs.add(artifact_ref)
     return findings
 
 
@@ -483,6 +530,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--lookback-hours",
         type=int,
         default=int(os.getenv("LOOKBACK_HOURS", DEFAULT_LOOKBACK_HOURS)),
+        help="Bound run selection and source freshness, including --run-url replays.",
     )
     parser.add_argument(
         "--run-url", help="Collect one GitHub Actions run URL for dry-run validation."

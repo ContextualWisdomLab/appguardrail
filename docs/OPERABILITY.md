@@ -21,6 +21,13 @@ Distinguish:
 
 Do not collapse non-completion into “clean.”
 
+For the source-bound workflow detector, `completed_clean` means the acquired
+security job completed successfully and `completed_findings` means the
+acquired security job failed as a security control. Malformed, stale,
+duplicate, unavailable, ambiguous, or unsupported detector-family inputs are
+`inconclusive`/`evidence_untrusted`, never clean. A detected workflow control
+failure is not by itself a vulnerability finding.
+
 ## Key SLIs
 
 - scan completion/findings/blocker counts by engine/family;
@@ -64,6 +71,11 @@ Webhook destination validation must be revisited when DNS resolution/redirect co
 ## Issue-to-detector audit operation
 
 After PR #911 merges, run the executable audit from authenticated retained issue inventory and closed evidence corpus. Fail if a detectable obligation lacks a detector family or detector execution is inconclusive. Historical issue count alone is not a success metric; obligation execution and evidence provenance are.
+
+The source-bound collector audit must verify the exact repository, revision,
+run/job artifact reference, source digest, freshness, probe, and acquirer
+before promoting a workflow result. Legacy IssueOps records remain readable,
+but are not promoted when these fields are absent.
 
 ## Upgrade and rollback
 
