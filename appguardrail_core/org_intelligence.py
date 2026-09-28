@@ -122,8 +122,10 @@ def build_org_inventory(
     active_repository_target: int = 20,
 ) -> OrgInventory:
     """Build a stable organization inventory from GitHub repo JSON."""
-    nonforks: list[dict[str, Any]] = []
-    forks: list[dict[str, Any]] = []
+    # Performance Optimization: Consolidate multiple list and generator comprehensions
+    # into a single O(N) pass to minimize memory allocation and redundant iterations.
+    nonforks: list[Mapping[str, Any]] = []
+    forks: list[Mapping[str, Any]] = []
     primary_languages: Counter[str] = Counter()
     default_branches: Counter[str] = Counter()
     unsupported_set: set[str] = set()
@@ -139,9 +141,9 @@ def build_org_inventory(
             private_count += 1
 
         if _truthy(repo.get("isFork")):
-            forks.append(dict(repo))
+            forks.append(repo)
         else:
-            nonforks.append(dict(repo))
+            nonforks.append(repo)
             if lang in SUPPORTED_PRIMARY_LANGUAGES:
                 supported_nonforks += 1
             elif lang != "Unknown":
