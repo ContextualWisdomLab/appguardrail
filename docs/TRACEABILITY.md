@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-16
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| automatic scanner detection of direct GitHub Actions workflow-input interpolation into `run` | built-in `github-actions-workflow-input-command-injection` rule | PR #973 active-PR for issue #552; exact vulnerable/fixed central-workflow blobs, hosted RED evidence, grammar variants, negatives, and production `_scan_file` evidence |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,22 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## GitHub Actions workflow-input injection traceability contract
+
+For issue #552 and PR #973, preserve the following independent chain:
+
+1. collector issue #552 as workflow-failure provenance only;
+2. exact vulnerable `.github` head `2b034ac27d90487b4b0df3aea9d3fdc355e97296`;
+3. exact vulnerable `deploy-pages.yml` blob `f86b614022a658702ce3c6032ff61ffe4658adde`;
+4. exact reviewed fixed head `5999b2bdbd32a362b01b8553f1ee2a1d7f45e5da`;
+5. exact fixed blob `118816bd7156472baa0cc011cd6e8a4d68b7ff22`;
+6. hosted RED runs `31936994435` and `31940187012`;
+7. packaged rule `github-actions-workflow-input-command-injection`;
+8. exact-source, grammar-variant, negative-oracle, path-scope, and production-finding tests in `tests/test_github_actions_workflow_input_injection_rules.py`;
+9. exact final-head quality, security, SAST, review, and protected-merge evidence.
+
+A source workflow fix and an AppGuardrail detector are separate controls. The fixed central workflow is the remediation oracle; the detector becomes organization prevention evidence only after protected `develop` integration.
 
 ## Standards/research
 
