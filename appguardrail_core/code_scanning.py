@@ -18,7 +18,6 @@ _VOLATILE_REF_RE = re.compile(
     r"\brefs/(?:heads/[^\s,;]+|pull/[1-9][0-9]*/(?:merge|head))\b",
     re.IGNORECASE,
 )
-_WHITESPACE_RE = re.compile(r"\s+")
 
 
 @dataclass(frozen=True, order=True)
@@ -93,7 +92,8 @@ def _stable_dimension(value: Any) -> str:
     text = _optional_text(value)
     text = _VOLATILE_REF_RE.sub("<ref>", text)
     text = _VOLATILE_SHA_RE.sub("<sha>", text)
-    return _WHITESPACE_RE.sub(" ", text).strip()[:_MAX_DIMENSION_CHARS]
+    # ⚡ Bolt: Fast C-level split() and join() drops regex engine overhead.
+    return " ".join(text.split())[:_MAX_DIMENSION_CHARS]
 
 
 def _normalized_timestamp(value: Any) -> str:

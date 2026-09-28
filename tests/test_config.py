@@ -56,6 +56,14 @@ def test_severities_at_or_above():
     assert severities_at_or_above("INFO") == {"CRITICAL", "HIGH", "WARNING", "INFO"}
 
 
+def test_severity_threshold_result_is_mutation_isolated():
+    """Keep callers from mutating the cached severity threshold."""
+    first = severities_at_or_above("HIGH")
+    first.add("INFO")
+
+    assert severities_at_or_above("HIGH") == {"CRITICAL", "HIGH"}
+
+
 def test_gate_threshold_lets_high_pass_when_critical_only():
     high = {"severity": "HIGH", "context": "app-code", "rule_id": "r"}
     assert is_deploy_blocking(high) is True  # default CRITICAL+HIGH
