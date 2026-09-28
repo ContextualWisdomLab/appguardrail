@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2026-07-04 - build_org_inventory의 단일 패스(single-pass) 리팩토링 및 constant-factor 최적화
+**Learning:** `appguardrail_core/org_intelligence.py`의 `build_org_inventory` 함수에서 원본 `repos` 순회 시 여러 개의 list comprehension과 generator를 사용하면 동일한 데이터를 여러 번 O(N)으로 순회하게 됩니다. 이는 메모리 할당 및 순회 오버헤드를 유발하여 대규모 조직의 저장소 목록을 처리할 때 병목이 될 수 있습니다.
+**Action:** 여러 번의 O(N) 순회를 단일 명시적 `for` 루프로 결합하여 모든 파생 컬렉션(`nonforks`, `forks`, `primary_languages` 등)을 한 번에 계산하도록 최적화했습니다. 이는 점근적 시간 복잡도를 개선하지는 않지만 상수 인자(constant-factor) 최적화를 통해 실질적인 실행 시간을 단축하며 불필요한 반복 순회를 방지합니다. 또한, 원본 `repo_list` 변수를 제거하여 우연히 발생하는 2차 순회(secondary traversals)를 방지했습니다.
