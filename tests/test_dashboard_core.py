@@ -290,6 +290,7 @@ def test_dashboard_dialog_close_button_has_tooltip():
 
     assert any(
         attributes.get("title") == "Close (Esc)"
+        and attributes.get("aria-keyshortcuts") == "Escape"
         and attributes.get("aria-label") == "Close"
         for attributes in parser.buttons
     )
