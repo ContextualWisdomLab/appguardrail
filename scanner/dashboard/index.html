@@ -106,6 +106,7 @@ const SEV = {
   WARNING:{color:'var(--warn)'}, INFO:{color:'var(--info)'}
 };
 const SEV_ORDER = ['CRITICAL','HIGH','WARNING','INFO'];
+const SEV_IDX = { CRITICAL: 0, HIGH: 1, WARNING: 2, INFO: 3 };
 const NON_BLOCKING = new Set(['doc','test','example','scanner-fixture']);
 const BLOCKING_SEV = new Set(['CRITICAL','HIGH']);
 
@@ -191,11 +192,18 @@ function render(){
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,n])=>
     `<div class="r"><span class="name">${esc(c)}</span><span class="cnt">${n}</span></div>`).join('');
 
-  const filtered = ALL
-    .map((f,i)=>({f,i}))
-    .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
-    .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
-    .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+  const filtered = [];
+  for (let i = 0; i < ALL.length; i++) {
+    const f = ALL[i];
+    const s = String(f.severity || 'INFO').toUpperCase();
+    if (filterSev && s !== filterSev) continue;
+    if (query) {
+      const searchStr = ((f.message || '') + ' ' + (f.file || '') + ' ' + (f.rule_id || '') + ' ' + (f.category || '')).toLowerCase();
+      if (!searchStr.includes(query)) continue;
+    }
+    filtered.push({ f, i, _sIdx: SEV_IDX[s] ?? 3 });
+  }
+  filtered.sort((a, b) => a._sIdx - b._sIdx);
   const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
     ? allFindingsText
