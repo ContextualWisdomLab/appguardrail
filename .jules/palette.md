@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-21 - CSS pointer-events: none prevents cursor styles
+**Learning:** Adding both `pointer-events: none` and `cursor: not-allowed` to a loading state (like `aria-busy="true"`) results in the custom cursor never appearing, because `pointer-events: none` prevents the browser from detecting hover interactions entirely on that element.
+**Action:** When styling a loading or disabled state where a `not-allowed` cursor is desired for UX feedback, apply `cursor: not-allowed` along with `opacity` modifications, but do NOT use `pointer-events: none`. Instead, handle the disabled state natively via HTML attributes (`disabled` property for form elements) or use JavaScript to prevent multiple clicks. If `pointer-events: none` is strictly necessary, wrap the element and apply the cursor style to the wrapper.
