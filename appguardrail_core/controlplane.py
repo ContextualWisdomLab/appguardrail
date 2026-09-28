@@ -238,6 +238,11 @@ def _is_safe_url(url: str) -> bool:
     host = (parsed.hostname or "").lower()
     raw = host.split("%", 1)[0].strip("[]")
 
+    try:
+        raw = socket.inet_ntoa(socket.inet_aton(raw))
+    except OSError:
+        pass
+
     def is_bad_ip(ip) -> bool:
         mapped = getattr(ip, "ipv4_mapped", None)
         if mapped:
