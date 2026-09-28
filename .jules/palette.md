@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-10-24 - 외부 링크 접근성 강화 및 스타일 스코핑
+**Learning:** `target="_blank"` 속성을 가진 외부 링크에 시각적(아이콘) 표시는 제공하지만, 스크린 리더 등 보조 기기 사용자를 위한 텍스트 경고(`새 탭에서 열림` 등)를 누락하거나, 긴 URL 단어를 강제 줄바꿈하기 위한 `word-break: break-all`을 링크 전체에 전역으로 적용하면 UI 레이아웃이 무너지거나 접근성이 저하된다.
+**Action:** 외부 링크에는 항상 화면에 보이지 않는 `.sr-only` 클래스의 텍스트 설명과, 보조 기기에서 무시되는 `aria-hidden="true"` 아이콘을 병행 제공하라. 또한 줄바꿈 등 특수 스타일은 전역 선택자(`a`) 대신 `.ext-link`와 같은 전용 유틸리티 클래스로 스코프를 제한하라.
