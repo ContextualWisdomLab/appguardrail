@@ -23,7 +23,7 @@ def test_run_trivy_fs_error(tmp_path, monkeypatch):
         return mock_result
 
     with patch("subprocess.run", side_effect=mock_subprocess_run):
-        with patch("shutil.which", return_value="trivy"):
+        with patch("scanner.cli.appguardrail._secure_which", return_value="trivy"):
             with pytest.raises(
                 RuntimeError, match="Trivy scan failed: Simulated error"
             ):
@@ -40,7 +40,7 @@ def test_run_trivy_fs_invalid_json(tmp_path, monkeypatch):
         return mock_result
 
     with patch("subprocess.run", side_effect=mock_subprocess_run):
-        with patch("shutil.which", return_value="trivy"):
+        with patch("scanner.cli.appguardrail._secure_which", return_value="trivy"):
             with pytest.raises(RuntimeError, match="Trivy returned invalid JSON"):
                 _run_trivy_fs(tmp_path)
 
@@ -292,7 +292,7 @@ def test_run_codegraph_command_reports_failure(tmp_path):
 
 def test_run_codegraph_index_rejects_missing_workdir(tmp_path):
     missing_file = tmp_path / "missing" / "source.py"
-    with patch("shutil.which", return_value="codegraph"):
+    with patch("scanner.cli.appguardrail._secure_which", return_value="codegraph"):
         with pytest.raises(RuntimeError, match="workdir is not a directory"):
             _run_codegraph_index(missing_file)
 
