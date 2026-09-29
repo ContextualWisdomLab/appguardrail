@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2025-02-18 - 고빈도 이벤트에서 연쇄적인 배열 메서드 피하기
+**Learning:** 키보드 입력과 같이 고빈도로 발생하는 이벤트 트리거 시, 대규모 데이터 세트에 대해 여러 배열 메서드(`.map().filter().sort()`)를 연쇄적으로 호출하면 불필요한 다중 순회와 메모리 할당이 발생합니다.
+**Action:** O(N) 순회 비용을 줄이기 위해 조기 반환(early returns)이 포함된 단일 `for` 루프를 사용하고, 우선순위 정렬 시 O(1) 객체 조회를 사용하여 실행 오버헤드를 최소화합니다.
