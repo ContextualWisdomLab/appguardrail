@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-07-25 - dict.fromkeys와 제너레이터 표현식 오버헤드 최적화
+**Learning:** 파이썬 핫루프에서 `dict.fromkeys(제너레이터 표현식)`을 사용하면 제너레이터 프레임 할당 및 반복적인 메서드 호출(`LOAD_METHOD`/`CALL_METHOD`)로 인해 오버헤드가 발생합니다. (이전 최적화 사례처럼 2N to N의 constant-factor 개선과 별개의 오버헤드입니다.)
+**Action:** `dict.fromkeys()` 대신 딕셔너리 컴프리헨션(예: `{key: None for key in iterator}`)을 사용하여 C 속도로 빠르게 실행되도록 구성해야 합니다.
