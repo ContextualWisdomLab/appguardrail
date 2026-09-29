@@ -5,18 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from scanner.cli.appguardrail import (
-    _collect_files,
-    _parse_inline_list,
-    _path_matches_glob,
-    _scan_file,
-    cmd_hook,
-    cmd_init,
-    cmd_monitor,
-    cmd_review,
-    cmd_scan,
-    main,
-)
+from scanner.cli.appguardrail import (_collect_files, _parse_inline_list,
+                                      _path_matches_glob, _scan_file, cmd_hook,
+                                      cmd_init, cmd_monitor, cmd_review,
+                                      cmd_scan, main)
 from tests.test_appguardrail import MOCK_RULES
 
 
@@ -451,6 +443,7 @@ def test_scan_file_open_permission_error():
         patch("scanner.cli.appguardrail._get_applicable_rules") as mock_get_rules,
         patch("builtins.open", mock_open()) as m_open,
     ):
+
         mock_st = mock_lstat.return_value
         mock_st.st_mode = stat.S_IFREG
         mock_st.st_size = 100

@@ -81,10 +81,7 @@ def test_integrated_ssrf_controls_are_promoted_but_distinct() -> None:
     traceability = _read("docs/TRACEABILITY.md")
 
     prevention_claim = _single_line_with(prd, "PR #924", "implemented-main")
-    assert (
-        "prevention" in prevention_claim
-        and "webhook write boundary" in prevention_claim
-    )
+    assert "prevention" in prevention_claim and "webhook write boundary" in prevention_claim
 
     detector_claim = _single_line_with(prd, "PR #910", "implemented-main")
     assert "scanner detection" in detector_claim

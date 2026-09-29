@@ -73,7 +73,9 @@ def test_connection_closed_after_probe_has_bounded_inspection_error() -> None:
 
 def test_transaction_state_programming_error_is_bounded() -> None:
     """Migration bounds a driver failure while reading transaction state."""
-    connection = sqlite3.connect(":memory:", factory=TransactionStateFailureConnection)
+    connection = sqlite3.connect(
+        ":memory:", factory=TransactionStateFailureConnection
+    )
 
     with pytest.raises(schema.SchemaMigrationError, match="closed connection"):
         schema.migrate_controlplane_schema(connection)
@@ -104,7 +106,9 @@ def test_incomplete_legacy_schema_is_rejected_before_transaction() -> None:
 def test_incomplete_canonical_schema_is_rejected_before_transaction() -> None:
     """A partial canonical base cannot be silently treated as a fresh database."""
     connection = sqlite3.connect(":memory:")
-    connection.execute("CREATE TABLE tenant_organizations(id INTEGER PRIMARY KEY)")
+    connection.execute(
+        "CREATE TABLE tenant_organizations(id INTEGER PRIMARY KEY)"
+    )
 
     with pytest.raises(schema.SchemaMigrationError, match="incomplete canonical"):
         schema.migrate_controlplane_schema(connection)

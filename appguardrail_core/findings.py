@@ -78,18 +78,14 @@ def normalize_finding(
                 rem or "Review and remediate this finding, then rerun AppGuardrail."
             )
         except Exception:
-            normalized["remediation"] = (
-                "Review and remediate this finding, then rerun AppGuardrail."
-            )
+            normalized["remediation"] = "Review and remediate this finding, then rerun AppGuardrail."
     elif rem != normalized.get("remediation"):
         normalized["remediation"] = rem
 
     verif = normalized.get("verification")
     if type(verif) is not str or not verif:
         try:
-            normalized["verification"] = str(
-                verif or "Rerun AppGuardrail after remediation."
-            )
+            normalized["verification"] = str(verif or "Rerun AppGuardrail after remediation.")
         except Exception:
             normalized["verification"] = "Rerun AppGuardrail after remediation."
 

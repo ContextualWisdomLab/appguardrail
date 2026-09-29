@@ -103,7 +103,9 @@ class GitHub(_BaseGitHub):
         except urllib.error.URLError as exc:
             raise GitHubAPIError(0) from exc
 
-    def pages(self, path: str, params: dict[str, Any] | None = None) -> PageResult:
+    def pages(
+        self, path: str, params: dict[str, Any] | None = None
+    ) -> PageResult:
         """Read every bounded list page and classify incomplete evidence explicitly."""
         items: list[Any] = []
         for page in range(1, MAX_PAGINATION_PAGES + 1):
@@ -359,7 +361,8 @@ def _identity_text(identity: AnalysisIdentity) -> str:
 def _evidence_items(record: PullRequestDriftRecord) -> list[str]:
     """Return sorted missing and errored identity evidence for one drift state."""
     items = [
-        f"missing:{_identity_text(identity)}" for identity in record.assessment.missing
+        f"missing:{_identity_text(identity)}"
+        for identity in record.assessment.missing
     ]
     items.extend(
         f"errored:{_identity_text(evidence.identity)}:{evidence.error}"
@@ -384,7 +387,11 @@ def drift_marker(record: PullRequestDriftRecord) -> str:
     encoded = json.dumps(
         payload, sort_keys=True, ensure_ascii=True, separators=(",", ":")
     ).replace(">", "\\u003e")
-    return f"{MARKER_PREFIX} {encoded} {MARKER_SUFFIX}"
+    return (
+        f"{MARKER_PREFIX} "
+        f"{encoded} "
+        f"{MARKER_SUFFIX}"
+    )
 
 
 def parse_drift_marker(body: str | None) -> dict[str, Any]:
@@ -404,9 +411,7 @@ def parse_drift_marker(body: str | None) -> dict[str, Any]:
 def drift_issue_title(record: PullRequestDriftRecord) -> str:
     """Return a stable issue title scoped to one repository, PR, and exact head."""
     if record.pr_number <= 0 or not _COMMIT_SHA_RE.fullmatch(record.head_sha):
-        raise ValueError(
-            "drift issue identity requires a positive PR and exact head SHA"
-        )
+        raise ValueError("drift issue identity requires a positive PR and exact head SHA")
     return (
         f"[code-scanning-drift] {record.repository}"
         f"#{record.pr_number}@{record.head_sha[:12]}"
@@ -523,7 +528,8 @@ def publish_records(
     if not drift_records:
         return 0
     issues = {
-        str(issue.get("title")): issue for issue in _issue_items(client, target_repo)
+        str(issue.get("title")): issue
+        for issue in _issue_items(client, target_repo)
     }
     ensured_labels: set[str] = set()
     published = 0
@@ -587,7 +593,9 @@ def _positive_int(value: str) -> int:
     try:
         parsed = int(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("value must be a positive integer") from exc
+        raise argparse.ArgumentTypeError(
+            "value must be a positive integer"
+        ) from exc
     if parsed <= 0:
         raise argparse.ArgumentTypeError("value must be a positive integer")
     return parsed

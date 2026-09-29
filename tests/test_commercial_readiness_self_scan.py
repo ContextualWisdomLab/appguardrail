@@ -14,5 +14,7 @@ def test_commercial_gap_registry_does_not_trigger_auth_deferral_rule() -> None:
     findings = _scan_file(LOOP_MODULE, ROOT)
 
     assert [
-        finding for finding in findings if finding["rule_id"] == "todo-skip-auth"
+        finding
+        for finding in findings
+        if finding["rule_id"] == "todo-skip-auth"
     ] == []

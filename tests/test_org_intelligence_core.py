@@ -1,12 +1,10 @@
-from appguardrail_core.org_intelligence import (
-    build_buyer_evidence_pack,
-    build_org_inventory,
-    buyer_evidence_pack_to_dict,
-    classify_pr_gate,
-    gate_action_bucket,
-    render_org_readiness_report,
-    summarize_pr_gates,
-)
+from appguardrail_core.org_intelligence import (build_buyer_evidence_pack,
+                                                build_org_inventory,
+                                                buyer_evidence_pack_to_dict,
+                                                classify_pr_gate,
+                                                gate_action_bucket,
+                                                render_org_readiness_report,
+                                                summarize_pr_gates)
 
 
 def test_build_org_inventory_counts_repositories_languages_and_targets():

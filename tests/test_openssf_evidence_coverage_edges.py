@@ -21,12 +21,9 @@ def test_redirect_guard_refuses_every_redirect() -> None:
     """The public redirect handler never creates a follow-up request."""
     guard = appguardrail_core.openssf_evidence.NoRedirect()
 
-    assert (
-        guard.redirect_request(
-            object(), object(), 302, "redirect", {}, "https://attacker.invalid"
-        )
-        is None
-    )
+    assert guard.redirect_request(
+        object(), object(), 302, "redirect", {}, "https://attacker.invalid"
+    ) is None
 
 
 def test_module_entrypoint_serializes_offline_evidence(

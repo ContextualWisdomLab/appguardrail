@@ -99,7 +99,9 @@ def render_openssf_evidence_section(
 ) -> list[str]:
     """Render a stable evidence table without turning absence into a badge claim."""
     evidence = [
-        finding for finding in findings if str(finding.get("rule_id") or "") == _RULE_ID
+        finding
+        for finding in findings
+        if str(finding.get("rule_id") or "") == _RULE_ID
     ]
     lines = ["## OpenSSF Best Practices Evidence", ""]
     if not evidence:

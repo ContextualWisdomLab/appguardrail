@@ -1,11 +1,6 @@
-from appguardrail_core.findings import (
-    finding_sort_key,
-    is_deploy_blocking,
-    normalize_finding,
-    normalize_findings,
-    safe_report_snippet,
-    severity_counts,
-)
+from appguardrail_core.findings import (finding_sort_key, is_deploy_blocking,
+                                        normalize_finding, normalize_findings,
+                                        safe_report_snippet, severity_counts)
 
 
 class ExplosiveText:
@@ -75,10 +70,7 @@ def test_normalize_finding_fails_closed_when_text_conversion_raises():
     assert finding["file"] == "n/a"
     assert finding["category"] == "misconfig"
     assert finding["context"] == "app-code"
-    assert (
-        finding["remediation"]
-        == "Review and remediate this finding, then rerun AppGuardrail."
-    )
+    assert finding["remediation"] == "Review and remediate this finding, then rerun AppGuardrail."
     assert finding["verification"] == "Rerun AppGuardrail after remediation."
     assert finding["snippet"] == ""
     assert finding["references"] == ()

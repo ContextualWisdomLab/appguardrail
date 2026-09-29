@@ -90,9 +90,7 @@ def test_signal_detection_avoids_replace_split_hot_loop_allocations() -> None:
         assert ".split(" not in source
 
 
-def test_generator_input_is_materialized_once_for_profile_detection(
-    tmp_path: Path,
-) -> None:
+def test_generator_input_is_materialized_once_for_profile_detection(tmp_path: Path) -> None:
     """One-shot iterables must feed language, framework, and signal detection once."""
     manifest = tmp_path / "package.json"
     manifest.write_text('{"dependencies":{"next":"15"}}\n', encoding="utf-8")
