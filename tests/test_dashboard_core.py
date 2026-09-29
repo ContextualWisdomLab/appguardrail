@@ -302,3 +302,17 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+
+def test_dashboard_external_link_accessibility():
+    """External links must have a screen reader warning and visual indicator."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    match = re.search(r'const refs =.*?\`<a href="\$\{[^}]+\}"[^>]*>.*?</a>\`', html)
+    assert match is not None, "Could not find references template literal"
+
+    anchor_html = match.group(0)
+
+    assert 'class="ext-link"' in anchor_html
+    assert '<span class="sr-only">(새 탭에서 열림)</span>' in anchor_html
+    assert 'aria-hidden="true"' in anchor_html
