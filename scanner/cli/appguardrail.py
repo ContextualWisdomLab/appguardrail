@@ -2974,13 +2974,11 @@ def _scan_file(
                 required_substrings,
             ) in applicable_rules:
                 if required_substrings:
+                    missing = False
                     for substring in required_substrings:
                         if substring not in content:
                             missing = True
                             break
-                    else:
-                        missing = False
-
                     if missing:
                         continue
                 if include_paths or exclude_paths:
