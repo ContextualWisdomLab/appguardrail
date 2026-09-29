@@ -69,6 +69,12 @@ def test_is_safe_url_unresolvable_domain():
     assert _is_safe_url("http://this-domain-should-not-exist-12345.com/")
 
 
+def test_is_safe_url_obfuscated_ips():
+    assert not _is_safe_url("http://0177.0.0.1/")
+    assert not _is_safe_url("http://0x7f000001/")
+    assert not _is_safe_url("http://0/")
+
+
 def test_is_safe_url_mapped_ips():
     assert not _is_safe_url("http://[::ffff:127.0.0.1]/")
     assert not _is_safe_url("http://[::ffff:192.168.1.1]/")

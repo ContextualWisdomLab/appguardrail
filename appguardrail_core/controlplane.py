@@ -253,10 +253,20 @@ def _is_safe_url(url: str) -> bool:
         )
 
     try:
-        ip = ipaddress.ip_address(raw)
+        norm = socket.inet_ntoa(socket.inet_aton(raw))
+        ip = ipaddress.ip_address(norm)
+    except OSError:
+        try:
+            ip = ipaddress.ip_address(raw)
+        except ValueError:
+            ip = None
+    except ValueError:
+        ip = None
+
+    if ip is not None:
         if is_bad_ip(ip):
             return False
-    except ValueError:
+    else:
         # Non-IP hostnames are expected; validate resolved addresses below.
         pass
 
