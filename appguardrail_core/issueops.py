@@ -71,6 +71,8 @@ PRIMARY_LOG_RE = [
         r"unable to map strix findings",
         r"strix could not complete",
         r"strix scan failed",
+        r"codeql scan dispatched",
+        r"CodeQL scan dispatched. The dispatch workflow will rerun",
         r"\btimeout\b|\btimed out\b",
     )
 ]
