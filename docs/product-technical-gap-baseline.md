@@ -1,7 +1,7 @@
 # Product technical gap baseline
 
-상태: **Proposed**  
-최근 조정: 2026-09-30 UTC  
+상태: **Proposed**
+최근 조정: 2026-09-30 UTC
 대상: [appguardrail#1361](https://github.com/ContextualWisdomLab/appguardrail/pull/1361)
 
 이 문서는 제품의 도메인 진실을 대체하지 않는다. 대시보드는
@@ -50,4 +50,3 @@ PR은 아래 모든 applicable 항목이 current head에서 PASS가 되기 전 m
 | Import/export | PARTIAL | JSON file import 경로는 기존 기능; current-head recovery E2E 없음 |
 | Recovery | FAIL | offline/error/retry/stale/conflict lifecycle 증거 없음 |
 | Exact-head Checks | FAIL | 초기 head CodeQL compatibility failure; 새 head 재실행 필요 |
-
