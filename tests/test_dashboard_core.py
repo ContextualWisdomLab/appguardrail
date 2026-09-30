@@ -77,7 +77,7 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
-    assert "aria-label=\"Upload findings file\"" in html
+    assert ">Upload findings file</button>" in html
     assert "aria-label=\"Search findings\"" in html
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html
@@ -271,7 +271,8 @@ def test_dashboard_empty_state_clear_filters():
 
     assert "No findings match the filter" in html
     assert "aria-label=\"Clear filters\"" in html
-    assert "onclick=\"query=''; filterSev=''; render(); document.getElementById('q')?.focus();\"" in html
+    assert "id=\"clear-filters-btn\"" in html
+    assert "clearFiltersBtn.addEventListener('click'" in html
     assert "Clear filters</button>" in html
 
 
