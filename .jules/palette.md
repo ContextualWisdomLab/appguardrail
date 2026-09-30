@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-05-19 - Accessible External Links with word-break
+**Learning:** For `target="_blank"` external links, screen reader users need an explicit warning (e.g., visually hidden `.sr-only` text), and sighted users need a visual cue (e.g., an icon). However, adding these cues next to long URLs can break layouts.
+**Action:** Always provide an assistive-technology warning and an `aria-hidden="true"` icon. If the link text might be a long unspaced URL, apply `word-break: break-all` scoped strictly to those specific links (e.g., via a `.ref-link` class) to prevent layout issues without breaking normal text links.
