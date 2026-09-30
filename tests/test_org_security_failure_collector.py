@@ -587,3 +587,71 @@ def test_build_finding_uses_only_non_sensitive_failure_metadata():
     assert "PRIVATE_SOURCE_MARKER" not in item["snippet"]
     assert "secret" not in item["snippet"]
     assert "job_log" not in collector.GitHub.__dict__
+
+
+def test_collect_findings_derives_only_codeql_settlement_evidence_from_job_log():
+    """Operational collection keeps only allowlisted CodeQL settlement signals."""
+    run = {
+        "id": 36237290243,
+        "name": "CodeQL PR",
+        "html_url": "https://github.com/ContextualWisdomLab/appguardrail/actions/runs/36237290243",
+        "head_branch": "fix/example",
+        "head_sha": "4c45491dc1441c2b6fae0a3ec290a982a2de15ad",
+        "event": "pull_request",
+        "pull_requests": [{"number": 1273}],
+    }
+    job = {
+        "id": 108411063071,
+        "name": "CodeQL compatibility analysis (python)",
+        "html_url": (
+            "https://github.com/ContextualWisdomLab/appguardrail/actions/"
+            "runs/36237290243/job/108411063071"
+        ),
+        "conclusion": "failure",
+        "steps": [{"number": 6, "name": "settle verdict", "conclusion": "failure"}],
+    }
+    raw_log = (
+        "2026-09-25T00:00:00.0000000Z api_key=must-not-cross-repositories\n"
+        "2026-09-25T00:00:01.0000000Z VERDICT_STATE: pending\n"
+        "2026-09-25T00:00:02.0000000Z ::error::CodeQL scan dispatched. "
+        "The dispatch workflow will rerun this exact failed CodeQL job after "
+        "publishing its terminal verdict.\n"
+        "2026-09-25T00:00:03.0000000Z arbitrary untrusted source log text\n"
+    )
+
+    class CodeQLClient:
+        def request(self, method, path, data=None):
+            assert method == "GET"
+            assert path == (
+                "/repos/ContextualWisdomLab/appguardrail/actions/runs/36237290243"
+            )
+            assert data is None
+            return run
+
+        def pages(self, path, params=None):
+            assert path == (
+                "/repos/ContextualWisdomLab/appguardrail/actions/"
+                "runs/36237290243/jobs"
+            )
+            assert params is None
+            return [job]
+
+        def job_log(self, repo, job_id):
+            assert repo == "ContextualWisdomLab/appguardrail"
+            assert job_id == 108411063071
+            return raw_log
+
+    args = types.SimpleNamespace(
+        run_url=run["html_url"],
+        owner="ContextualWisdomLab",
+        lookback_hours=48,
+    )
+    [item] = collector.collect_findings(CodeQLClient(), args)
+
+    assert "VERDICT_STATE: pending" in item["snippet"]
+    assert "::error::CodeQL scan dispatched." in item["snippet"]
+    assert "must-not-cross-repositories" not in item["snippet"]
+    assert "arbitrary untrusted source log text" not in item["snippet"]
+    diagnosis = issueops.diagnosis(item)
+    assert "does not establish a source-code security finding" in diagnosis
+    assert "canonical `.github` CodeQL producer" in diagnosis
