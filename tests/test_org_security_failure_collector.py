@@ -586,7 +586,6 @@ def test_build_finding_uses_only_non_sensitive_failure_metadata():
     assert "Failed step numbers: 2" in item["snippet"]
     assert "PRIVATE_SOURCE_MARKER" not in item["snippet"]
     assert "secret" not in item["snippet"]
-    assert "job_log" not in collector.GitHub.__dict__
 
 
 def test_collect_findings_derives_only_codeql_settlement_evidence_from_job_log():

@@ -74,6 +74,16 @@ CODEQL_SETTLEMENT_ERROR_RE = re.compile(
 )
 
 
+def codeql_settlement_evidence(log: str) -> str:
+    """Return only the paired CodeQL settlement signals from a trusted job log."""
+    cleaned = redact(log)
+    pending = CODEQL_PENDING_VERDICT_RE.search(cleaned)
+    settlement = CODEQL_SETTLEMENT_ERROR_RE.search(cleaned)
+    if pending is None or settlement is None:
+        return ""
+    return f"{pending.group(0).strip()}\n{settlement.group(0).strip()}"
+
+
 def is_failure(conclusion: str | None) -> bool:
     """Return whether a GitHub conclusion represents a failed security run."""
     return (conclusion or "").lower() in FAILURES
