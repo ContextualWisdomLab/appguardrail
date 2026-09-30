@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from contextlib import closing
 from html.parser import HTMLParser
+from pathlib import Path
 
 import pytest
 
@@ -45,6 +46,22 @@ def test_dashboard_index_ships_with_repo():
     index = dashboard_index_path()
     assert index.is_file(), f"dashboard asset missing: {index}"
     assert b"AppGuardrail" in index.read_bytes()
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """The documented file-input pattern must match the dashboard's actual AOM behavior."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    palette = (
+        Path(__file__).parents[1] / ".jules" / "palette.md"
+    ).read_text(encoding="utf-8")
+
+    assert 'id="header-browse"' in html
+    assert 'id="file"' in html and 'aria-hidden="true"' in html
+    assert "fileInput.click()" in html
+    assert '`aria-hidden="true"`' in palette
+    assert "접근성 트리(AOM)에서 해당 입력 요소가 완전히 제거" in palette
+    assert '`button#header-browse`' in palette
+    assert '`input#file.click()`' in palette
+
 
 
 def test_dashboard_skip_link_is_first_and_targets_focusable_main():
