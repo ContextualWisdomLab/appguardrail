@@ -1660,18 +1660,10 @@ def _inventory_manifest_capabilities(
                 inventory["process_spawn"] = True
     if payload.get("hooks"):
         inventory["process_spawn"] = True
-    for command, args, _ in _manifest_argv_sources(content):
-        command_name = _direct_executable_basename(command)
-        folded_args = tuple(argument.casefold() for argument in args)
-        if (
-            command_name == "deno"
-            and folded_args[:1] == ("publish",)
-        ) or (
-            command_name == "pod"
-            and folded_args[:2] == ("trunk", "push")
-        ):
-            inventory["package_install"] = True
-            break
+    if _deno_publish_command_hits(
+        content, manifest=True
+    ) or _pod_trunk_push_command_hits(content, manifest=True):
+        inventory["package_install"] = True
 
 
 def _inventory_text_capabilities(content: str, inventory: dict[str, bool]) -> None:
@@ -1972,19 +1964,6 @@ def _kubectl_apply_command_hits(
                     line=first_line + source[: match.start()].count("\n"),
                     snippet="kubectl apply",
                     message=CLAUDE_PLUGIN_KUBECTL_APPLY_COMMAND_MESSAGE,
-                ),
-            )
-    for source, first_line in _nested_shell_payload_sources(
-        content, manifest=manifest
-    ):
-        match = _executable_command_match(source, _DENO_PUBLISH_COMMAND)
-        if match is not None:
-            return (
-                PluginHit(
-                    rule_id="claude-plugin-deno-publish-command",
-                    line=first_line + source[: match.start()].count("\n"),
-                    snippet="deno publish",
-                    message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
                 ),
             )
     return ()
@@ -3373,6 +3352,19 @@ def _deno_publish_command_hits(
                 PluginHit(
                     rule_id="claude-plugin-deno-publish-command",
                     line=line,
+                    snippet="deno publish",
+                    message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
+                ),
+            )
+    for source, first_line in _nested_shell_payload_sources(
+        content, manifest=manifest
+    ):
+        match = _executable_command_match(source, _DENO_PUBLISH_COMMAND)
+        if match is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-deno-publish-command",
+                    line=first_line + source[: match.start()].count("\n"),
                     snippet="deno publish",
                     message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
                 ),
