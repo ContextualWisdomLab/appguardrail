@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from contextlib import closing
 from html.parser import HTMLParser
+from pathlib import Path
 
 import pytest
 
@@ -46,6 +47,22 @@ def test_dashboard_index_ships_with_repo():
     assert index.is_file(), f"dashboard asset missing: {index}"
     assert b"AppGuardrail" in index.read_bytes()
 
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """The documented file-input pattern must match the dashboard's actual AOM behavior."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    palette = (
+        Path(__file__).parents[1] / ".jules" / "palette.md"
+    ).read_text(encoding="utf-8")
+
+    assert 'id="header-browse"' in html
+    assert 'id="file"' in html and 'aria-hidden="true"' in html
+    assert "fileInput.click()" in html
+    assert '`aria-hidden="true"`' in palette
+    assert "접근성 트리(AOM)에서 해당 입력 요소가 완전히 제거" in palette
+    assert '`button#header-browse`' in palette
+    assert '`input#file.click()`' in palette
+
+
 
 def test_dashboard_skip_link_is_first_and_targets_focusable_main():
     """Keyboard users can bypass repeated controls and focus the main region."""
@@ -77,7 +94,7 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
-    assert "aria-label=\"Upload findings file\"" in html
+    assert ">Upload findings</button>" in html
     assert "aria-label=\"Search findings\"" in html
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html

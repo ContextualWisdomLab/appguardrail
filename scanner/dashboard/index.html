@@ -93,7 +93,8 @@
   <span class="logo"></span><span class="brand">AppGuardrail</span>
   <span class="spacer"></span>
   <span class="meta" id="src">no findings loaded</span>
-  <input type="file" id="file" accept="application/json,.json" aria-label="Upload findings file" style="margin-left:12px">
+  <button type="button" id="header-browse" class="primary-action" style="margin-left:12px">Upload findings</button>
+  <input type="file" id="file" accept="application/json,.json" aria-hidden="true" class="sr-only" tabindex="-1">
 </header>
 <p id="findings-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
 <main id="app" tabindex="-1"></main>
@@ -386,6 +387,14 @@ addEventListener("keydown", e => {
   ];
   for(const [f,expect] of cases){
     if(isDeployBlocking(f)!==expect) console.error('selftest FAIL', f, 'expected', expect);
+  }
+})();
+
+(function(){
+  const headerBrowse = document.getElementById('header-browse');
+  const fileInput = document.getElementById('file');
+  if (headerBrowse && fileInput) {
+    headerBrowse.addEventListener('click', () => fileInput.click());
   }
 })();
 </script>
