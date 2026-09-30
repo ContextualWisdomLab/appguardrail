@@ -3339,6 +3339,19 @@ def _deno_publish_command_hits(
                 message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
             ),
         )
+    if manifest:
+        line = _manifest_argv_command_line(
+            content, executable="deno", verb="publish"
+        )
+        if line is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-deno-publish-command",
+                    line=line,
+                    snippet="deno publish",
+                    message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
+                ),
+            )
     return ()
 
 
@@ -3367,6 +3380,21 @@ def _pod_trunk_push_command_hits(
                 message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
             ),
         )
+    if manifest:
+        for command, args, line in _manifest_argv_sources(content):
+            if (
+                _direct_executable_basename(command) == "pod"
+                and tuple(argument.casefold() for argument in args[:2])
+                == ("trunk", "push")
+            ):
+                return (
+                    PluginHit(
+                        rule_id="claude-plugin-pod-trunk-push-command",
+                        line=line,
+                        snippet="pod trunk push",
+                        message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
+                    ),
+                )
     return ()
 
 
