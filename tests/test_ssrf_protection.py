@@ -1,5 +1,3 @@
-import socket
-
 import pytest
 
 from appguardrail_core import controlplane
@@ -8,34 +6,14 @@ from appguardrail_core.pinned_https import PinnedHTTPSResponse
 from scanner.cli.appguardrail import _is_safe_url as _cli_is_safe_url
 
 
-def _resolve_public_ipv4(
-    _host: str,
-    port: int,
-    _family: int,
-    _socket_type: int,
-    _protocol: int,
-):
-    """Return one deterministic public TCP address for URL validation tests."""
-    return [
-        (
-            socket.AF_INET,
-            socket.SOCK_STREAM,
-            socket.IPPROTO_TCP,
-            "",
-            ("8.8.8.8", port),
-        )
-    ]
-
-
 @pytest.mark.parametrize(
     "validator",
     [_is_safe_url, _cli_is_safe_url],
     ids=["controlplane", "cli"],
 )
 def test_is_safe_url_requires_public_https(validator):
-    assert not validator("http://example.com/", resolver=_resolve_public_ipv4)
-    assert validator("https://example.com/", resolver=_resolve_public_ipv4)
-
+    assert not validator("http://8.8.8.8/")
+    assert validator("https://8.8.8.8/")
 
 @pytest.mark.parametrize(
     "validator",
