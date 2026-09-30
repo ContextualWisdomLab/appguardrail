@@ -1,22 +1,89 @@
-import pytest
-import os
-import re
+"""Executable regressions for untrusted dashboard severity values."""
 
-def test_hostile_severity_regression():
-    html_path = os.path.join(os.path.dirname(__file__), "..", "scanner", "dashboard", "index.html")
-    with open(html_path, 'r', encoding='utf-8') as f:
-        html = f.read()
+import json
+import subprocess
+from pathlib import Path
 
-    # Check that the fixed behavior (Object.hasOwn) is present
-    assert bool(re.search(r'Object\.hasOwn\(SEV, s\)', html)) == True
 
-    # Verify that the direct object interpolation (SEV[s] without escaping or Object.hasOwn check in template literal) is removed.
-    # We want to ensure things like SEV[s]?SEV[s].color are gone, but we still allow SEV[s].color if it's protected by Object.hasOwn
-    assert bool(re.search(r'\$\{SEV\[s\]\?SEV\[s\]\.color:\'var\(--info\)\'\}', html)) == False
+CONSOLE_PATH = (
+    Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "console.html"
+)
 
-    html_console_path = os.path.join(os.path.dirname(__file__), "..", "scanner", "dashboard", "console.html")
-    with open(html_console_path, 'r', encoding='utf-8') as f:
-        html_console = f.read()
+NODE_CONSOLE_PROBE = r"""
+const fs = require("fs");
+const vm = require("vm");
 
-    assert bool(re.search(r'Object\.hasOwn\(SEV, f\.severity\)', html_console)) == True
-    assert bool(re.search(r'\$\{SEV\[f\.severity\]\|\|\'var\(--info\)\'\}', html_console)) == False
+const html = fs.readFileSync(process.argv[1], "utf8");
+const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
+const elements = new Map();
+function element() {
+  return {
+    innerHTML: "",
+    textContent: "",
+    value: "",
+    dataset: {},
+    isConnected: true,
+    classList: {add() {}, remove() {}, contains() { return true; }},
+    addEventListener() {},
+    removeAttribute() {},
+    setAttribute() {},
+    focus() {},
+    scrollIntoView() {},
+    querySelector() { return element(); },
+    querySelectorAll() { return []; },
+  };
+}
+for (const id of ["connect", "key", "logout", "detail"]) {
+  elements.set(id, element());
+}
+
+const finding = {
+  severity: "constructor",
+  rule_id: "rule",
+  message: "message",
+  file: "file.py",
+  line: 7,
+};
+const context = {
+  console,
+  document: {
+    activeElement: null,
+    addEventListener() {},
+    querySelector(selector) { return elements.get(selector.slice(1)); },
+  },
+  fetch: async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: 1,
+      created_at: "2026-10-01T00:00:00Z",
+      repo: "ContextualWisdomLab/appguardrail",
+      findings: [finding],
+    }),
+  }),
+  HTMLElement: class {},
+  location: {reload() {}},
+  sessionStorage: {getItem() { return null; }, setItem() {}, removeItem() {}},
+  window: {matchMedia() { return {matches: true}; }},
+};
+vm.createContext(context);
+vm.runInContext(script, context);
+vm.runInContext("detail('1')", context).then(() => {
+  process.stdout.write(JSON.stringify({html: elements.get("detail").innerHTML}));
+});
+"""
+
+
+def test_console_inherited_severity_key_uses_info_color() -> None:
+    """An inherited Object key must not override the fixed INFO fallback."""
+    completed = subprocess.run(
+        ["node", "-e", NODE_CONSOLE_PROBE, str(CONSOLE_PATH)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rendered = json.loads(completed.stdout)["html"]
+
+    assert 'style="background:var(--info)"' in rendered
+    assert "function Object()" not in rendered
+    assert ">constructor</span>" in rendered
