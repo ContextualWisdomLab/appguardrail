@@ -156,12 +156,19 @@ def is_deploy_blocking(
     return sev in severities and ctx not in NON_BLOCKING_CONTEXTS
 
 
+# ⚡ Bolt: Cache static severity boundaries to avoid O(N) generator evaluations
+_SEVERITIES_ABOVE_CACHE = {
+    sev: frozenset(s for s, order in _SEVERITY_ORDER.items() if order <= _SEVERITY_ORDER[sev])
+    for sev in SEVERITIES
+}
+
+
 def severities_at_or_above(min_severity: str) -> set[str]:
     """Severity names at or above ``min_severity`` (CRITICAL is highest)."""
-    idx = _SEVERITY_ORDER.get(str(min_severity).upper())
-    if idx is None:
+    s = _SEVERITIES_ABOVE_CACHE.get(str(min_severity).upper())
+    if s is None:
         return set(DEPLOY_BLOCKING_SEVERITIES)
-    return {sev for sev, order in _SEVERITY_ORDER.items() if order <= idx}
+    return set(s)
 
 
 def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
