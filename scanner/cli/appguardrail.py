@@ -2303,6 +2303,13 @@ def _finding_context(file_path: str, snippet: str = "") -> str:
         return "doc"
     if path.startswith("tests/") or "/tests/" in path:
         return "test"
+    filename = path.rsplit("/", 1)[-1].lower()
+    if (
+        ".test." in filename
+        or ".spec." in filename
+        or filename.endswith((".test", ".spec"))
+    ):
+        return "test"
     if path.startswith("examples/"):
         return "example"
     if path.startswith("scanner/rules/"):
