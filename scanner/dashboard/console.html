@@ -157,7 +157,7 @@ async function detail(id,tr){
     if(requestId!==currentDetailRequest)return;
     const rows=(s.findings||[]).map(f=>{
       const sevKey = Object.hasOwn(SEV, f.severity) ? f.severity : 'INFO';
-      return `<tr><td><span class="pill" style="background:${SEV[sevKey]}">${esc(f.severity)}</span></td>
+      return `<tr><td><span class="pill" style="background:${esc(SEV[sevKey]||'var(--info)')}">${esc(f.severity)}</span></td>
       <td><code>${esc(f.rule_id)}</code></td><td>${esc((f.message||"").split("\n")[0].slice(0,120))}</td>
       <td><code>${esc(f.file)}:${esc(f.line)}</code></td></tr>`;
     }).join("");
