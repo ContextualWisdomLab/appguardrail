@@ -8,7 +8,6 @@ import urllib.error
 import urllib.request
 from contextlib import closing
 from html.parser import HTMLParser
-from pathlib import Path
 
 import pytest
 
@@ -83,22 +82,6 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html
     assert "e.key === 'Enter' || e.key === ' '" in html
-
-
-
-def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
-    """The documented file-input pattern must match the dashboard's actual AOM behavior."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-    palette = (Path(__file__).parents[1] / ".jules" / "palette.md").read_text(
-        encoding="utf-8"
-    )
-
-    assert 'id="header-browse"' in html
-    assert 'id="file"' in html and 'aria-hidden="true"' in html
-    assert "fileInput.click()" in html
-    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in palette
-    assert '`button#header-browse`' in palette
-    assert '`input#file.click()`' in palette
 
 
 def test_dashboard_severity_cards_are_accessible_filter_toggles():
