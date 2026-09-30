@@ -1660,6 +1660,18 @@ def _inventory_manifest_capabilities(
                 inventory["process_spawn"] = True
     if payload.get("hooks"):
         inventory["process_spawn"] = True
+    for command, args, _ in _manifest_argv_sources(content):
+        command_name = _direct_executable_basename(command)
+        folded_args = tuple(argument.casefold() for argument in args)
+        if (
+            command_name == "deno"
+            and folded_args[:1] == ("publish",)
+        ) or (
+            command_name == "pod"
+            and folded_args[:2] == ("trunk", "push")
+        ):
+            inventory["package_install"] = True
+            break
 
 
 def _inventory_text_capabilities(content: str, inventory: dict[str, bool]) -> None:

@@ -280,6 +280,32 @@ def test_structured_publish_argv_stays_package_inventory(
     assert inventory["package_install"] is True
 
 
+@pytest.mark.parametrize(
+    ("command", "args"),
+    (
+        ("deno", ["info"]),
+        ("pod", ["install"]),
+        ("echo", ["deno", "publish"]),
+    ),
+)
+def test_other_structured_argv_is_not_package_publish_inventory(
+    tmp_path: Path, command: str, args: list[str]
+) -> None:
+    """Read-only verbs and typed reporting argv are not registry writes."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": command, "args": args}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert inventory["package_install"] is False
+
+
 def test_nested_shell_manifest_deno_publish_fails_admission(tmp_path: Path) -> None:
     """A typed Bash payload preserves executable Deno registry authority."""
     root = _licensed_plugin(tmp_path)
