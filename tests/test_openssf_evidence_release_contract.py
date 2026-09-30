@@ -12,7 +12,6 @@ from appguardrail_core import (
 )
 from scripts.ci.commercial_readiness_loop import COMMERCIAL_GAPS
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -84,7 +83,7 @@ def test_evidence_module_uses_explicit_utc_timezone() -> None:
         encoding="utf-8"
     )
 
-    assert "datetime.now(timezone.utc)" in source
+    assert "datetime.now(UTC)" in source
 
 
 def test_package_metadata_matches_the_tested_python_floor() -> None:

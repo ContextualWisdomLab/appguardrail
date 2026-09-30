@@ -14,7 +14,6 @@ from dataclasses import asdict, dataclass
 from types import SimpleNamespace
 from typing import Any
 
-
 API = "https://api.github.com"
 USER_AGENT = "appguardrail-commercial-readiness-loop"
 COMMERCIAL_LABEL = "commercial-readiness"
@@ -82,7 +81,6 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         """Return no redirected request, causing urllib to raise for the response."""
         del req, fp, code, msg, headers, newurl
-        return None
 
 
 class GitHub:
@@ -109,7 +107,7 @@ class GitHub:
             raise ValueError("GitHub API path must start with /")
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         body = json.dumps(data).encode("utf-8") if data is not None else None
-        request = urllib.request.Request(  # noqa: S310 - origin is fixed above
+        request = urllib.request.Request(
             f"{self.api}{path}{query}",
             data=body,
             method=method,
@@ -122,7 +120,7 @@ class GitHub:
             },
         )
         try:
-            with self.opener.open(request, timeout=30) as response:  # noqa: S310
+            with self.opener.open(request, timeout=30) as response:
                 payload = response.read()
                 content_type = response.headers.get("content-type", "")
         except urllib.error.HTTPError as exc:

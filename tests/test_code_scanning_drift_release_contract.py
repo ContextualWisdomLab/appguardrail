@@ -7,7 +7,6 @@ from pathlib import Path
 import appguardrail_core
 from scripts.ci import commercial_readiness_loop
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOC_PATH = ROOT / "docs" / "code-scanning-analysis-drift.md"
 CHANGELOG_PATH = ROOT / "CHANGELOG.d" / "862-code-scanning-analysis-drift.md"

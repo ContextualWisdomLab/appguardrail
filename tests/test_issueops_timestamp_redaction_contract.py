@@ -4,7 +4,6 @@ import pytest
 
 from appguardrail_core import issueops
 
-
 _SPLITLINES_SEPARATORS = (
     "\n",
     "\r",

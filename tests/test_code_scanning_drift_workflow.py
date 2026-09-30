@@ -10,7 +10,6 @@ import pytest
 from appguardrail_core.code_scanning import DriftAssessment
 from scripts.ci import collect_code_scanning_drift as drift
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "org-security-failure-collector.yml"
 

@@ -10,13 +10,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from appguardrail_core.org_intelligence import (OrgInventory,
-                                                PullRequestGateSummary,
-                                                build_buyer_evidence_pack,
-                                                build_org_inventory,
-                                                buyer_evidence_pack_to_dict,
-                                                render_org_readiness_report,
-                                                summarize_pr_gates)
+from appguardrail_core.org_intelligence import (
+    OrgInventory,
+    PullRequestGateSummary,
+    build_buyer_evidence_pack,
+    build_org_inventory,
+    buyer_evidence_pack_to_dict,
+    render_org_readiness_report,
+    summarize_pr_gates,
+)
 
 REPO_FIELDS = "name,isFork,isPrivate,defaultBranchRef,url,description,visibility,primaryLanguage,pushedAt"
 PR_DETAIL_FIELDS = "number,title,updatedAt,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,headRefName,baseRefName"
@@ -224,7 +226,7 @@ def top_count(counts: dict[str, int]) -> str:
     """Return the largest count in a beginner-readable label."""
     if not counts:
         return "n/a (0)"
-    key, value = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0]
+    key, value = min(counts.items(), key=lambda item: (-item[1], item[0]))
     return f"{key} ({value})"
 
 
@@ -298,11 +300,10 @@ def gh_json(args: list[str]) -> list[dict[str, Any]]:
             "gh CLI is required when JSON source files are not provided"
         )
     try:
-        result = subprocess.run(  # noqa: S603 - fixed gh command with explicit argv.
+        result = subprocess.run(
             [gh, *args],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=120,
         )

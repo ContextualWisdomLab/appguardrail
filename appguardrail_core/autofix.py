@@ -10,7 +10,7 @@ safe to run. New safe transforms plug into ``SAFE_FIXES``.
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 # One opening <a ...> tag (no embedded '>').
 _A_TAG = re.compile(r"<a\b[^>]*>", re.IGNORECASE)
@@ -21,14 +21,14 @@ _HAS_REL_SAFE = re.compile(
 )
 
 
-def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
+def _fix_target_blank_noopener(text: str) -> tuple[str, int]:
     """Add rel="noopener noreferrer" to external target=_blank links missing it.
 
     Purely additive: inserts a rel attribute; never removes or alters others.
     """
     count = 0
 
-    def repl(match: "re.Match[str]") -> str:
+    def repl(match: re.Match[str]) -> str:
         nonlocal count
         tag = match.group(0)
         if (
@@ -50,7 +50,7 @@ def _fix_target_blank_noopener(text: str) -> "tuple[str, int]":
 
 
 # rule_id -> (file extensions it applies to, transform)
-SAFE_FIXES: "dict[str, tuple[tuple[str, ...], Callable[[str], tuple[str, int]]]]" = {
+SAFE_FIXES: dict[str, tuple[tuple[str, ...], Callable[[str], tuple[str, int]]]] = {
     "html-target-blank-without-noopener": (
         (".html", ".htm"),
         _fix_target_blank_noopener,
@@ -58,14 +58,14 @@ SAFE_FIXES: "dict[str, tuple[tuple[str, ...], Callable[[str], tuple[str, int]]]]
 }
 
 
-def fixable_extensions() -> "set[str]":
+def fixable_extensions() -> set[str]:
     exts = set()
     for extensions, _ in SAFE_FIXES.values():
         exts.update(extensions)
     return exts
 
 
-def apply_safe_fixes(text: str, ext: str) -> "tuple[str, int]":
+def apply_safe_fixes(text: str, ext: str) -> tuple[str, int]:
     """Apply every safe transform whose extension matches. Returns (text, fixes)."""
     total = 0
     for extensions, transform in SAFE_FIXES.values():

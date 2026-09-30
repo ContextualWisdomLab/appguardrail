@@ -6,7 +6,6 @@ from pathlib import Path
 
 import appguardrail_core
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
