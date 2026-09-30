@@ -1,8 +1,9 @@
 """Security contracts for the standalone control-plane console."""
 
+import json
 import os
+import subprocess
 from pathlib import Path
-
 
 CONSOLE_PATH = (
     Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "console.html"
@@ -157,7 +158,7 @@ def test_untrusted_scan_fields_use_typed_and_owned_rendering_boundaries() -> Non
     """Counts, row identities, and severity keys must stay data at innerHTML sinks."""
     html = CONSOLE_PATH.read_text(encoding="utf-8")
 
-    assert "function count(n){const v=Number(n);return Number.isSafeInteger(v)&&v>=0?v:0;}" in html
+    assert "function count(n){return typeof n===\"number\"&&Number.isSafeInteger(n)&&n>=0?n:0;}" in html
     assert "parseInt(n,10)" not in html
     assert '["Latest deploy-blocking",count(latest.deploy_blocking)]' in html
     assert '["New since last scan",count(latest.new_blocking)]' in html
@@ -172,3 +173,27 @@ def test_untrusted_scan_fields_use_typed_and_owned_rendering_boundaries() -> Non
     assert '["Latest deploy-blocking",latest.deploy_blocking||0]' not in html
     assert '<tr class="scan" data-id="${s.id}"' not in html
     assert "SEV[String(f.severity).toUpperCase()]" not in html
+
+
+def test_count_projection_rejects_coercible_non_numbers() -> None:
+    """JSON booleans, strings, arrays and objects must fail closed without coercion."""
+    html = CONSOLE_PATH.read_text(encoding="utf-8")
+    start = html.index("function count(")
+    end = html.index("\nasync function load", start)
+    count_source = html[start:end]
+    script = f"""
+{count_source}
+const observed = [
+  count(7), count(0), count(true), count("7"), count([7]),
+  count({{toString: null}}), count(NaN), count(Infinity), count(-1), count(1.5)
+];
+console.log(JSON.stringify(observed));
+"""
+    result = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) == [7, 0, 0, 0, 0, 0, 0, 0, 0, 0]
