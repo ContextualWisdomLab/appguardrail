@@ -58,7 +58,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
-from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
@@ -1045,9 +1044,7 @@ def _compile_yaml_regex_rule(rule):
                 "extensions": extensions,
                 "include_paths": rule.get("include_paths") or [],
                 "exclude_paths": rule.get("exclude_paths") or [],
-                "required_substrings": tuple(
-                    rule.get("required_substrings") or ()
-                ),
+                "required_substrings": tuple(rule.get("required_substrings") or ()),
             }
         )
     return compiled_rules
@@ -1725,9 +1722,7 @@ def _push_findings(url, findings):
 
     base_path = parsed.path.rstrip("/")
     endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
-    endpoint = urllib.parse.urlunsplit(
-        ("https", parsed.netloc, endpoint_path, "", "")
-    )
+    endpoint = urllib.parse.urlunsplit(("https", parsed.netloc, endpoint_path, "", ""))
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
@@ -2186,12 +2181,17 @@ def _path_allowed_by_rule_cached(
     path: str, include_paths: tuple, exclude_paths: tuple
 ) -> bool:
     """Return whether a path passes optional YAML include/exclude filters (cached)."""
-    if include_paths and not any(
-        _path_matches_glob(path, glob) for glob in include_paths
-    ):
-        return False
-    if exclude_paths and any(_path_matches_glob(path, glob) for glob in exclude_paths):
-        return False
+    # ⚡ Bolt: Expand generator expressions into explicit loops for faster execution
+    if include_paths:
+        for glob in include_paths:
+            if _path_matches_glob(path, glob):
+                break
+        else:
+            return False
+    if exclude_paths:
+        for glob in exclude_paths:
+            if _path_matches_glob(path, glob):
+                return False
     return True
 
 
@@ -2975,10 +2975,15 @@ def _scan_file(
                 exclude_paths,
                 required_substrings,
             ) in applicable_rules:
-                if required_substrings and not all(
-                    substring in content for substring in required_substrings
-                ):
-                    continue
+                if required_substrings:
+                    # ⚡ Bolt: Expand generator expressions into explicit loops for faster execution
+                    missing_substring = False
+                    for substring in required_substrings:
+                        if substring not in content:
+                            missing_substring = True
+                            break
+                    if missing_substring:
+                        continue
                 if include_paths or exclude_paths:
                     if rel_path_for_filters is None:
                         rel_path_for_filters = _display_path(
