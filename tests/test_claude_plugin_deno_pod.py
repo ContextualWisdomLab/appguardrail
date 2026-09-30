@@ -256,6 +256,44 @@ def test_structured_manifest_pod_argv_fails_admission(tmp_path: Path) -> None:
     assert _POD_RULE in receipt.finding_summary
 
 
+def test_nested_shell_manifest_deno_publish_fails_admission(tmp_path: Path) -> None:
+    """A typed Bash payload preserves executable Deno registry authority."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [
+            {"command": "bash", "args": ["-c", "deno publish"]},
+        ],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+
+    assert _hits(root, _DENO_RULE)
+    assert receipt.scan_result == "fail"
+
+
+def test_nested_shell_manifest_pod_push_fails_admission(tmp_path: Path) -> None:
+    """A typed POSIX shell payload preserves executable CocoaPods authority."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [
+            {"command": "sh", "args": ["-c", "pod trunk push App.podspec"]},
+        ],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+
+    assert _hits(root, _POD_RULE)
+    assert receipt.scan_result == "fail"
+
+
 def test_manifest_prose_is_not_this_class(tmp_path: Path) -> None:
     """Marketplace description prose about deno publish is not a command."""
     root = _licensed_plugin(tmp_path)
