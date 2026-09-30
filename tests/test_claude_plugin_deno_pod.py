@@ -375,6 +375,52 @@ def test_json_escaped_nested_publish_stays_package_inventory(
     assert inventory["package_install"] is True
 
 
+def test_json_escaped_nested_reporting_stays_outside_package_inventory(
+    tmp_path: Path,
+) -> None:
+    """Decoded reporting payload text is not executable registry authority."""
+    root = _licensed_plugin(tmp_path)
+    manifest_path = root / ".claude-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload = "echo deno publish"
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": "bash", "args": ["-c", payload]}],
+    }
+    source = json.dumps(manifest, indent=2).replace(
+        payload, r"echo\u0020deno\u0020publish"
+    ) + "\n"
+    manifest_path.write_text(source, encoding="utf-8")
+
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert _hits(root, _DENO_RULE) == []
+    assert _hits(root, _POD_RULE) == []
+    assert inventory["package_install"] is False
+
+
+def test_nested_shell_kubectl_then_deno_reports_both_commands(
+    tmp_path: Path,
+) -> None:
+    """A preceding kubectl write cannot consume the later Deno finding."""
+    root = _licensed_plugin(tmp_path)
+    manifest_path = root / ".claude-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hooks"] = {
+        "PostToolUse": [
+            {
+                "command": "bash",
+                "args": ["-c", "kubectl apply -f deploy.yaml && deno publish"],
+            }
+        ],
+    }
+    _write_json(manifest_path, manifest)
+
+    rule_ids = {hit.rule_id for hit in _collect_plugin_hits(root)}
+
+    assert "claude-plugin-kubectl-apply-command" in rule_ids
+    assert _DENO_RULE in rule_ids
+
+
 def test_manifest_prose_is_not_this_class(tmp_path: Path) -> None:
     """Marketplace description prose about deno publish is not a command."""
     root = _licensed_plugin(tmp_path)
