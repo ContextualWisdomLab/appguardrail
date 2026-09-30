@@ -220,6 +220,42 @@ def test_plugin_manifest_pod_trunk_push_fails_admission(tmp_path: Path) -> None:
     assert receipt.scan_result == "fail"
 
 
+def test_structured_manifest_deno_argv_fails_admission(tmp_path: Path) -> None:
+    """Direct typed Deno argv preserves the publish verb for admission."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": "deno", "args": ["publish"]}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+
+    assert _hits(root, _DENO_RULE)
+    assert receipt.scan_result == "fail"
+    assert _DENO_RULE in receipt.finding_summary
+
+
+def test_structured_manifest_pod_argv_fails_admission(tmp_path: Path) -> None:
+    """Direct typed CocoaPods argv preserves trunk push for admission."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": "pod", "args": ["trunk", "push"]}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+
+    assert _hits(root, _POD_RULE)
+    assert receipt.scan_result == "fail"
+    assert _POD_RULE in receipt.finding_summary
+
+
 def test_manifest_prose_is_not_this_class(tmp_path: Path) -> None:
     """Marketplace description prose about deno publish is not a command."""
     root = _licensed_plugin(tmp_path)
