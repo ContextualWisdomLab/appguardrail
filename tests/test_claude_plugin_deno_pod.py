@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from appguardrail_core.claude_plugin_detector import (
     _collect_plugin_hits,
     build_claude_plugin_scan_receipt,
@@ -254,6 +256,28 @@ def test_structured_manifest_pod_argv_fails_admission(tmp_path: Path) -> None:
     assert _hits(root, _POD_RULE)
     assert receipt.scan_result == "fail"
     assert _POD_RULE in receipt.finding_summary
+
+
+@pytest.mark.parametrize(
+    ("command", "args"),
+    (("deno", ["publish"]), ("pod", ["trunk", "push"])),
+)
+def test_structured_publish_argv_stays_package_inventory(
+    tmp_path: Path, command: str, args: list[str]
+) -> None:
+    """Typed package-publish argv remains visible in capability inventory."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": command, "args": args}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert inventory["package_install"] is True
 
 
 def test_nested_shell_manifest_deno_publish_fails_admission(tmp_path: Path) -> None:
