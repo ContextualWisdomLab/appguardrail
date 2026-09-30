@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-REFERENCE_RE = re.compile(r"\[(OWASP [^\]]+|CWE-\d+[^\]]*|CVE-\d{4}-\d+[^\]]*)\]")
+REFERENCE_RE = re.compile(r"\[(OWASP [A-Z][0-9]+:\d{4} - [A-Za-z0-9\s-]+|CWE-\d+ - [A-Za-z0-9\s-]+|CVE-\d{4}-\d+[^\]]*)\]")
 
 CATEGORY_REFERENCE_DEFAULTS = {
     "authz": (
@@ -26,10 +26,6 @@ CATEGORY_REFERENCE_DEFAULTS = {
         "CWE-918 - Server-Side Request Forgery",
     ),
     "storage": ("OWASP A01:2021 - Broken Access Control",),
-}
-
-REFERENCE_CATEGORY_OVERRIDES = {
-    "CWE-918": "ssrf",
 }
 
 SAMM_BY_CATEGORY = {
@@ -106,21 +102,11 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
-
-
-def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
-    """Prefer an authoritative public taxonomy over a rule-id heuristic."""
-    for reference in references:
-        for prefix, category in REFERENCE_CATEGORY_OVERRIDES.items():
-            if reference.startswith(prefix):
-                return category
-    return fallback
+    # ⚡ Bolt: 언롤링(unroll)하여 제너레이터 객체 생성 오버헤드를 우회합니다.
+    references = {}
+    for match in REFERENCE_RE.finditer(message or ""):
+        references[" ".join(match.group(1).split())] = None
+    return tuple(references)
 
 
 def build_rule_metadata(
@@ -133,7 +119,7 @@ def build_rule_metadata(
 ) -> RuleMetadata:
     """Build a stable metadata envelope for a scanner finding."""
     public_references = extract_public_references(message)
-    category = _category_for_references(public_references, category)
+    # 🛡️ Sentinel: Removed brittle category override to prevent classification spoofing via message injection
     references = _merge_references(
         public_references,
         CATEGORY_REFERENCE_DEFAULTS.get(category, ()),
@@ -170,12 +156,20 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
             errors.append(f"missing {field}")
     if not data.get("owasp") and not data.get("cwe"):
         errors.append("missing public taxonomy reference")
+
+    valid_re = re.compile(r"^(OWASP [A-Z][0-9]+:\d{4} - [A-Za-z0-9\s-]+|CWE-\d+ - [A-Za-z0-9\s-]+|CVE-\d{4}-\d+[^\]]*)$")
+    for ref in data.get("references", ()):
+        if not valid_re.match(ref):
+            errors.append(f"malformed reference: {ref}")
+
     return errors
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
-    )
+    # ⚡ Bolt: 제너레이터 표현식을 명시적인 중첩 루프로 언롤링하여 제너레이터 객체 생성 오버헤드를 우회합니다.
+    merged = {}
+    for group in groups:
+        for reference in group:
+            if reference:
+                merged[reference] = None
+    return tuple(merged)
