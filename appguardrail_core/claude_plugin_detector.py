@@ -1962,6 +1962,19 @@ def _kubectl_apply_command_hits(
                     message=CLAUDE_PLUGIN_KUBECTL_APPLY_COMMAND_MESSAGE,
                 ),
             )
+    for source, first_line in _nested_shell_payload_sources(
+        content, manifest=manifest
+    ):
+        match = _executable_command_match(source, _DENO_PUBLISH_COMMAND)
+        if match is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-deno-publish-command",
+                    line=first_line + source[: match.start()].count("\n"),
+                    snippet="deno publish",
+                    message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
+                ),
+            )
     return ()
 
 def _docker_push_command_hits(
@@ -3395,6 +3408,19 @@ def _pod_trunk_push_command_hits(
                         message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
                     ),
                 )
+    for source, first_line in _nested_shell_payload_sources(
+        content, manifest=manifest
+    ):
+        match = _executable_command_match(source, _POD_TRUNK_PUSH_COMMAND)
+        if match is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-pod-trunk-push-command",
+                    line=first_line + source[: match.start()].count("\n"),
+                    snippet="pod trunk push",
+                    message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
+                ),
+            )
     return ()
 
 
