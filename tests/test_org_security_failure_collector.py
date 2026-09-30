@@ -655,3 +655,103 @@ def test_collect_findings_derives_only_codeql_settlement_evidence_from_job_log()
     diagnosis = issueops.diagnosis(item)
     assert "does not establish a source-code security finding" in diagnosis
     assert "canonical `.github` CodeQL producer" in diagnosis
+
+
+def test_github_job_log_follows_github_redirect_without_bearer_token(monkeypatch):
+    """Download bounded job logs without forwarding the GitHub bearer token."""
+    observed = []
+    log_bytes = b"VERDICT_STATE: pending\\n"
+
+    class FakeResponse:
+        headers = {"content-type": "text/plain"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, size):
+            observed.append(("read", size))
+            return log_bytes
+
+    class FakeOpener:
+        def open(self, request, timeout):
+            observed.append(
+                (
+                    "open",
+                    request.full_url,
+                    request.get_header("Authorization"),
+                    timeout,
+                )
+            )
+            if len([item for item in observed if item[0] == "open"]) == 1:
+                raise collector.urllib.error.HTTPError(
+                    request.full_url,
+                    302,
+                    "Found",
+                    {
+                        "Location": (
+                            "https://pipelines.actions.githubusercontent.com/"
+                            "signed/job-log"
+                        )
+                    },
+                    None,
+                )
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_handlers: FakeOpener(),
+    )
+    client = collector.GitHub("sensitive-token")
+    job_log = getattr(client, "job_log", lambda *_args: None)
+
+    assert job_log("ContextualWisdomLab/appguardrail", 108411063071) == (
+        log_bytes.decode()
+    )
+    assert observed == [
+        (
+            "open",
+            (
+                "https://api.github.com/repos/ContextualWisdomLab/appguardrail/"
+                "actions/jobs/108411063071/logs"
+            ),
+            "Bearer sensitive-token",
+            30,
+        ),
+        (
+            "open",
+            "https://pipelines.actions.githubusercontent.com/signed/job-log",
+            None,
+            30,
+        ),
+        ("read", 1_000_001),
+    ]
+
+
+def test_github_job_log_rejects_non_https_redirect(monkeypatch):
+    """A GitHub redirect cannot turn bounded log retrieval into plaintext egress."""
+
+    class FakeOpener:
+        def open(self, request, timeout):
+            assert timeout == 30
+            raise collector.urllib.error.HTTPError(
+                request.full_url,
+                302,
+                "Found",
+                {"Location": "http://attacker.invalid/job-log"},
+                None,
+            )
+
+    monkeypatch.setattr(
+        collector.urllib.request,
+        "build_opener",
+        lambda *_handlers: FakeOpener(),
+    )
+    client = collector.GitHub("sensitive-token")
+    job_log = getattr(client, "job_log", lambda *_args: None)
+
+    with pytest.raises(RuntimeError, match="HTTPS"):
+        job_log("ContextualWisdomLab/appguardrail", 108411063071)
