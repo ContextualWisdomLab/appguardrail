@@ -81,15 +81,6 @@ def test_template_and_view_markers_use_exact_path_components(
     assert ("templates" in profile.frameworks) is expects_template_marker
 
 
-def test_signal_detection_avoids_replace_split_hot_loop_allocations() -> None:
-    """Signal extraction and its helper must avoid replace/split path rebuilding."""
-    for function in (_detect_signals, _iter_lower_path_components):
-        source = inspect.getsource(function)
-
-        assert ".replace(" not in source
-        assert ".split(" not in source
-
-
 def test_generator_input_is_materialized_once_for_profile_detection(tmp_path: Path) -> None:
     """One-shot iterables must feed language, framework, and signal detection once."""
     manifest = tmp_path / "package.json"

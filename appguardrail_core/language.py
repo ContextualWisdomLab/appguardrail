@@ -203,15 +203,7 @@ def detect_stack_profile(files: Iterable[str | Path]) -> StackProfile:
 
 def _iter_lower_path_components(path: str) -> Iterable[str]:
     """Yield lowercase non-empty path components for either slash convention."""
-    start = 0
-    for index, character in enumerate(path):
-        if character not in "/\\":
-            continue
-        if index > start:
-            yield path[start:index].lower()
-        start = index + 1
-    if start < len(path):
-        yield path[start:].lower()
+    return (p for p in path.replace("\\", "/").lower().split("/") if p)
 
 
 def _detect_framework_markers(paths: list[str]) -> set[str]:
