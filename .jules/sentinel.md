@@ -127,3 +127,8 @@
 **Vulnerability:** The `/api/v1/webhook` POST endpoint in `appguardrail_core/controlplane.py` failed to validate the `url` property when accepting it into the database, leading to Stored SSRF risks. In addition, the core SSRF validation logic (`_is_safe_url`) in both the CLI and control-plane did not verify the input type (e.g. `isinstance(url, str)`). Passing non-string types (like integers) resulted in unhandled `AttributeError` exceptions inside `urllib.parse.urlparse`, which led to API 500 crashes on malicious JSON payloads.
 **Learning:** Network endpoints must explicitly validate the data type of user-provided configurations prior to execution or storage. Furthermore, webhooks configured by users should always be checked for SSRF when saved, as trusting them later assumes input has already been safely validated, bypassing downstream network guardrails.
 **Prevention:** Apply `_is_safe_url` checks directly upon ingestion (e.g., in `/api/v1/webhook`) and enforce type checks `if not isinstance(url, str): return False` prior to using library parsing functions like `urlparse`. Always return gracefully failing responses (like `400 Bad Request`) for unsafe URLs instead of allowing unhandled 500 server errors.
+
+## 2026-07-30 - 빈 호스트명에 의한 SSRF 검증 우회 취약점
+**Vulnerability:** URL 내 빈 호스트명(`http://` 또는 `http://user@`)이 전달될 경우 DNS 리졸브 단계(`socket.getaddrinfo`)에서 발생하는 예외가 무시되어 검증이 우회되는 SSRF 위험성 존재.
+**Learning:** `urllib.parse.urlparse`는 잘못된 URL 형식일 때 `hostname`을 `None`으로 반환할 수 있다. 이 때 파생된 빈 문자열 호스트명은 내부 네트워크 IP 체크를 하지 않고 우회할 수 있도록 만들어버린다.
+**Prevention:** `socket.getaddrinfo`에 의해 DNS 해석이 일어나기 전에, `hostname`이 비어있지 않음을 명시적으로 확인(`if not host: return False`)하여 유효하지 않은 호스트명으로 인한 우회 경로를 차단해야 한다.
