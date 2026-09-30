@@ -344,6 +344,37 @@ def test_nested_shell_manifest_pod_push_fails_admission(tmp_path: Path) -> None:
     assert receipt.scan_result == "fail"
 
 
+@pytest.mark.parametrize(
+    ("shell", "payload", "escaped_payload"),
+    (
+        ("bash", "deno publish", r"deno\u0020publish"),
+        (
+            "sh",
+            "pod trunk push App.podspec",
+            r"pod\u0020trunk\u0020push App.podspec",
+        ),
+    ),
+)
+def test_json_escaped_nested_publish_stays_package_inventory(
+    tmp_path: Path, shell: str, payload: str, escaped_payload: str
+) -> None:
+    """Decoded shell publish payloads remain visible in capability inventory."""
+    root = _licensed_plugin(tmp_path)
+    manifest_path = root / ".claude-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": shell, "args": ["-c", payload]}],
+    }
+    source = json.dumps(manifest, indent=2).replace(payload, escaped_payload) + "\n"
+    manifest_path.write_text(source, encoding="utf-8")
+
+    receipt = build_claude_plugin_scan_receipt(root)
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert receipt.scan_result == "fail"
+    assert inventory["package_install"] is True
+
+
 def test_manifest_prose_is_not_this_class(tmp_path: Path) -> None:
     """Marketplace description prose about deno publish is not a command."""
     root = _licensed_plugin(tmp_path)
