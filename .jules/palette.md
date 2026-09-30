@@ -83,5 +83,5 @@
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
 
 ## 2024-05-15 - 네이티브 파일 입력 컨트롤 접근성 개선
-**Learning:** 네이티브 파일 입력(input type="file")을 사용자 정의 UI 요소(예: 프록시 버튼)로 교체할 때, 네이티브 요소를 완전히 숨기기 위해 `hidden` 속성을 사용하면 브라우저의 접근성 트리(AOM)에서 해당 요소가 완전히 제거되어 스크린 리더 사용자가 파일 입력 기능을 사용할 수 없게 되는 문제가 발생함.
-**Action:** 파일 입력 요소를 숨기면서도 접근성을 유지하려면 `hidden` 속성(또는 `display: none`) 대신 `aria-hidden="true"`, `class="sr-only"`, `tabindex="-1"`을 조합하여 시각적으로만 숨기고 접근성 트리에 남아있도록 처리해야 함. 또한, 커스텀 프록시 버튼에 의미 있는 레이블 텍스트가 있다면 불필요한 `aria-label`은 생략("label-in-name" 원칙)하여 중복을 방지함.
+**Learning:** `aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거합니다. 이 대시보드에서는 보조 기술에 노출되는 `button#header-browse`가 파일 선택 동작의 사용자 인터페이스이고, 클릭 처리기가 `input#file.click()`을 호출합니다.
+**Action:** 프록시 버튼 패턴을 사용할 때 버튼의 의미 있는 레이블, 키보드 활성화, 포커스 복귀를 유지하고 숨겨진 입력과의 실제 호출 계약을 테스트합니다. 파일 입력 자체를 보조 기술에 노출해야 한다면 `aria-hidden`을 제거합니다.
