@@ -14,6 +14,7 @@ import urllib.request
 from typing import Any, Callable
 
 from appguardrail_core.issueops import (
+    codeql_settlement_evidence,
     is_failure,
     is_security_name,
     issue_body,
@@ -34,6 +35,7 @@ DEFAULT_LOOKBACK_HOURS = 48
 MAX_ISSUE_UPDATES_PER_RUN = 100
 MAX_SEEN_KEYS_PER_ISSUE = 1_000
 MAX_ISSUE_BODY_CHARS = 60_000
+MAX_JOB_LOG_BYTES = 1_000_000
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -93,6 +95,59 @@ class GitHub:
             return None
         text = payload.decode("utf-8", errors="replace")
         return json.loads(text) if "application/json" in content_type else text
+
+    def job_log(self, repo: str, job_id: int) -> str:
+        """Download one bounded job log without forwarding auth after redirect."""
+        path = f"/repos/{repo}/actions/jobs/{job_id}/logs"
+        request = urllib.request.Request(  # noqa: S310 - fixed GitHub API URL
+            f"{self.api}{path}",
+            method="GET",
+            headers={
+                "Accept": "text/plain",
+                "Authorization": f"Bearer {self.token}",
+                "User-Agent": UA,
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+
+        def decode(response: Any) -> str:
+            payload = response.read(MAX_JOB_LOG_BYTES + 1)
+            if len(payload) > MAX_JOB_LOG_BYTES:
+                raise RuntimeError("GitHub job log exceeds the bounded download limit")
+            return payload.decode("utf-8", errors="replace")
+
+        try:
+            with self.opener.open(request, timeout=30) as response:  # noqa: S310
+                return decode(response)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 302:
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"GitHub API GET {path} failed: {exc.code} {detail}"
+                ) from exc
+            location = exc.headers.get("Location")
+
+        target = urllib.parse.urlsplit(str(location or ""))
+        if (
+            target.scheme != "https"
+            or not target.hostname
+            or target.username is not None
+            or target.password is not None
+            or target.fragment
+        ):
+            raise RuntimeError("GitHub job log redirect must be a credential-free HTTPS URL")
+        redirected = urllib.request.Request(  # noqa: S310 - GitHub-signed URL
+            target.geturl(),
+            method="GET",
+            headers={"Accept": "text/plain", "User-Agent": UA},
+        )
+        try:
+            with self.opener.open(redirected, timeout=30) as response:  # noqa: S310
+                return decode(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(
+                f"GitHub job log download failed: {exc.code}"
+            ) from exc
 
     def pages(self, path: str, params: dict[str, Any] | None = None) -> list[Any]:
         """Collect all pages for common GitHub list endpoints."""
@@ -157,9 +212,14 @@ def build_finding(
     repo: str,
     run: dict[str, Any],
     job: dict[str, Any],
+    raw_job_log: str = "",
 ) -> dict[str, Any]:
-    """Build one normalized security workflow failure record from run/job data."""
+    """Build one normalized failure record while retaining only allowlisted log facts."""
     job_id = int(job["id"])
+    snippet = failure_metadata_summary(job)
+    settlement_evidence = codeql_settlement_evidence(raw_job_log)
+    if settlement_evidence:
+        snippet = f"{snippet}\n{settlement_evidence}"
     return {
         "repo": repo,
         "workflow": run.get("name") or job.get("workflow_name") or "unknown workflow",
@@ -175,7 +235,7 @@ def build_finding(
         "pr_numbers": [
             pr["number"] for pr in run.get("pull_requests", []) if pr.get("number")
         ],
-        "snippet": failure_metadata_summary(job),
+        "snippet": snippet,
     }
 
 
@@ -217,7 +277,25 @@ def collect_findings(client: GitHub, args: argparse.Namespace) -> list[dict[str,
                 ) and is_security_name(
                     run.get("name"), job.get("workflow_name"), job.get("name")
                 ):
-                    findings.append(build_finding(repo, run, job))
+                    names = " ".join(
+                        str(name or "")
+                        for name in (
+                            run.get("name"),
+                            job.get("workflow_name"),
+                            job.get("name"),
+                        )
+                    ).lower()
+                    raw_job_log = ""
+                    if "codeql" in names:
+                        try:
+                            raw_job_log = client.job_log(repo, int(job["id"]))
+                        except RuntimeError as exc:
+                            print(
+                                "::warning::CodeQL settlement evidence was unavailable; "
+                                f"retaining the generic diagnosis: {exc}",
+                                file=sys.stderr,
+                            )
+                    findings.append(build_finding(repo, run, job, raw_job_log))
     return findings
 
 
