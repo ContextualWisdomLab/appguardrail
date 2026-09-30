@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-21 - Caching scanner finding metadata generation
+**Learning:** During large-scale scanning with many findings, the `extract_public_references` function acts as a bottleneck since it involves repeated redundant regex evaluations for the exact same rule attributes over and over again across thousands of identical findings.
+**Action:** Add `@functools.lru_cache` to `extract_public_references` to dramatically reduce runtime overhead from executing repetitive regular expressions on identical rule messages.

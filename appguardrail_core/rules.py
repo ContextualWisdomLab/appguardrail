@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -104,6 +105,7 @@ class RuleMetadata:
         }
 
 
+@functools.lru_cache(maxsize=1024)
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
     return tuple(
