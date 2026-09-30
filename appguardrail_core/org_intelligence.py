@@ -126,9 +126,9 @@ def build_org_inventory(
     fork_count = 0
     private_count = 0
     supported_nonforks = 0
-    unsupported_set = set()
-    primary_languages = Counter()
-    default_branches = Counter()
+    unsupported_set: set[str] = set()
+    primary_languages: Counter[str] = Counter()
+    default_branches: Counter[str] = Counter()
 
     for repo in repos:
         is_fork = _truthy(repo.get("isFork"))
