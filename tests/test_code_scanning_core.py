@@ -276,7 +276,7 @@ def test_compare_snapshots_reports_missing_and_errored_current_analysis() -> Non
     assessment = compare_snapshots(base, current)
 
     assert assessment.status == "drift"
-    assert tuple(item.tool_name for item in assessment.missing) == ("codeql",)
+    assert tuple([item.tool_name for item in assessment.missing]) == ("codeql",)
     assert assessment.errored == (current.analyses[0],)
     assert assessment.reason == "missing_or_unhealthy_current_analysis"
 

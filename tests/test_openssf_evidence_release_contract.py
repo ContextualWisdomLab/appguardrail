@@ -130,7 +130,7 @@ def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
 
 def test_commercial_readiness_registry_preserves_the_next_gap_order() -> None:
     """Closing issue #865 makes retention controls the next deterministic slice."""
-    gap_ids = tuple(gap.id for gap in COMMERCIAL_GAPS)
+    gap_ids = tuple([gap.id for gap in COMMERCIAL_GAPS])
 
     assert gap_ids[:2] == (
         "openssf-best-practices-evidence",

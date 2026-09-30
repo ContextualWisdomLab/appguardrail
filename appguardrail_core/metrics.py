@@ -48,7 +48,7 @@ class SaleReadinessScore:
 
     @property
     def unmet(self) -> tuple[MetricResult, ...]:
-        return tuple(metric for metric in self.metrics if not metric.passed)
+        return tuple([metric for metric in self.metrics if not metric.passed])
 
 
 def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:

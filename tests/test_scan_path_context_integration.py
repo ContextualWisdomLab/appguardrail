@@ -33,7 +33,7 @@ def _scan_args(path: Path) -> SimpleNamespace:
 
 def test_cmd_scan_reuses_one_exact_context_for_large_stream(tmp_path: Path) -> None:
     """Two thousand files reuse one immutable context instead of reclassifying the root."""
-    files = tuple(tmp_path / "src" / f"module_{index}.py" for index in range(2_000))
+    files = tuple([tmp_path / "src" / f"module_{index}.py" for index in range(2_000)])
     observed: list[tuple[Path, Path, ScanPathContext]] = []
 
     def fake_collect_files(base_path: Path):
@@ -68,7 +68,7 @@ def test_cmd_scan_reuses_one_exact_context_for_large_stream(tmp_path: Path) -> N
 
 def test_cmd_scan_classifies_root_once_and_never_inside_file_calls(tmp_path: Path) -> None:
     """The deterministic operation-count benchmark is one root classification per scan."""
-    files = tuple(tmp_path / f"file_{index}.py" for index in range(10_000))
+    files = tuple([tmp_path / f"file_{index}.py" for index in range(10_000)])
     classification_calls: list[Path] = []
     original_is_file = Path.is_file
 
