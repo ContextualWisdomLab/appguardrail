@@ -295,6 +295,13 @@ def test_dashboard_dialog_close_button_has_tooltip():
     )
 
 
+def test_dashboard_external_links_warn_screen_readers():
+    """External links must warn screen readers about context switch."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert 'target="_blank"' in html
+    assert 'aria-label="${esc(r)} (opens in a new tab)"' in html
+
+
 def test_dashboard_search_escape_clears_input():
     """Search input must expose an Escape keybind to quickly clear filters."""
     html = dashboard_index_path().read_text(encoding="utf-8")
