@@ -39,6 +39,14 @@ def test_string_path_language_detection_matches_path_objects(path_text: str) -> 
     assert detect_language_axes([path_text]) == detect_language_axes([Path(path_text)])
 
 
+def test_all_dot_python_filename_preserves_python_axis() -> None:
+    """All-dot Python filenames must not satisfy parity by losing both results."""
+    path_text = "src/....py"
+
+    assert detect_language_axes([path_text]) == {"python"}
+    assert detect_language_axes([Path(path_text)]) == {"python"}
+
+
 def test_string_subclass_uses_string_language_detection_branch() -> None:
     """A ``str`` subtype must not be mistaken for a ``Path``-like object."""
     assert detect_language_axes([StringPath(r"src\main.py")]) == {"python"}
