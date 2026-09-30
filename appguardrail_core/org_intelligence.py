@@ -122,35 +122,47 @@ def build_org_inventory(
     active_repository_target: int = 20,
 ) -> OrgInventory:
     """Build a stable organization inventory from GitHub repo JSON."""
-    repo_list = list(repos)
-    nonforks = [repo for repo in repo_list if not _truthy(repo.get("isFork"))]
-    forks = [repo for repo in repo_list if _truthy(repo.get("isFork"))]
-    primary_languages = Counter(_primary_language(repo) for repo in repo_list)
-    default_branches = Counter(_default_branch(repo) for repo in repo_list)
-    unsupported = sorted(
-        {
-            _primary_language(repo)
-            for repo in nonforks
-            if _primary_language(repo) not in SUPPORTED_PRIMARY_LANGUAGES
-            and _primary_language(repo) != "Unknown"
-        }
-    )
-    supported_nonforks = sum(
-        1 for repo in nonforks if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
-    )
+    nonfork_count = 0
+    fork_count = 0
+    private_count = 0
+    supported_nonforks = 0
+    unsupported_set = set()
+    primary_languages = Counter()
+    default_branches = Counter()
+
+    for repo in repos:
+        is_fork = _truthy(repo.get("isFork"))
+        is_private = _truthy(repo.get("isPrivate"))
+        primary_lang = _primary_language(repo)
+
+        primary_languages[primary_lang] += 1
+        default_branches[_default_branch(repo)] += 1
+
+        if is_private:
+            private_count += 1
+
+        if is_fork:
+            fork_count += 1
+        else:
+            nonfork_count += 1
+            if primary_lang in SUPPORTED_PRIMARY_LANGUAGES:
+                supported_nonforks += 1
+            elif primary_lang != "Unknown":
+                unsupported_set.add(primary_lang)
+
+    total_repositories = nonfork_count + fork_count
+
     return OrgInventory(
-        total_repositories=len(repo_list),
-        nonfork_repositories=len(nonforks),
-        fork_repositories=len(forks),
-        private_repositories=sum(
-            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
-        ),
+        total_repositories=total_repositories,
+        nonfork_repositories=nonfork_count,
+        fork_repositories=fork_count,
+        private_repositories=private_count,
         supported_nonfork_repositories=supported_nonforks,
-        unsupported_nonfork_languages=tuple(unsupported),
+        unsupported_nonfork_languages=tuple(sorted(unsupported_set)),
         primary_language_counts=_sorted_counts(primary_languages),
         default_branch_counts=_sorted_counts(default_branches),
         active_repository_target=active_repository_target,
-        active_repository_target_met=len(nonforks) >= active_repository_target,
+        active_repository_target_met=nonfork_count >= active_repository_target,
     )
 
 
@@ -160,13 +172,20 @@ def summarize_pr_gates(
     top_repository_limit: int = 10,
 ) -> PullRequestGateSummary:
     """Summarize open PR gates by actionable source work versus external wait."""
-    pr_list = list(prs)
-    classified = [(pr, classify_pr_gate(pr)) for pr in pr_list]
-    gate_counts = Counter(gate for _, gate in classified)
-    action_counts = Counter(gate_action_bucket(gate) for _, gate in classified)
-    repository_counts = Counter(_pr_repository(pr) for pr in pr_list)
+    classified = []
+    gate_counts = Counter()
+    action_counts = Counter()
+    repository_counts = Counter()
+
+    for pr in prs:
+        gate = classify_pr_gate(pr)
+        classified.append((pr, gate))
+        gate_counts[gate] += 1
+        action_counts[gate_action_bucket(gate)] += 1
+        repository_counts[_pr_repository(pr)] += 1
+
     return PullRequestGateSummary(
-        total_pull_requests=len(pr_list),
+        total_pull_requests=len(classified),
         gate_counts=_sorted_counts(gate_counts),
         action_bucket_counts=_sorted_counts(action_counts),
         repository_counts=_sorted_counts(repository_counts),
