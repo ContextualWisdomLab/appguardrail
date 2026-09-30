@@ -84,6 +84,20 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert "e.key === 'Enter' || e.key === ' '" in html
 
 
+def test_dashboard_reference_links_explain_new_tabs_without_breaking_every_character():
+    """External references stay identifiable, secure, and readable at narrow widths."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    ref_rule = re.search(r"\.ref-link\s*\{(?P<declarations>[^}]*)\}", html)
+
+    assert ref_rule is not None
+    declarations = re.sub(r"\s+", "", ref_rule.group("declarations"))
+    assert "overflow-wrap:anywhere" in declarations
+    assert "word-break" not in declarations
+    assert 'target="_blank" rel="noopener" class="ref-link"' in html
+    assert '<span class="sr-only">(opens in a new tab)</span>' in html
+    assert '<span aria-hidden="true">&nbsp;↗</span>' in html
+
+
 def test_dashboard_severity_cards_are_accessible_filter_toggles():
     """Severity cards must preserve their complete pointer and keyboard contract."""
     html = dashboard_index_path().read_text(encoding="utf-8")
