@@ -48,6 +48,7 @@ import os
 import re
 import shlex
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -61,6 +62,7 @@ from appguardrail_core.config import load_config
 from appguardrail_core.pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
+    Resolver,
     post_json_pinned_https,
     resolve_public_https_destination,
 )
@@ -1628,10 +1630,10 @@ def _write_findings_json(findings, output_path: Path):
     _console_print(f"🧾 Findings JSON written: {output_path}")
 
 
-def _is_safe_url(url: str) -> bool:
+def _is_safe_url(url: str, *, resolver: Resolver = socket.getaddrinfo) -> bool:
     """Return whether ``url`` resolves to a strict public HTTPS destination."""
     try:
-        resolve_public_https_destination(url)
+        resolve_public_https_destination(url, resolver=resolver)
     except DestinationValidationError:
         return False
     return True

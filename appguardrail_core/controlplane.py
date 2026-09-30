@@ -17,6 +17,7 @@ import importlib.resources as resources  # nosemgrep: python.lang.compatibility.
 import json
 import re
 import secrets
+import socket
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -26,6 +27,7 @@ from .findings import is_deploy_blocking, normalize_findings, severity_counts
 from .pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
+    Resolver,
     post_json_pinned_https,
     resolve_public_https_destination,
 )
@@ -225,10 +227,10 @@ def _slack_blocks(
     }
 
 
-def _is_safe_url(url: str) -> bool:
+def _is_safe_url(url: str, *, resolver: Resolver = socket.getaddrinfo) -> bool:
     """Return whether ``url`` resolves to a strict public HTTPS destination."""
     try:
-        resolve_public_https_destination(url)
+        resolve_public_https_destination(url, resolver=resolver)
     except DestinationValidationError:
         return False
     return True
