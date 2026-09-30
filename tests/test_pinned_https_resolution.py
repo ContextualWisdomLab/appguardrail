@@ -170,6 +170,36 @@ def test_destination_rejects_non_global_address_classes(ip_address: str) -> None
         )
 
 
+@pytest.mark.parametrize(
+    ("host", "resolved_ip"),
+    [
+        ("0177.0.0.1", "127.0.0.1"),
+        ("0x7f000001", "127.0.0.1"),
+        ("0", "0.0.0.0"),
+        ("2130706433", "127.0.0.1"),
+        ("127.1", "127.0.0.1"),
+        ("0x7f.1", "127.0.0.1"),
+        ("0251.0376.0251.0376", "169.254.169.254"),
+    ],
+)
+def test_destination_rejects_obfuscated_ipv4_resolver_answers(
+    host: str,
+    resolved_ip: str,
+) -> None:
+    """Legacy IPv4 spellings stay unsafe after the resolver interprets them."""
+    calls: list[tuple[object, ...]] = []
+
+    with pytest.raises(DestinationValidationError, match="non-global"):
+        resolve_public_https_destination(
+            f"https://{host}/",
+            resolver=_resolver_for({host: [_answer(resolved_ip)]}, calls),
+        )
+
+    assert calls == [
+        (host, 443, socket.AF_UNSPEC, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+    ]
+
+
 class _RawSocket:
     """Record one direct socket connection used by the pinned TLS connection."""
 
