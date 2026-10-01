@@ -37,3 +37,13 @@ def test_console_detail_scrolling_respects_reduced_motion():
     assert "element.scrollIntoView();" in html
     assert 'element.scrollIntoView({behavior:"smooth"});' in html
     assert html.count("scrollDetailIntoView(d);") == 2
+
+def test_console_disables_pending_detail_rows_until_their_request_settles():
+    """Pointer and keyboard activation stay blocked while one row request is pending."""
+    html = _console_html()
+
+    assert 'tr.scan[aria-disabled="true"]{pointer-events:none;opacity:0.6}' in html
+    assert html.count('if(tr.getAttribute("aria-disabled")==="true") return;') == 2
+    assert 'tr.setAttribute("aria-disabled","true");' in html
+    assert html.count('tr.removeAttribute("aria-disabled");') == 2
+    assert 'tr.dataset.detailRequest===String(requestId)' in html
