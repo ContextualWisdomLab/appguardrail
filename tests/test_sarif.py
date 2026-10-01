@@ -41,6 +41,7 @@ def test_sarif_shape_and_version():
     assert run["tool"]["driver"]["name"] == "AppGuardrail"
     assert run["tool"]["driver"]["version"] == "1.2.3"
     assert len(run["results"]) == 3
+    assert [result["ruleIndex"] for result in run["results"]] == [0, 0, 1]
 
 
 def test_levels_and_security_severity():
@@ -75,7 +76,11 @@ def test_empty_findings_valid():
 
 
 def test_rule_index_lookup_does_not_scan_prior_rules(monkeypatch):
+    """Rule index construction must avoid scanning previously inserted rules."""
+
     class CountingRuleId(str):
+        """Count equality work while retaining normal string hashing."""
+
         comparisons = 0
         __hash__ = str.__hash__
 

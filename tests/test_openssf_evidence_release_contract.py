@@ -12,7 +12,6 @@ from appguardrail_core import (
 )
 from scripts.ci.commercial_readiness_loop import COMMERCIAL_GAPS
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -102,7 +101,7 @@ def test_package_metadata_matches_the_tested_python_floor() -> None:
     assert '"Programming Language :: Python :: 3.11"' in pyproject
     assert 'requires-python = ">=3.11"' in lockfile
     assert "Requires Python 3.11 or newer." in readme
-    assert "python-version: ['3.11', '3.13']" in tests_workflow
+    assert "python-version: ['3.11', '3.13', '3.14']" in tests_workflow
 
 
 def test_exact_coverage_workflow_tracks_every_openssf_test_surface() -> None:
