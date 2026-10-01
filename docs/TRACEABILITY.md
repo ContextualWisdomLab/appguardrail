@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,8 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| governance JSON parsed without descriptor-safe resource bound | built-in `python-governance-unbounded-json-load` rule | active PR: fast-mlsirm vulnerable source plus protected descriptor-safe negative |
+| GitHub-governance subprocess without explicit timeout | built-in `python-governance-subprocess-without-timeout` rule | active PR: fast-mlsirm vulnerable source plus reviewed timeout negative |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +48,21 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## fast-mlsirm governance resource-bound traceability
+
+AppGuardrail issue #791 preserves the failed Strix event for fast-mlsirm PR #388, but the workflow outcome is not detector evidence. The source-backed chain is:
+
+1. vulnerable base head `c8555c3f33a7bc8fdb2e8e0ea0f3cf2bd52ce0b9`, `scripts/build_pr_queue_governance.py` blob `3dab225870e5fce806047a622a605b6c451bce59`;
+2. `_read_json` opens a path and passes the stream directly to `json.load` with no byte bound;
+3. `_run_gh_snapshot` launches GitHub CLI children with `subprocess.run` and no timeout;
+4. partial security branch head `c9456a0c29c5b0c37cb11867c1a8e605738db40c`, blob `b016f8c698189d580634b81a1508f567379dcbfc`, added subprocess timeouts but its path-stat/reopen JSON bound was rejected after security review as TOCTOU-prone;
+5. protected governance-script blob `65b8b3b9e1a5c8d68987261987b9e20660e2d1ab` delegates offline JSON loading to descriptor-safe `read_json_object`;
+6. source-derived negatives preserve the descriptor-safe JSON boundary and explicit `timeout=` child-process boundary, while `path.stat()` followed by reopening remains positive;
+7. production `_scan_file` must emit both normalized MEDIUM CWE-400 findings on the vulnerable replay;
+8. exact-head checks and qualifying independent review are required before promotion.
+
+The rules intentionally do not claim arbitrary JSON/subprocess resource analysis or universal attacker control over CI artifacts.
 
 ## Standards/research
 

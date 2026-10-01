@@ -1,0 +1,30 @@
+rules:
+  - id: python-governance-unbounded-json-load
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*def\s+_read_json\s*\(\s*path\b(?:(?!^[ \t]*def\s).){0,3000}?with\s+path\.open\s*\([^)]*\)\s+as\s+(?P<fh>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:(?!^[ \t]*def\s|read_json_object\s*\().){0,1200}?json\.load\s*\(\s*(?P=fh)\s*\)'
+    message: |
+      A PR-governance JSON reader opens a path and passes the stream directly to
+      json.load without using the repository's descriptor-safe bounded reader.
+      Python warns that malicious JSON can consume considerable CPU and memory;
+      path.stat() before reopening the path is not an equivalent boundary because
+      the object can change between the check and the read. Open once, validate
+      that descriptor, enforce a byte bound on that same descriptor, then parse.
+      [CWE-400 - Uncontrolled Resource Consumption]
+    severity: MEDIUM
+    languages: [python]
+    prefilter: ["def _read_json", "json.load(", "path.open("]
+    cwe: [CWE-400]
+
+  - id: python-governance-subprocess-without-timeout
+    patterns:
+      - pattern-regex: '(?msx)^[ \t]*def\s+_run_gh[A-Za-z0-9_]*\s*\((?:(?!^[ \t]*def\s).){0,3500}?subprocess\.run\s*\((?:(?!timeout\s*=|\)\s*(?:\n|$)).){0,1200}\)'
+    message: |
+      A PR-governance GitHub CLI subprocess is executed without an explicit
+      timeout. A stalled child or remote dependency can therefore hold the CI
+      governance worker indefinitely. Bound external subprocess duration and
+      handle TimeoutExpired as a fail-closed evidence error.
+      [CWE-400 - Uncontrolled Resource Consumption]
+    severity: MEDIUM
+    languages: [python]
+    prefilter: ["subprocess.run(", '"gh"', "def _run_gh"]
+    cwe: [CWE-400]
