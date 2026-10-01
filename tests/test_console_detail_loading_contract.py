@@ -45,5 +45,6 @@ def test_console_disables_pending_detail_rows_until_their_request_settles():
     assert 'tr.scan[aria-disabled="true"]{pointer-events:none;opacity:0.6}' in html
     assert html.count('if(tr.getAttribute("aria-disabled")==="true") return;') == 2
     assert 'tr.setAttribute("aria-disabled","true");' in html
-    assert html.count('tr.removeAttribute("aria-disabled");') == 2
+    assert 'lastDetailFocus.removeAttribute("aria-disabled");' in html
+    assert 'tr.removeAttribute("aria-disabled");' in html
     assert 'tr.dataset.detailRequest===String(requestId)' in html
