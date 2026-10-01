@@ -1,8 +1,8 @@
 # Hostname-unbound local-address exception detector
 
-**Status:** Proposed in PR #1327  
-**Rule:** `python-ssrf-hostname-unbound-local-address-exception`  
-**Issue:** #850  
+**Status:** Proposed in PR #1327
+**Rule:** `python-ssrf-hostname-unbound-local-address-exception`
+**Issue:** #850
 **Class:** CWE-918 / OWASP A10:2021
 
 ## Root cause
