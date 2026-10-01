@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,3 +214,56 @@ def test_adr_index_contains_governing_detector_decisions() -> None:
         adr_path = ROOT / "docs" / "adr" / adr
         assert adr_path.is_file(), f"ADR file is missing: {adr}"
         assert f"]({adr})" in index, f"ADR index does not link {adr}"
+
+
+def test_package_readme_links_are_registry_safe_and_immutable() -> None:
+    """Keep package-description links valid outside the repository checkout."""
+
+    readme_links: dict[str, set[str]] = {}
+    for label, target in re.findall(r"\[([^\]]+)\]\(([^)]+)\)", _read("README.md")):
+        readme_links.setdefault(label, set()).add(target)
+    protected_revision = "e71d37e7c58118e6764c96ab7c4492fe33eed6f8"
+    repository_root = (
+        "https://github.com/ContextualWisdomLab/appguardrail/blob/"
+        f"{protected_revision}/"
+    )
+    expected_links = {
+        "Release automation": repository_root + "docs/release-automation.md",
+        "Responsible testing": repository_root + "docs/responsible-testing.md",
+        "MIT License": repository_root + "LICENSE",
+    }
+    for label, expected_target in expected_links.items():
+        assert readme_links.get(label) == {expected_target}
+
+
+def test_readme_bounds_secret_reporting_and_key_file_examples() -> None:
+    """Keep shared reports and control-plane bootstrap keys outside unsafe defaults."""
+
+    readme = _read("README.md")
+    assert "Externally supplied or modified findings JSON may contain credentials" in readme
+    assert "review and sanitize it before sharing" in readme
+    assert "--api-key-file /tmp/appguardrail-demo.api-key" in readme
+    assert "Never commit the generated key file" in readme
+
+
+
+def test_readme_monitor_contract_matches_installed_workflow() -> None:
+    """Describe SARIF as default and control-plane push as conditional."""
+
+    readme = _read("README.md")
+    monitor_line = _single_line_with(readme, "**Monitor**")
+    assert "uploads SARIF" in monitor_line
+    assert "can push normalized findings to a configured control plane" in monitor_line
+    assert "findings JSON" not in monitor_line
+
+    cli_source = _read("scanner/cli/appguardrail.py")
+    workflow_match = re.search(
+        r'MONITOR_WORKFLOW = """\\\n(?P<body>.*?)\n"""',
+        cli_source,
+        re.DOTALL,
+    )
+    assert workflow_match is not None
+    monitor_workflow = workflow_match.group("body")
+    assert "--sarif appguardrail.sarif" in monitor_workflow
+    assert 'if [ -n "$CP_URL" ]; then PUSH="--push $CP_URL"; fi' in monitor_workflow
+    assert "--findings-json" not in monitor_workflow
