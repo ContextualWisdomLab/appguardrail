@@ -20,7 +20,7 @@ AppGuardrail makes that work repeatable across five connected surfaces:
 | **Rules** | Installs security guidance for supported AI coding assistants and project workflows. |
 | **Scan** | Finds secrets, authorization gaps, risky configuration, packaged rule matches, and supported external-scanner findings. |
 | **Review** | Produces human-readable security review guidance and AI-ready review prompts. |
-| **Monitor** | Installs continuous GitHub Actions checks and emits normalized findings/SARIF. |
+| **Monitor** | Installs continuous GitHub Actions checks, uploads SARIF, and can push normalized findings to a configured control plane. |
 | **Fix** | Provides bounded remediation prompts, safe deterministic fixes, and re-verification steps. |
 
 ## Quick start
