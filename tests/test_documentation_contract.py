@@ -219,7 +219,9 @@ def test_adr_index_contains_governing_detector_decisions() -> None:
 def test_package_readme_links_are_registry_safe_and_immutable() -> None:
     """Keep package-description links valid outside the repository checkout."""
 
-    readme_links = dict(re.findall(r"\[([^\]]+)\]\(([^)]+)\)", _read("README.md")))
+    readme_links: dict[str, set[str]] = {}
+    for label, target in re.findall(r"\[([^\]]+)\]\(([^)]+)\)", _read("README.md")):
+        readme_links.setdefault(label, set()).add(target)
     protected_revision = "e71d37e7c58118e6764c96ab7c4492fe33eed6f8"
     repository_root = (
         "https://github.com/ContextualWisdomLab/appguardrail/blob/"
@@ -231,4 +233,14 @@ def test_package_readme_links_are_registry_safe_and_immutable() -> None:
         "MIT License": repository_root + "LICENSE",
     }
     for label, expected_target in expected_links.items():
-        assert readme_links.get(label) == expected_target
+        assert readme_links.get(label) == {expected_target}
+
+
+def test_readme_bounds_secret_reporting_and_key_file_examples() -> None:
+    """Keep shared reports and control-plane bootstrap keys outside unsafe defaults."""
+
+    readme = _read("README.md")
+    assert "Externally supplied or modified findings JSON may contain credentials" in readme
+    assert "review and sanitize it before sharing" in readme
+    assert "--api-key-file /tmp/appguardrail-demo.api-key" in readme
+    assert "Never commit the generated key file" in readme
