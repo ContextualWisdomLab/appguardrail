@@ -11,6 +11,7 @@ def test_is_safe_url_public_domains():
     assert _is_safe_url("http://google.com/")
     assert _is_safe_url("https://github.com/")
 
+
 @pytest.mark.parametrize(
     "validator",
     [_is_safe_url, _cli_is_safe_url],
@@ -23,6 +24,20 @@ def test_is_safe_url_public_domains():
 )
 def test_is_safe_url_invalid_types(validator, value):
     assert not validator(value)
+
+
+@pytest.mark.parametrize(
+    "validator",
+    [_is_safe_url, _cli_is_safe_url],
+    ids=["controlplane", "cli"],
+)
+@pytest.mark.parametrize(
+    "url",
+    ["http://", "https://", "http://user@", "https://user@"],
+    ids=["http", "https", "http-userinfo", "https-userinfo"],
+)
+def test_is_safe_url_rejects_empty_hostname(validator, url):
+    assert not validator(url)
 
 
 def test_is_safe_url_ipv4_localhost():
@@ -86,10 +101,7 @@ def test_push_findings_unsafe_url_handled_properly(monkeypatch, capsys):
 
     _push_findings("http://127.0.0.1/", [])
     captured = capsys.readouterr()
-    assert (
-        "URL must be a public HTTPS URL"
-        in captured.err
-    )
+    assert "URL must be a public HTTPS URL" in captured.err
 
 
 def test_safe_redirect_handler_rejects_internal_target():
