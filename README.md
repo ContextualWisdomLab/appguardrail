@@ -215,16 +215,16 @@ AppGuardrail keeps detailed implementation, detector, evidence, and operating co
 - [Test strategy](docs/TEST_STRATEGY.md)
 - [Operability](docs/OPERABILITY.md)
 - [Traceability](docs/TRACEABILITY.md)
-- [Responsible testing](docs/responsible-testing.md)
-- [Release automation](docs/release-automation.md)
+- [Responsible testing](https://github.com/ContextualWisdomLab/appguardrail/blob/e71d37e7c58118e6764c96ab7c4492fe33eed6f8/docs/responsible-testing.md)
+- [Release automation](https://github.com/ContextualWisdomLab/appguardrail/blob/e71d37e7c58118e6764c96ab7c4492fe33eed6f8/docs/release-automation.md)
 - [Public documentation landing](docs/index.md)
 
 Package metadata currently classifies AppGuardrail as **Alpha**. Release, deployment, certification, customer, and commercial-readiness claims require their own current evidence; source documentation and passing development checks do not create those claims by themselves.
 
 ## Contributing
 
-Contributions that improve security rules, stack-specific checks, remediation guidance, scanner detection, tests, or documentation are welcome. Read [docs/responsible-testing.md](docs/responsible-testing.md) before adding security tests or detector fixtures, and keep examples free of live credentials or unauthorized target data.
+Contributions that improve security rules, stack-specific checks, remediation guidance, scanner detection, tests, or documentation are welcome. Read [Responsible testing](https://github.com/ContextualWisdomLab/appguardrail/blob/e71d37e7c58118e6764c96ab7c4492fe33eed6f8/docs/responsible-testing.md) before adding security tests or detector fixtures, and keep examples free of live credentials or unauthorized target data.
 
 ## License
 
-AppGuardrail source is licensed under the [MIT License](LICENSE). Third-party tools, dependencies, services, rulesets, and referenced standards retain their own terms.
+AppGuardrail source is licensed under the [MIT License](https://github.com/ContextualWisdomLab/appguardrail/blob/e71d37e7c58118e6764c96ab7c4492fe33eed6f8/LICENSE). Third-party tools, dependencies, services, rulesets, and referenced standards retain their own terms.
