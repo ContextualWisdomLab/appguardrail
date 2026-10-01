@@ -1034,6 +1034,10 @@ def _compile_yaml_regex_rule(rule):
     for regex in rule.get("regexes") or []:
         try:
             pattern = re.compile(regex, re.MULTILINE)
+            if rule["id"] == "github-actions-pypi-unbound-release-source":
+                from appguardrail_core.release_source import ReleaseSourcePattern
+
+                pattern = ReleaseSourcePattern()
         except re.error:
             continue
         compiled_rules.append(

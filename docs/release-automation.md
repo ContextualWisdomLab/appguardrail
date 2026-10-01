@@ -48,6 +48,60 @@ protected-source gate narrows that invocation boundary; PyPI's default digital
 attestations remain complementary artifact-origin evidence rather than a
 substitute for source-selection policy.
 
+## Scanner release-source policy rule
+
+`github-actions-pypi-unbound-release-source` is a HIGH source-policy warning.
+It recognizes ordinary block YAML with two-space job indentation, six-space
+step indentation, `workflow_dispatch` (scalar or block) or block `push.tags`,
+local `python -m build` / `python3 -m build` run steps, and
+`pypa/gh-action-pypi-publish@` action steps in the same job or scalar/inline-list
+`needs` descendants. Every reachable local build must have its own gate;
+sibling-job text, comments, echo-only evidence and gates after a build do not
+donate proof. The publisher action line identifies the finding.
+
+Single/double-quoted `push` / `tags`, `uses`, `ref`, `repository`, step `if` /
+`continue-on-error` / `shell` and job `continue-on-error` keys retain the
+same sink/source/enforcement semantics.
+Only these supported block keys (plus `on` / `workflow_dispatch` / `with`)
+normalize optional quotes and whitespace before the mapping colon. Publisher
+action-name matching is case-insensitive; no case-sensitive admission filter
+can skip that sink.
+Enforcement metadata is checked both as the first step key and as subsequent
+step fields. A shallow same-line check also rejects checkout `with: {...}`
+containing `ref` or `repository` keys; this is not general flow-YAML parsing.
+
+The recognized negative oracle is the reviewed #967 gate: default
+`actions/checkout` source; an unconditional pre-build shell block beginning
+with `set -euo pipefail`, successful `git fetch --no-tags origin develop`,
+`protected_sha="$(git rev-parse origin/develop)"`, and a mismatch check of
+`GITHUB_SHA` that emits an error and exits 1. Conditional/custom-shell or
+continue-on-error steps, job-level continue-on-error, alternate checkout refs
+or repository overrides, and a subsequent checkout invalidate that proof.
+This detector checks protected commit binding, not the separate version/tag
+policy or wheel smoke acceptance.
+
+False-positive boundary: equivalent custom shell gates, protected branches
+other than `develop`, reviewed immutable release policies, conditional
+publisher restrictions and externally enforced environment policies can warn.
+Review those policies; do not infer that the publisher is exploitable solely
+from this result. False-negative boundary: YAML anchors/aliases, alternate
+indentation, flow-style jobs/events, multiline `needs`, reusable workflows,
+custom/composite build or upload actions, alternate build commands and dynamic
+artifact/source selection are not analyzed. The matcher follows job
+dependencies, not a complete artifact or shell control-flow graph; a gate does
+not prove absence of later source modification.
+
+The source evidence is copied byte-for-byte into
+`tests/fixtures/release_source/`: protected vulnerable workflow at
+`2949d30718752ea5915c7713ba227e8c19d9e5bf` (blob
+`20af591a18d4de1c379d7e6c128a4e7b8673966f`) and #967 fixed workflow at
+`5a48b748cb68a9f429f1740f7e864aa29add7b34` (blob
+`1961a5a31deb2db3b96acb4101332cef0029aad3`).
+`tests/test_release_source_detector.py` exercises the real packaged scanner
+with both oracles and enforcing/dominance/authority near-miss boundaries,
+including inert trigger comments and other-repository source checkout.
+No workflow was dispatched and no external PyPI upload acceptance is claimed.
+
 ## What the Bot Automates
 
 The GitHub Actions Bot:
