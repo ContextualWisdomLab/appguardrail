@@ -331,7 +331,7 @@ def _iter_python_command_injection_matches(content: str):
     """
     try:
         tree = ast.parse(content)
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
         yield from _PYTHON_COMMAND_INJECTION_PATTERN.finditer(content)
         return
 
