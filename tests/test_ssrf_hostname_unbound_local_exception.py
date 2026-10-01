@@ -96,6 +96,20 @@ def permits_local_address(hostname, ip_address, policy):
 """
 
 
+def _early_hostname_guard_source() -> str:
+    """Admit loopback only after an earlier fail-closed hostname guard."""
+    return """\
+def validate_egress_address(hostname, ip_address, policy):
+    if not _is_local_dev_host(hostname):
+        return False
+    admitted = False
+    if policy.allow_local:
+        if ip_address.is_loopback:
+            admitted = True
+    return admitted
+"""
+
+
 def _observation_only_source() -> str:
     """Observe local mode without using it as an address admission decision."""
     return """\
@@ -114,7 +128,12 @@ def test_packaged_rule_matches_hostname_unbound_local_exception(source: str) -> 
 
 @pytest.mark.parametrize(
     "source",
-    [_fixed_source(), _hostname_bound_source(), _observation_only_source()],
+    [
+        _fixed_source(),
+        _hostname_bound_source(),
+        _early_hostname_guard_source(),
+        _observation_only_source(),
+    ],
 )
 def test_packaged_rule_ignores_bound_and_non_admitting_flows(source: str) -> None:
     """Exclude hostname-bound, fail-closed, and observation-only flows."""
