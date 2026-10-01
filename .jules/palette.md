@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-16 - Accessible Native File Input Proxy
+**Learning:** `aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거합니다. 따라서 네이티브 `<input type="file">` 대신 명시적인 버튼을 노출하고 프록시로 동작하도록 하면 접근성이 향상됩니다.
+**Action:** 앞으로 네이티브 파일 입력을 숨길 때 이 방식을 사용합니다.
