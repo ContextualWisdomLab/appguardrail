@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2026-08-14 - 비동기 테이블 행(row) 인터랙션 방지 (aria-disabled)
+**Learning:** `pointer-events: none` CSS 속성은 마우스 이벤트만 막을 뿐, `Enter` 또는 `Space` 등의 키보드 인터랙션은 방지하지 못합니다. 또한 테이블 행(`<tr>`)에는 `:disabled` 가상 선택자가 동작하지 않기 때문에 비동기 작업 시 화면 낭독기가 비활성 상태를 인지하지 못합니다.
+**Action:** 클릭형 테이블 행의 비동기 처리 시에는 `aria-disabled="true"`를 부여하고, 이를 CSS(`opacity: 0.6`, `pointer-events: none`)와 연동함은 물론 자바스크립트 이벤트 핸들러(키보드/클릭 모두)에서 명시적으로 `aria-disabled` 값을 검사하여 조기 반환(`return`)하도록 처리해야 합니다.
