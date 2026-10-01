@@ -14,3 +14,6 @@
   so registry, deployment, and GitHub write commands cannot evade admission by
   replacing the hook shell process or bypassing shell functions. Typed process
   argv and option-bearing wrapper forms remain outside this bounded contract.
+- Keep `--` after an `env` assignment as the literal utility token instead of
+  skipping it, preventing non-executing typed argv from being misreported as a
+  Deno or CocoaPods registry write while preserving the leading `--` form.

@@ -2237,9 +2237,10 @@ def _manifest_executable_argv_sources(
 
     Direct executable records pass through unchanged. For ``env`` and an
     absolute path ending in ``env``, the parser accepts only environment
-    assignments, ``--``, and the no-value ``-i``/``--ignore-environment``
-    option before one literal utility. Options that consume or split values
-    stay outside this bounded executable representation.
+    assignments and the no-value ``-i``/``--ignore-environment`` option,
+    with at most one ``--`` before assignments, before one literal utility.
+    Options that consume or split values and ``--`` after an assignment stay
+    outside this bounded executable representation.
     """
     found: list[tuple[str, tuple[str, ...], int]] = []
     for command, args, line in _manifest_argv_sources(content):
@@ -2258,8 +2259,6 @@ def _manifest_executable_argv_sources(
         while utility_index < len(args) and _SHELL_ASSIGNMENT_PREFIX.match(
             args[utility_index]
         ):
-            utility_index += 1
-        if utility_index < len(args) and args[utility_index] == "--":
             utility_index += 1
         if utility_index >= len(args) or args[utility_index].startswith("-"):
             continue

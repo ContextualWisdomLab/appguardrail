@@ -455,12 +455,14 @@ def test_structured_env_wrapped_publish_fails_admission(
     (
         ["DENO_DIR=/tmp"],
         ["echo", "deno", "publish"],
+        ["DENO_DIR=/tmp", "--", "deno", "publish"],
+        ["--", "DENO_DIR=/tmp", "--", "pod", "trunk", "push"],
     ),
 )
 def test_structured_env_without_direct_publish_stays_outside_class(
     tmp_path: Path, args: list[str]
 ) -> None:
-    """Incomplete and reporting ``env`` argv stay outside this class."""
+    """Incomplete, reporting, and post-assignment ``--`` stay outside."""
     root = _licensed_plugin(tmp_path)
     manifest = json.loads(
         (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
