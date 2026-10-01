@@ -20,3 +20,12 @@ def test_product_gap_baseline_is_utf8_markdown_with_retained_history() -> None:
     assert "## Technical / TRD gaps" in baseline
     assert HISTORY_BLOB in baseline
     assert "\x00" not in baseline
+
+
+def test_product_gap_baseline_tracks_public_readme_and_license_lanes() -> None:
+    """Keep the canonical register bound to the active public-surface writers."""
+    baseline = BASELINE_PATH.read_text(encoding="utf-8")
+
+    assert "## Public README, package-registry, and license evidence" in baseline
+    assert "#1077" in baseline
+    assert "#1253" in baseline
