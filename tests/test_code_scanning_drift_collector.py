@@ -275,7 +275,7 @@ def test_collect_records_reports_confirmed_drift_for_complete_empty_current_set(
     )
 
     assert records[0].assessment.status == "drift"
-    assert tuple([item.tool_name for item in records[0].assessment.missing]) == ("trivy",)
+    assert tuple(item.tool_name for item in records[0].assessment.missing) == ("trivy",)
 
 
 def test_collect_records_preserves_unknown_permission_state_without_drift() -> None:

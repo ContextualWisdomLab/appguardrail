@@ -1,2 +1,0 @@
-### 성능 (Performance)
-- `tuple(...)` 또는 `dict.fromkeys(...)` 생성자 내에서 사용되던 제너레이터 표현식(generator expression)을 각각 리스트 내포(list comprehension, `tuple([...])`)와 딕셔너리 내포(dict comprehension, `tuple({...})`)로 변경하여 성능을 최적화했습니다. C레벨 최적화가 적용된 comprehension 구문으로 대체함으로써 이터레이터 프레임 할당, 메서드 탐색, Python 인터프리터 루프 오버헤드가 단축되어 실행 속도가 향상되었습니다. (Bolt: Performance Improvement)

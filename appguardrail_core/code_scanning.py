@@ -218,7 +218,7 @@ def build_snapshot(
         scope=normalized_scope,
         status="ok",
         complete=True,
-        analyses=tuple([latest[identity] for identity in sorted(latest)]),
+        analyses=tuple(latest[identity] for identity in sorted(latest)),
     )
 
 
