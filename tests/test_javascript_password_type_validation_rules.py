@@ -1,0 +1,218 @@
+"""Source-authoritative regressions for JSON password type validation."""
+
+import hashlib
+from pathlib import Path
+
+from scanner.cli.appguardrail import SCAN_RULES, _scan_file
+
+_SIGNUP_RULE_ID = "javascript-json-password-string-coercion-before-hash"
+_VERIFY_RULE_ID = "javascript-json-password-untyped-verify-fallback"
+_SOURCE_REPOSITORY = "ContextualWisdomLab/scopeweave"
+_VULNERABLE_HEAD_SHA = "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
+_VULNERABLE_APP_BLOB_SHA = "926d528d17b7ae39ab89001657a21f7ef30af743"
+_VULNERABLE_AUTH_BLOB_SHA = "3d0b171fb2d5049f010c405f051409a849840b26"
+_FIXED_HEAD_SHA = "bd9a51584f1cf37f4f4446022a90775a20152edf"
+_FIXED_APP_BLOB_SHA = "13d95e5dfa0719451a5b4a6d952467994172b79a"
+_FIXED_AUTH_BLOB_SHA = "a16a7281b3da4683eea85263fea929dd9483e9df"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_FIXED_AUTH_FIXTURE = _FIXTURE_DIR / "scopeweave_auth_password_fixed.mjs"
+_DETECTOR_DOC = Path(__file__).parents[1] / "docs/detectors/javascript-password-type-validation.md"
+
+_VULNERABLE_SIGNUP_SOURCE = """
+app.post('/api/auth/signup', async (c) => {
+  const { email, password, name } = await c.req.json().catch(() => ({}));
+  if (!email || !password || String(password).length < 8) {
+    return c.json({ error: 'email and password (min 8 chars) required' }, 400);
+  }
+  const passwordHash = hashPassword(password);
+  return c.json({ passwordHash });
+});
+"""
+
+_FIXED_SIGNUP_SOURCE = """
+app.post('/api/auth/signup', async (c) => {
+  const { email, password, name } = await c.req.json().catch(() => ({}));
+  if (!email || typeof password !== 'string' || password.length < 8) {
+    return c.json({ error: 'email and password (min 8 chars) required' }, 400);
+  }
+  const passwordHash = hashPassword(password);
+  return c.json({ passwordHash });
+});
+"""
+
+_VULNERABLE_LOGIN_SOURCE = """
+app.post('/api/auth/login', async (c) => {
+  const { email, password } = await c.req.json().catch(() => ({}));
+  const u = db.prepare('SELECT * FROM users WHERE email = ?').get(email || '');
+  if (!u || !verifyPassword(password || '', u.password_hash)) {
+    return c.json({ error: 'invalid credentials' }, 401);
+  }
+  return c.json({ ok: true });
+});
+"""
+
+_FIXED_LOGIN_SOURCE = """
+app.post('/api/auth/login', async (c) => {
+  const { email, password } = await c.req.json().catch(() => ({}));
+  const u = db.prepare('SELECT * FROM users WHERE email = ?').get(email || '');
+  if (!u || typeof password !== 'string' || !verifyPassword(password, u.password_hash)) {
+    return c.json({ error: 'invalid credentials' }, 401);
+  }
+  return c.json({ ok: true });
+});
+"""
+
+_TYPED_SCHEMA_SOURCE = """
+app.post('/api/auth/signup', async (c) => {
+  const body = PasswordSchema.parse(await c.req.json());
+  if (body.password.length < 8) return c.json({ error: 'short' }, 400);
+  return c.json({ passwordHash: hashPassword(body.password) });
+});
+"""
+
+_NON_PASSWORD_COERCION_SOURCE = """
+app.post('/api/profile', async (c) => {
+  const { page } = await c.req.json().catch(() => ({}));
+  if (String(page).length > 8) return c.json({ error: 'page too long' }, 400);
+  return c.json({ page: String(page) });
+});
+"""
+
+_ADJACENT_HANDLERS_SOURCE = """
+app.post('/api/auth/read-only', async (c) => {
+  const { password } = await c.req.json().catch(() => ({}));
+  if (String(password).length < 8) return c.json({ error: 'short' }, 400);
+});
+app.post('/api/auth/sink-only', async (c) => {
+  const password = loadTrustedPassword();
+  return c.json({ passwordHash: hashPassword(password) });
+});
+app.post('/api/auth/read-login', async (c) => {
+  const { password } = await c.req.json().catch(() => ({}));
+  return c.json({ accepted: Boolean(password) });
+});
+app.post('/api/auth/verify-only', async (c) => {
+  const password = loadTrustedPassword();
+  return c.json({ ok: verifyPassword(password || '', storedHash) });
+});
+"""
+
+
+def _git_blob_sha(path: Path) -> str:
+    """Return the Git blob object ID for one pinned source fixture."""
+    payload = path.read_bytes()
+    header = f"blob {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
+
+
+def _rule(rule_id: str) -> dict:
+    """Return one packaged rule by identity."""
+    matches = [rule for rule in SCAN_RULES if rule["id"] == rule_id]
+    assert len(matches) == 1, f"expected one loaded rule for {rule_id}"
+    return matches[0]
+
+
+def _scan(source: str, tmp_path: Path) -> list[dict]:
+    """Run the production scanner over a JavaScript source replay."""
+    source_file = tmp_path / "app.mjs"
+    source_file.write_text(source, encoding="utf-8")
+    return [
+        finding
+        for finding in _scan_file(source_file, tmp_path)
+        if finding["rule_id"] in {_SIGNUP_RULE_ID, _VERIFY_RULE_ID}
+    ]
+
+
+def test_source_provenance_is_explicit_and_immutable() -> None:
+    """Pin source revisions and independently verify the reviewed auth blob bytes."""
+    assert _SOURCE_REPOSITORY == "ContextualWisdomLab/scopeweave"
+    assert _VULNERABLE_HEAD_SHA == "a756b7e3cf486cba0930c1a482c6a30e0df958f5"
+    assert _VULNERABLE_APP_BLOB_SHA == "926d528d17b7ae39ab89001657a21f7ef30af743"
+    assert _VULNERABLE_AUTH_BLOB_SHA == "3d0b171fb2d5049f010c405f051409a849840b26"
+    assert _FIXED_HEAD_SHA == "bd9a51584f1cf37f4f4446022a90775a20152edf"
+    assert _FIXED_APP_BLOB_SHA == "13d95e5dfa0719451a5b4a6d952467994172b79a"
+    assert _FIXED_AUTH_BLOB_SHA == "a16a7281b3da4683eea85263fea929dd9483e9df"
+    assert _git_blob_sha(_FIXED_AUTH_FIXTURE) == _FIXED_AUTH_BLOB_SHA
+    fixed_auth = _FIXED_AUTH_FIXTURE.read_text(encoding="utf-8")
+    assert "const password = typeof pw === 'string' ? pw : '';" in fixed_auth
+    assert "if (typeof pw !== 'string') return false;" in fixed_auth
+
+
+def test_detector_doctoring_pins_reviewed_auth_blob() -> None:
+    """Keep detector doctoring aligned with independently verified source identity."""
+    doctoring = _DETECTOR_DOC.read_text(encoding="utf-8")
+    assert f"- Fixed `server/auth.mjs` blob: `{_FIXED_AUTH_BLOB_SHA}`" in doctoring
+    assert "5893dd511f5a73fa8e595728e68f6e84d4011c45" not in doctoring
+
+
+def test_signup_rule_detects_string_coercion_before_password_hash() -> None:
+    """Detect raw JSON password coercion used as a substitute for type checking."""
+    rule = _rule(_SIGNUP_RULE_ID)
+    assert rule["severity"] == "MEDIUM"
+    assert rule["pattern"].search(_VULNERABLE_SIGNUP_SOURCE)
+
+
+def test_verify_rule_detects_truthy_fallback_before_password_verification() -> None:
+    """Detect an untyped JSON password forwarded through a truthy fallback."""
+    rule = _rule(_VERIFY_RULE_ID)
+    assert rule["severity"] == "MEDIUM"
+    assert rule["pattern"].search(_VULNERABLE_LOGIN_SOURCE)
+
+
+def test_rules_declare_bounded_prefilters() -> None:
+    """Avoid multiline matching on files outside the observed auth contracts."""
+    assert _rule(_SIGNUP_RULE_ID)["required_substrings"] == (
+        "c.req.json",
+        "String(password)",
+        "hashPassword",
+    )
+    assert _rule(_VERIFY_RULE_ID)["required_substrings"] == (
+        "c.req.json",
+        "verifyPassword",
+        "password ||",
+    )
+
+
+def test_rules_ignore_explicit_string_type_validation() -> None:
+    """Keep the reviewed fail-closed type guards clean."""
+    assert not _rule(_SIGNUP_RULE_ID)["pattern"].search(_FIXED_SIGNUP_SOURCE)
+    assert not _rule(_VERIFY_RULE_ID)["pattern"].search(_FIXED_LOGIN_SOURCE)
+
+
+def test_rules_ignore_schema_typed_password_flow() -> None:
+    """Do not flag an upstream schema parse that yields a typed password."""
+    assert not _rule(_SIGNUP_RULE_ID)["pattern"].search(_TYPED_SCHEMA_SOURCE)
+    assert not _rule(_VERIFY_RULE_ID)["pattern"].search(_TYPED_SCHEMA_SOURCE)
+
+
+def test_rules_ignore_non_password_string_coercion() -> None:
+    """Require the source-derived password and crypto-helper boundary."""
+    assert not _rule(_SIGNUP_RULE_ID)["pattern"].search(_NON_PASSWORD_COERCION_SOURCE)
+    assert not _rule(_VERIFY_RULE_ID)["pattern"].search(_NON_PASSWORD_COERCION_SOURCE)
+
+
+def test_rules_do_not_cross_adjacent_handler_boundaries() -> None:
+    """Do not pair JSON extraction in one handler with a sink in a later handler."""
+    assert not _rule(_SIGNUP_RULE_ID)["pattern"].search(_ADJACENT_HANDLERS_SOURCE)
+    assert not _rule(_VERIFY_RULE_ID)["pattern"].search(_ADJACENT_HANDLERS_SOURCE)
+
+
+def test_scan_file_emits_normalized_type_validation_findings(tmp_path: Path) -> None:
+    """Exercise the production scanner for both source-derived variants."""
+    findings = _scan(_VULNERABLE_SIGNUP_SOURCE + _VULNERABLE_LOGIN_SOURCE, tmp_path)
+    assert {finding["rule_id"] for finding in findings} == {
+        _SIGNUP_RULE_ID,
+        _VERIFY_RULE_ID,
+    }
+    for finding in findings:
+        assert finding["severity"] == "MEDIUM"
+        assert finding["source"] == "appguardrail-rule"
+        assert finding["confidence"] == "high"
+        assert finding["cwe"] == (
+            "CWE-1287 - Improper Validation of Specified Type of Input",
+        )
+
+
+def test_scan_file_does_not_flag_reviewed_fixes(tmp_path: Path) -> None:
+    """Keep both fixed auth source shapes clean through production scan."""
+    assert _scan(_FIXED_SIGNUP_SOURCE + _FIXED_LOGIN_SOURCE, tmp_path) == []
