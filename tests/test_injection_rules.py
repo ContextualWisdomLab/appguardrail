@@ -1,9 +1,11 @@
 """Coverage tests for the injection + Anthropic-key detection rules."""
 
-from scanner.cli.appguardrail import SCAN_RULES
+from unittest.mock import patch
+
+from scanner.cli import appguardrail
 
 _BY_ID = {}
-for _r in SCAN_RULES:
+for _r in appguardrail.SCAN_RULES:
     _BY_ID.setdefault(_r["id"], _r)
 
 
@@ -72,6 +74,8 @@ subprocess.run(["ls", "-l"])
 subprocess.Popen(["ls", "-l"], shell=False)
 subprocess.call(command, shell=0)
 subprocess.check_output(command, shell=None)
+subprocess.run(command, shell="")
+subprocess.Popen(command, shell=())
 """
     assert _python_command_matches(source) == []
 
@@ -94,13 +98,10 @@ def test_python_command_injection_falls_back_for_invalid_python():
     assert len(matches) == 1
 
 
-from unittest.mock import patch
-import scanner.cli.appguardrail as appguardrail
-
 def test_python_command_injection_falls_back_when_ast_resource_limits_fail():
     """AST resource-limit failures retain conservative regex detection."""
     source = "os.system(user_input)"
     for parse_error in (RecursionError("deep AST"), MemoryError("large AST")):
         with patch.object(appguardrail.ast, "parse", side_effect=parse_error):
             matches = _python_command_matches(source)
-            assert len(matches) == 1
+        assert len(matches) == 1

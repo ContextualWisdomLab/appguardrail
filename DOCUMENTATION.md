@@ -16,6 +16,7 @@ AppGuardrail has extensive rule, scanner, report, release, issue, and scheduler 
 | Architecture decisions | [`docs/adr/README.md`](docs/adr/README.md) |
 | Security reporting | [`SECURITY.md`](SECURITY.md) |
 | Release automation | [`docs/release-automation.md`](docs/release-automation.md) |
+| GitHub workflow lifecycle detection | [`docs/workflow-lifecycle-detection.md`](docs/workflow-lifecycle-detection.md) |
 | Productization roadmap | [`docs/product/2026-07-02-2b-krw-sale-readiness-plan.md`](docs/product/2026-07-02-2b-krw-sale-readiness-plan.md) |
 | Agent development rules | [`AGENTS.md`](AGENTS.md) |
 | Agent context | [`CLAUDE.md`](CLAUDE.md) |
