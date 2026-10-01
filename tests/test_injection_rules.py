@@ -72,6 +72,8 @@ subprocess.run(["ls", "-l"])
 subprocess.Popen(["ls", "-l"], shell=False)
 subprocess.call(command, shell=0)
 subprocess.check_output(command, shell=None)
+subprocess.run(command, shell="")
+subprocess.Popen(command, shell=())
 """
     assert _python_command_matches(source) == []
 
