@@ -21,3 +21,5 @@
   preserving a bare `-` after assignments as the literal utility token.
 - Recognize GNU `env`'s no-value `-v`/`--debug` options before assignments
   while preserving those tokens after assignments as literal utilities.
+- Recognize GNU `env`'s no-value `--list-signal-handling` option before
+  assignments without admitting it after assignments or a leading `--`.

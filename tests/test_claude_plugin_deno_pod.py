@@ -417,6 +417,7 @@ def test_structured_shell_wrapper_argv_has_no_builtin_semantics(
         ("env", ["DENO_DIR=/tmp", "deno", "publish"], _DENO_RULE),
         ("env", ["-", "deno", "publish"], _DENO_RULE),
         ("env", ["-v", "deno", "publish"], _DENO_RULE),
+        ("env", ["--list-signal-handling", "deno", "publish"], _DENO_RULE),
         (
             "/usr/bin/env",
             [
@@ -483,6 +484,8 @@ def test_structured_env_wrapped_publish_fails_admission(
         ["DENO_DIR=/tmp", "--", "deno", "publish"],
         ["DENO_DIR=/tmp", "-", "deno", "publish"],
         ["DENO_DIR=/tmp", "-v", "deno", "publish"],
+        ["DENO_DIR=/tmp", "--list-signal-handling", "deno", "publish"],
+        ["--", "--debug", "deno", "publish"],
         ["--", "DENO_DIR=/tmp", "--", "pod", "trunk", "push"],
     ),
 )
