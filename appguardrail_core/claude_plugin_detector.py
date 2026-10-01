@@ -2435,13 +2435,47 @@ def _match_starts_in_shell_assignment_value(segment: str, offset: int) -> bool:
     return "=" in prefix.rsplit(maxsplit=1)[-1]
 
 
+def _match_starts_at_shell_command_token(
+    segment: str, offset: int, command_text: str
+) -> bool:
+    """Return whether a match starts at a bounded shell command position.
+
+    Environment assignments and a bounded set of execution-preserving prefixes
+    are admitted. Other leading words mean the apparent command is an argument
+    to a different executable. Dynamic wrappers, redirections before the
+    command, and unsupported shell grammar stay outside this bounded parser.
+    """
+    try:
+        prefix_tokens = shlex.split(segment[:offset], comments=False, posix=True)
+        command_tokens = shlex.split(command_text, comments=False, posix=True)
+    except ValueError:
+        return False
+    while prefix_tokens and _SHELL_ASSIGNMENT_PREFIX.match(prefix_tokens[0]):
+        prefix_tokens.pop(0)
+    if not prefix_tokens:
+        return True
+    if len(prefix_tokens) == 1 and prefix_tokens[0].endswith("/"):
+        return True
+    if not command_tokens:
+        return False
+    command_name = _direct_executable_basename(command_tokens[0])
+    if prefix_tokens == ["yarn"] and command_name == "npm":
+        return True
+    return (
+        len(prefix_tokens) == 2
+        and re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", prefix_tokens[0]) is not None
+        and prefix_tokens[1] == "-m"
+        and command_name == "twine"
+    )
+
+
 def _executable_command_match(    content: str, pattern: re.Pattern[str]
 ) -> re.Match[str] | None:
     """Return the first regex match that is an executable command context.
 
     Unquoted ``#`` comments, quoted prose, closed literal here-document
-    payloads, shell assignment values, and ``echo``/``printf``/``print``
-    segments are not executable. Direct
+    payloads, shell assignment values, argument text, and
+    ``echo``/``printf``/``print`` segments are not executable. Direct
     commands inside ``$(...)`` or backticks remain executable.
 
     Args:
@@ -2475,10 +2509,14 @@ def _executable_command_match(    content: str, pattern: re.Pattern[str]
             if segment_start <= context_relative < segment_end:
                 segment = context[segment_start:segment_end]
                 segment_relative = context_relative - segment_start
-                if not _is_reporting_builtin_segment(
-                    segment
-                ) and not _match_starts_in_shell_assignment_value(
-                    segment, segment_relative
+                if (
+                    not _is_reporting_builtin_segment(segment)
+                    and not _match_starts_in_shell_assignment_value(
+                        segment, segment_relative
+                    )
+                    and _match_starts_at_shell_command_token(
+                        segment, segment_relative, match.group(0)
+                    )
                 ):
                     return match
                 break

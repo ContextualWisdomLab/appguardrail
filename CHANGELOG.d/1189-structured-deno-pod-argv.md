@@ -7,3 +7,6 @@
   wrappers now share the canonical Deno/CocoaPods classification for findings
   and inventory. `env` options that consume or split values, dynamic argv, and
   different argument verbs remain outside these findings.
+- Require shell command-pattern matches to occupy a bounded executable position,
+  so words passed to another program are not reported as registry writes while
+  established path, `yarn npm`, and `python -m twine` forms remain supported.

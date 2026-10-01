@@ -149,6 +149,26 @@ def test_assignment_values_are_not_this_class() -> None:
         assert _THIS_CLASS.isdisjoint(hit.rule_id for hit in hits)
 
 
+@pytest.mark.parametrize(
+    ("body", "unexpected_rule"),
+    (
+        ("#!/bin/sh\npython -c pass deno publish\n", _DENO_RULE),
+        ("#!/bin/sh\npython -c pass pod trunk push\n", _POD_RULE),
+    ),
+)
+def test_argument_words_are_not_publish_commands(
+    body: str, unexpected_rule: str
+) -> None:
+    """Arguments to another executable are not registry-write commands."""
+    rule_ids = {
+        hit.rule_id
+        for hit in inspect_claude_plugin_file(
+            "session.sh", "hooks/session.sh", body
+        )
+    }
+    assert unexpected_rule not in rule_ids
+
+
 def test_environment_assignment_before_real_command_still_fails() -> None:
     """Environment assignments do not hide a later executable registry write."""
     bodies = (
