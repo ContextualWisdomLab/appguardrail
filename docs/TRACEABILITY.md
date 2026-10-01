@@ -19,6 +19,9 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| automatic detection of unauthenticated urllib DNS validation-to-connect races | built-in `python-unauthenticated-urllib-dns-validation-to-connect` rule and `docs/detectors/ssrf-dns-validation-to-connect.md` | PR #1327 active-PR; Issue #1267 vulnerable/fixed corpus with bounded direct, `urlopen`, and redirect-handler flows |
+| automatic detection of Python DNS-resolution fail-open URL validators | built-in `python-ssrf-dns-resolution-fail-open` rule and `docs/detectors/ssrf-dns-resolution-fail-open.md` | PR #1327 active-PR; Issue #1267 exact `gethostbyname`/`getaddrinfo` vulnerable lineage, fail-closed negatives, and fixed pinned-validation oracle |
+| automatic detection of hostname-unbound local-address exceptions | built-in `python-ssrf-hostname-unbound-local-address-exception` rule and `docs/detectors/ssrf-hostname-unbound-local-exception.md` | PR #1327 active-PR; Issue #850 exact EgressWeave vulnerable/fixed heads, hostname-bound negatives, and immutable owner-release gap |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -45,7 +48,7 @@ For stored webhook/callback SSRF, trace separately:
 6. control-plane self-regression;
 7. exact-head security/review evidence.
 
-Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. PR #1327 proposes the separate execution-time pinned transport, two Issue #1267 detector families, and Issue #850's bounded hostname-unbound local-address-exception detector. The Issue #850 corpus pins EgressWeave vulnerable head `2d9dc094409bdc3574bcee6b9a5c52ea920b3936` / blob `caea83981a50407528ce3d45d16a5643d5ef0fbf` and fixed head `81fc0a34cff7e8c90e3f0247342c0c8ee7de3d86` / blob `7295c7cbf17c5d2b06dd7f77430e6674d2f25320`; owner merge `6f337b67efd985bdfcb16646fa3726709bd2e17e` is not an immutable release. The TOCTOU detector excludes Bearer-authenticated flows owned by PR #1080 and does not replace PR #944's detector for missing redirect revalidation. The fail-open and local-exception detectors do not join aliases, wrappers, dictionary-based policy access, cross-function decisions, or alternative admission shapes. None of these controls expands beyond its declared source/sink and flow contract.
 
 ## Standards/research
 
