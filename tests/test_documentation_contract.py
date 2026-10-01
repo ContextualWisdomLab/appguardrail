@@ -244,3 +244,26 @@ def test_readme_bounds_secret_reporting_and_key_file_examples() -> None:
     assert "review and sanitize it before sharing" in readme
     assert "--api-key-file /tmp/appguardrail-demo.api-key" in readme
     assert "Never commit the generated key file" in readme
+
+
+
+def test_readme_monitor_contract_matches_installed_workflow() -> None:
+    """Describe SARIF as default and control-plane push as conditional."""
+
+    readme = _read("README.md")
+    monitor_line = _single_line_with(readme, "**Monitor**")
+    assert "uploads SARIF" in monitor_line
+    assert "can push normalized findings to a configured control plane" in monitor_line
+    assert "findings JSON" not in monitor_line
+
+    cli_source = _read("scanner/cli/appguardrail.py")
+    workflow_match = re.search(
+        r'MONITOR_WORKFLOW = """\\\\\n(?P<body>.*?)\n"""',
+        cli_source,
+        re.DOTALL,
+    )
+    assert workflow_match is not None
+    monitor_workflow = workflow_match.group("body")
+    assert "--sarif appguardrail.sarif" in monitor_workflow
+    assert 'if [ -n "$CP_URL" ]; then PUSH="--push $CP_URL"; fi' in monitor_workflow
+    assert "--findings-json" not in monitor_workflow
