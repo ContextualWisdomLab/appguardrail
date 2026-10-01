@@ -1,5 +1,7 @@
 # Gap baseline snapshot 2026-09-08
 
+Records Issue #1267 and canonical Draft #1327 exact `c5719d2479d7e4ec48369ca2b66de540884fd763`, tree `58a985d1eb2ba8b0b796ae5d0b1149f1c57ac2b1`, as the current stored-webhook DNS validation-to-connect corpus. The ordinary child retains the DNS-pinned HTTPS runtime and adds HIGH rule `python-unauthenticated-urllib-dns-validation-to-connect`, exact vulnerable/fixed source oracles, reviewed FP/FN boundaries, and the inherited string/`Path` language-parser contract repair. Detector 38/38, focused 133/133, full 1,165/1,165, compileall, and diff checks are GREEN; all eight non-CodeQL workflows succeed, while CodeQL is skipped and qualifying approval is absent. This is Proposed evidence, not protected functionality or release.
+
 Repairs the canonical baseline after heads `cf922f92...` and `e1e3bbe0...` replaced its UTF-8 Markdown blob with unreadable binary data. Restores the last complete valid baseline, preserves retained-history blob `1953b92c...`, reapplies #1362 exact head `0841e310...` and its terminal gate state, and records #1363 exact `3bfbac57...` as an ordinary zero-effective-diff preservation lane after its blanket comprehension performance claim failed representative latency/allocation review.
 
 Current #1362 gate refresh supersedes the later historical pending-state sentence: exact `0841e310...` has eight successful non-CodeQL workflows, CodeQL skipped, unresolved threads 0, and approval 0. The source-complete PR is Ready for independent review, not protected integration or release.
