@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-10-01 - External Links Accessibility and Layout
-**Learning:** For `target="_blank"` links, simply adding `rel="noopener"` is not enough. Screen reader users need explicit auditory warnings, visual users need a visual cue (icon), and long URL text in links alongside inline icons can break layouts if it doesn't wrap correctly.
-**Action:** When adding `target="_blank"` to an external link, always include both visually hidden `.sr-only` text (e.g., "(opens in a new tab)") and a visible `aria-hidden="true"` icon. To prevent layout breakage from long text (like URLs), apply `word-break: break-all` strictly to those specific links using a utility class (e.g., `.ext-link`), rather than globally to all `<a>` tags.
