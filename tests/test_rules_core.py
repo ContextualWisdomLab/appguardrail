@@ -65,6 +65,27 @@ def test_build_rule_metadata_deduplicates_message_and_default_references():
     )
 
 
+def test_build_rule_metadata_preserves_complete_explicit_taxonomy():
+    """Do not append unrelated category CWEs when a rule names both taxonomies."""
+    metadata = build_rule_metadata(
+        "javascript-url-session-revocation-bypass",
+        "HIGH",
+        (
+            "Revoked session can remain usable. "
+            "[CWE-613 - Insufficient Session Expiration] "
+            "[OWASP A07:2025 - Authentication Failures]"
+        ),
+        category="authz",
+    )
+
+    assert metadata.references == (
+        "CWE-613 - Insufficient Session Expiration",
+        "OWASP A07:2025 - Authentication Failures",
+    )
+    assert metadata.cwe == ("CWE-613 - Insufficient Session Expiration",)
+    assert metadata.owasp == ("OWASP A07:2025 - Authentication Failures",)
+
+
 def test_validate_rule_metadata_reports_missing_public_reference():
     errors = validate_rule_metadata(
         {
