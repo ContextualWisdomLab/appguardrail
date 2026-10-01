@@ -1,4 +1,23 @@
 rules:
+  - id: github-actions-pypi-unbound-release-source
+    patterns:
+      - pattern-regex: 'pypa/gh-action-pypi-publish@'
+    message: |
+      A manual/tag workflow builds source for PyPI publication without a
+      recognized same-job, pre-build fail-closed protected-source gate.
+      Bind checked-out source to a freshly fetched protected commit before
+      building; artifact metadata, id-token permissions and environment names
+      do not establish source integrity. See docs/release-automation.md for
+      supported syntax, alternate-policy false positives and blind spots.
+      This source-policy finding does not prove PyPI accepted an upload.
+      [OWASP A08:2021 - Software and Data Integrity Failures]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - .github/workflows/*.yml
+        - .github/workflows/*.yaml
+
   # A write token plus an explicit push back to contributor-controlled branch
   # state is materially different from a reviewed release publisher. Match the
   # structure, not temporary-looking names such as `once` or `repair`.
