@@ -19,7 +19,6 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
-| automatic detection of unauthenticated urllib DNS validation-to-connect races | built-in `python-unauthenticated-urllib-dns-validation-to-connect` rule and `docs/detectors/ssrf-dns-validation-to-connect.md` | PR #1327 active-PR; Issue #1267 vulnerable/fixed corpus with bounded direct, `urlopen`, and redirect-handler flows |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,7 +45,7 @@ For stored webhook/callback SSRF, trace separately:
 6. control-plane self-regression;
 7. exact-head security/review evidence.
 
-Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. PR #1327 proposes the separate execution-time pinned transport and a detector for the unauthenticated `urllib` validation-to-connect race retained by Issue #1267. The new detector excludes Bearer-authenticated flows owned by PR #1080; it does not replace PR #944's detector for missing redirect revalidation. None of these controls expands beyond its declared source/sink and flow contract.
+Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
 
 ## Standards/research
 
