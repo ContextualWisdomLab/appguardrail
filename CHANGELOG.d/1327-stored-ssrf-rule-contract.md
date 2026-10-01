@@ -8,3 +8,7 @@
   `except ValueError` rejection as a negative stored-SSRF detector case.
 - Retain vulnerable direct, ignored-validator, non-enforcing-guard, and
   unprotected-after-positive-guard flows as positive regression fixtures.
+- Detect fail-closed unauthenticated URL validation followed by ordinary
+  `urllib` request or redirect dispatch that re-resolves the same hostname,
+  while keeping fixed, unrelated, reassigned, connection-time pinned, and
+  Bearer-authenticated destinations negative.

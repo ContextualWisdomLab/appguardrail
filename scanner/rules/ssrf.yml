@@ -12,3 +12,19 @@ rules:
     prefilter: [set_webhook]
     cwe: [CWE-918]
     owasp: [A10:2021]
+  - id: python-unauthenticated-urllib-dns-validation-to-connect
+    patterns:
+      - pattern-regex: '(?ms)^[ \t]*(?:async[ \t]+)?def[ \t]+[A-Za-z_][A-Za-z0-9_]*\s*\((?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)[ \t]+).){0,600}?\)\s*(?:->[^\n:]+)?\s*:\s*(?:#[^\n]*)?\n(?!(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)[ \t]+).)*?\b(?i:Authorization|Bearer)\b)(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)[ \t]+).){0,1800}?\bif\s+not\s+_is_safe_url\s*\(\s*(?P<validated_url>[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*:[^\n]{0,400}\n(?:[ \t]+[^\n]{0,400}\n){0,4}?[ \t]+(?:return\b|raise\b)(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)[ \t]+)(?!\b(?P=validated_url)\s*=).){0,1200}?(?:\b(?P<request_var>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:urllib\.request\.)?Request\s*\(\s*(?:#[^\n]*\n\s*)?(?P=validated_url)(?=\s*(?:,|\)))(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)[ \t]+)(?!\b(?P=request_var)\s*=).){0,800}?\b(?P<opener_var>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:urllib\.request\.)?build_opener\s*\([^\n]*\)(?:(?!^[ \t]*(?:(?:async[ \t]+)?def|class)[ \t]+)(?!\b(?P=request_var)\s*=).){0,400}?\b(?P=opener_var)\.open\s*\(\s*(?:#[^\n]*\n\s*)?(?P=request_var)(?=\s*(?:,|\)))|\b(?:urllib\.request\.)?urlopen\s*\(\s*(?P=validated_url)(?=\s*(?:,|\)))|\bsuper\s*\(\s*\)\.redirect_request\s*\([^\n]*\b(?P=validated_url)\s*\))'
+    message: |
+      An unauthenticated URL is validated before an ordinary urllib request or
+      redirect hands the hostname back to the resolver, leaving a DNS
+      validation-to-connect race.
+      Resolve once per hop, reject mixed or non-global answers, pin the TCP peer,
+      and preserve the original hostname for TLS verification.
+      [CWE-918 - Server-Side Request Forgery]
+      [CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition]
+    severity: HIGH
+    languages: [python]
+    prefilter: [_is_safe_url]
+    cwe: [CWE-918, CWE-367]
+    owasp: [A10:2021]
