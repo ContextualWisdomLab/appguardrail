@@ -1,5 +1,7 @@
 # Gap baseline snapshot 2026-09-08
 
+Repairs the canonical baseline after heads `cf922f92...` and `e1e3bbe0...` replaced its UTF-8 Markdown blob with unreadable binary data. Restores the last complete valid baseline, preserves retained-history blob `1953b92c...`, reapplies #1362 exact head `0841e310...` and its terminal gate state, and records #1363 exact `3bfbac57...` as an ordinary zero-effective-diff preservation lane after its blanket comprehension performance claim failed representative latency/allocation review.
+
 Current #1362 gate refresh supersedes the later historical pending-state sentence: exact `0841e310...` has eight successful non-CodeQL workflows, CodeQL skipped, unresolved threads 0, and approval 0. The source-complete PR is Ready for independent review, not protected integration or release.
 
 Records live exact-head evidence for the commercial-readiness loop: #1036 skill-supply-chain repairs; #1173 quoted-shell plus assignment-value command-context RED/GREEN; non-force stack through Draft #1189 `c13142c` with every unique detector/test delta preserved; Draft #1189 quoted/unquoted Deno and CocoaPods publish fail-closed identities plus exact FP/FN boundaries; the canonical fail-closed assurance-state mapping; and the #1131/#1181 dashboard file-picker ownership, source-neutral predecessor, and browser-evidence boundary. This documents Proposed work and exact candidate evidence, not a protected capability, approval, release, or certification claim.
