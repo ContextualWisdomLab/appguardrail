@@ -415,10 +415,23 @@ def test_structured_shell_wrapper_argv_has_no_builtin_semantics(
     (
         ("env", ["deno", "publish"], _DENO_RULE),
         ("env", ["DENO_DIR=/tmp", "deno", "publish"], _DENO_RULE),
+        ("env", ["-", "deno", "publish"], _DENO_RULE),
         (
             "/usr/bin/env",
             [
                 "--ignore-environment",
+                "COCOAPODS_TRUNK_TOKEN=x",
+                "pod",
+                "trunk",
+                "push",
+            ],
+            _POD_RULE,
+        ),
+        (
+            "/usr/bin/env",
+            [
+                "--",
+                "-",
                 "COCOAPODS_TRUNK_TOKEN=x",
                 "pod",
                 "trunk",
@@ -456,13 +469,14 @@ def test_structured_env_wrapped_publish_fails_admission(
         ["DENO_DIR=/tmp"],
         ["echo", "deno", "publish"],
         ["DENO_DIR=/tmp", "--", "deno", "publish"],
+        ["DENO_DIR=/tmp", "-", "deno", "publish"],
         ["--", "DENO_DIR=/tmp", "--", "pod", "trunk", "push"],
     ),
 )
 def test_structured_env_without_direct_publish_stays_outside_class(
     tmp_path: Path, args: list[str]
 ) -> None:
-    """Incomplete, reporting, and post-assignment ``--`` stay outside."""
+    """Incomplete, reporting, and post-assignment option tokens stay outside."""
     root = _licensed_plugin(tmp_path)
     manifest = json.loads(
         (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")

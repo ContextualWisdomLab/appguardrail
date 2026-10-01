@@ -17,3 +17,5 @@
 - Keep `--` after an `env` assignment as the literal utility token instead of
   skipping it, preventing non-executing typed argv from being misreported as a
   Deno or CocoaPods registry write while preserving the leading `--` form.
+- Recognize GNU `env`'s option-position bare `-` environment reset while
+  preserving a bare `-` after assignments as the literal utility token.
