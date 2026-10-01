@@ -302,3 +302,8 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+def test_dashboard_external_links_have_screen_reader_warnings():
+    """External links must explicitly warn screen reader users of context switch."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert '<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener" aria-label="${esc(r)} (opens in a new tab)">${esc(r)}</a>' in html
