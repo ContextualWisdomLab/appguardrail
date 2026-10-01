@@ -31,15 +31,23 @@ separately reviewed data-flow detector rather than speculative inference.
 
 The scope engine supports module and direct-function aliases, nested functions,
 function-local imports, function-local lexical shadowing, class/method closure
-rules, lambda parameters, and comprehension-local targets. Reassigning an
-imported name suppresses later findings for that name to avoid attributing a
-shell API to an unrelated object.
+rules, lambda parameters, and comprehension-local targets. It also follows
+Python's class-body lookup after an exception alias is implicitly deleted or a
+class binding is explicitly deleted: the later name falls back to the module
+import rather than an enclosing function binding. Function-local and module
+deletions remain non-authoritative and do not create that fallback. Because
+conditional control-flow joins are outside this slice, exception-alias cleanup
+is modeled without proving that a handler executed; a prior class shadow plus
+a non-executed handler remains an explicit false-positive boundary. Reassigning
+an imported name suppresses later findings for that name to avoid attributing
+a shell API to an unrelated object.
 
 ## Executable evidence
 
 - `tests/test_python_command_injection_ast.py` contains deep-nesting, module and
-  function alias, nested-function, shadowing, comprehension, malformed-source,
-  positive integration, and unrelated-regex coexistence contracts.
+  function alias, nested-function, class exception/delete cleanup, retained
+  function/module shadowing, comprehension, malformed-source, positive
+  integration, and unrelated-regex coexistence contracts.
 - `.github/workflows/python-shell-ast-coverage.yml` measures the dedicated
   production module at 100% statements and branches using hash-pinned
   Coverage.py 7.15.4.

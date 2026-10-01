@@ -78,6 +78,14 @@ from scanner.cli.appguardrail import _scan_file
             "subprocess.getstatusoutput",
             2,
         ),
+        (
+            "import subprocess\n"
+            "def execute():\n"
+            "    del subprocess.cache\n"
+            "    subprocess.run(command, shell=True)\n",
+            "subprocess.run",
+            4,
+        ),
     ],
 )
 def test_find_python_shell_calls_resolves_supported_imports_and_aliases(
@@ -96,6 +104,71 @@ def test_find_python_shell_calls_resolves_supported_imports_and_aliases(
             snippet=source.splitlines()[expected_line - 1].strip()[:120],
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_line"),
+    [
+        (
+            "import subprocess\n"
+            "class Handler:\n"
+            "    try:\n"
+            "        raise RuntimeError()\n"
+            "    except RuntimeError as subprocess:\n"
+            "        pass\n"
+            "    subprocess.run(command, shell=True)\n",
+            7,
+        ),
+        (
+            "import subprocess\n"
+            "class Handler:\n"
+            "    subprocess = None\n"
+            "    del subprocess\n"
+            "    subprocess.run(command, shell=True)\n",
+            5,
+        ),
+        (
+            "import subprocess\n"
+            "def outer():\n"
+            "    subprocess = None\n"
+            "    class Handler:\n"
+            "        subprocess = None\n"
+            "        del subprocess\n"
+            "        subprocess.run(command, shell=True)\n",
+            7,
+        ),
+    ],
+)
+def test_class_deleted_bindings_fall_back_to_module_import(
+    source: str,
+    expected_line: int,
+) -> None:
+    """Resolve module imports after Python removes a class-local binding."""
+    calls = find_python_shell_calls(source)
+
+    assert [(call.line, call.api) for call in calls] == [
+        (expected_line, "subprocess.run")
+    ]
+
+
+def test_class_tuple_deletion_restores_each_module_fallback() -> None:
+    """Resolve every module import removed from a class tuple target."""
+    source = (
+        "import os, subprocess\n"
+        "class Handler:\n"
+        "    os = None\n"
+        "    subprocess = None\n"
+        "    del (os, subprocess)\n"
+        "    os.system(command)\n"
+        "    subprocess.run(command, shell=True)\n"
+    )
+
+    calls = find_python_shell_calls(source)
+
+    assert [(call.line, call.api) for call in calls] == [
+        (6, "os.system"),
+        (7, "subprocess.run"),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -120,6 +193,44 @@ def test_find_python_shell_calls_resolves_supported_imports_and_aliases(
         (
             "import subprocess\n"
             "[subprocess.run(command, shell=True) for subprocess in runners]\n"
+        ),
+        (
+            "import subprocess\n"
+            "def execute():\n"
+            "    try:\n"
+            "        raise RuntimeError()\n"
+            "    except RuntimeError as subprocess:\n"
+            "        pass\n"
+            "    subprocess.run(command, shell=True)\n"
+        ),
+        (
+            "import subprocess\n"
+            "def execute():\n"
+            "    subprocess = None\n"
+            "    del subprocess\n"
+            "    subprocess.run(command, shell=True)\n"
+        ),
+        (
+            "import subprocess\n"
+            "subprocess = None\n"
+            "del subprocess\n"
+            "subprocess.run(command, shell=True)\n"
+        ),
+        (
+            "import subprocess\n"
+            "class Handler:\n"
+            "    subprocess = None\n"
+            "    subprocess.run(command, shell=True)\n"
+        ),
+        (
+            "import subprocess\n"
+            "subprocess = safe_runner\n"
+            "def outer():\n"
+            "    import subprocess\n"
+            "    class Handler:\n"
+            "        subprocess = None\n"
+            "        del subprocess\n"
+            "        subprocess.run(command, shell=True)\n"
         ),
         "import os.path as pathmod\npathmod.system(user_input)\n",
     ],
