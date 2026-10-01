@@ -262,6 +262,20 @@ class _ShellCallVisitor(ast.NodeVisitor):
         elif isinstance(target, ast.Starred):
             self._bind_target(target.value)
 
+    def _delete_target(self, target: ast.AST) -> None:
+        """Apply Python's class fallback while keeping other deletions shadowed."""
+        if isinstance(target, ast.Name):
+            if self.scope.kind == "class":
+                module_scope = self.scope._module_scope()
+                self.scope.bindings[target.id] = module_scope.bindings.get(
+                    target.id, _OTHER_BINDING
+                )
+            else:
+                self.scope.bind(target.id, _OTHER_BINDING)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                self._delete_target(element)
+
     def _function_scope(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> _Scope:
         """Build a function scope with Python's statically local names."""
         collector = _DeclarationCollector()
@@ -408,9 +422,9 @@ class _ShellCallVisitor(ast.NodeVisitor):
         self._bind_target(node.target)
 
     def visit_Delete(self, node: ast.Delete) -> None:
-        """Keep deleted local names shadowed rather than falling through."""
+        """Apply deletion without giving function locals a module fallback."""
         for target in node.targets:
-            self._bind_target(target)
+            self._delete_target(target)
 
     def visit_For(self, node: ast.For) -> None:
         """Visit loop input, bind its target, then traverse both branches."""
@@ -444,6 +458,8 @@ class _ShellCallVisitor(ast.NodeVisitor):
             self.scope.bind(node.name, _OTHER_BINDING)
         for statement in node.body:
             self.visit(statement)
+        if node.name:
+            self._delete_target(ast.Name(id=node.name))
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Traverse one synchronous function with lexical shadowing."""
