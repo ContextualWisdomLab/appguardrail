@@ -177,12 +177,20 @@ def test_argument_words_are_not_publish_commands(
         ("exec gh pr merge 1", "claude-plugin-github-merge-command"),
         ("exec kubectl apply -f deploy.yaml", "claude-plugin-kubectl-apply-command"),
         ("exec npm publish", "claude-plugin-npm-publish-command"),
+        ("command deno publish", _DENO_RULE),
+        ("command pod trunk push App.podspec", _POD_RULE),
+        ("command gh pr merge 1", "claude-plugin-github-merge-command"),
+        (
+            "command kubectl apply -f deploy.yaml",
+            "claude-plugin-kubectl-apply-command",
+        ),
+        ("command npm publish", "claude-plugin-npm-publish-command"),
     ),
 )
-def test_bare_exec_preserves_shell_command_execution(
+def test_bare_shell_prefix_preserves_command_execution(
     command: str, expected_rule: str
 ) -> None:
-    """POSIX bare ``exec`` still executes its following literal utility."""
+    """POSIX bare ``exec`` and ``command`` execute a literal utility."""
     hits = inspect_claude_plugin_file(
         "session.sh", "hooks/session.sh", f"#!/bin/sh\n{command}\n"
     )
@@ -201,6 +209,23 @@ def test_bare_exec_preserves_shell_command_execution(
 )
 def test_exec_lookalikes_are_not_deno_publish_commands(body: str) -> None:
     """Arguments, assignment values, and read-only verbs stay outside admission."""
+    hits = inspect_claude_plugin_file("session.sh", "hooks/session.sh", body)
+
+    assert _DENO_RULE not in {hit.rule_id for hit in hits}
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        "#!/bin/sh\necho command deno publish\n",
+        "#!/bin/sh\npython -c pass command deno publish\n",
+        "#!/bin/sh\nmessage='command deno publish'\n",
+        "#!/bin/sh\ncommand -v deno publish\n",
+        "#!/bin/sh\ncommand deno info\n",
+    ),
+)
+def test_command_lookalikes_are_not_deno_publish_commands(body: str) -> None:
+    """Reporting, arguments, assignment values, and read-only verbs stay out."""
     hits = inspect_claude_plugin_file("session.sh", "hooks/session.sh", body)
 
     assert _DENO_RULE not in {hit.rule_id for hit in hits}
@@ -363,14 +388,17 @@ def test_other_structured_argv_is_not_package_publish_inventory(
     assert inventory["package_install"] is False
 
 
-def test_structured_exec_argv_has_no_shell_builtin_semantics(tmp_path: Path) -> None:
-    """Typed process argv does not imply that ``exec`` is a shell builtin."""
+@pytest.mark.parametrize("wrapper", ("exec", "command"))
+def test_structured_shell_wrapper_argv_has_no_builtin_semantics(
+    tmp_path: Path, wrapper: str
+) -> None:
+    """Typed process argv does not imply POSIX shell-builtin semantics."""
     root = _licensed_plugin(tmp_path)
     manifest = json.loads(
         (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     manifest["hooks"] = {
-        "PostToolUse": [{"command": "exec", "args": ["deno", "publish"]}],
+        "PostToolUse": [{"command": wrapper, "args": ["deno", "publish"]}],
     }
     _write_json(root / ".claude-plugin" / "plugin.json", manifest)
 
