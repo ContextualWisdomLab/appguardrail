@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,3 +214,21 @@ def test_adr_index_contains_governing_detector_decisions() -> None:
         adr_path = ROOT / "docs" / "adr" / adr
         assert adr_path.is_file(), f"ADR file is missing: {adr}"
         assert f"]({adr})" in index, f"ADR index does not link {adr}"
+
+
+def test_package_readme_links_are_registry_safe_and_immutable() -> None:
+    """Keep package-description links valid outside the repository checkout."""
+
+    readme_links = dict(re.findall(r"\[([^\]]+)\]\(([^)]+)\)", _read("README.md")))
+    protected_revision = "e71d37e7c58118e6764c96ab7c4492fe33eed6f8"
+    repository_root = (
+        "https://github.com/ContextualWisdomLab/appguardrail/blob/"
+        f"{protected_revision}/"
+    )
+    expected_links = {
+        "Release automation": repository_root + "docs/release-automation.md",
+        "Responsible testing": repository_root + "docs/responsible-testing.md",
+        "MIT License": repository_root + "LICENSE",
+    }
+    for label, expected_target in expected_links.items():
+        assert readme_links.get(label) == expected_target
