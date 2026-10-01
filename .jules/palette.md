@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-08-23 - Hide Native File Inputs
+**Learning:** Native `<input type="file">` elements are notoriously difficult to style consistently across browsers, leading to jarring UX when building custom interfaces.
+**Action:** Always visually hide the native file input using the `hidden` attribute and proxy clicks to it via a styled `<button>` with an explicit event listener, preserving semantic HTML and keyboard accessibility while ensuring visual consistency.
