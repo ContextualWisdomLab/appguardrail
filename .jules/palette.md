@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-05-18 - Semantic States and Keyboard Accessibility
+**Learning:** When styling loading states in a dashboard or UI by mapping `aria-busy="true"` to `pointer-events: none`, this visual change alone does not prevent duplicate interactions triggered via the keyboard (e.g. Enter or Space key press).
+**Action:** Always pair `pointer-events: none` CSS for `aria-busy` elements with explicit semantic state guards in JavaScript (e.g. early returns when `aria-busy="true"`) to prevent duplicate keyboard-driven events.
