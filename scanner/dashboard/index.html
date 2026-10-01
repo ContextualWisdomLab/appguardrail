@@ -183,8 +183,8 @@ function render(){
     const isSelected = filterSev === s;
     const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
     return `
-    <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
-      <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
+    <div class="card" role="button" tabindex="0" aria-label="Filter by ${esc(s)}: ${counts[s]}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : esc(s)}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
+      <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${esc(s)}</div>
       <div class="n">${counts[s]}</div>
     </div>`;
   }).join('');
@@ -228,7 +228,7 @@ function render(){
           <input type="search" id="q" placeholder="Search message, file, rule, category" title="Press / to search" aria-keyshortcuts="/" aria-label="Search findings" value="${esc(query)}">
           <select id="sev" aria-label="Filter by severity">
             <option value="">All severities</option>
-            ${SEV_ORDER.map(s=>`<option value="${s}" ${s===filterSev?'selected':''}>${s}</option>`).join('')}
+            ${SEV_ORDER.map(s=>`<option value="${esc(s)}" ${s===filterSev?'selected':''}>${esc(s)}</option>`).join('')}
           </select>
         </div>
         <div class="panel"><table>
