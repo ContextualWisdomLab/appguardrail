@@ -64,7 +64,7 @@ def test_normalize_finding_fails_closed_when_text_conversion_raises():
         }
     )
 
-    assert finding["severity"] == "INFO"
+    assert finding["severity"] == "CRITICAL"
     assert finding["rule_id"] == "unknown-rule"
     assert finding["message"] == "No message provided."
     assert finding["file"] == "n/a"
@@ -82,19 +82,19 @@ def test_finding_helpers_fail_closed_when_text_conversion_raises():
     hostile = ExplosiveText()
 
     assert severity_counts([{"severity": hostile}]) == {
-        "CRITICAL": 0,
+        "CRITICAL": 1,
         "HIGH": 0,
         "WARNING": 0,
-        "INFO": 1,
+        "INFO": 0,
     }
-    assert not is_deploy_blocking({"severity": hostile, "context": hostile})
+    assert is_deploy_blocking({"severity": hostile, "context": hostile})
     assert finding_sort_key(
         {"severity": hostile, "category": hostile, "rule_id": hostile}
-    ) == (3, "misconfig", "unknown-rule")
+    ) == (0, "misconfig", "unknown-rule")
     assert safe_report_snippet(hostile) == ""
 
 
-def test_severity_counts_folds_unknown_values_into_info():
+def test_severity_counts_folds_unknown_values_into_critical():
     counts = severity_counts(
         [
             {"severity": "CRITICAL"},
@@ -104,12 +104,14 @@ def test_severity_counts_folds_unknown_values_into_info():
         ]
     )
 
-    assert counts == {"CRITICAL": 1, "HIGH": 0, "WARNING": 0, "INFO": 3}
+    assert counts == {"CRITICAL": 4, "HIGH": 0, "WARNING": 0, "INFO": 0}
 
 
 def test_is_deploy_blocking_uses_context_and_case_insensitive_severity():
     assert is_deploy_blocking({"severity": "critical", "context": "app-code"})
     assert is_deploy_blocking({"severity": "HIGH"})
+    assert is_deploy_blocking({"severity": "unknown", "context": "app-code"})
+    assert not is_deploy_blocking({"severity": "unknown", "context": "doc"})
     assert not is_deploy_blocking({"severity": "HIGH", "context": "doc"})
     assert not is_deploy_blocking({"severity": "WARNING", "context": "app-code"})
 
