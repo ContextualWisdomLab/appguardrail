@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-07-21 - Optimize substring matching in Python hot paths
+**Learning:** Using `any(token in text for token in (...))` with a generator expression introduces significant overhead in hot loops (like rule scanning) due to iterator creation and function call mechanics.
+**Action:** For simple static string inclusion checks on hot paths, directly unroll the evaluation into explicit `or` chains (e.g. `"a" in text or "b" in text`). Ensure that the original tuple constants are fully removed to avoid dead code and maintain maintainability.
