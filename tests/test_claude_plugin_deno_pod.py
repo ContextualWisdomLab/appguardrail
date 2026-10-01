@@ -313,7 +313,13 @@ def test_other_structured_argv_is_not_package_publish_inventory(
         ("env", ["DENO_DIR=/tmp", "deno", "publish"], _DENO_RULE),
         (
             "/usr/bin/env",
-            ["--ignore-environment", "COCOAPODS_TRUNK_TOKEN=x", "pod", "trunk", "push"],
+            [
+                "--ignore-environment",
+                "COCOAPODS_TRUNK_TOKEN=x",
+                "pod",
+                "trunk",
+                "push",
+            ],
             _POD_RULE,
         ),
         ("env", ["--", "deno", "publish"], _DENO_RULE),
