@@ -74,15 +74,20 @@ def test_test_filename_under_src_is_non_blocking_context(tmp_path: Path) -> None
     mjs_target.write_text("password='secret123'\n", encoding="utf-8")
 
     ts_findings = _scan_file(ts_target, tmp_path)
+    ts_database_findings = [
+        finding
+        for finding in ts_findings
+        if finding["rule_id"] == "hardcoded-database-url"
+    ]
     mjs_findings = _by_rule(mjs_target, tmp_path, "hardcoded-password")
 
+    assert ts_database_findings
+    for finding in ts_database_findings:
+        assert finding["context"] == "test"
+        assert not is_deploy_blocking(finding)
     assert mjs_findings
     assert mjs_findings[0]["context"] == "test"
     assert not is_deploy_blocking(mjs_findings[0])
-    for finding in ts_findings:
-        if finding["rule_id"] == "hardcoded-database-url":
-            assert finding["context"] == "test"
-            assert not is_deploy_blocking(finding)
 
 
 def test_credential_bearing_production_database_url_remains_blocking(
