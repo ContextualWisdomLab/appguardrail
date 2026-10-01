@@ -95,12 +95,14 @@ def detect_language_axes(files: Iterable[str | Path]) -> set[str]:
     languages: set[str] = set()
     for file_path in files:
         if not isinstance(file_path, str):
-            file_path = str(file_path)
-        idx = max(file_path.rfind("/"), file_path.rfind("\\"))
-        name = file_path[idx + 1 :] if idx != -1 else file_path
+            name = file_path.name
+            suffix = file_path.suffix.lower()
+        else:
+            idx = max(file_path.rfind("/"), file_path.rfind("\\"))
+            name = file_path[idx + 1 :] if idx != -1 else file_path
 
-        dot_idx = name.rfind(".")
-        suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
+            dot_idx = name.rfind(".")
+            suffix = name[dot_idx:].lower() if dot_idx > 0 else ""
 
         language = LANGUAGE_BY_EXTENSION.get(suffix)
         if language:
