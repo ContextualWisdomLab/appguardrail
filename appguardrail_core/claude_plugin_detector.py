@@ -405,6 +405,16 @@ CLAUDE_PLUGIN_CONAN_UPLOAD_COMMAND_MESSAGE: Final = (
     "package is write authority on Conan Center. Remove the command. "
     "[CWE-250 - Execution with Unnecessary Privileges]"
 )
+CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE: Final = (
+    "Claude plugin hook or manifest runs deno publish. Publishing a "
+    "package is write authority on JSR. Remove the command. "
+    "[CWE-269 - Improper Privilege Management]"
+)
+CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE: Final = (
+    "Claude plugin hook or manifest runs pod trunk push. Publishing a "
+    "podspec is write authority on CocoaPods trunk. Remove the command. "
+    "[CWE-250 - Execution with Unnecessary Privileges]"
+)
 CLAUDE_PLUGIN_DOCKER_SOCKET_MESSAGE: Final = (
     "Claude plugin hook reaches the host Docker socket. Socket access is host "
     "control, not an image push. Remove the socket bind and keep builds "
@@ -600,6 +610,19 @@ _SBT_PUBLISH_COMMAND = re.compile(
 )
 _CONAN_UPLOAD_COMMAND = re.compile(
     r"\bconan\s+upload\b",
+    re.IGNORECASE,
+)
+_DENO_PUBLISH_COMMAND = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<cli_quote>['\"]?)deno(?P=cli_quote)"
+    r"[ \t]+(?P<quote>['\"]?)publish(?P=quote)"
+    r"(?=$|[ \t;&|`\)])",
+    re.IGNORECASE,
+)
+_POD_TRUNK_PUSH_COMMAND = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<cli_quote>['\"]?)pod(?P=cli_quote)"
+    r"[ \t]+(?P<trunk_quote>['\"]?)trunk(?P=trunk_quote)"
+    r"[ \t]+(?P<push_quote>['\"]?)push(?P=push_quote)"
+    r"(?=$|[ \t;&|`\)])",
     re.IGNORECASE,
 )
 _REPORTING_BUILTINS: Final = frozenset(
@@ -910,8 +933,8 @@ _TEXT_CAPABILITY_PATTERNS: Final = (
     (
         "package_install",
         re.compile(
-            r"\b(?:pip|npm|pnpm|yarn|uv|cargo|apt-get)\s+install\b|"
-            r"\b(?:npm\s+publish|pnpm\s+publish|twine\s+upload|cargo\s+publish|"
+            r"(?<![A-Za-z0-9_])(?:pip|npm|pnpm|yarn|uv|cargo|apt-get)\s+install\b|"
+            r"(?<![A-Za-z0-9_])(?:npm\s+publish|pnpm\s+publish|twine\s+upload|cargo\s+publish|"
             r"uv\s+publish|poetry\s+publish|gem\s+push|"
             r"(?:dotnet\s+)?nuget\s+push|"
             r"(?:dart\s+|flutter\s+)?pub\s+publish|"
@@ -922,7 +945,12 @@ _TEXT_CAPABILITY_PATTERNS: Final = (
             r"gradlew?\s+publish|"
             r"luarocks\s+upload|"
             r"sbt\s+publish(?:Signed)?|"
-            r"conan\s+upload)\b",
+            r"conan\s+upload|"
+            r"(?:deno|\"deno\"|'deno')[ \t]+"
+            r"(?:publish|\"publish\"|'publish')|"
+            r"(?:pod|\"pod\"|'pod')[ \t]+"
+            r"(?:trunk|\"trunk\"|'trunk')[ \t]+"
+            r"(?:push|\"push\"|'push'))(?![A-Za-z0-9_])",
             re.IGNORECASE,
         ),
     ),
@@ -1159,6 +1187,8 @@ def inspect_claude_plugin_file(
         hits.extend(_luarocks_upload_command_hits(content, manifest=manifest))
         hits.extend(_sbt_publish_command_hits(content, manifest=manifest))
         hits.extend(_conan_upload_command_hits(content, manifest=manifest))
+        hits.extend(_deno_publish_command_hits(content, manifest=manifest))
+        hits.extend(_pod_trunk_push_command_hits(content, manifest=manifest))
         hits.extend(_docker_socket_hits(content))
         hits.extend(_browser_profile_hits(content))
         hits.extend(_credential_store_hits(content))
@@ -1630,6 +1660,10 @@ def _inventory_manifest_capabilities(
                 inventory["process_spawn"] = True
     if payload.get("hooks"):
         inventory["process_spawn"] = True
+    if _deno_publish_command_hits(
+        content, manifest=True
+    ) or _pod_trunk_push_command_hits(content, manifest=True):
+        inventory["package_install"] = True
 
 
 def _inventory_text_capabilities(content: str, inventory: dict[str, bool]) -> None:
@@ -1813,7 +1847,7 @@ def _github_merge_command_hits(
                 ),
             )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             folded = tuple(argument.casefold() for argument in args)
             if (
                 _direct_executable_basename(command) == "gh"
@@ -1859,7 +1893,7 @@ def _github_release_command_hits(
                 ),
             )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             folded = tuple(argument.casefold() for argument in args)
             if (
                 _direct_executable_basename(command) == "gh"
@@ -1950,7 +1984,7 @@ def _docker_push_command_hits(
                 ),
             )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             if _direct_executable_basename(command) != "docker":
                 continue
             folded = tuple(argument.casefold() for argument in args)
@@ -2196,6 +2230,55 @@ def _manifest_argv_sources(
     return tuple(found)
 
 
+def _manifest_executable_argv_sources(
+    content: str,
+) -> tuple[tuple[str, tuple[str, ...], int], ...]:
+    """Return typed argv after one bounded transparent ``env`` wrapper.
+
+    Direct executable records pass through unchanged. For ``env`` and an
+    absolute path ending in ``env``, the parser accepts only environment
+    GNU ``NAME=VALUE`` operands and the no-value ``-i``/``--ignore-environment``,
+    ``-v``/``--debug``, and signal-handling options, with at most one ``--``
+    and one GNU ``env`` bare ``-`` before assignments, before one literal
+    utility. Options that consume or split values and option tokens after an
+    assignment stay outside this bounded executable representation.
+    """
+    found: list[tuple[str, tuple[str, ...], int]] = []
+    for command, args, line in _manifest_argv_sources(content):
+        if _direct_executable_basename(command) != "env":
+            found.append((command, args, line))
+            continue
+
+        utility_index = 0
+        while utility_index < len(args) and args[utility_index] in {
+            "-i",
+            "--ignore-environment",
+            "-v",
+            "--debug",
+            "--list-signal-handling",
+            "--block-signal",
+            "--default-signal",
+            "--ignore-signal",
+        }:
+            utility_index += 1
+        if (
+            utility_index < len(args)
+            and args[utility_index].startswith("-")
+            and args[utility_index] not in {"-", "--"}
+        ):
+            continue
+        if utility_index < len(args) and args[utility_index] == "--":
+            utility_index += 1
+        if utility_index < len(args) and args[utility_index] == "-":
+            utility_index += 1
+        while utility_index < len(args) and "=" in args[utility_index]:
+            utility_index += 1
+        if utility_index >= len(args) or args[utility_index].startswith("-"):
+            continue
+        found.append((args[utility_index], args[utility_index + 1 :], line))
+    return tuple(found)
+
+
 def _manifest_argv_command_line(
     content: str,
     *,
@@ -2216,7 +2299,7 @@ def _manifest_argv_command_line(
         The one-based command source line, or None when identity, argv
         types, option grammar, or verb boundaries do not match.
     """
-    for command, args, line in _manifest_argv_sources(content):
+    for command, args, line in _manifest_executable_argv_sources(content):
         command_name = _direct_executable_basename(command)
         verb_index = 0
         if (
@@ -2364,13 +2447,50 @@ def _match_starts_in_shell_assignment_value(segment: str, offset: int) -> bool:
     return "=" in prefix.rsplit(maxsplit=1)[-1]
 
 
+def _match_starts_at_shell_command_token(
+    segment: str, offset: int, command_text: str
+) -> bool:
+    """Return whether a match starts at a bounded shell command position.
+
+    Environment assignments, POSIX bare ``exec``/``command``, and a bounded
+    set of execution-preserving prefixes are admitted. Other leading words
+    mean the apparent command is an argument to a different executable.
+    Dynamic wrappers, redirections before the command, and unsupported shell
+    grammar stay outside this bounded parser.
+    """
+    try:
+        prefix_tokens = shlex.split(segment[:offset], comments=False, posix=True)
+        command_tokens = shlex.split(command_text, comments=False, posix=True)
+    except ValueError:
+        return False
+    while prefix_tokens and _SHELL_ASSIGNMENT_PREFIX.match(prefix_tokens[0]):
+        prefix_tokens.pop(0)
+    if not prefix_tokens:
+        return True
+    if len(prefix_tokens) == 1 and prefix_tokens[0].endswith("/"):
+        return True
+    if prefix_tokens in (["exec"], ["command"]):
+        return True
+    if not command_tokens:
+        return False
+    command_name = _direct_executable_basename(command_tokens[0])
+    if prefix_tokens == ["yarn"] and command_name == "npm":
+        return True
+    return (
+        len(prefix_tokens) == 2
+        and re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", prefix_tokens[0]) is not None
+        and prefix_tokens[1] == "-m"
+        and command_name == "twine"
+    )
+
+
 def _executable_command_match(    content: str, pattern: re.Pattern[str]
 ) -> re.Match[str] | None:
     """Return the first regex match that is an executable command context.
 
     Unquoted ``#`` comments, quoted prose, closed literal here-document
-    payloads, shell assignment values, and ``echo``/``printf``/``print``
-    segments are not executable. Direct
+    payloads, shell assignment values, argument text, and
+    ``echo``/``printf``/``print`` segments are not executable. Direct
     commands inside ``$(...)`` or backticks remain executable.
 
     Args:
@@ -2404,10 +2524,14 @@ def _executable_command_match(    content: str, pattern: re.Pattern[str]
             if segment_start <= context_relative < segment_end:
                 segment = context[segment_start:segment_end]
                 segment_relative = context_relative - segment_start
-                if not _is_reporting_builtin_segment(
-                    segment
-                ) and not _match_starts_in_shell_assignment_value(
-                    segment, segment_relative
+                if (
+                    not _is_reporting_builtin_segment(segment)
+                    and not _match_starts_in_shell_assignment_value(
+                        segment, segment_relative
+                    )
+                    and _match_starts_at_shell_command_token(
+                        segment, segment_relative, match.group(0)
+                    )
                 ):
                     return match
                 break
@@ -2490,7 +2614,7 @@ def _nested_shell_payload_sources(
             source_offset += len(raw_line)
 
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             shell_name = _direct_executable_basename(command)
             if shell_name not in _SHELL_COMMAND_INTERPRETERS:
                 continue
@@ -3281,6 +3405,116 @@ def _conan_upload_command_hits(
                 message=CLAUDE_PLUGIN_CONAN_UPLOAD_COMMAND_MESSAGE,
             ),
         )
+    return ()
+
+
+def _deno_publish_command_hits(
+    content: str, *, manifest: bool = False
+) -> tuple[PluginHit, ...]:
+    """Return ``deno publish`` findings with a command label, not package names.
+
+    Args:
+        content: Hook or manifest text.
+        manifest: When true, only structural command values are scanned.
+
+    Returns:
+        One hit for executable ``deno publish``. ``deno info`` is not
+        this class. ``sbt publish`` stays the sbt class.
+    """
+    for source, first_line in _hosted_command_sources(content, manifest=manifest):
+        match = _executable_command_match(source, _DENO_PUBLISH_COMMAND)
+        if match is None:
+            continue
+        return (
+            PluginHit(
+                rule_id="claude-plugin-deno-publish-command",
+                line=first_line + source[: match.start()].count("\n"),
+                snippet="deno publish",
+                message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
+            ),
+        )
+    if manifest:
+        line = _manifest_argv_command_line(
+            content, executable="deno", verb="publish"
+        )
+        if line is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-deno-publish-command",
+                    line=line,
+                    snippet="deno publish",
+                    message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
+                ),
+            )
+    for source, first_line in _nested_shell_payload_sources(
+        content, manifest=manifest
+    ):
+        match = _executable_command_match(source, _DENO_PUBLISH_COMMAND)
+        if match is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-deno-publish-command",
+                    line=first_line + source[: match.start()].count("\n"),
+                    snippet="deno publish",
+                    message=CLAUDE_PLUGIN_DENO_PUBLISH_COMMAND_MESSAGE,
+                ),
+            )
+    return ()
+
+
+def _pod_trunk_push_command_hits(
+    content: str, *, manifest: bool = False
+) -> tuple[PluginHit, ...]:
+    """Return ``pod trunk push`` findings with a command label, not pod names.
+
+    Args:
+        content: Hook or manifest text.
+        manifest: When true, only structural command values are scanned.
+
+    Returns:
+        One hit for executable ``pod trunk push``. ``pod install`` and
+        ``pod lib lint`` are not this class.
+    """
+    for source, first_line in _hosted_command_sources(content, manifest=manifest):
+        match = _executable_command_match(source, _POD_TRUNK_PUSH_COMMAND)
+        if match is None:
+            continue
+        return (
+            PluginHit(
+                rule_id="claude-plugin-pod-trunk-push-command",
+                line=first_line + source[: match.start()].count("\n"),
+                snippet="pod trunk push",
+                message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
+            ),
+        )
+    if manifest:
+        for command, args, line in _manifest_executable_argv_sources(content):
+            if (
+                _direct_executable_basename(command) == "pod"
+                and tuple(argument.casefold() for argument in args[:2])
+                == ("trunk", "push")
+            ):
+                return (
+                    PluginHit(
+                        rule_id="claude-plugin-pod-trunk-push-command",
+                        line=line,
+                        snippet="pod trunk push",
+                        message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
+                    ),
+                )
+    for source, first_line in _nested_shell_payload_sources(
+        content, manifest=manifest
+    ):
+        match = _executable_command_match(source, _POD_TRUNK_PUSH_COMMAND)
+        if match is not None:
+            return (
+                PluginHit(
+                    rule_id="claude-plugin-pod-trunk-push-command",
+                    line=first_line + source[: match.start()].count("\n"),
+                    snippet="pod trunk push",
+                    message=CLAUDE_PLUGIN_POD_TRUNK_PUSH_COMMAND_MESSAGE,
+                ),
+            )
     return ()
 
 
