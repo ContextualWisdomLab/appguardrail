@@ -16,3 +16,8 @@
   validator defect that swallowed `socket.gaierror` and returned `True`, with
   exact `gethostbyname`/`getaddrinfo` incident provenance and fail-closed,
   later-enforcement, cross-function, and pinned-wrapper negative boundaries.
+- Add `python-ssrf-hostname-unbound-local-address-exception` for Issue #850's
+  EgressWeave defect where a global `allow_local` branch admitted loopback for a
+  remote hostname; retain hostname-bound, fixed fail-closed, observation-only,
+  alias/wrapper, dictionary-policy, cross-function, and alternative-admission
+  boundaries as executable negatives or explicit false negatives.

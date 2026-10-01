@@ -41,3 +41,18 @@ rules:
     prefilter: [gaierror]
     cwe: [CWE-918]
     owasp: [A10:2021]
+  - id: python-ssrf-hostname-unbound-local-address-exception
+    patterns:
+      - pattern-regex: '(?ms)^(?P<function_indent>[ \t]*)(?:async[ \t]+)?def[ \t]+(?i:[A-Za-z_][A-Za-z0-9_]*(?:valid|allow|permit|egress|address)[A-Za-z0-9_]*)\s*\((?:(?!^(?P=function_indent)(?:(?:async[ \t]+)?def|class)[ \t]+).){0,600}?\)\s*(?:->[^\n:]+)?\s*:\s*(?:#[^\n]*)?\n(?:(?!^(?P=function_indent)(?:(?:async[ \t]+)?def|class)[ \t]+).){0,4000}?^(?P<allow_indent>[ \t]+)if[ \t]+[A-Za-z_][A-Za-z0-9_]*\.allow_local[ \t]*:\s*(?:#[^\n]*)?\n(?P=allow_indent)[ \t]+if[ \t]+[A-Za-z_][A-Za-z0-9_]*\.is_loopback[ \t]*:\s*(?:#[^\n]*)?\n(?P=allow_indent)[ \t]+[A-Za-z_][A-Za-z0-9_]*\s*=\s*True(?=[ \t]*(?:#[^\n]*)?$)'
+    message: |
+      A local-address exception admits loopback under a global allow_local switch
+      without binding the exception to the original hostname. A remote hostname
+      can therefore rebind to loopback and inherit development-only access.
+      Bind local exceptions to explicitly local hostnames and explicit address
+      ranges before admitting the resolved peer.
+      [CWE-918 - Server-Side Request Forgery]
+    severity: HIGH
+    languages: [python]
+    prefilter: [allow_local]
+    cwe: [CWE-918]
+    owasp: [A10:2021]
