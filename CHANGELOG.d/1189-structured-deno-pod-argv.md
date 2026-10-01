@@ -23,3 +23,11 @@
   while preserving those tokens after assignments as literal utilities.
 - Recognize GNU `env`'s no-value `--list-signal-handling` option before
   assignments without admitting it after assignments or a leading `--`.
+- Recognize GNU `env`'s no-value `--block-signal`, `--default-signal`, and
+  `--ignore-signal` forms before assignments while preserving their literal
+  utility meaning after assignments or a leading `--`.
+- Parse GNU `env` operands by their `NAME=VALUE` delimiter rather than POSIX
+  shell identifier syntax, so non-shell names such as `1=x`, `BUILD-TAG=x`,
+  and `=x` cannot hide the following executable registry write. Unsupported
+  option-position tokens remain outside the bounded normalizer instead of
+  being mistaken for assignments merely because they contain `=`.

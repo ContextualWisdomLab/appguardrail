@@ -415,9 +415,15 @@ def test_structured_shell_wrapper_argv_has_no_builtin_semantics(
     (
         ("env", ["deno", "publish"], _DENO_RULE),
         ("env", ["DENO_DIR=/tmp", "deno", "publish"], _DENO_RULE),
+        ("env", ["1=x", "deno", "publish"], _DENO_RULE),
+        ("env", ["BUILD-TAG=x", "deno", "publish"], _DENO_RULE),
+        ("env", ["=x", "deno", "publish"], _DENO_RULE),
+        ("env", ["--", "-NAME=x", "deno", "publish"], _DENO_RULE),
         ("env", ["-", "deno", "publish"], _DENO_RULE),
         ("env", ["-v", "deno", "publish"], _DENO_RULE),
         ("env", ["--list-signal-handling", "deno", "publish"], _DENO_RULE),
+        ("env", ["--block-signal", "deno", "publish"], _DENO_RULE),
+        ("env", ["--default-signal", "deno", "publish"], _DENO_RULE),
         (
             "/usr/bin/env",
             [
@@ -427,6 +433,11 @@ def test_structured_shell_wrapper_argv_has_no_builtin_semantics(
                 "trunk",
                 "push",
             ],
+            _POD_RULE,
+        ),
+        (
+            "/usr/bin/env",
+            ["--ignore-signal", "pod", "trunk", "push"],
             _POD_RULE,
         ),
         (
@@ -481,11 +492,16 @@ def test_structured_env_wrapped_publish_fails_admission(
     (
         ["DENO_DIR=/tmp"],
         ["echo", "deno", "publish"],
+        ["--split-string=echo", "pod", "trunk", "push"],
+        ["--chdir=/missing", "deno", "publish"],
         ["DENO_DIR=/tmp", "--", "deno", "publish"],
+        ["BUILD-TAG=x", "--", "deno", "publish"],
         ["DENO_DIR=/tmp", "-", "deno", "publish"],
         ["DENO_DIR=/tmp", "-v", "deno", "publish"],
         ["DENO_DIR=/tmp", "--list-signal-handling", "deno", "publish"],
+        ["DENO_DIR=/tmp", "--block-signal", "deno", "publish"],
         ["--", "--debug", "deno", "publish"],
+        ["--", "--ignore-signal", "deno", "publish"],
         ["--", "DENO_DIR=/tmp", "--", "pod", "trunk", "push"],
     ),
 )
@@ -507,6 +523,34 @@ def test_structured_env_without_direct_publish_stays_outside_class(
 
     assert _THIS_CLASS.isdisjoint(receipt.finding_summary)
     assert inventory["package_install"] is False
+
+
+@pytest.mark.parametrize(
+    ("args", "excluded_rule"),
+    (
+        (
+            ["--split-string=echo", "gh", "pr", "merge", "1"],
+            "claude-plugin-github-merge-command",
+        ),
+        (
+            ["--chdir=/missing", "kubectl", "apply", "-f", "deploy.yaml"],
+            "claude-plugin-kubectl-apply-command",
+        ),
+    ),
+)
+def test_unsupported_env_options_cannot_donate_shared_write_authority(
+    tmp_path: Path, args: list[str], excluded_rule: str
+) -> None:
+    """An unsupported option cannot expose later argv to sibling detectors."""
+    root = _licensed_plugin(tmp_path)
+    manifest_path = root / ".claude-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hooks"] = {"PostToolUse": [{"command": "env", "args": args}]}
+    _write_json(manifest_path, manifest)
+
+    rule_ids = {hit.rule_id for hit in _collect_plugin_hits(root)}
+
+    assert excluded_rule not in rule_ids
 
 
 def test_nested_shell_manifest_deno_publish_fails_admission(tmp_path: Path) -> None:
