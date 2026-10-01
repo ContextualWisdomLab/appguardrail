@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-16
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| Node.js authentication helper validation before direct `scryptSync` | built-in `javascript-auth-scrypt-unvalidated-password-type` family | PR #952 active-PR; exact ScopeWeave vulnerable/fixed commit→tree→`server/auth.mjs` blob mappings, immutable replay fixtures, structural variants, and production `_scan_file` regressions required before promotion; distinct from route-level PR #945 |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,21 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Scrypt password type-boundary traceability contract
+
+PR #952 is a helper-local detector slice, not the closed issue #948 obligation. Issue #948 was closed as a duplicate of route-level PR #945; PR #945 detects bounded Hono JSON-source-to-password-helper flows, while PR #952 detects the independently useful helper-parameter-to-`scryptSync` sink boundary. Collector issues #729 and #732 remain event provenance only and are not closed by this detector. The helper-local evidence chain is:
+
+1. collector issues #729 and #732 preserve cancelled ScopeWeave PR #394 workflow-event provenance only;
+2. vulnerable source is pinned to ScopeWeave head `a756b7e3cf486cba0930c1a482c6a30e0df958f5`, tree `0d05f369c4648b390a280d11e60bce2a6294d5e5`, where `server/auth.mjs` resolves to blob `3d0b171fb2d5049f010c405f051409a849840b26`;
+3. reviewed fixed source is pinned to head `644e9fc5cb3adfb96e2948152f92c61f8661e6d3`, tree `84c85ea25ffa11e94c80ca3d1d41365312857af6`, where `server/auth.mjs` resolves to blob `a16a7281b3da4683eea85263fea929dd9483e9df`;
+4. the required provenance regression resolves each pinned commit through GitHub's Git commit/tree API, requires exactly one `server/auth.mjs` path mapping to the declared blob, and then verifies the local replay fixture has that same Git blob object ID;
+5. `hashPassword` and `verifyPassword` are independently tested source-shape variants under one CWE-1287 family, including TypeScript parameter annotations, nested blocks, and non-terminating type comparisons;
+6. the fixed source, safe normalization, fail-closed pre-sink rejection, and unrelated KDF helper are negative oracles;
+7. the production `_scan_file` entrypoint must emit normalized HIGH findings on the vulnerable replay and none on the reviewed repair;
+8. only exact-head protected checks plus independent review can promote the family to `implemented-main`.
+
+Cancelled or failed workflow/reviewer jobs are never detector efficacy evidence and are not sufficient to satisfy any step above.
 
 ## Standards/research
 
