@@ -50,4 +50,3 @@ PR은 아래 모든 applicable 항목이 current head에서 PASS가 되기 전 m
 | Import/export | PARTIAL | JSON file import 경로는 기존 기능; current-head recovery E2E 없음 |
 | Recovery | FAIL | offline/error/retry/stale/conflict lifecycle 증거 없음 |
 | Exact-head Checks | PASS (bounded) | parent `bc98874`: Unit tests, CodeQL, Semgrep, Trivy, coverage PASS; skipped checks는 Draft 조건 |
-
