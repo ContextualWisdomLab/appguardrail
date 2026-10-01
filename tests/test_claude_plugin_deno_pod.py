@@ -416,6 +416,18 @@ def test_structured_shell_wrapper_argv_has_no_builtin_semantics(
         ("env", ["deno", "publish"], _DENO_RULE),
         ("env", ["DENO_DIR=/tmp", "deno", "publish"], _DENO_RULE),
         ("env", ["-", "deno", "publish"], _DENO_RULE),
+        ("env", ["-v", "deno", "publish"], _DENO_RULE),
+        (
+            "/usr/bin/env",
+            [
+                "--debug",
+                "COCOAPODS_TRUNK_TOKEN=x",
+                "pod",
+                "trunk",
+                "push",
+            ],
+            _POD_RULE,
+        ),
         (
             "/usr/bin/env",
             [
@@ -470,6 +482,7 @@ def test_structured_env_wrapped_publish_fails_admission(
         ["echo", "deno", "publish"],
         ["DENO_DIR=/tmp", "--", "deno", "publish"],
         ["DENO_DIR=/tmp", "-", "deno", "publish"],
+        ["DENO_DIR=/tmp", "-v", "deno", "publish"],
         ["--", "DENO_DIR=/tmp", "--", "pod", "trunk", "push"],
     ),
 )

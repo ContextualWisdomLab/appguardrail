@@ -19,3 +19,5 @@
   Deno or CocoaPods registry write while preserving the leading `--` form.
 - Recognize GNU `env`'s option-position bare `-` environment reset while
   preserving a bare `-` after assignments as the literal utility token.
+- Recognize GNU `env`'s no-value `-v`/`--debug` options before assignments
+  while preserving those tokens after assignments as literal utilities.
