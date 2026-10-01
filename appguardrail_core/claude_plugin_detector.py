@@ -1847,7 +1847,7 @@ def _github_merge_command_hits(
                 ),
             )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             folded = tuple(argument.casefold() for argument in args)
             if (
                 _direct_executable_basename(command) == "gh"
@@ -1893,7 +1893,7 @@ def _github_release_command_hits(
                 ),
             )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             folded = tuple(argument.casefold() for argument in args)
             if (
                 _direct_executable_basename(command) == "gh"
@@ -1984,7 +1984,7 @@ def _docker_push_command_hits(
                 ),
             )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             if _direct_executable_basename(command) != "docker":
                 continue
             folded = tuple(argument.casefold() for argument in args)
@@ -2230,6 +2230,43 @@ def _manifest_argv_sources(
     return tuple(found)
 
 
+def _manifest_executable_argv_sources(
+    content: str,
+) -> tuple[tuple[str, tuple[str, ...], int], ...]:
+    """Return typed argv after one bounded transparent ``env`` wrapper.
+
+    Direct executable records pass through unchanged. For ``env`` and an
+    absolute path ending in ``env``, the parser accepts only environment
+    assignments, ``--``, and the no-value ``-i``/``--ignore-environment``
+    option before one literal utility. Options that consume or split values
+    stay outside this bounded executable representation.
+    """
+    found: list[tuple[str, tuple[str, ...], int]] = []
+    for command, args, line in _manifest_argv_sources(content):
+        if _direct_executable_basename(command) != "env":
+            found.append((command, args, line))
+            continue
+
+        utility_index = 0
+        while utility_index < len(args) and args[utility_index] in {
+            "-i",
+            "--ignore-environment",
+        }:
+            utility_index += 1
+        if utility_index < len(args) and args[utility_index] == "--":
+            utility_index += 1
+        while utility_index < len(args) and _SHELL_ASSIGNMENT_PREFIX.match(
+            args[utility_index]
+        ):
+            utility_index += 1
+        if utility_index < len(args) and args[utility_index] == "--":
+            utility_index += 1
+        if utility_index >= len(args) or args[utility_index].startswith("-"):
+            continue
+        found.append((args[utility_index], args[utility_index + 1 :], line))
+    return tuple(found)
+
+
 def _manifest_argv_command_line(
     content: str,
     *,
@@ -2250,7 +2287,7 @@ def _manifest_argv_command_line(
         The one-based command source line, or None when identity, argv
         types, option grammar, or verb boundaries do not match.
     """
-    for command, args, line in _manifest_argv_sources(content):
+    for command, args, line in _manifest_executable_argv_sources(content):
         command_name = _direct_executable_basename(command)
         verb_index = 0
         if (
@@ -2524,7 +2561,7 @@ def _nested_shell_payload_sources(
             source_offset += len(raw_line)
 
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             shell_name = _direct_executable_basename(command)
             if shell_name not in _SHELL_COMMAND_INTERPRETERS:
                 continue
@@ -3398,7 +3435,7 @@ def _pod_trunk_push_command_hits(
             ),
         )
     if manifest:
-        for command, args, line in _manifest_argv_sources(content):
+        for command, args, line in _manifest_executable_argv_sources(content):
             if (
                 _direct_executable_basename(command) == "pod"
                 and tuple(argument.casefold() for argument in args[:2])

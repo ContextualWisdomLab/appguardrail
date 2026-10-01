@@ -306,6 +306,67 @@ def test_other_structured_argv_is_not_package_publish_inventory(
     assert inventory["package_install"] is False
 
 
+@pytest.mark.parametrize(
+    ("command", "args", "expected_rule"),
+    (
+        ("env", ["deno", "publish"], _DENO_RULE),
+        ("env", ["DENO_DIR=/tmp", "deno", "publish"], _DENO_RULE),
+        (
+            "/usr/bin/env",
+            ["--ignore-environment", "COCOAPODS_TRUNK_TOKEN=x", "pod", "trunk", "push"],
+            _POD_RULE,
+        ),
+        ("env", ["--", "deno", "publish"], _DENO_RULE),
+    ),
+)
+def test_structured_env_wrapped_publish_fails_admission(
+    tmp_path: Path, command: str, args: list[str], expected_rule: str
+) -> None:
+    """A bounded typed ``env`` wrapper preserves registry-write authority."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": command, "args": args}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert _hits(root, expected_rule)
+    assert receipt.scan_result == "fail"
+    assert inventory["package_install"] is True
+
+
+@pytest.mark.parametrize(
+    "args",
+    (
+        ["DENO_DIR=/tmp"],
+        ["echo", "deno", "publish"],
+    ),
+)
+def test_structured_env_without_direct_publish_stays_outside_class(
+    tmp_path: Path, args: list[str]
+) -> None:
+    """Incomplete and reporting ``env`` argv stay outside this class."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": "env", "args": args}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert _THIS_CLASS.isdisjoint(receipt.finding_summary)
+    assert inventory["package_install"] is False
+
+
 def test_nested_shell_manifest_deno_publish_fails_admission(tmp_path: Path) -> None:
     """A typed Bash payload preserves executable Deno registry authority."""
     root = _licensed_plugin(tmp_path)
