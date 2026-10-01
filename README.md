@@ -118,7 +118,7 @@ appguardrail report founder-friendly \
   --app-name "Demo SaaS"
 ```
 
-Additional report profiles include `buyer-diligence`, `agency`, and `fix-pack`. Reports are designed to omit raw secrets while retaining actionable finding, remediation, and verification evidence.
+Additional report profiles include `buyer-diligence`, `agency`, and `fix-pack`. Reports generated from AppGuardrail findings JSON are designed to omit raw secrets while retaining actionable finding, remediation, and verification evidence. Externally supplied or modified findings JSON may contain credentials in `message` or `snippet`; review and sanitize it before sharing.
 
 ## Continuous security
 
@@ -158,11 +158,11 @@ The dashboard shows severity, deploy-blocking state, categories, and per-finding
 Teams that need scan history can run the built-in control-plane surface:
 
 ```bash
-appguardrail serve --db cp.db --create-org "Demo Organization" --api-key-file demo.api-key
+appguardrail serve --db cp.db --create-org "Demo Organization" --api-key-file /tmp/appguardrail-demo.api-key
 appguardrail serve --db cp.db --port 8788
 ```
 
-This mode provides tenant-scoped scan ingestion/history and bounded API-key roles. Newly generated bootstrap keys are written to a local key file instead of being printed to console output. Deployment identity, network exposure, database durability, backup/recovery, and secret management remain operator responsibilities; the local SQLite path is not itself a production-readiness claim.
+This mode provides tenant-scoped scan ingestion/history and bounded API-key roles. Newly generated bootstrap keys are written to a local key file instead of being printed to console output. Never commit the generated key file; keep it outside the repository with restrictive filesystem permissions and move it into the deployment secret manager before production use. Deployment identity, network exposure, database durability, backup/recovery, and secret management remain operator responsibilities; the local SQLite path is not itself a production-readiness claim.
 
 See the canonical architecture, security, and operability documents for the authority boundary before exposing this surface outside a controlled environment.
 
