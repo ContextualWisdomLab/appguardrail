@@ -11,7 +11,7 @@ This refresh verifies the #1036 JSON serialization repair and its current CodeQL
 
 This refresh additionally records #1333's bounded CodeQL pending-receiver diagnosis and the exact #1273 incident that motivates it. The detector candidate distinguishes authenticated terminal scanner findings from central dispatch/publication/settlement ordering, retains a negative fixture for echoed script text plus a real `VERDICT_STATE: failure`, and leaves canonical owner repair with `.github#1929`; it is Proposed Draft work, not protected functionality or a substitute for the central repair.
 
-This refresh records appguardrail #1092 as the consumer regression for provider-bootstrap secrets surviving the canonical review sidecar environment. The causal owner is `.github#1742`, repaired only in Draft owner PR [`.github#2554`](https://github.com/ContextualWisdomLab/.github/pull/2554): bootstrap RED `2f6cfda9…`, first GREEN `797cedf2…`, dependency-gate RED `dc35812e…`, and current exact owner head `1070a54bbe1f4acb22e9fc76c8cc5a1b06c470b1` / tree `c2bd4737c5248437ac214559f53e50c707ddc2ff`. Exact-head Security Scan `36923052436`, SAST `36923052180`, and Agent Review Runtime Quality `36923052140` are GREEN; Python Security remains pending at this snapshot and CodeQL is skipped. The owner candidate is Proposed, not a protected release; #1092 must consume an immutable protected owner revision and must not copy owner source.
+This refresh records appguardrail #1092 as the consumer regression for provider-bootstrap secrets surviving the canonical review sidecar environment. The causal owner is `.github#1742`, repaired only in Draft owner PR [`.github#2554`](https://github.com/ContextualWisdomLab/.github/pull/2554): bootstrap RED `2f6cfda9…`, first GREEN `797cedf2…`, dependency-gate RED `dc35812e…`, and current exact owner head `491b38643003ef53b78f61055029b8722492a12c` / tree `26d03eea4f62bde4ec00a65fecc9e198e803e437`. Exact-head Python Security `36924455518`, Security Scan `36924455440`, SAST `36924455463`, and Agent Review Runtime Quality `36924455337` are GREEN; CodeQL `36924455509` is skipped and is not successful analysis evidence. The owner candidate is Proposed, not a protected release; #1092 must consume an immutable protected owner revision and must not copy owner source.
 
 This refresh also records Issue #1267 as a retained DNS validation-to-connect incident corpus. Canonical successor #1327 now carries the runtime's DNS-pinned transport and a separate unauthenticated `urllib` detector with exact vulnerable/fixed source oracles, explicit false-positive/false-negative boundaries, and an inherited language-path contract repair. The candidate remains Draft Proposed work: successful local and non-CodeQL hosted evidence does not replace successful CodeQL analysis, qualifying current-head approval, ordinary protected integration, or release.
 
@@ -163,7 +163,7 @@ Gap identities are preserved. Unrefreshed evidence and detailed exit criteria re
 | G-06 | Resolve stateful regex FP/FN divergence structurally. | #1088/#1133/#1152; #1080; #1099 command-state owners | Still in progress. #1036 closes one bounded spelling-parity miss; #1137 prevents protected secret-name prefix truncation on network commands, with verified carryover through #1189; #1157 repairs invocation-identity domains; #1161 distinguishes real MCP secret references from prose/prefixes and covers the documented URL/header surfaces; #1163–#1189 preserve distinct instruction, mode, archive, provenance, SBOM-digest, checksum-path, bounded GitHub command-context, credential-store, kubectl/Docker, Terraform/Helm, hosted-deploy, unsigned-signature-artifact, path-depth, cloud-provider deployment-write, object-store direction, and registry-publish boundaries. #1129 closes the bounded psql-vs-JS indirection contradiction, makes the existing package budgets operative at traversal/read time, and rejects declared source-path symlink escapes, but it does not claim general language parsing. These bounded fixes do not close the structural-analysis Gap. Preserve historical rule IDs, reachability/state oracles and realistic performance evidence. |
 | G-07 | Remove shared required-review/security capacity and settlement failures. | Canonical `.github` / contextual-orchestrator owners | Still open. #2040 has the exact CodeQL consumer canary; #1333 adds a bounded AppGuardrail diagnosis for the pending-receiver signature without claiming a leaf source finding. `.github#2405` is the Proposed canonical repair for the reproduced gate-only false GREEN, while `.github#2275/#2276` retain credential/target-permission ownership. The #104 positive-LSM job `102209085130` was cancelled before execution; `.github#1929` and #1590/#2083/#712 remain the settlement, runner, workflow, and queue owners. Require authentic terminal evidence, owner GREEN/release and consumer validation. |
 | G-07a | Reconcile live workflow identities with exact protected source without mutation authority. | #1304 / `.github#945` and `.github#1026` contract | Exact `7eb4579a…`/tree `d86d531a…` remains Ready and mergeable. The read-only inventory separates present/orphan/dynamic/unresolved identities and fails closed on visibility or movement. Scanner-level prefilter FNs for shell-valid `git  commit` and `git  push` spacing are RED→GREEN, and all five inline threads are resolved; nine exact-head workflows and a qualifying independent approval remain outstanding. |
-| G-07b | Erase provider bootstrap secrets before canonical review-gateway long-lived work. | `.github#1742/#2554`; appguardrail #1092 regression consumer | Owner exact `1070a54b…` zeroes the five Linux initial-environment values and removes their live names immediately after KV registration; child/procfs regressions retain unrelated configuration. The same owner PR repairs refreshed-Trivy findings by pinning `fast-uri` 3.1.8, `ip-address` 10.7.1, and `pyo3` 0.29.0. Security Scan, SAST, and runtime quality are GREEN; Python Security, independent review, protected merge, immutable release, and consumer bump remain required. |
+| G-07b | Erase provider bootstrap secrets before canonical review-gateway long-lived work. | `.github#1742/#2554`; appguardrail #1092 regression consumer | Owner exact `1070a54b…` zeroes the five Linux initial-environment values and removes their live names immediately after KV registration; child/procfs regressions retain unrelated configuration. The same owner PR repairs refreshed-Trivy findings by pinning `fast-uri` 3.1.8, `ip-address` 10.7.1, and `pyo3` 0.29.0. Python Security, Security Scan, SAST, and runtime quality are GREEN; qualifying independent review, protected merge, immutable release, and consumer bump remain required. |
 | G-08 | Keep the baseline fresh without relabelling stale evidence. | Single writer #999 | This October 2 refresh binds #1077 exact `7baa4999…` and `.github#2554` exact `1070a54b…`; all other named observations remain scoped or historical as stated. Re-fetch every lane before action; ordinary integration and future material refreshes remain required. |
 | G-09 | Keep customer README, package-registry rendering, Pages, and license claims synchronized with protected evidence. | Canonical public writer #1077; preservation lane #1253 | #1077 exact `7baa4999…` is now integrated with current protected develop and Ready for fresh review, but CodeQL is skipped and approval is absent. Keep #1253 open until ordinary #1077 protected merge and complete carryover verification; verify live Pages and an immutable package release before making publication claims. |
 
@@ -483,8 +483,8 @@ AppGuardrail #1092 retains the consumer regression for provider credentials rema
 recoverable after sidecar KV bootstrap. Canonical ownership remains
 ContextualWisdomLab/.github#1742 and Draft PR
 [.github#2554](https://github.com/ContextualWisdomLab/.github/pull/2554). Its exact
-current head `1070a54bbe1f4acb22e9fc76c8cc5a1b06c470b1`, tree
-`c2bd4737c5248437ac214559f53e50c707ddc2ff`, is an ordinary descendant of
+current head `491b38643003ef53b78f61055029b8722492a12c`, tree
+`26d03eea4f62bde4ec00a65fecc9e198e803e437`, is an ordinary descendant of
 bootstrap RED `2f6cfda9…`, first GREEN `797cedf2…`, and dependency-contract
 RED `dc35812e…`.
 
@@ -492,8 +492,33 @@ The owner repair zeroes only the five provider values in Linux's initial C
 environment and removes their exact names from the live mapping immediately after
 KV registration. Regression evidence requires absence from the current mapping,
 `/proc/self/environ`, and child inheritance while preserving an unrelated
-sentinel. Exact-head Security Scan `36923052436`, SAST `36923052180`, and
-Agent Review Runtime Quality `36923052140` are GREEN. Python Security is still
-pending at this snapshot; CodeQL is skipped. No protected owner merge, immutable
+sentinel. Exact-head Python Security `36924455518`, Security Scan `36924455440`, SAST
+`36924455463`, and Agent Review Runtime Quality `36924455337` are GREEN.
+CodeQL `36924455509` is skipped and is not successful analysis evidence. No protected owner merge, immutable
 release, or consumer bump is claimed. #1092 remains Draft and may consume only
 the released owner contract, never copied source or a mutable branch.
+
+
+## 2026-10-02 canonical owner terminal security settlement
+
+Canonical owner PR [.github#2554](https://github.com/ContextualWisdomLab/.github/pull/2554)
+advanced without force to exact head `491b38643003ef53b78f61055029b8722492a12c`, tree
+`26d03eea4f62bde4ec00a65fecc9e198e803e437`. Python Security predecessor run `36923052046`
+reported real findings in the pip-audit and Strix locks. Regression RED
+`e2c112a92a10d58e32c39c0c4b2799b7de8bfbe0` fixes the patched targets before the ordinary GREEN
+child: `urllib3` 2.8.0, `litellm` 1.94.3, `PyJWT` 2.15.0, and `pypdf`
+6.19.0. Generated hashes preserve every unrelated package version.
+
+Exact-head Python Security `36924455518`, Security Scan `36924455440`, SAST
+`36924455463`, and Agent Review Runtime Quality `36924455337` are SUCCESS.
+CodeQL `36924455509` is skipped. Review threads and qualifying approvals are
+both 0. Ready is fresh-review admission only; the owner remains Proposed and no
+protected merge, immutable release, or appguardrail #1092 consumer bump is
+claimed.
+
+The immediately preceding #999 head `ffe59045c14b8482011a71ba3f9076a905e7cb9d`
+had terminal SUCCESS for Tests `36923494415`, Security Scan `36923494314`,
+SAST `36923494442`, Security Process `36923494368`, Retention
+`36923494445`, OpenSSF `36923494499`, Pinned HTTPS `36923494475`, and
+Scan path `36923494515`; CodeQL `36923494386` was skipped. Those results do
+not transfer to this documentation child.
