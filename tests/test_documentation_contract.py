@@ -258,7 +258,7 @@ def test_readme_monitor_contract_matches_installed_workflow() -> None:
 
     cli_source = _read("scanner/cli/appguardrail.py")
     workflow_match = re.search(
-        r'MONITOR_WORKFLOW = """\\\\\n(?P<body>.*?)\n"""',
+        r'MONITOR_WORKFLOW = """\\\n(?P<body>.*?)\n"""',
         cli_source,
         re.DOTALL,
     )
