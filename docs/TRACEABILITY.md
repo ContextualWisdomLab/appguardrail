@@ -1,7 +1,7 @@
 # AppGuardrail Requirements, Detection, and Evidence Traceability
 
 **Status:** Accepted cross-cutting baseline  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-16
 
 | Requirement / security class | Detector/control boundary | Evidence maturity |
 |---|---|---|
@@ -13,6 +13,7 @@
 | multi-tenant scan/history/drift/API keys | control plane | implemented-main |
 | webhook config/notification | control plane/network boundary | implemented-main; storage-boundary SSRF hardening integrated through PR #924 |
 | buyer/founder/agency/fix-pack reports | report modules | implemented-main |
+| tenant retention/audit buyer-diligence posture | `retention_diligence.py`, `retention_diligence_report.py`, exact retention coverage gate | PR #970 active-PR; non-secret snapshot only; not certification or continuous-compliance evidence |
 | CycloneDX SBOM | SBOM module | implemented-main |
 | organization buyer evidence | org evidence aggregator | implemented-main |
 | RCA-first feasibility scheduler | CI/agent policy | implemented-main |
@@ -28,10 +29,26 @@
 - External-engine capability must name the engine and availability; normalization does not convert it into a built-in detector.
 - A prevention/hardening change does not automatically promote the matching scanner-detection row; PR #924 and PR #910 were verified and promoted independently.
 - An issue registry mapping cannot promote an obligation unless actual detector execution derives its result from independent/closed evidence.
+- A retention/audit diligence snapshot can be promoted only as evidence of the supplied snapshot. It must not be represented as certification, continuous compliance, or proof that current tenant state is unchanged.
 
 ## Issue #911 traceability contract
 
 When PR #911 is accepted, the authoritative obligation system should preserve issue number/claim identity, detector family, evidence fixture/workflow provenance, execution result, and detector rule/finding evidence. Deduplicating equivalent incidents into one detector family is allowed; dropping a retained claim through an exclusion/waiver list is not.
+
+## Issue #871 retention/audit diligence contract
+
+PR #970 is a bounded reporting slice related to #871, not completion of the broader control-plane retention lifecycle. Its traceability boundary is:
+
+1. retention policy revision and bounded category durations;
+2. legal-hold count observed at verification time;
+3. explicit audit-chain verification status, event count, head hash, and verification timestamp;
+4. optional non-secret completed purge receipt metadata bound to policy/legal-hold revisions;
+5. fail-closed rejection of malformed evidence and cross-tenant purge receipts;
+6. buyer report copy that distinguishes verified, incomplete, and not-supplied evidence and always gives a next verification action;
+7. exclusion of tenant IDs, actor/request IDs, authorization values, raw audit summaries, and customer payloads from the exported posture;
+8. exact unrounded statement coverage for the retention/audit domain and diligence report modules through `Retention Audit Coverage`.
+
+The canonical active-PR usage and privacy boundary are documented in `docs/retention-audit-diligence.md`. Owner-facing retention CRUD, legal-hold CRUD, purge preview/execute, and authorization endpoints remain separate work under #871 and must not be inferred from this reporting slice.
 
 ## SSRF traceability contract
 
