@@ -11,7 +11,7 @@ This refresh verifies the #1036 JSON serialization repair and its current CodeQL
 
 This refresh additionally records #1333's bounded CodeQL pending-receiver diagnosis and the exact #1273 incident that motivates it. The detector candidate distinguishes authenticated terminal scanner findings from central dispatch/publication/settlement ordering, retains a negative fixture for echoed script text plus a real `VERDICT_STATE: failure`, and leaves canonical owner repair with `.github#1929`; it is Proposed Draft work, not protected functionality or a substitute for the central repair.
 
-This refresh records appguardrail #1092 as the consumer regression for provider-bootstrap secrets surviving the canonical review sidecar environment. The causal owner is `.github#1742`, repaired only in Draft owner PR [`.github#2554`](https://github.com/ContextualWisdomLab/.github/pull/2554): bootstrap RED `2f6cfda9…`, first GREEN `797cedf2…`, dependency-gate RED `dc35812e…`, and current exact owner head `23fd3dd74181b816049bac4037ca4d696fcd551a` / tree `96e1a4353e2cc272b4e1375dce9eb69b653b8c82`. Exact-head Python Security `36924455518`, Security Scan `36924455440`, SAST `36924455463`, and Agent Review Runtime Quality `36924455337` are GREEN; CodeQL `36924455509` is skipped and is not successful analysis evidence. The owner candidate is Proposed, not a protected release; #1092 must consume an immutable protected owner revision and must not copy owner source.
+This refresh records appguardrail #1092 as the consumer regression for provider-bootstrap secrets surviving the canonical review sidecar environment. The causal owner is `.github#1742`, repaired only in Proposed owner PR [`.github#2554`](https://github.com/ContextualWisdomLab/.github/pull/2554): bootstrap RED `2f6cfda9…`, first GREEN `797cedf2…`, dependency-gate RED `dc35812e…`, and current exact owner head `23fd3dd74181b816049bac4037ca4d696fcd551a` / tree `96e1a4353e2cc272b4e1375dce9eb69b653b8c82`. Exact-head Python Security `36924455518`, Security Scan `36924455440`, SAST `36924455463`, and Agent Review Runtime Quality `36924455337` are GREEN; CodeQL `36924455509` is skipped and is not successful analysis evidence. The owner candidate is Proposed, not a protected release; #1092 must consume an immutable protected owner revision and must not copy owner source.
 
 This refresh also records Issue #1267 as a retained DNS validation-to-connect incident corpus. Canonical successor #1327 now carries the runtime's DNS-pinned transport and a separate unauthenticated `urllib` detector with exact vulnerable/fixed source oracles, explicit false-positive/false-negative boundaries, and an inherited language-path contract repair. The candidate remains Draft Proposed work: successful local and non-CodeQL hosted evidence does not replace successful CodeQL analysis, qualifying current-head approval, ordinary protected integration, or release.
 
@@ -481,7 +481,7 @@ Bray, T. (Ed.). (2017). *The JavaScript Object Notation (JSON) data interchange 
 
 AppGuardrail #1092 retains the consumer regression for provider credentials remaining
 recoverable after sidecar KV bootstrap. Canonical ownership remains
-ContextualWisdomLab/.github#1742 and Draft PR
+ContextualWisdomLab/.github#1742 and Proposed PR
 [.github#2554](https://github.com/ContextualWisdomLab/.github/pull/2554). Its exact
 current head `23fd3dd74181b816049bac4037ca4d696fcd551a`, tree
 `96e1a4353e2cc272b4e1375dce9eb69b653b8c82`, is an ordinary descendant of
