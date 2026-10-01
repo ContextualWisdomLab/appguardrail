@@ -2440,10 +2440,11 @@ def _match_starts_at_shell_command_token(
 ) -> bool:
     """Return whether a match starts at a bounded shell command position.
 
-    Environment assignments and a bounded set of execution-preserving prefixes
-    are admitted. Other leading words mean the apparent command is an argument
-    to a different executable. Dynamic wrappers, redirections before the
-    command, and unsupported shell grammar stay outside this bounded parser.
+    Environment assignments, POSIX bare ``exec``, and a bounded set of
+    execution-preserving prefixes are admitted. Other leading words mean the
+    apparent command is an argument to a different executable. Dynamic
+    wrappers, redirections before the command, and unsupported shell grammar
+    stay outside this bounded parser.
     """
     try:
         prefix_tokens = shlex.split(segment[:offset], comments=False, posix=True)
@@ -2455,6 +2456,8 @@ def _match_starts_at_shell_command_token(
     if not prefix_tokens:
         return True
     if len(prefix_tokens) == 1 and prefix_tokens[0].endswith("/"):
+        return True
+    if prefix_tokens == ["exec"]:
         return True
     if not command_tokens:
         return False

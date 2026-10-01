@@ -10,3 +10,7 @@
 - Require shell command-pattern matches to occupy a bounded executable position,
   so words passed to another program are not reported as registry writes while
   established path, `yarn npm`, and `python -m twine` forms remain supported.
+- Treat POSIX bare `exec` as an execution-preserving shell prefix, so registry,
+  deployment, and GitHub write commands cannot evade admission by replacing the
+  hook shell process. Typed process argv and option-bearing `exec` forms remain
+  outside this bounded shell contract.

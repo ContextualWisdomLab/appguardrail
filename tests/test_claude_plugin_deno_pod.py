@@ -169,6 +169,43 @@ def test_argument_words_are_not_publish_commands(
     assert unexpected_rule not in rule_ids
 
 
+@pytest.mark.parametrize(
+    ("command", "expected_rule"),
+    (
+        ("exec deno publish", _DENO_RULE),
+        ("exec pod trunk push App.podspec", _POD_RULE),
+        ("exec gh pr merge 1", "claude-plugin-github-merge-command"),
+        ("exec kubectl apply -f deploy.yaml", "claude-plugin-kubectl-apply-command"),
+        ("exec npm publish", "claude-plugin-npm-publish-command"),
+    ),
+)
+def test_bare_exec_preserves_shell_command_execution(
+    command: str, expected_rule: str
+) -> None:
+    """POSIX bare ``exec`` still executes its following literal utility."""
+    hits = inspect_claude_plugin_file(
+        "session.sh", "hooks/session.sh", f"#!/bin/sh\n{command}\n"
+    )
+
+    assert expected_rule in {hit.rule_id for hit in hits}
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        "#!/bin/sh\necho exec deno publish\n",
+        "#!/bin/sh\npython -c pass exec deno publish\n",
+        "#!/bin/sh\nmessage='exec deno publish'\n",
+        "#!/bin/sh\nexec deno info\n",
+    ),
+)
+def test_exec_lookalikes_are_not_deno_publish_commands(body: str) -> None:
+    """Arguments, assignment values, and read-only verbs stay outside admission."""
+    hits = inspect_claude_plugin_file("session.sh", "hooks/session.sh", body)
+
+    assert _DENO_RULE not in {hit.rule_id for hit in hits}
+
+
 def test_environment_assignment_before_real_command_still_fails() -> None:
     """Environment assignments do not hide a later executable registry write."""
     bodies = (
@@ -323,6 +360,25 @@ def test_other_structured_argv_is_not_package_publish_inventory(
 
     inventory = inventory_claude_plugin_capabilities(root)
 
+    assert inventory["package_install"] is False
+
+
+def test_structured_exec_argv_has_no_shell_builtin_semantics(tmp_path: Path) -> None:
+    """Typed process argv does not imply that ``exec`` is a shell builtin."""
+    root = _licensed_plugin(tmp_path)
+    manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    manifest["hooks"] = {
+        "PostToolUse": [{"command": "exec", "args": ["deno", "publish"]}],
+    }
+    _write_json(root / ".claude-plugin" / "plugin.json", manifest)
+
+    receipt = build_claude_plugin_scan_receipt(root)
+    inventory = inventory_claude_plugin_capabilities(root)
+
+    assert _hits(root, _DENO_RULE) == []
+    assert _DENO_RULE not in receipt.finding_summary
     assert inventory["package_install"] is False
 
 
