@@ -357,18 +357,11 @@ def _iter_python_command_injection_matches(content: str):
             and any(
                 keyword.arg == "shell"
                 and not (
-                    (
-                        isinstance(keyword.value, ast.Constant)
-                        and not bool(keyword.value.value)
-                    )
-                    or (
-                        isinstance(keyword.value, (ast.Tuple, ast.List, ast.Set))
-                        and not keyword.value.elts
-                    )
-                    or (
-                        isinstance(keyword.value, ast.Dict)
-                        and not keyword.value.keys
-                    )
+                    (isinstance(keyword.value, ast.Constant) and keyword.value.value in (False, 0, None, "", b""))
+                    or (isinstance(keyword.value, ast.Tuple) and not keyword.value.elts)
+                    or (isinstance(keyword.value, ast.List) and not keyword.value.elts)
+                    or (isinstance(keyword.value, ast.Dict) and not keyword.value.keys)
+                    or (isinstance(keyword.value, ast.Set) and not keyword.value.elts)
                 )
                 for keyword in node.keywords
             )

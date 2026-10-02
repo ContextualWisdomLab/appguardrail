@@ -1,7 +1,5 @@
 """Coverage tests for the injection + Anthropic-key detection rules."""
 
-from unittest.mock import patch
-
 import scanner.cli.appguardrail as appguardrail
 
 _BY_ID = {}
@@ -98,6 +96,7 @@ def test_python_command_injection_falls_back_for_invalid_python():
     matches = _python_command_matches("if (\n    os.system(user_input)\n")
     assert len(matches) == 1
 
+from unittest.mock import patch
 
 def test_python_command_injection_falls_back_when_ast_resource_limits_fail():
     """AST resource-limit failures retain conservative regex detection."""
