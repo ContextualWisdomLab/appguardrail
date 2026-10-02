@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-10-02 - Accessible External Links
+**Learning:** Providing external links that open in a new tab without explicit accessible warnings (such as `.sr-only` text) or visual cues (such as an `aria-hidden` icon) causes confusion for assistive technology users. Relying globally on `word-break` for anchor tags breaks layout, whereas scoped CSS allows safe word wrapping for URLs.
+**Action:** Add `.sr-only` descriptive text, a visual SVG icon, and a scoped CSS class (e.g., `.ext-link`) to `target="_blank"` links.

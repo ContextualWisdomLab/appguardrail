@@ -302,3 +302,39 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+
+def test_dashboard_external_links_are_accessible():
+    """External links must expose assistive technology and visual warnings."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    match = re.search(r"const refs = .*?map\(r=>`(.*?)`\)\.join", html)
+    assert match is not None, "Could not find references template literal"
+    literal = match.group(1)
+
+    class ExtLinkParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.has_sr_only = False
+            self.has_aria_hidden_icon = False
+            self.link_classes = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs_dict = dict(attrs)
+            if tag == "a" and attrs_dict.get("target") == "_blank":
+                classes = attrs_dict.get("class", "")
+                self.link_classes = classes.split()
+            elif tag == "span" and "sr-only" in attrs_dict.get("class", ""):
+                self.has_sr_only = True
+            elif tag == "svg" and attrs_dict.get("aria-hidden") == "true":
+                self.has_aria_hidden_icon = True
+
+    parser = ExtLinkParser()
+    parser.feed(literal)
+
+    assert parser.has_sr_only, "Missing .sr-only assistive technology warning"
+    assert parser.has_aria_hidden_icon, "Missing aria-hidden true visual warning icon"
+    assert "ext-link" in parser.link_classes, "Missing scoped class for word-break on long URLs"
+
+    assert ".ext-link{word-break:break-all}" in html.replace(" ", "")
+    assert "a{word-break" not in html.replace(" ", "")
