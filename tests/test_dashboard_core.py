@@ -302,3 +302,88 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+from pathlib import Path
+def test_dashboard_console_and_index_prototype_pollution_fallback(tmp_path):
+    import re
+    # Test console.html for explicit Object.hasOwn and esc
+    console_html = (Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "console.html").read_text(encoding="utf-8")
+    assert "Object.hasOwn(SEV," in console_html
+    assert "${esc(SEV[sevKey] || 'var(--info)')}" in console_html or "${esc(SEV[sevKey]||'var(--info)')}" in console_html.replace(" ", "")
+
+    # Test index.html for explicit Object.hasOwn and esc with explicit fallback
+    index_html = (Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "index.html").read_text(encoding="utf-8")
+    assert "Object.hasOwn(SEV, s) ? s : 'INFO'" in index_html
+    assert "${esc(SEV[sevKey] ? SEV[sevKey].color : 'var(--info)')}" in index_html
+
+def test_dashboard_hostile_prototype_rendering(tmp_path):
+    import json
+    import threading
+    from http.server import HTTPServer, SimpleHTTPRequestHandler
+    from contextlib import closing
+    from playwright.sync_api import sync_playwright
+
+    hostile_findings = {
+        "schema": "appguardrail.findings.v1",
+        "findings": [
+            {
+                "rule_id": "r1",
+                "severity": "__proto__",
+                "message": "pollute prototype",
+                "file": "a.py",
+                "line": 1,
+                "category": "sec"
+            },
+            {
+                "rule_id": "r2",
+                "severity": "constructor",
+                "message": "pollute constructor",
+                "file": "b.py",
+                "line": 2,
+                "category": "constructor"
+            },
+            {
+                "rule_id": "r3",
+                "severity": "unknown_sev",
+                "message": "fallback test",
+                "file": "c.py",
+                "line": 3,
+                "category": "unknown"
+            }
+        ]
+    }
+
+    findings_file = tmp_path / "findings.json"
+    findings_file.write_text(json.dumps(hostile_findings))
+
+    index_html = (Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "index.html").read_bytes()
+    server = make_dashboard_server("127.0.0.1", 0, index_html, findings_file)
+    port = server.server_address[1]
+    thread = _serve(server)
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context()
+            page = context.new_page()
+
+            page.goto(f"http://127.0.0.1:{port}/")
+            page.wait_for_timeout(500)
+
+            # Check rendering and fallback properties
+            html_content = page.content()
+
+            # The prototype pollution inputs should not break the UI rendering or execute functions
+            assert "pollute prototype" in html_content
+            assert "pollute constructor" in html_content
+            assert "fallback test" in html_content
+
+            # Ensure no CSS values reflect '[object Object]' or native code
+            assert "background:[object Object]" not in html_content
+            assert "function Object() { [native code] }" not in html_content
+
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)

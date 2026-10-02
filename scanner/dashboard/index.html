@@ -170,7 +170,7 @@ function render(){
     return;
   }
   const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
-  const byCat = {};
+  const byCat = Object.create(null);
   let blocking = 0;
   for(const f of ALL){
     const s = String(f.severity||'INFO').toUpperCase();
@@ -208,7 +208,7 @@ function render(){
     const sevKey = Object.hasOwn(SEV, s) ? s : 'INFO';
     const block = isDeployBlocking(f);
     return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
-      <td><span class="chip" style="background:${esc(SEV[sevKey].color)}">${esc(s)}</span></td>
+      <td><span class="chip" style="background:${esc(SEV[sevKey] ? SEV[sevKey].color : 'var(--info)')}">${esc(s)}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
       <td>${esc(f.category)}</td>
@@ -290,7 +290,7 @@ function openDetail(f){
 
   d.innerHTML = `
     <div class="dlg-head">
-      <span class="chip" style="background:${esc(SEV[sevKey].color)}">${esc(s)}</span>
+      <span class="chip" style="background:${esc(SEV[sevKey] ? SEV[sevKey].color : 'var(--info)')}">${esc(s)}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
       <button aria-label="Close" title="Close (Esc)" onclick="document.getElementById('detail').close()">✕</button>
     </div>
