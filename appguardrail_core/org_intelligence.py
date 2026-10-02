@@ -122,6 +122,10 @@ def build_org_inventory(
     active_repository_target: int = 20,
 ) -> OrgInventory:
     """Build a stable organization inventory from GitHub repo JSON."""
+    # OPTIMIZATION (Bolt): Consolidated multiple O(N) iteration passes over the repository list
+    # into a single explicit loop. This provides a constant-factor performance gain by eliminating
+    # redundant element visits, intermediate list allocations (e.g., separating forks), and
+    # repeated function calls, resulting in faster and more memory-efficient inventory generation.
     total_repositories = 0
     nonfork_repositories = 0
     fork_repositories = 0
