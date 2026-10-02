@@ -170,7 +170,7 @@ function render(){
     return;
   }
   const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
-  const byCat = {};
+  const byCat = Object.create(null);
   let blocking = 0;
   for(const f of ALL){
     const s = String(f.severity||'INFO').toUpperCase();
