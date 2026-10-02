@@ -21,11 +21,11 @@ def test_product_gap_baseline_is_utf8_markdown_with_retained_history() -> None:
     assert baseline.startswith("# AppGuardrail product and technical gap baseline")
     assert "## Technical / TRD gaps" in baseline
     assert HISTORY_BLOB in baseline
-    assert "\\x00" not in baseline
+    assert "\x00" not in baseline
 
     history = HISTORY_PATH.read_bytes()
     history_blob = hashlib.sha1(
-        b"blob " + str(len(history)).encode("ascii") + b"\\0" + history,
+        b"blob " + str(len(history)).encode("ascii") + b"\0" + history,
         usedforsecurity=False,
     ).hexdigest()
     assert history_blob == HISTORY_BLOB
