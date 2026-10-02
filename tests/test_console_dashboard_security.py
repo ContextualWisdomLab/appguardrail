@@ -8,6 +8,7 @@ from pathlib import Path
 CONSOLE_PATH = (
     Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "console.html"
 )
+INDEX_PATH = Path(__file__).resolve().parents[1] / "scanner" / "dashboard" / "index.html"
 
 
 def _capture_browser_evidence(page, scene: str) -> None:
@@ -128,6 +129,49 @@ def test_untrusted_dashboard_payloads_render_as_data(page) -> None:
     assert detail_panel.is_hidden()
     assert scan_row.evaluate("element => element === document.activeElement")
 
+
+
+def test_untrusted_dashboard_category_keys_remain_own_counts(page) -> None:
+    """Prototype-named categories must remain visible as independent counts."""
+    page.goto(f"file://{INDEX_PATH}")
+    page.locator("#browse-findings").wait_for()
+    page.evaluate(
+        """payload => load(payload, "hostile-categories.json")""",
+        {
+            "findings": [
+                {
+                    "severity": "INFO",
+                    "category": "__proto__",
+                    "message": "prototype-named category",
+                    "file": "first.py",
+                    "line": 1,
+                    "rule_id": "category-boundary-1",
+                    "context": "app-code",
+                },
+                {
+                    "severity": "INFO",
+                    "category": "constructor",
+                    "message": "constructor-named category",
+                    "file": "second.py",
+                    "line": 2,
+                    "rule_id": "category-boundary-2",
+                    "context": "app-code",
+                },
+            ]
+        },
+    )
+
+    observed = page.locator(".rowlist .r").evaluate_all(
+        """rows => rows.map(row => ({
+          category: row.querySelector(".name").textContent,
+          count: row.querySelector(".cnt").textContent,
+        }))"""
+    )
+    assert sorted(observed, key=lambda item: item["category"]) == [
+        {"category": "__proto__", "count": "1"},
+        {"category": "constructor", "count": "1"},
+    ]
+    assert page.locator("tbody tr").count() == 2
 
 def test_trend_accessibility_attributes_escape_blocking_count() -> None:
     """Untrusted scan counts must not escape innerHTML attribute values."""
