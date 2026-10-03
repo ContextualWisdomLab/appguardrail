@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-10-03 - Keyboard Shortcuts Accessibility
-**Learning:** Adding a keyboard shortcut listener (like `Escape` to close a modal) improves UX for keyboard users, but screen reader users remain unaware of the shortcut unless it is explicitly announced. Furthermore, mouse users benefit from seeing the shortcut in a tooltip.
-**Action:** When implementing keyboard shortcuts on interactive elements (like close buttons), always add the corresponding `aria-keyshortcuts` attribute (e.g., `aria-keyshortcuts="Escape"`) for screen readers and a visual `title` attribute (e.g., `title="Close (Esc)"`) for mouse users.
