@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-12-07 - Optimize tuple creation with list comprehensions
+**Learning:** In Python hot paths, avoid passing generator expressions to tuple constructors (e.g., `tuple(x for x in y)`). Comprehensions execute at C speed, avoiding the overhead of generator frames.
+**Action:** Use list comprehensions inside tuple constructors (e.g., `tuple([x for x in y])`) to significantly speed up element construction inside hot functions without compromising memory footprint on reasonably sized loops.

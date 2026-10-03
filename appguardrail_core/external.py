@@ -39,9 +39,9 @@ class ExternalScanPlan:
 
     @property
     def selected_names(self) -> tuple[str, ...]:
-        return tuple(
+        return tuple([
             decision.name for decision in self.decisions if decision.should_run
-        )
+        ])
 
 
 def build_external_scan_plan(
