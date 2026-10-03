@@ -171,3 +171,19 @@ def test_integration_test_filename_under_src_is_non_blocking_context(
     assert findings
     assert findings[0]["context"] == "test"
     assert not is_deploy_blocking(findings[0])
+
+
+def test_dollar_prefixed_non_shell_password_literal_remains_detected(
+    tmp_path: Path,
+) -> None:
+    """Dollar-prefixed literals outside shell syntax remain committed secrets."""
+    for filename, source in (
+        ("config.ts", "password:'$ecret123'\n"),
+        ("config.py", "password='$ecret123'\n"),
+    ):
+        target = tmp_path / filename
+        target.write_text(source, encoding="utf-8")
+        findings = _by_rule(target, tmp_path, "hardcoded-password")
+
+        assert len(findings) == 1
+        assert is_deploy_blocking(findings[0])
