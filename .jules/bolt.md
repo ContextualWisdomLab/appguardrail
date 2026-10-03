@@ -77,7 +77,3 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-
-## 2024-11-20 - Optimize multiple list comprehensions into single O(N) loop
-**Learning:** In `appguardrail_core/org_intelligence.py`, `build_org_inventory` derived several values using multiple O(N) list and generator comprehensions. Consolidating them into a single loop reduced the number of iterations from 2N to N. This is a constant-factor optimization rather than an asymptotic complexity improvement.
-**Action:** Combine repeated O(N) traversals of the same source iterable into a single loop when building multiple derived collections or counters, avoiding redundant evaluations while preserving functionality.
