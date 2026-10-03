@@ -78,7 +78,10 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const safeCount=value=>{const number=Number(value);return Number.isSafeInteger(number)&&number>=0?number:0;};
 const SEV={CRITICAL:"var(--crit)",HIGH:"var(--high)",WARNING:"var(--warn)",INFO:"var(--info)"};
-const severityColor=value=>{const key=typeof value==="string"?value.toUpperCase():"";return Object.prototype.hasOwnProperty.call(SEV,key)?SEV[key]:SEV.INFO;};
+function severityColor(value){
+  const severity=String(value||"INFO").toUpperCase();
+  return Object.prototype.hasOwnProperty.call(SEV,severity)?SEV[severity]:"var(--info)";
+}
 let KEY=sessionStorage.getItem("ag_key")||"";
 let currentDetailRequest=0;
 let lastDetailFocus=null;

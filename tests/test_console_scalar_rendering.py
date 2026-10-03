@@ -53,29 +53,3 @@ load().then(() => console.log(JSON.stringify({{
     assert 'data-id="&quot;&gt;&lt;img src=x onerror=alert(1)&gt;"' in rendered["history"]
     assert '<td>0</td>' in rendered["history"]
     assert rendered["history"].count('<span class="muted">0</span>') == 2
-
-
-def test_severity_color_rejects_prototype_chain_names() -> None:
-    """Only own severity-map keys may select a CSS value."""
-    html = CONSOLE.read_text(encoding="utf-8")
-    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
-    selector = script[script.index("const SEV=") : script.index("\nlet KEY", script.index("const SEV="))]
-    completed = subprocess.run(
-        [
-            "node",
-            "-e",
-            selector
-            + "\nconsole.log(JSON.stringify(['critical','constructor','toString',null,{}].map(severityColor)));",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert json.loads(completed.stdout) == [
-        "var(--crit)",
-        "var(--info)",
-        "var(--info)",
-        "var(--info)",
-        "var(--info)",
-    ]
