@@ -2344,6 +2344,8 @@ def _finding_category(rule_id: str) -> str:
         token in rule for token in ("auth", "session", "admin", "route-without-auth")
     ):
         return "authz"
+    if "ssrf" in rule:
+        return "ssrf"
     if any(
         token in rule
         for token in ("eval", "sql", "command", "subprocess", "path-traversal")
