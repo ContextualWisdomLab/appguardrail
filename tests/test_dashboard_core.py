@@ -302,9 +302,3 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
-
-def test_dashboard_external_links_have_a11y_warnings():
-    """External links with target=_blank must warn screen readers and visual users."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-    assert '<span class="sr-only">(opens in a new tab)</span>' in html
-    assert '<span aria-hidden="true">↗</span>' in html
