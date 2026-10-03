@@ -52,6 +52,7 @@ def test_levels_and_security_severity():
     # rules deduped by id (stripe rule appears once), plus the note rule
     rule_ids = [r["id"] for r in run["tool"]["driver"]["rules"]]
     assert rule_ids == ["hardcoded-stripe-secret-key", "note"]
+    assert [result["ruleIndex"] for result in run["results"]] == [0, 0, 1]
     stripe_rule = run["tool"]["driver"]["rules"][0]
     assert stripe_rule["properties"]["security-severity"] == "9.0"
     assert "CWE-798" in stripe_rule["properties"]["tags"]
