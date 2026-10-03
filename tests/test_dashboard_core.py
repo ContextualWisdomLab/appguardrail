@@ -3,6 +3,7 @@
 import json
 import json as _json
 import re
+import subprocess
 import threading
 import urllib.error
 import urllib.request
@@ -16,18 +17,22 @@ from scanner.cli.appguardrail import (dashboard_index_path,
                                       make_dashboard_server, render_tokens_css)
 
 
-class _ButtonAttributeParser(HTMLParser):
-    """Collect attributes from every dashboard button element."""
+class _DashboardControlParser(HTMLParser):
+    """Collect attributes from dashboard buttons and inputs."""
 
     def __init__(self):
-        """Initialize an empty button-attribute collection."""
+        """Initialize empty dashboard-control collections."""
         super().__init__()
         self.buttons = []
+        self.inputs = []
 
     def handle_starttag(self, tag, attrs):
-        """Record one button's attributes while ignoring other elements."""
+        """Record button and input attributes while ignoring other elements."""
+        attributes = dict(attrs)
         if tag == "button":
-            self.buttons.append(dict(attrs))
+            self.buttons.append(attributes)
+        elif tag == "input":
+            self.inputs.append(attributes)
 
 
 def _serve(server):
@@ -77,12 +82,71 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
-    assert 'id="upload-proxy"' in html
-    assert "Upload findings</button>" in html
     assert "aria-label=\"Search findings\"" in html
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html
     assert "e.key === 'Enter' || e.key === ' '" in html
+
+
+def test_dashboard_upload_proxy_hides_input_and_delegates_click():
+    """The visible upload button must own the native input's complete contract."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    parser = _DashboardControlParser()
+    parser.feed(html)
+
+    file_input = next(
+        attributes for attributes in parser.inputs if attributes.get("id") == "file"
+    )
+    proxy_button = next(
+        attributes
+        for attributes in parser.buttons
+        if attributes.get("id") == "upload-proxy"
+    )
+
+    assert file_input.get("type") == "file"
+    assert "sr-only" in file_input.get("class", "").split()
+    assert file_input.get("tabindex") == "-1"
+    assert file_input.get("aria-hidden") == "true"
+    assert proxy_button.get("type") == "button"
+    assert "Upload findings</button>" in html
+
+    bridge_match = re.search(
+        r"\(function\(\) \{\s*"
+        r"const btn = document\.getElementById\('upload-proxy'\);"
+        r".*?\}\)\(\);",
+        html,
+        flags=re.DOTALL,
+    )
+    assert bridge_match is not None
+
+    node_program = """
+let delegatedClicks = 0;
+let clickHandler = null;
+const uploadInput = {click() { delegatedClicks += 1; }};
+const proxyButton = {
+  addEventListener(eventName, handler) {
+    if (eventName === 'click') clickHandler = handler;
+  }
+};
+const document = {
+  getElementById(elementId) {
+    if (elementId === 'upload-proxy') return proxyButton;
+    if (elementId === 'file') return uploadInput;
+    return null;
+  }
+};
+""" + bridge_match.group(0) + """
+if (typeof clickHandler !== 'function') throw new Error('click handler missing');
+clickHandler();
+if (delegatedClicks !== 1) throw new Error('file input click not delegated');
+"""
+    result = subprocess.run(
+        ["node", "-e", node_program],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_dashboard_severity_cards_are_accessible_filter_toggles():
@@ -286,7 +350,7 @@ def test_dashboard_dialog_close_button_has_tooltip():
     )
     assert detail_markup is not None
 
-    parser = _ButtonAttributeParser()
+    parser = _DashboardControlParser()
     parser.feed(detail_markup.group("markup"))
 
     assert any(
