@@ -77,7 +77,3 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
-
-## 2024-11-21 - 단일 패스 최적화
-**Learning:** 여러 O(N) 리스트 컴프리헨션을 단일 O(N) 루프로 병합하면 2N에서 N으로 반복 횟수가 감소합니다. 이는 중복 순회 및 중간 할당을 방지하여 constant-factor 성능 향상을 가져옵니다.
-**Action:** 이터러블 작업 시, 로컬 변수에 상태를 누적하는 단일 O(N) 패스를 사용하여 constant-factor 성능 향상을 달성하십시오.
