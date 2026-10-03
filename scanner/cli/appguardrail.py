@@ -897,7 +897,7 @@ SCAN_RULES = [
     {
         "id": "hardcoded-password",
         "pattern": re.compile(
-            r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27](?!\$)[^"\x27\s]{6,}["\x27]'
+            r'(?i)(?:password|passwd|pwd)\s*[=:]\s*["\x27][^"\x27\s]{6,}["\x27]'
         ),
         "severity": "HIGH",
         "message": "Possible hardcoded password detected. [OWASP A07:2021 - Identification and Authentication Failures]",
@@ -2316,7 +2316,10 @@ _PSQL_PASSWORD_INDIRECTION_RE = re.compile(r":[\"'][A-Za-z_][A-Za-z0-9_]*[\"']")
 
 def _hardcoded_password_is_literal(matched: str, file_path: Path) -> bool:
     """Return whether a password match embeds a secret literal rather than indirection."""
-    if _PASSWORD_ENV_INDIRECTION_RE.search(matched or ""):
+    if (
+        file_path.suffix.lower() in {".sh", ".bash", ".zsh"}
+        and _PASSWORD_ENV_INDIRECTION_RE.search(matched or "")
+    ):
         return False
     return not (
         file_path.suffix.lower() in {".psql", ".sql"}
