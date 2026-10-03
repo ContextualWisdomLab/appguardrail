@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2026-10-02 - Proxy Button Accessibility
+**Learning:** Native `<input type="file">` elements are hard to style consistently. While replacing them with a custom button proxy improves visual design, developers often forget to make the hidden input inaccessible (`class="sr-only" tabindex="-1" aria-hidden="true"`) to screen readers, which leads to double announcements or confusing navigation.
+**Action:** When replacing a native file input with a proxy button in UI components, always hide the native input explicitly using `aria-hidden="true"`, `class="sr-only"`, and `tabindex="-1"`. The proxy button should have standard keyboard support and trigger the hidden input dynamically. Ensure UI contract tests are updated to verify the new accessible structure instead of just looking for `aria-label` on the hidden input.
