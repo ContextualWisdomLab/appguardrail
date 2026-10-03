@@ -108,6 +108,7 @@ def test_dashboard_upload_proxy_hides_input_and_delegates_click():
     assert file_input.get("tabindex") == "-1"
     assert file_input.get("aria-hidden") == "true"
     assert proxy_button.get("type") == "button"
+    assert "primary-action" in proxy_button.get("class", "").split()
     assert "Upload findings</button>" in html
 
     bridge_match = re.search(
