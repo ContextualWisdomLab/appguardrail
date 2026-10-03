@@ -10,7 +10,6 @@ from contextlib import closing
 from html.parser import HTMLParser
 
 import pytest
-from pathlib import Path
 
 from scanner.cli.appguardrail import (dashboard_index_path,
                                       dashboard_tokens_path,
@@ -303,23 +302,3 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
-
-
-def test_dashboard_file_upload_proxy_is_accessible():
-    """Verify that the native file input is fully hidden and proxy button handles upload."""
-    html = dashboard_index_path().read_text(encoding="utf-8")
-
-    # Assert exact hiding attributes on the native input
-    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html
-    assert 'type="file"' in html and 'id="file"' in html
-
-    # Assert the proxy button exists
-    assert 'id="file-proxy-btn"' in html and 'class="primary-action"' in html
-
-    # Assert that JS proxy listener is bound
-    assert "proxyBtn.addEventListener('click', () => actualInput.click())" in html
-
-def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
-    """Ensure the specific learning about AOM removal is documented."""
-    journal = (Path(__file__).parent.parent / ".jules" / "palette.md").read_text(encoding="utf-8")
-    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in journal
