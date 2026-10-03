@@ -121,47 +121,48 @@ def build_org_inventory(
     *,
     active_repository_target: int = 20,
 ) -> OrgInventory:
-    """Build a stable organization inventory from GitHub repo JSON."""
-    repo_list = list(repos)
-    nonforks = []
-    forks = []
-    primary_languages = Counter()
-    default_branches = Counter()
-    unsupported_set = set()
-    supported_nonforks = 0
+    """Build an inventory incrementally without retaining consumed records."""
+    total_repositories = 0
+    nonfork_repositories = 0
+    fork_repositories = 0
     private_repositories = 0
+    supported_nonforks = 0
+    unsupported_set: set[str] = set()
+    primary_languages: Counter[str] = Counter()
+    default_branches: Counter[str] = Counter()
 
-    for repo in repo_list:
-        lang = _primary_language(repo)
-        is_fork = _truthy(repo.get("isFork"))
-        if is_fork:
-            forks.append(repo)
-        else:
-            nonforks.append(repo)
-            if lang in SUPPORTED_PRIMARY_LANGUAGES:
-                supported_nonforks += 1
-            elif lang != "Unknown":
-                unsupported_set.add(lang)
+    for repo in repos:
+        total_repositories += 1
+        language = _primary_language(repo)
+        primary_languages[language] += 1
+        default_branches[_default_branch(repo)] += 1
 
         if _truthy(repo.get("isPrivate")):
             private_repositories += 1
-        primary_languages[lang] += 1
-        default_branches[_default_branch(repo)] += 1
+        if _truthy(repo.get("isFork")):
+            fork_repositories += 1
+            continue
 
-    unsupported = sorted(unsupported_set)
+        nonfork_repositories += 1
+        if language in SUPPORTED_PRIMARY_LANGUAGES:
+            supported_nonforks += 1
+        elif language != "Unknown":
+            unsupported_set.add(language)
+
     return OrgInventory(
-        total_repositories=len(nonforks) + len(forks),
-        nonfork_repositories=len(nonforks),
-        fork_repositories=len(forks),
+        total_repositories=total_repositories,
+        nonfork_repositories=nonfork_repositories,
+        fork_repositories=fork_repositories,
         private_repositories=private_repositories,
         supported_nonfork_repositories=supported_nonforks,
-        unsupported_nonfork_languages=tuple(unsupported),
+        unsupported_nonfork_languages=tuple(sorted(unsupported_set)),
         primary_language_counts=_sorted_counts(primary_languages),
         default_branch_counts=_sorted_counts(default_branches),
         active_repository_target=active_repository_target,
-        active_repository_target_met=len(nonforks) >= active_repository_target,
+        active_repository_target_met=(
+            nonfork_repositories >= active_repository_target
+        ),
     )
-
 
 def summarize_pr_gates(
     prs: Iterable[Mapping[str, Any]],
