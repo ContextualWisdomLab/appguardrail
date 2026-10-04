@@ -39,12 +39,16 @@ def findings_to_sarif(
     normalized = normalize_findings(findings)
 
     rules: dict[str, dict[str, Any]] = {}
+    # ⚡ Bolt: Use a parallel dictionary for O(1) rule index lookups
+    # instead of list(rules).index(rule_id) which is O(N^2) in the loop.
+    rule_indices: dict[str, int] = {}
     results: list[dict[str, Any]] = []
     for f in normalized:
         rule_id = f["rule_id"]
         severity = f["severity"]
         refs = f.get("references") or ()
         if rule_id not in rules:
+            rule_indices[rule_id] = len(rules)
             rule: dict[str, Any] = {
                 "id": rule_id,
                 "name": rule_id,
@@ -68,7 +72,7 @@ def findings_to_sarif(
         results.append(
             {
                 "ruleId": rule_id,
-                "ruleIndex": list(rules).index(rule_id),
+                "ruleIndex": rule_indices[rule_id],
                 "level": _LEVEL.get(severity, "note"),
                 "message": {"text": f["message"].strip()},
                 "locations": [
