@@ -122,35 +122,53 @@ def build_org_inventory(
     active_repository_target: int = 20,
 ) -> OrgInventory:
     """Build a stable organization inventory from GitHub repo JSON."""
-    repo_list = list(repos)
-    nonforks = [repo for repo in repo_list if not _truthy(repo.get("isFork"))]
-    forks = [repo for repo in repo_list if _truthy(repo.get("isFork"))]
-    primary_languages = Counter(_primary_language(repo) for repo in repo_list)
-    default_branches = Counter(_default_branch(repo) for repo in repo_list)
-    unsupported = sorted(
-        {
-            _primary_language(repo)
-            for repo in nonforks
-            if _primary_language(repo) not in SUPPORTED_PRIMARY_LANGUAGES
-            and _primary_language(repo) != "Unknown"
-        }
-    )
-    supported_nonforks = sum(
-        1 for repo in nonforks if _primary_language(repo) in SUPPORTED_PRIMARY_LANGUAGES
-    )
+    # ⚡ Bolt: Consolidated multiple O(N) list comprehensions into a single O(N) pass for constant-factor speedup.
+    total_repositories = 0
+    nonfork_repositories = 0
+    fork_repositories = 0
+    private_repositories = 0
+    supported_nonfork_repositories = 0
+
+    primary_languages: Counter[str] = Counter()
+    default_branches: Counter[str] = Counter()
+    unsupported_set: set[str] = set()
+
+    for repo in repos:
+        total_repositories += 1
+
+        is_fork = _truthy(repo.get("isFork"))
+        if is_fork:
+            fork_repositories += 1
+        else:
+            nonfork_repositories += 1
+
+        if _truthy(repo.get("isPrivate")):
+            private_repositories += 1
+
+        primary_lang = _primary_language(repo)
+        primary_languages[primary_lang] += 1
+
+        default_branches[_default_branch(repo)] += 1
+
+        if not is_fork:
+            if primary_lang in SUPPORTED_PRIMARY_LANGUAGES:
+                supported_nonfork_repositories += 1
+            elif primary_lang != "Unknown":
+                unsupported_set.add(primary_lang)
+
+    unsupported = sorted(unsupported_set)
+
     return OrgInventory(
-        total_repositories=len(repo_list),
-        nonfork_repositories=len(nonforks),
-        fork_repositories=len(forks),
-        private_repositories=sum(
-            1 for repo in repo_list if _truthy(repo.get("isPrivate"))
-        ),
-        supported_nonfork_repositories=supported_nonforks,
+        total_repositories=total_repositories,
+        nonfork_repositories=nonfork_repositories,
+        fork_repositories=fork_repositories,
+        private_repositories=private_repositories,
+        supported_nonfork_repositories=supported_nonfork_repositories,
         unsupported_nonfork_languages=tuple(unsupported),
         primary_language_counts=_sorted_counts(primary_languages),
         default_branch_counts=_sorted_counts(default_branches),
         active_repository_target=active_repository_target,
-        active_repository_target_met=len(nonforks) >= active_repository_target,
+        active_repository_target_met=nonfork_repositories >= active_repository_target,
     )
 
 
