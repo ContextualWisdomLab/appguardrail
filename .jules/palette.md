@@ -81,3 +81,7 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+
+## 2024-10-04 - 네이티브 파일 입력(Input File) 요소를 접근성 높은 프록시 버튼으로 대체
+**Learning:** `aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거(explicitly removes from the Accessibility Object Model)하며, 시각적으로 숨기기 위해 `class="sr-only" tabindex="-1"`을 함께 사용하여야 스크린 리더와 키보드 접근성을 유지하면서 커스텀 버튼 디자인을 노출시킬 수 있다는 사실을 확인했습니다.
+**Action:** 향후 파일 업로드 UI를 개선할 때는 인라인 `onclick` 대신 명시적인 자바스크립트 이벤트 리스너를 바인딩하고 접근성 속성을 올바르게 적용합니다.

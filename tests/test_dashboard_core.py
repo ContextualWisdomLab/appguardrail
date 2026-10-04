@@ -77,7 +77,6 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
-    assert "aria-label=\"Upload findings file\"" in html
     assert "aria-label=\"Search findings\"" in html
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html
@@ -302,3 +301,14 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+def test_file_upload_proxy_accessibility_contract():
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html, "Hidden file input missing exact accessibility hiding attributes"
+    assert "headerBrowseFindings.addEventListener('click', () => fileInput.click())" in html, "Missing exact event listener wiring"
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    path = dashboard_index_path().parent.parent.parent / ".jules" / "palette.md"
+    assert path.exists(), "Journal missing"
+    content = path.read_text(encoding="utf-8")
+    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in content, "Missing exact documentation statement"
