@@ -170,11 +170,11 @@ function render(){
     return;
   }
   const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
-  const byCat = {};
+  const byCat = Object.create(null);
   let blocking = 0;
   for(const f of ALL){
     const s = String(f.severity||'INFO').toUpperCase();
-    counts[s in counts ? s : 'INFO']++;
+    counts[Object.hasOwn(counts, s) ? s : 'INFO']++;
     const c = String(f.category||'misconfig');
     byCat[c] = (byCat[c]||0)+1;
     if(isDeployBlocking(f)) blocking++;
@@ -184,7 +184,7 @@ function render(){
     const style = isSelected ? 'border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); cursor:pointer;' : 'cursor:pointer;';
     return `
     <div class="card" role="button" tabindex="0" aria-label="Filter by ${s}: ${counts[s]}" aria-pressed="${isSelected}" onclick="document.getElementById('sev').value='${isSelected ? '' : s}'; document.getElementById('sev').dispatchEvent(new Event('change'));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}" style="${style}">
-      <div class="lbl"><span class="dot" style="background:${SEV[s].color}"></span>${s}</div>
+      <div class="lbl"><span class="dot" style="background:${esc(SEV[s].color)}"></span>${s}</div>
       <div class="n">${counts[s]}</div>
     </div>`;
   }).join('');
@@ -205,9 +205,10 @@ function render(){
 
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
+    const sevKey = Object.hasOwn(SEV, s) ? s : 'INFO';
     const block = isDeployBlocking(f);
     return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
-      <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span></td>
+      <td><span class="chip" style="background:${esc(SEV[sevKey].color)}">${esc(s)}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
       <td>${esc(f.category)}</td>
@@ -281,6 +282,7 @@ function render(){
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
+  const sevKey = Object.hasOwn(SEV, s) ? s : 'INFO';
   const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
@@ -288,7 +290,7 @@ function openDetail(f){
 
   d.innerHTML = `
     <div class="dlg-head">
-      <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span>
+      <span class="chip" style="background:${esc(SEV[sevKey].color)}">${esc(s)}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
       <button aria-label="Close" title="Close (Esc)" onclick="document.getElementById('detail').close()">✕</button>
     </div>
