@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2025-02-12 - O(1) SARIF Rule Index Lookup Optimization
+**Learning:** In Python, calling `list(dict).index(key)` inside a loop over data items causes severe O(N^2) performance degradation because it creates a new list and performs a linear search on every iteration. This pattern was found in `appguardrail_core/sarif.py` during SARIF generation.
+**Action:** Always avoid `list(dict).index()` inside loops. Maintain a parallel index mapping dictionary (e.g., `indices[key] = len(indices)`) to achieve O(1) lookups and keep the overall loop bounded to O(N) time complexity.
