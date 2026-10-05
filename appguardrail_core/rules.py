@@ -106,13 +106,12 @@ class RuleMetadata:
 
 def extract_public_references(message: str) -> tuple[str, ...]:
     """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    # Bolt: Optimizing string deduplication in hot paths. Explicit for-loops
-    # updating a local dictionary (seen[key] = None) avoid generator
-    # comprehension overhead while preserving element insertion order.
-    seen: dict[str, None] = {}
-    for match in REFERENCE_RE.finditer(message or ""):
-        seen[" ".join(match.group(1).split())] = None
-    return tuple(seen)
+    return tuple(
+        dict.fromkeys(
+            " ".join(match.group(1).split())
+            for match in REFERENCE_RE.finditer(message or "")
+        )
+    )
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -175,12 +174,8 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    # Bolt: Optimizing string deduplication in hot paths. Explicit for-loops
-    # updating a local dictionary (seen[key] = None) avoid generator
-    # comprehension overhead while preserving element insertion order.
-    seen: dict[str, None] = {}
-    for group in groups:
-        for reference in group:
-            if reference:
-                seen[reference] = None
-    return tuple(seen)
+    return tuple(
+        dict.fromkeys(
+            reference for group in groups for reference in group if reference
+        )
+    )
