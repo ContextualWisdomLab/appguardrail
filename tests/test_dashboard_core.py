@@ -302,3 +302,42 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+class _AnchorAttributeParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.anchors = []
+        self.svgs = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            self.anchors.append(dict(attrs))
+        elif tag == "svg":
+            self.svgs.append(dict(attrs))
+
+
+def test_dashboard_external_links_accessible():
+    """External links must expose an assistive technology warning and a visible icon."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    # Extract the template literal used to map references
+    match = re.search(r"const refs = \(f\.references\|\|\[\]\)\.map\(r=>`(.*?)`\)", html)
+    assert match is not None
+
+    template = match.group(1)
+
+    parser = _AnchorAttributeParser()
+    parser.feed(template)
+
+    assert any(
+        anchor.get("target") == "_blank"
+        and "ext-link" in anchor.get("class", "")
+        for anchor in parser.anchors
+    )
+
+    assert '<span class="sr-only"> (opens in a new tab)</span>' in template
+
+    assert any(
+        svg.get("aria-hidden") == "true"
+        for svg in parser.svgs
+    )
