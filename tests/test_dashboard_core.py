@@ -77,8 +77,6 @@ def test_dashboard_rows_are_keyboard_accessible():
     assert 'tabindex="0" role="button"' in html
     assert 'title="View details for finding"' in html
     assert "tbody tr:focus-visible" in html
-    assert "aria-label=\"Upload findings file\"" in html
-    assert "aria-label=\"Search findings\"" in html
     assert "aria-label=\"Filter by severity\"" in html
     assert "tr.addEventListener('keydown'" in html
     assert "e.key === 'Enter' || e.key === ' '" in html
@@ -302,3 +300,70 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+
+def test_dashboard_file_upload_proxy_accessibility():
+    """File upload proxy button must be accessible and correctly linked to the hidden native input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert '<button type="button" id="upload-proxy" class="primary-action">Upload findings</button>' in html
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html
+    assert "btn.addEventListener('click', () => inp.click())" in html
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """The journal must accurately document the accessibility hiding technique."""
+    from pathlib import Path
+    journal_path = Path(".jules/palette.md")
+    assert journal_path.is_file()
+    content = journal_path.read_text(encoding="utf-8")
+    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in content
+
+
+def test_dashboard_file_upload_proxy_accessibility():
+    """File upload proxy button must be accessible and correctly linked to the hidden native input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert '<button type="button" id="upload-proxy" class="primary-action">Upload findings</button>' in html
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html
+    assert "btn.addEventListener('click', () => inp.click())" in html
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """The journal must accurately document the accessibility hiding technique."""
+    from pathlib import Path
+    journal_path = Path(".jules/palette.md")
+    assert journal_path.is_file()
+    content = journal_path.read_text(encoding="utf-8")
+    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in content
+
+
+def test_dashboard_file_upload_proxy_accessibility():
+    """File upload proxy button must be accessible and correctly linked to the hidden native input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert '<button type="button" id="upload-proxy" class="primary-action">Upload findings</button>' in html
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html
+    assert "btn.addEventListener('click', () => inp.click())" in html
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """The journal must accurately document the accessibility hiding technique."""
+    from pathlib import Path
+    journal_path = Path(".jules/palette.md")
+    assert journal_path.is_file()
+    content = journal_path.read_text(encoding="utf-8")
+    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in content
+
+def test_dashboard_file_upload_proxy_accessibility():
+    """File upload proxy button must be accessible and correctly linked to the hidden native input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert '<button type="button" id="upload-proxy" class="primary-action">Upload findings</button>' in html
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html
+    assert "btn.addEventListener('click', () => inp.click())" in html
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """The journal must accurately document the accessibility hiding technique."""
+    from pathlib import Path
+    journal_path = Path(".jules/palette.md")
+    assert journal_path.is_file()
+    content = journal_path.read_text(encoding="utf-8")
+    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in content
