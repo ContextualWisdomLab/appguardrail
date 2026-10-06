@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2026-10-06 - O(N) Loop Consolidation Optimization
+**Learning:** Combining multiple list comprehensions and sum() traversals into a single `for` loop significantly improves performance by reducing the number of traversals over the same dataset. For large datasets, this single-pass optimization provides a measurable constant-factor improvement.
+**Action:** When calculating multiple aggregations from the same iterable, prefer a single `for` loop over multiple list comprehensions and sum() calls to iterate through the data only once.
