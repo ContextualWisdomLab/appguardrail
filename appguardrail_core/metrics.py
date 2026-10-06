@@ -48,7 +48,9 @@ class SaleReadinessScore:
 
     @property
     def unmet(self) -> tuple[MetricResult, ...]:
-        return tuple(metric for metric in self.metrics if not metric.passed)
+        # ⚡ Bolt: Replace generator expression with list comprehension to eliminate
+        # generator frame allocation overhead and execute at C speed.
+        return tuple([metric for metric in self.metrics if not metric.passed])
 
 
 def score_sale_readiness(inputs: SaleReadinessInputs) -> SaleReadinessScore:
