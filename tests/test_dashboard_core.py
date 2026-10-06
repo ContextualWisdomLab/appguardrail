@@ -302,3 +302,20 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+
+def test_file_upload_proxy_accessibility_contract():
+    """File upload must use an accessible proxy button instead of native file input."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    assert 'class="sr-only"' in html and 'tabindex="-1"' in html and 'aria-hidden="true"' in html and '<input type="file" id="file"' in html
+    assert '<button type="button" id="file-proxy"' in html and 'class="primary-action"' in html
+    assert "fileProxy.addEventListener('click', () => fileInput.click())" in html
+
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately():
+    """UX accessibility learnings must be properly documented in the journal."""
+    import pathlib
+    journal_path = pathlib.Path(__file__).parent.parent / ".jules" / "palette.md"
+    if journal_path.exists():
+        journal_text = journal_path.read_text(encoding="utf-8")
+        assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in journal_text
