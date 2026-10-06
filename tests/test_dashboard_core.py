@@ -302,3 +302,39 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+def test_dashboard_external_links_have_accessibility_warnings():
+    """External target=_blank links must expose a screen reader warning and visual icon."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    import re
+    from html.parser import HTMLParser
+
+    match = re.search(r"const refs = [^`]*`(.*?)`\)\.join", html)
+    assert match is not None
+    link_html = match.group(1)
+
+    class LinkParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.has_sr_only = False
+            self.has_aria_hidden = False
+            self.link_attrs = {}
+
+        def handle_starttag(self, tag, attrs):
+            attrs_dict = dict(attrs)
+            if tag == "a":
+                self.link_attrs = attrs_dict
+            elif tag == "span" and attrs_dict.get("class") == "sr-only":
+                self.has_sr_only = True
+            elif tag == "svg" and attrs_dict.get("aria-hidden") == "true":
+                self.has_aria_hidden = True
+
+    safe_html = re.sub(r"\$\{.*?\}", "DUMMY", link_html)
+    parser = LinkParser()
+    parser.feed(safe_html)
+
+    assert parser.link_attrs.get("target") == "_blank"
+    assert parser.link_attrs.get("class") == "ext-link"
+    assert parser.has_sr_only
+    assert parser.has_aria_hidden
