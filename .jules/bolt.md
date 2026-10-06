@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-12-01 - 튜플/딕셔너리 생성 시 제너레이터 표현식 최적화
+**Learning:** 파이썬 핫 패스에서 제너레이터 표현식을 `tuple(x for x in y)`나 `dict.fromkeys(...)` 생성자에 전달하는 것은 제너레이터 프레임 할당 오버헤드와 반복적인 메서드 해석/호출 오버헤드를 발생시킵니다.
+**Action:** 제너레이터 표현식 대신 리스트 컴프리헨션(e.g., `tuple([x for x in y])`)이나 딕셔너리 컴프리헨션(e.g., `tuple({x: None for x in y})`)을 사용하여 오버헤드를 우회하고 C 속도로 실행되도록 해야 합니다.

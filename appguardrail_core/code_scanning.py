@@ -214,11 +214,13 @@ def build_snapshot(
             current.analysis_id,
         ):
             latest[evidence.identity] = evidence
+    # ⚡ Bolt: Replace generator expression with list comprehension to eliminate
+    # generator frame allocation overhead and execute at C speed.
     return AnalysisSnapshot(
         scope=normalized_scope,
         status="ok",
         complete=True,
-        analyses=tuple(latest[identity] for identity in sorted(latest)),
+        analyses=tuple([latest[identity] for identity in sorted(latest)]),
     )
 
 
