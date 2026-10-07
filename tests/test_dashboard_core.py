@@ -3,6 +3,8 @@
 import json
 import json as _json
 import re
+import shutil
+import subprocess
 import threading
 import urllib.error
 import urllib.request
@@ -104,6 +106,92 @@ def test_dashboard_escapes_severity_in_innerhtml():
     # Row template and detail dialog both interpolate severity into innerHTML.
     assert html.count("${esc(s)}") >= 2
     assert "${s}</span>" not in html
+
+
+def test_dashboard_severity_key_rejects_inherited_properties():
+    """Dashboard severity lookups must admit only own map properties."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the dashboard JavaScript regression")
+
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    severity_map = re.search(r"const SEV = \{.*?\n\};", html, re.DOTALL)
+    selector = re.search(r"function severityKey\(value\)\{.*?\n\}", html, re.DOTALL)
+    assert severity_map is not None
+    assert selector is not None
+
+    script = f"""
+{severity_map.group(0)}
+{selector.group(0)}
+const inputs=["CRITICAL","high","WARNING","info","__proto__","constructor",
+  "prototype","toString","unknown",null,0,{{}},[]];
+const before=Reflect.ownKeys(Object.prototype);
+const keys=inputs.map(severityKey);
+const colors=keys.map(key=>SEV[key].color);
+const after=Reflect.ownKeys(Object.prototype);
+console.log(JSON.stringify({{keys,colors,prototypeUnchanged:JSON.stringify(before)===JSON.stringify(after)}}));
+"""
+    result = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    actual = json.loads(result.stdout)
+
+    assert actual["keys"] == [
+        "CRITICAL",
+        "HIGH",
+        "WARNING",
+        "INFO",
+        *("INFO" for _ in range(9)),
+    ]
+    assert actual["colors"] == [
+        "var(--crit)",
+        "var(--high)",
+        "var(--warn)",
+        *("var(--info)" for _ in range(10)),
+    ]
+    assert actual["prototypeUnchanged"] is True
+
+
+def test_dashboard_category_counts_reject_inherited_properties():
+    """Category aggregation must count prototype-named categories as data."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the dashboard JavaScript regression")
+
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    category_map = re.search(r"const byCat = [^;]+;", html)
+    category_increment = re.search(r"byCat\[c\] = \(byCat\[c\]\|\|0\)\+1;", html)
+    assert category_map is not None
+    assert category_increment is not None
+
+    script = f"""
+{category_map.group(0)}
+const before=Reflect.ownKeys(Object.prototype);
+for(const c of ["normal","__proto__","constructor","toString","normal","__proto__"]){{
+  {category_increment.group(0)}
+}}
+const after=Reflect.ownKeys(Object.prototype);
+console.log(JSON.stringify({{counts:Object.fromEntries(Object.entries(byCat)),
+  prototypeUnchanged:JSON.stringify(before)===JSON.stringify(after)}}));
+"""
+    result = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    actual = json.loads(result.stdout)
+
+    assert actual["counts"] == {
+        "normal": 2,
+        "__proto__": 2,
+        "constructor": 1,
+        "toString": 1,
+    }
+    assert actual["prototypeUnchanged"] is True
 
 
 def test_server_serves_index_and_findings(tmp_path):
