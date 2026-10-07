@@ -1,9 +1,21 @@
 # AppGuardrail product and technical gap baseline
 
-**Scoped refresh:** 2026-10-02
+**Scoped refresh:** 2026-10-07
 **Authority:** protected PRD/ADR/architecture plus the exact evidence identified below
 **Status:** active-PR working baseline, not a release, certification, or protected-capability claim
 **Canonical writer:** PR #999, `docs/product-technical-gap-baseline`
+
+## 2026-10-07 Gap G-30 — dashboard inherited map-key boundaries
+
+**Gap.** The standalone console and static dashboard used untrusted finding severity/category strings as keys on ordinary JavaScript objects. Prototype-chain names could resolve inherited values instead of fixed severity entries or numeric category counters. The observed defect is prototype-chain lookup/collision; the corpus did not reproduce prototype mutation, prototype pollution, or DOM XSS.
+
+**Root cause, preconditions, and signals.** A finding with severity/category `constructor`, `toString`, or `__proto__` could reach a dashboard renderer. Static severity rendering lacked a production own-key selector. Category aggregation returned function-string-plus-one values for `constructor`/`toString` and omitted `__proto__`, while `Object.prototype` remained unchanged.
+
+**Action and evidence.** Canonical writer [#1260](https://github.com/ContextualWisdomLab/appguardrail/pull/1260) exact `146cc63da545ee9e8b410edc91a9958205760e13`, tree `f65c838ea14d028986dbd30c093e230071ef1c3e`, admits only own severity-map keys, falls back to INFO, and uses a null-prototype category map. Direct Node-backed contracts pass 5/5; the full local repository suite passes 1,094/1,094; compileall and diff checks pass. Exact blobs are CHANGELOG `1c1acd9de31d847676f50bb10aad40da59cd04f6`, static dashboard `2f5bd01a2d3e558a53e4d8c1b2795d7a1dda168c`, and dashboard regressions `8124027e9412200c9d6f1cfbbe0616e07f69d6e3`.
+
+**False-positive / false-negative boundary.** Valid severity keys and case variants retain existing colors/counts. Unknown, inherited, null, numeric, object, and array severities fall back to INFO. Arbitrary prototype-named categories remain numeric data, and tests verify `Object.prototype` is unchanged. This does not claim a prototype-write gadget, a general CSS/HTML sanitizer, schema validation, or unrelated dynamic-key coverage.
+
+**Duplicate disposition and status.** [#1404](https://github.com/ContextualWisdomLab/appguardrail/pull/1404) original `c3158b38e64d894b6ced16632a6741eea29d87dd` was retired only after the complete valid delta was carried by #1260. Ordinary two-parent child `15c04ca35b1691388532598cf3f382d068d359d9` restores protected tree `ec4525421f9ed758966e1929a45af4a44b0b81e1`; comparison with `develop@2949d30718752ea5915c7713ba227e8c19d9e5bf` is 4 ahead / 0 behind / changed files `[]`. #1260 remains Ready/Proposed and merge-HOLD: five workflows failed before materializing any step, Retention was queued at observation time, qualifying current-head approvals are 0, and unresolved threads are 0. No hosted failure is represented as an executed source verdict.
 
 ## Scope and retained evidence
 
