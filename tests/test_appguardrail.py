@@ -1046,6 +1046,28 @@ def test_semgrep_findings_maps_json_results(tmp_path):
     assert findings[0]["line"] == 7
 
 
+def test_semgrep_findings_classifies_ssrf_rule_ids(tmp_path):
+    """Preserve the SSRF category when an external rule omits category metadata."""
+    report = {
+        "results": [
+            {
+                "check_id": "python.security.audit.ssrf.user-controlled-url",
+                "path": str(tmp_path / "client.py"),
+                "start": {"line": 9},
+                "extra": {
+                    "message": "User-controlled URL reaches a request",
+                    "severity": "ERROR",
+                    "lines": "requests.get(request.args['url'])",
+                },
+            }
+        ]
+    }
+
+    finding = _semgrep_findings(report, tmp_path)[0]
+
+    assert finding["category"] == "ssrf"
+
+
 def test_run_semgrep_scan_maps_json_findings(tmp_path):
     report = {
         "results": [
