@@ -31,11 +31,15 @@ The exact fixed oracle is head
 `7295c7cbf17c5d2b06dd7f77430e6674d2f25320`. It checks the original hostname
 before admitting either a local-development or explicitly allowlisted address.
 Hostname-bound combined conditions, fail-closed policy, and observation-only
-branches are negative.
+branches are negative. A direct fail-closed membership guard is also negative
+when it binds `hostname` to an explicitly local configuration attribute before,
+and at the same control-flow indentation as, the local-address branch. Generic
+allowed/trusted-host collections, later guards, and conditionally nested guards
+do not prove a local-only exception and remain positive.
 
-Aliases, helper wrappers, dictionary/config access, cross-function flows,
-non-Boolean admission, and alternative branch shapes are explicit false
-negatives until independent incidents justify safely widening the contract.
+Aliases, helper wrappers, dictionary access, cross-function flows, non-Boolean
+admission, and other alternative branch shapes are explicit false negatives
+until independent incidents justify safely widening the contract.
 The rule does not claim proof that DNS is pinned at connection time.
 
 ## Owner repair and release boundary
