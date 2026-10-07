@@ -82,7 +82,7 @@ def test_dashboard_distinguishes_unloaded_and_clean_scan_states() -> None:
 
     unloaded = html.index("if(!ALL){")
     clean = html.index("if(ALL.length === 0){")
-    populated = html.index("const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};")
+    populated = html.index("const counts = Object.assign(Object.create(null), {CRITICAL:0,HIGH:0,WARNING:0,INFO:0});")
 
     assert unloaded < clean < populated
     assert "<h1>Clean scan</h1>" in html

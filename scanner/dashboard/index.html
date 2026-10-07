@@ -169,12 +169,12 @@ function render(){
     browseFindings.addEventListener('click', () => fileInput.click());
     return;
   }
-  const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
-  const byCat = {};
+  const counts = Object.assign(Object.create(null), {CRITICAL:0,HIGH:0,WARNING:0,INFO:0});
+  const byCat = Object.create(null);
   let blocking = 0;
   for(const f of ALL){
     const s = String(f.severity||'INFO').toUpperCase();
-    counts[s in counts ? s : 'INFO']++;
+    counts[Object.hasOwn(counts, s) ? s : 'INFO']++;
     const c = String(f.category||'misconfig');
     byCat[c] = (byCat[c]||0)+1;
     if(isDeployBlocking(f)) blocking++;
