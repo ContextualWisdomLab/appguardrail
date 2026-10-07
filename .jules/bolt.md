@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-20 - Avoid dictionary lookups and redundant type checking when sorting findings
+**Learning:** In `_print_scan_results`, sorting findings using `lambda f: _SEVERITY_ORDER.get(f["severity"], 99)` repeatedly performs dictionary lookups (`f["severity"]` and `_SEVERITY_ORDER.get`) during the sort algorithm. Replacing this with the pre-existing `finding_sort_key` from `appguardrail_core.findings` which provides a consistent, robust `O(1)` sorting key prevents redundant lambda execution and standardizes the sorting logic. This eliminates a small performance bottleneck and reduces code duplication.
+**Action:** Replace inline lambda sort keys with established, optimized sort key functions (like `finding_sort_key`) when sorting complex dictionary collections.
