@@ -302,3 +302,23 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+def test_file_upload_proxy_accessibility_contract_is_documented_accurately() -> None:
+    """Ensure the learning about aria-hidden is accurately documented in the journal."""
+    from pathlib import Path
+    import pytest
+    journal_path = Path('.jules/palette.md')
+    if not journal_path.exists():
+        pytest.skip("Journal file not found.")
+    content = journal_path.read_text(encoding='utf-8')
+    assert '`aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거' in content
+
+def test_file_upload_proxy_structure_meets_accessibility_constraints() -> None:
+    """Ensure the proxy button and hidden file input meet structural a11y constraints."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+
+    assert 'aria-hidden="true"' in html
+    assert 'class="sr-only"' in html
+    assert 'tabindex="-1"' in html
+    assert 'id="header-browse-findings"' in html
+    assert "headerBrowseFindings.addEventListener('click', () => fileInput.click())" in html
