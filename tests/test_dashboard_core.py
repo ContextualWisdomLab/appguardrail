@@ -302,3 +302,15 @@ def test_dashboard_search_escape_clears_input():
     assert "e.key === 'Escape'" in html
     assert "query = '';" in html
     assert "render();" in html
+
+def test_dashboard_external_links_have_sr_only_warning():
+    """External links must expose an assistive-technology warning for screen readers."""
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    match = re.search(r"const refs\s*=\s*\([^)]+\)\.map\(r=>`(?P<markup><a\b[^`]+)`\)", html)
+    assert match is not None
+    markup = match.group("markup")
+    assert 'target="_blank"' in markup
+    assert '<span class="sr-only"> (opens in a new tab)</span>' in markup
+    assert '<svg aria-hidden="true"' in markup
+    # check that it's correctly placed inside the link
+    assert re.search(r"<a[^>]+>.*?<span class=\"sr-only\"> \(opens in a new tab\)</span>.*?<svg.*?</a>", markup)
