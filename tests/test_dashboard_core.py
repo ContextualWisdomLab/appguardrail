@@ -155,6 +155,45 @@ console.log(JSON.stringify({{keys,colors,prototypeUnchanged:JSON.stringify(befor
     assert actual["prototypeUnchanged"] is True
 
 
+def test_dashboard_category_counts_reject_inherited_properties():
+    """Category aggregation must count prototype-named categories as data."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the dashboard JavaScript regression")
+
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    category_map = re.search(r"const byCat = [^;]+;", html)
+    category_increment = re.search(r"byCat\[c\] = \(byCat\[c\]\|\|0\)\+1;", html)
+    assert category_map is not None
+    assert category_increment is not None
+
+    script = f"""
+{category_map.group(0)}
+const before=Reflect.ownKeys(Object.prototype);
+for(const c of ["normal","__proto__","constructor","toString","normal","__proto__"]){{
+  {category_increment.group(0)}
+}}
+const after=Reflect.ownKeys(Object.prototype);
+console.log(JSON.stringify({{counts:Object.fromEntries(Object.entries(byCat)),
+  prototypeUnchanged:JSON.stringify(before)===JSON.stringify(after)}}));
+"""
+    result = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    actual = json.loads(result.stdout)
+
+    assert actual["counts"] == {
+        "normal": 2,
+        "__proto__": 2,
+        "constructor": 1,
+        "toString": 1,
+    }
+    assert actual["prototypeUnchanged"] is True
+
+
 def test_server_serves_index_and_findings(tmp_path):
     findings = tmp_path / "findings.json"
     findings.write_text(
