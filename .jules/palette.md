@@ -81,7 +81,3 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
-
-## 2026-08-15 - 파일 입력(File Input)을 위한 접근성 프록시 패턴 (Accessibility Proxy for File Input)
-**Learning:** 네이티브 `<input type="file">` 요소는 시각적으로 스타일링하기 매우 까다롭고 종종 디자인 시스템의 일관성을 깬다. 단순히 `display: none`을 사용하면 접근성 트리에서 제거되어 스크린 리더와 키보드 사용자가 접근할 수 없다. `aria-hidden="true"`는 파일 입력 요소를 접근성 트리에서 제거한다.
-**Action:** 네이티브 입력을 시각적으로 숨길 때(예: `class="sr-only" tabindex="-1" aria-hidden="true"`), 항상 클릭을 숨겨진 입력에 전달하는 완전히 접근 가능한 프록시 `<button>`(적절한 텍스트나 `aria-label` 포함)을 제공하라.
