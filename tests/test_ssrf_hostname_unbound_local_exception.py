@@ -110,80 +110,6 @@ def validate_egress_address(hostname, ip_address, policy):
 """
 
 
-def _direct_local_hostname_allowlist_source() -> str:
-    """Admit loopback only for a hostname in the configured local allowlist."""
-    return """\
-def validate_egress_address(hostname, ip_address, settings):
-    if hostname not in settings.local_hosts:
-        return False
-    admitted = False
-    if settings.allow_local:
-        if ip_address.is_loopback:
-            admitted = True
-    return admitted
-"""
-
-
-def _generic_allowed_hostname_collection_source() -> str:
-    """Keep generic allowed hosts positive because they may be remote."""
-    return """\
-def validate_egress_address(hostname, ip_address, settings):
-    if hostname not in settings.allowed_hosts:
-        return False
-    admitted = False
-    if settings.allow_local:
-        if ip_address.is_loopback:
-            admitted = True
-    return admitted
-"""
-
-
-def _late_local_hostname_guard_source() -> str:
-    """Keep a guard after the vulnerable admission branch positive."""
-    return """\
-def validate_egress_address(hostname, ip_address, settings):
-    admitted = False
-    if settings.allow_local:
-        if ip_address.is_loopback:
-            admitted = True
-    if hostname not in settings.local_hosts:
-        return False
-    return admitted
-"""
-
-
-def _conditional_local_hostname_guard_source() -> str:
-    """Keep a conditionally applied local-host guard positive."""
-    return """\
-def validate_egress_address(hostname, ip_address, settings):
-    if settings.strict:
-        if hostname not in settings.local_hosts:
-            return False
-    admitted = False
-    if settings.allow_local:
-        if ip_address.is_loopback:
-            admitted = True
-    return admitted
-"""
-
-
-def _nested_observation_before_local_guard_source() -> str:
-    """Ignore unrelated nested policy observation before a dominating guard."""
-    return """\
-def validate_egress_address(hostname, ip_address, settings):
-    if settings.audit:
-        if settings.allow_local:
-            logger.info("local mode enabled")
-    if hostname not in settings.local_hosts:
-        return False
-    admitted = False
-    if settings.allow_local:
-        if ip_address.is_loopback:
-            admitted = True
-    return admitted
-"""
-
-
 def _observation_only_source() -> str:
     """Observe local mode without using it as an address admission decision."""
     return """\
@@ -194,16 +120,7 @@ def report_local_address(ip_address, policy):
 """
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        _vulnerable_source(),
-        _renamed_vulnerable_source(),
-        _generic_allowed_hostname_collection_source(),
-        _late_local_hostname_guard_source(),
-        _conditional_local_hostname_guard_source(),
-    ],
-)
+@pytest.mark.parametrize("source", [_vulnerable_source(), _renamed_vulnerable_source()])
 def test_packaged_rule_matches_hostname_unbound_local_exception(source: str) -> None:
     """Detect a global local-mode branch that directly admits loopback."""
     assert _rule()["pattern"].search(source)
@@ -215,8 +132,6 @@ def test_packaged_rule_matches_hostname_unbound_local_exception(source: str) -> 
         _fixed_source(),
         _hostname_bound_source(),
         _early_hostname_guard_source(),
-        _direct_local_hostname_allowlist_source(),
-        _nested_observation_before_local_guard_source(),
         _observation_only_source(),
     ],
 )

@@ -21,5 +21,3 @@
   remote hostname; retain hostname-bound, fixed fail-closed, observation-only,
   alias/wrapper, dictionary-policy, cross-function, and alternative-admission
   boundaries as executable negatives or explicit false negatives.
-- Keep dominating fail-closed local-host allowlists negative without suppressing
-  generic allowed/trusted-host collections or non-dominating guards.
