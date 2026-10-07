@@ -66,6 +66,7 @@ from appguardrail_core.pinned_https import (
 )
 from appguardrail_core.external import build_external_scan_plan
 from appguardrail_core.findings import NON_BLOCKING_CONTEXTS
+from appguardrail_core.findings import finding_sort_key
 from appguardrail_core.findings import is_deploy_blocking as core_is_deploy_blocking
 from appguardrail_core.findings import normalize_findings
 from appguardrail_core.language import (
@@ -3044,7 +3045,7 @@ _SEVERITY_ICONS = {
 
 def _print_scan_results(findings, files_scanned):
     """Print sorted findings and deploy-gate summary counts."""
-    findings.sort(key=lambda f: _SEVERITY_ORDER.get(f["severity"], 99))
+    findings.sort(key=finding_sort_key)
 
     counts = {"CRITICAL": 0, "HIGH": 0, "WARNING": 0, "INFO": 0}
     non_blocking = 0
