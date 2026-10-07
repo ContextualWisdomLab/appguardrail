@@ -1034,6 +1034,16 @@ def test_semgrep_findings_maps_json_results(tmp_path):
                     "severity": "ERROR",
                     "lines": "res.send(req.query.name)",
                 },
+            },
+            {
+                "check_id": "javascript.node.security.audit.ssrf.direct-request",
+                "path": str(tmp_path / "server.ts"),
+                "start": {"line": 8},
+                "extra": {
+                    "message": "Detected SSRF",
+                    "severity": "ERROR",
+                    "lines": "http.get(req.query.url)",
+                },
             }
         ]
     }
@@ -1043,6 +1053,9 @@ def test_semgrep_findings_maps_json_results(tmp_path):
     assert findings[0]["rule_id"].startswith("semgrep:javascript.express")
     assert findings[0]["severity"] == "HIGH"
     assert findings[0]["file"] == "server.ts"
+
+    assert findings[1]["rule_id"].startswith("semgrep:javascript.node.security.audit.ssrf")
+    assert findings[1]["category"] == "ssrf"
     assert findings[0]["line"] == 7
 
 

@@ -95,6 +95,10 @@ def test_finding_category_secrets_for_credentials():
     assert _finding_category("hardcoded-api-credential") == "secrets"
 
 
+def test_finding_category_ssrf():
+    assert _finding_category("python-okta-host-endswith-ssrf") == "ssrf"
+
+
 def test_trivy_target_empty(tmp_path):
     assert _trivy_target("", tmp_path) == tmp_path.as_posix()
 
