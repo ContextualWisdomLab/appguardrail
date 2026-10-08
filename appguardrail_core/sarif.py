@@ -39,6 +39,7 @@ def findings_to_sarif(
     normalized = normalize_findings(findings)
 
     rules: dict[str, dict[str, Any]] = {}
+    rule_indices: dict[str, int] = {}
     results: list[dict[str, Any]] = []
     for f in normalized:
         rule_id = f["rule_id"]
@@ -63,12 +64,13 @@ def findings_to_sarif(
                     "security-severity": _SECURITY_SEVERITY.get(severity, "2.0"),
                 },
             }
+            rule_indices[rule_id] = len(rules)
             rules[rule_id] = rule
 
         results.append(
             {
                 "ruleId": rule_id,
-                "ruleIndex": list(rules).index(rule_id),
+                "ruleIndex": rule_indices[rule_id],
                 "level": _LEVEL.get(severity, "note"),
                 "message": {"text": f["message"].strip()},
                 "locations": [
