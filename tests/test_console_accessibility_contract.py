@@ -23,3 +23,10 @@ def test_console_rows_preserve_cell_content_for_screen_readers():
 
     assert 'role="button" title="View scan details"' in html
     assert 'aria-label="View scan details"' not in html
+
+def test_console_close_button_exposes_shortcut():
+    """The close button must expose its Escape key shortcut."""
+    html = _console_html()
+
+    assert 'title="Close (Esc)"' in html
+    assert 'aria-keyshortcuts="Escape"' in html
