@@ -58,7 +58,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from appguardrail_core.config import load_config
-from appguardrail_core.controlplane import SafeRedirectHandler
 from appguardrail_core.pinned_https import (
     DestinationValidationError,
     PinnedHTTPSFailure,
@@ -1045,9 +1044,7 @@ def _compile_yaml_regex_rule(rule):
                 "extensions": extensions,
                 "include_paths": rule.get("include_paths") or [],
                 "exclude_paths": rule.get("exclude_paths") or [],
-                "required_substrings": tuple(
-                    rule.get("required_substrings") or ()
-                ),
+                "required_substrings": tuple(rule.get("required_substrings") or ()),
             }
         )
     return compiled_rules
@@ -1725,9 +1722,7 @@ def _push_findings(url, findings):
 
     base_path = parsed.path.rstrip("/")
     endpoint_path = f"{base_path}/api/v1/scans" if base_path else "/api/v1/scans"
-    endpoint = urllib.parse.urlunsplit(
-        ("https", parsed.netloc, endpoint_path, "", "")
-    )
+    endpoint = urllib.parse.urlunsplit(("https", parsed.netloc, endpoint_path, "", ""))
     payload = {
         "findings": list(normalize_findings(findings)),
         "repo": os.environ.get("GITHUB_REPOSITORY"),
@@ -2255,37 +2250,36 @@ def _sanitize_terminal_output(text: str) -> str:
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
-_SENSITIVE_RULE_TOKENS = (
-    "secret",
-    "password",
-    "token",
-    "jwt",
-    "database-url",
-    "db-url",
-    "dsn",
-    "credential",
-    "stripe",
-    "openai",
-    "supabase-service-role",
-    "aws",
-    "private-key",
-    "anthropic",
-    "google",
-    "github",
-    "api-key",
-    "slack",
-    "twilio",
-    "sendgrid",
-    "npm",
-    "pypi",
-)
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
 
 
 def _is_sensitive_rule(rule_id: str) -> bool:
     """Return whether a rule id is likely to expose secret material."""
     lowered = (rule_id or "").lower()
-    return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
+    return (
+        "secret" in lowered
+        or "password" in lowered
+        or "token" in lowered
+        or "jwt" in lowered
+        or "database-url" in lowered
+        or "db-url" in lowered
+        or "dsn" in lowered
+        or "credential" in lowered
+        or "stripe" in lowered
+        or "openai" in lowered
+        or "supabase-service-role" in lowered
+        or "aws" in lowered
+        or "private-key" in lowered
+        or "anthropic" in lowered
+        or "google" in lowered
+        or "github" in lowered
+        or "api-key" in lowered
+        or "slack" in lowered
+        or "twilio" in lowered
+        or "sendgrid" in lowered
+        or "npm" in lowered
+        or "pypi" in lowered
+    )
 
 
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
@@ -2740,20 +2734,22 @@ def _run_semgrep_scan(scan_path: Path, config: str = "auto"):
 
     config = config or "auto"
     try:
-        process = subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
-            [
-                semgrep,
-                "scan",
-                "--config",
-                config,
-                "--json",
-                str(scan_path),
-            ],
-            shell=False,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
+        process = (
+            subprocess.run(  # noqa: S603 - Semgrep path resolved with shutil.which
+                [
+                    semgrep,
+                    "scan",
+                    "--config",
+                    config,
+                    "--json",
+                    str(scan_path),
+                ],
+                shell=False,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Semgrep scan timed out.") from exc
@@ -2820,13 +2816,15 @@ def _run_zap_baseline(target_url: str):
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "zap-baseline.json"
         try:
-            process = subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
-                [zap, "-t", target_url, "-J", str(report_path), "-I"],
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=900,
+            process = (
+                subprocess.run(  # noqa: S603 - ZAP path resolved with shutil.which
+                    [zap, "-t", target_url, "-J", str(report_path), "-I"],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=900,
+                )
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("ZAP baseline scan timed out.") from exc
