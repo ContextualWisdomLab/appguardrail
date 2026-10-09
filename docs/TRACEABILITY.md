@@ -82,12 +82,16 @@ when explicit write authority or a referenced repository secret is present, the
 job checks out or shell-materializes
 `github.event.pull_request.head.sha`/`ref` or `github.head_ref`, and a later step
 executes a repository-local action, script, test, or build command from the
-selected tree. One-hop workflow-, job-, and same-step block/flow `env` bindings of the
+selected tree. One-hop workflow-, job-, and same-step block/flow (including multiline
+flow) `env` bindings of the
 event head are followed into the same shell command segment as checkout/switch,
-or from the most recent PR-head fetch into `FETCH_HEAD` worktree creation and
-execution linked by `cd`, `pushd`, exact step `working-directory`, or absolute path
+or from the most recent `FETCH_HEAD`-writing PR-head fetch into `FETCH_HEAD`
+worktree creation and execution linked by normalized `cd`, `pushd`, exact step
+`working-directory`, or executable/script path
 commands so the retained fixture reproduces the issue #132 CodeGraph execution
 shape after the prevention fix merged in ContextualWisdomLab/.github PR #635.
+Non-overwriting `--no-write-fetch-head`/`--append` fetches preserve that provenance;
+a later trusted checkout, switch, or overwriting fetch invalidates it.
 
 Metadata-only `pull_request_target` handling, ordinary `pull_request`, trusted
 base-SHA checkout, inert output, privilege located only in another job, and a

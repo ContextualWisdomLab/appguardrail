@@ -1138,8 +1138,6 @@ class _GitHubActionsPullRequestTargetPattern:
                 guard = " ".join(guard_lines)
             if guard.startswith("${{") and guard.endswith("}}"):
                 guard = guard[3:-2].strip()
-            if re.search(r"!(?!=)", guard):
-                return False
             branches = guard.split("||")
             return all(
                 any(
@@ -1242,6 +1240,9 @@ class _GitHubActionsPullRequestTargetPattern:
                     continue
                 if semantic_indent != step_key_indent:
                     continue
+                value = self._flow_mapping_value(
+                    lines, nested_index, step_end, semantic_indent, value
+                )
                 if value.startswith("{"):
                     flow_ref = self._FLOW_REF.search(value)
                     if flow_ref and self._has_pr_head(flow_ref.group("value")):
@@ -1273,7 +1274,13 @@ class _GitHubActionsPullRequestTargetPattern:
                 or len(field.group("indent")) != env_indent
             ):
                 continue
-            value = self._yaml_value(field.group("value"))
+            value = self._flow_mapping_value(
+                lines,
+                index,
+                end,
+                env_indent,
+                self._yaml_value(field.group("value")),
+            )
             if value.startswith("{"):
                 aliases.update(self._flow_env_aliases(value))
                 continue
@@ -1302,6 +1309,24 @@ class _GitHubActionsPullRequestTargetPattern:
             ):
                 aliases.add(name)
         return aliases
+
+    def _flow_mapping_value(
+        self, lines, index: int, end: int, owner_indent: int, value: str
+    ) -> str:
+        """Join a bounded multiline YAML flow mapping for deterministic parsing."""
+        if not value.startswith("{") or value.endswith("}"):
+            return value
+        parts = [value]
+        for nested in lines[index + 1 : end]:
+            stripped = nested.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if self._indent_width(nested) <= owner_indent and stripped != "}":
+                break
+            parts.append(stripped)
+            if stripped.endswith("}"):
+                break
+        return " ".join(parts)
 
     def _step_range(self, lines, start: int, end: int, index: int):
         """Return the YAML sequence item containing one run-block line."""
@@ -1349,7 +1374,13 @@ class _GitHubActionsPullRequestTargetPattern:
             )
             if env_indent != step_key_indent:
                 continue
-            value = self._yaml_value(env_match.group("value"))
+            value = self._flow_mapping_value(
+                lines,
+                env_index,
+                step_end,
+                env_indent,
+                self._yaml_value(env_match.group("value")),
+            )
             if value.startswith("{"):
                 aliases.update(self._flow_env_aliases(value))
                 continue
@@ -1394,6 +1425,36 @@ class _GitHubActionsPullRequestTargetPattern:
         return re.split(r"[ \t]+#", line, maxsplit=1)[0]
 
     @staticmethod
+    def _executes_from_directory(command_line: str, directory: str) -> bool:
+        """Bind an executable or interpreter script path to one worktree."""
+        directory_prefix = f"{os.path.normpath(directory).rstrip('/')}/"
+        interpreters = {
+            "bash",
+            "sh",
+            "zsh",
+            "python",
+            "python3",
+            "node",
+            "ruby",
+            "perl",
+        }
+        for segment in re.split(r"(?:&&|\|\||;)", command_line):
+            try:
+                tokens = shlex.split(segment)
+            except ValueError:
+                continue
+            if not tokens:
+                continue
+            executable = os.path.normpath(tokens[0])
+            if executable.startswith(directory_prefix):
+                return True
+            if os.path.basename(tokens[0]) in interpreters and len(tokens) > 1:
+                script = os.path.normpath(tokens[1])
+                if script.startswith(directory_prefix):
+                    return True
+        return False
+
+    @staticmethod
     def _worktree_target(command: str):
         """Return the destination argument from a simple git worktree add."""
         try:
@@ -1435,7 +1496,9 @@ class _GitHubActionsPullRequestTargetPattern:
                     for alias in step_aliases
                 )
                 references_pr_head = self._has_pr_head(command) or alias_match
-                if self._GIT_FETCH.search(command):
+                if self._GIT_FETCH.search(command) and not re.search(
+                    r"(?:--no-write-fetch-head|--append|-a)\b", command
+                ):
                     fetched_pr_head = references_pr_head
                 if not self._GIT_TREE_SELECTION.search(command):
                     continue
@@ -1480,8 +1543,16 @@ class _GitHubActionsPullRequestTargetPattern:
         end: int,
         active_run_indent=None,
         required_directory=None,
+        selection_index=None,
     ):
         """Return subsequent local action, script, test, or build execution."""
+        if required_directory:
+            required_directory = os.path.normpath(required_directory)
+        selection_step_start = None
+        if selection_index is not None:
+            selection_step_start, _, _ = self._step_range(
+                lines, 0, end, selection_index
+            )
         in_run_block = active_run_indent is not None
         run_indent = active_run_indent or 0
         in_materialized_directory = required_directory is None
@@ -1490,13 +1561,37 @@ class _GitHubActionsPullRequestTargetPattern:
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
+            if self._CHECKOUT.match(line):
+                step_start, step_end, _ = self._step_range(
+                    lines, 0, end, index
+                )
+                if (
+                    step_start != selection_step_start
+                    and self._checkout_materialization(lines, step_start, step_end)
+                    is None
+                ):
+                    return None
+            if index != selection_index:
+                for command in re.split(
+                    r"(?:&&|\|\||;)", self._shell_code(stripped)
+                ):
+                    if (
+                        self._GIT_TREE_SELECTION.search(command)
+                        and "worktree" not in command
+                        and not self._has_pr_head(command)
+                        and "FETCH_HEAD" not in command
+                    ):
+                        return None
             step_directory = self._step_working_directory(
                 lines, start, end, index
             )
+            if step_directory:
+                step_directory = os.path.normpath(step_directory)
             executes_target_path = bool(
                 required_directory
-                and f"{required_directory.rstrip('/')}/" in self._shell_code(stripped)
-                and self._is_local_command(stripped)
+                and self._executes_from_directory(
+                    self._shell_code(stripped), required_directory
+                )
             )
             if self._LOCAL_ACTION.match(line) and required_directory is None:
                 return index
@@ -1508,10 +1603,14 @@ class _GitHubActionsPullRequestTargetPattern:
                 in_materialized_directory = required_directory is None or (
                     step_directory == required_directory
                 )
+                value_executes_target = bool(
+                    required_directory
+                    and self._executes_from_directory(value, required_directory)
+                )
                 if (
                     not in_run_block
                     and self._is_local_command(value)
-                    and (in_materialized_directory or executes_target_path)
+                    and (in_materialized_directory or value_executes_target)
                 ):
                     return index
                 continue
@@ -1523,10 +1622,14 @@ class _GitHubActionsPullRequestTargetPattern:
                 in_materialized_directory = required_directory is None or (
                     step_directory == required_directory
                 )
+                value_executes_target = bool(
+                    required_directory
+                    and self._executes_from_directory(value, required_directory)
+                )
                 if (
                     not in_run_block
                     and self._is_local_command(value)
-                    and (in_materialized_directory or executes_target_path)
+                    and (in_materialized_directory or value_executes_target)
                 ):
                     return index
                 continue
@@ -1545,12 +1648,18 @@ class _GitHubActionsPullRequestTargetPattern:
                             ]
                         except ValueError:
                             commands = []
-                        if any(
-                            command[:1] in (["cd"], ["pushd"])
-                            and command[-1:] == [required_directory]
-                            for command in commands
-                        ):
-                            in_materialized_directory = True
+                        for command in commands:
+                            if command[:1] in (["cd"], ["pushd"]):
+                                destination = (
+                                    os.path.normpath(command[-1])
+                                    if command[-1:]
+                                    else None
+                                )
+                                in_materialized_directory = (
+                                    destination == required_directory
+                                )
+                            elif command[:1] == ["popd"]:
+                                in_materialized_directory = False
                     if (
                         (in_materialized_directory or executes_target_path)
                         and self._is_local_command(stripped)
@@ -1615,6 +1724,7 @@ class _GitHubActionsPullRequestTargetPattern:
                 end,
                 active_run_indent,
                 required_directory,
+                materialized,
             )
             if execution is not None:
                 yield _SourceMatch(offsets[execution])

@@ -247,6 +247,28 @@ jobs:
     }
 
 
+def test_safe_event_guard_with_unrelated_negation_is_not_reported(tmp_path) -> None:
+    """An independent cancelled predicate cannot reopen PR-target reachability."""
+    workflow = """
+on: [pull_request_target, repository_dispatch]
+permissions: {id-token: write}
+jobs:
+  review:
+    if: github.event_name != 'pull_request_target' && !cancelled()
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
 @pytest.mark.parametrize(
     "head_expression",
     [
@@ -399,6 +421,44 @@ jobs:
         with: {ref: "${{ github.event.pull_request.head.sha }}"}
       - run: bash ./ci/review.sh
 """
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        """env: {
+  PR_HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
+}
+jobs:
+  review:
+    steps:
+      - run: |
+          git checkout "$PR_HEAD_SHA"
+          bash ./ci/review.sh
+""",
+        """jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {
+          ref: "${{ github.event.pull_request.head.sha }}"
+        }
+      - run: bash ./ci/review.sh
+""",
+    ],
+)
+def test_multiline_flow_mapping_is_reported(tmp_path, mapping: str) -> None:
+    """Multiline and single-line flow mappings have equivalent semantics."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+{mapping}"""
 
     findings = _scan_workflow(tmp_path, workflow)
 
@@ -653,6 +713,127 @@ jobs:
     assert _PR_TARGET_EXECUTION_RULE_ID not in {
         finding["rule_id"] for finding in findings
     }
+
+
+@pytest.mark.parametrize("option", ["--no-write-fetch-head", "--append"])
+def test_non_overwriting_fetch_preserves_pr_fetch_head(
+    tmp_path, option: str
+) -> None:
+    """Fetch modes that do not replace FETCH_HEAD preserve PR provenance."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+env:
+  PR_HEAD_SHA: ${{{{ github.event.pull_request.head.sha }}}}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git fetch {option} origin main
+          git worktree add /tmp/review FETCH_HEAD
+          cd /tmp/review
+          bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        """      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+      - run: bash ./ci/base.sh""",
+        """      - run: |
+          git checkout "${{ github.event.pull_request.head.sha }}"
+          git checkout main
+          bash ./ci/base.sh""",
+    ],
+)
+def test_later_trusted_selection_invalidates_pr_tree(
+    tmp_path, selection: str
+) -> None:
+    """Execution provenance follows the most recent selected workspace tree."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+jobs:
+  review:
+    steps:
+{selection}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize(
+    "execution",
+    [
+        "bash ./ci/base.sh --output /tmp/review/results.json",
+        "cd /tmp/review\ncd \"$GITHUB_WORKSPACE\"\nbash ./ci/base.sh",
+    ],
+)
+def test_worktree_path_mention_or_exit_is_not_reported(
+    tmp_path, execution: str
+) -> None:
+    """Arguments and exited directories do not prove PR-tree execution."""
+    body = execution.replace("\n", "\n          ")
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+env:
+  PR_HEAD_SHA: ${{{{ github.event.pull_request.head.sha }}}}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git worktree add /tmp/review FETCH_HEAD
+          {body}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_normalized_relative_worktree_entry_is_reported(tmp_path) -> None:
+    """Equivalent relative path spellings bind the same worktree."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+env:
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git worktree add ./review FETCH_HEAD
+          cd review
+          bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
 
 
 def test_pr_alias_must_select_git_materialization_revision(tmp_path) -> None:

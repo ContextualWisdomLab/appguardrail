@@ -50,12 +50,14 @@ requires all four causal elements: a `pull_request_target` trigger, repository
 privilege in the same job, explicit materialization of an event-derived PR head,
 and subsequent execution of a local action, script, test, or build from that
 tree. It recognizes equivalent dot/bracket event expressions and one-hop
-workflow-, job-, or same-step block/flow `env` bindings used by the same shell command
+workflow-, job-, or same-step block/flow (including multiline flow) `env` bindings used by the same shell command
 segment as Git tree selection. A fetch alone is insufficient; checkout/switch
 must select the revision, or a worktree must select it and execution must bind
-through `cd`, `pushd`, exact step `working-directory`, or an absolute path.
-The most recent fetch owns `FETCH_HEAD`, so a later trusted fetch clears prior
-PR-head evidence. Action checkout materialization is bound
+through normalized `cd`, `pushd`, exact step `working-directory`, or an executable/script path.
+The most recent fetch that writes `FETCH_HEAD` owns its provenance; a later trusted
+overwriting fetch clears prior PR-head evidence, while `--no-write-fetch-head` and
+`--append` preserve it. A later trusted checkout/switch invalidates an earlier
+PR-tree selection. Action checkout materialization is bound
 specifically to its owned `with.ref` input, including flow mappings. It
 does not merge evidence across jobs or treat
 YAML-looking action inputs, comments, or run-block data as workflow authority.
