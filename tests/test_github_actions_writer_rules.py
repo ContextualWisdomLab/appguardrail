@@ -639,6 +639,8 @@ jobs:
         "bash /tmp/review/ci/review.sh",
         "bash -e /tmp/review/ci/review.sh",
         "python3 -u /tmp/review/ci/review.py",
+        "python3 -W ignore /tmp/review/ci/review.py",
+        "bash -O extglob /tmp/review/ci/review.sh",
         "pushd /tmp/review\nbash ./ci/review.sh",
     ],
 )
@@ -791,6 +793,10 @@ jobs:
         'echo "git checkout main"',
         "if false; then git checkout main; fi",
         'git checkout "$PR_HEAD_SHA"',
+        "git checkout HEAD",
+        "git switch --detach",
+        "git checkout --detach HEAD",
+        "git checkout -f HEAD",
     ],
 )
 def test_non_tree_changing_or_pr_selection_preserves_pr_tree(

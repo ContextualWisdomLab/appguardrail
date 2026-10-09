@@ -1428,19 +1428,53 @@ class _GitHubActionsPullRequestTargetPattern:
         return re.split(r"[ \t]+#", line, maxsplit=1)[0]
 
     @staticmethod
-    def _executes_from_directory(command_line: str, directory: str) -> bool:
-        """Bind an executable or interpreter script path to one worktree."""
-        directory_prefix = f"{os.path.normpath(directory).rstrip('/')}/"
-        interpreters = {
-            "bash",
-            "sh",
-            "zsh",
-            "python",
-            "python3",
+    def _interpreter_script(tokens):
+        """Return the script operand after bounded interpreter options."""
+        interpreter = os.path.basename(tokens[0]) if tokens else ""
+        value_options = {
+            "bash": {"-O", "--rcfile", "--init-file"},
+            "sh": {"-O"},
+            "zsh": {"-O"},
+            "python": {"-W", "-X"},
+            "python3": {"-W", "-X"},
+        }.get(interpreter, set())
+        terminal_options = {
+            "bash": {"-c", "--command"},
+            "sh": {"-c"},
+            "zsh": {"-c"},
+            "python": {"-c", "-m"},
+            "python3": {"-c", "-m"},
+            "node": {"-e", "--eval"},
+            "ruby": {"-e"},
+            "perl": {"-e"},
+        }.get(interpreter, set())
+        if not value_options and not terminal_options and interpreter not in {
             "node",
             "ruby",
             "perl",
-        }
+        }:
+            return None
+        index = 1
+        while index < len(tokens):
+            option = tokens[index]
+            if option == "--":
+                index += 1
+                break
+            if option in terminal_options:
+                return None
+            if option in value_options:
+                index += 2
+                continue
+            if option.startswith(("-", "+")):
+                index += 1
+                continue
+            break
+        return tokens[index] if index < len(tokens) else None
+
+    @classmethod
+    def _executes_from_directory(cls, command_line: str, directory: str) -> bool:
+        """Bind an executable or interpreter script path to one worktree."""
+        directory_prefix = f"{os.path.normpath(directory).rstrip('/')}/"
         for segment in re.split(r"(?:&&|\|\||;)", command_line):
             try:
                 tokens = shlex.split(segment)
@@ -1451,19 +1485,9 @@ class _GitHubActionsPullRequestTargetPattern:
             executable = os.path.normpath(tokens[0])
             if executable.startswith(directory_prefix):
                 return True
-            if os.path.basename(tokens[0]) in interpreters and len(tokens) > 1:
-                script_index = 1
-                while (
-                    script_index < len(tokens)
-                    and tokens[script_index].startswith("-")
-                ):
-                    if tokens[script_index] in {"-c", "--command", "-m"}:
-                        script_index = len(tokens)
-                        break
-                    script_index += 1
-                if script_index >= len(tokens):
-                    continue
-                script = os.path.normpath(tokens[script_index])
+            script_operand = cls._interpreter_script(tokens)
+            if script_operand:
+                script = os.path.normpath(script_operand)
                 if script.startswith(directory_prefix):
                     return True
         return False
@@ -1487,6 +1511,13 @@ class _GitHubActionsPullRequestTargetPattern:
         ):
             return False
         arguments = tokens[2:]
+        non_option_arguments = [
+            argument
+            for argument in arguments
+            if not argument.startswith("-")
+        ]
+        if not non_option_arguments or non_option_arguments == ["HEAD"]:
+            return False
         if operation == "checkout":
             if arguments[:1] == ["--"]:
                 return False
@@ -1722,6 +1753,14 @@ class _GitHubActionsPullRequestTargetPattern:
         command = command.strip()
         if re.match(r"^(?:echo|printf|cat)\b", command):
             return False
+        for segment in re.split(r"(?:&&|\|\||;)", command):
+            try:
+                tokens = shlex.split(segment)
+            except ValueError:
+                continue
+            script = self._interpreter_script(tokens)
+            if script and (script.startswith(("./", "/")) or "/" in script):
+                return True
         return bool(self._LOCAL_COMMAND.search(command))
 
     def finditer(self, content: str):
