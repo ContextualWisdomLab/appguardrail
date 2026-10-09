@@ -1,10 +1,10 @@
 rules:
-  # Bind a versioned registry-package environment value to its later npx/npm
-  # auto-install execution. Requiring both signals avoids treating every local
-  # npx invocation or documentation example as a registry-integrity defect.
+  # Bind a step-local versioned registry-package environment value to the
+  # package-selector position of that step's run command. Quoted heredocs are
+  # excluded because their body is literal data, not shell execution.
   - id: github-actions-runtime-package-without-integrity
     patterns:
-      - pattern-regex: '^[ \t]*(?P<runtime_package_var>[A-Z][A-Z0-9_]*_PACKAGE)[ \t]*:[ \t]*["'']?(?![./])(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+@[0-9][A-Za-z0-9_.+-]*["'']?[ \t]*(?:#.*)?$\n(?:[^\n]*\n){0,30}?[ \t]*(?:(?:-[ \t]+)?run[ \t]*:[ \t]*)?(?:exec[ \t]+)?(?:npx|npm[ \t]+exec)(?=[^\n]*(?:-y|--yes)\b)[^\n]*["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))["'']?'
+      - pattern-regex: '^(?P<runtime_field_indent>[ \t]+)env[ \t]*:[ \t]*(?:#.*)?$\n(?:(?P=runtime_field_indent)[ \t]+[^\n]*\n)*?(?P=runtime_field_indent)[ \t]+(?P<runtime_package_var>[A-Z][A-Z0-9_]*_PACKAGE)[ \t]*:[ \t]*["'']?(?![./])(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+@[0-9][A-Za-z0-9_.+-]*["'']?[ \t]*(?:#.*)?$\n(?:(?P=runtime_field_indent)[ \t]+[^\n]*\n)*(?P=runtime_field_indent)run[ \t]*:[ \t]*(?:(?:exec[ \t]+)?(?:npx[ \t]+(?:-y|--yes)[ \t]+["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|npm[ \t]+exec[ \t]+(?:(?:-y|--yes)[ \t]+(?:--[ \t]+)?["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|--package(?:=|[ \t]+)["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?[ \t]+(?:-y|--yes)(?=[ \t]|$)))|[|>][^\n]*$\n(?=(?P<runtime_command_indent>(?P=runtime_field_indent)[ \t]+))(?:(?P=runtime_command_indent)(?![^\n]*<<[ \t]*["''])[^\n]*\n)*?(?P=runtime_command_indent)[ \t]*(?:exec[ \t]+)?(?:npx[ \t]+(?:-y|--yes)[ \t]+["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|npm[ \t]+exec[ \t]+(?:(?:-y|--yes)[ \t]+(?:--[ \t]+)?["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|--package(?:=|[ \t]+)["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?[ \t]+(?:-y|--yes)(?=[ \t]|$))))'
     message: |
       This GitHub Actions workflow binds a versioned npm registry package to
       an npx/npm-exec auto-install path. The version constrains resolution but
