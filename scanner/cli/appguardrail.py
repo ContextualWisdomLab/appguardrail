@@ -1142,17 +1142,20 @@ class _GitHubActionsPullRequestTargetPattern:
                 return False
             branches = guard.split("||")
             return all(
-                bool(
-                    re.search(
-                        r"github\.event_name[ \t]*!=[ \t]*"
-                        r"['\"]pull_request_target['\"]",
-                        branch,
+                any(
+                    bool(
+                        re.fullmatch(
+                            r"github\.event_name[ \t]*!=[ \t]*"
+                            r"['\"]pull_request_target['\"]",
+                            atom.strip(" ()\t"),
+                        )
+                        or re.fullmatch(
+                            r"github\.event_name[ \t]*==[ \t]*['\"]"
+                            r"(?!pull_request_target['\"])[A-Za-z_]+['\"]",
+                            atom.strip(" ()\t"),
+                        )
                     )
-                    or re.search(
-                        r"github\.event_name[ \t]*==[ \t]*['\"]"
-                        r"(?!pull_request_target['\"])[A-Za-z_]+['\"]",
-                        branch,
-                    )
+                    for atom in branch.split("&&")
                 )
                 for branch in branches
             )
@@ -1270,6 +1273,10 @@ class _GitHubActionsPullRequestTargetPattern:
                 or len(field.group("indent")) != env_indent
             ):
                 continue
+            value = self._yaml_value(field.group("value"))
+            if value.startswith("{"):
+                aliases.update(self._flow_env_aliases(value))
+                continue
             for nested in lines[index + 1 : end]:
                 if not nested.strip() or nested.lstrip().startswith("#"):
                     continue
@@ -1278,6 +1285,22 @@ class _GitHubActionsPullRequestTargetPattern:
                 variable = self._FIELD.match(nested.rstrip("\r\n"))
                 if variable and self._has_pr_head(variable.group("value")):
                     aliases.add(variable.group("name"))
+        return aliases
+
+    def _flow_env_aliases(self, value: str):
+        """Return PR-head aliases from the supported YAML flow mapping subset."""
+        aliases = set()
+        if not value.startswith("{") or not value.endswith("}"):
+            return aliases
+        for entry in value[1:-1].split(","):
+            if ":" not in entry:
+                continue
+            name, scalar = entry.split(":", 1)
+            name = name.strip(" '\"\t")
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) and self._has_pr_head(
+                scalar
+            ):
+                aliases.add(name)
         return aliases
 
     def _step_range(self, lines, start: int, end: int, index: int):
@@ -1314,7 +1337,8 @@ class _GitHubActionsPullRequestTargetPattern:
         step_key_indent = step_indent + 2
         aliases = set()
         env_pattern = re.compile(
-            r"^(?P<indent>[ \t]*)(?P<compact>-[ \t]+)?env[ \t]*:[ \t]*(?:#.*)?$"
+            r"^(?P<indent>[ \t]*)(?P<compact>-[ \t]+)?env[ \t]*:[ \t]*"
+            r"(?P<value>.*)$"
         )
         for env_index in range(step_start, step_end):
             env_match = env_pattern.match(lines[env_index].rstrip("\r\n"))
@@ -1325,6 +1349,10 @@ class _GitHubActionsPullRequestTargetPattern:
             )
             if env_indent != step_key_indent:
                 continue
+            value = self._yaml_value(env_match.group("value"))
+            if value.startswith("{"):
+                aliases.update(self._flow_env_aliases(value))
+                continue
             for nested in lines[env_index + 1 : step_end]:
                 if not nested.strip() or nested.lstrip().startswith("#"):
                     continue
@@ -1334,6 +1362,31 @@ class _GitHubActionsPullRequestTargetPattern:
                 if variable and self._has_pr_head(variable.group("value")):
                     aliases.add(variable.group("name"))
         return aliases
+
+    def _step_working_directory(self, lines, start: int, end: int, index: int):
+        """Return a step-owned working-directory scalar when present."""
+        step_start, step_end, step_indent = self._step_range(
+            lines, start, end, index
+        )
+        if step_indent is None:
+            return None
+        step_key_indent = step_indent + 2
+        compact_pattern = re.compile(
+            r"^(?P<indent>[ \t]*)-[ \t]+working-directory[ \t]*:[ \t]*(?P<value>.*)$"
+        )
+        for field_index in range(step_start, step_end):
+            line = lines[field_index].rstrip("\r\n")
+            field = self._FIELD.match(line)
+            compact = compact_pattern.match(line)
+            if (
+                field
+                and field.group("name") == "working-directory"
+                and len(field.group("indent")) == step_key_indent
+            ):
+                return self._yaml_value(field.group("value"))
+            if compact and len(compact.group("indent")) + 2 == step_key_indent:
+                return self._yaml_value(compact.group("value"))
+        return None
 
     @staticmethod
     def _shell_code(line: str) -> str:
@@ -1382,8 +1435,8 @@ class _GitHubActionsPullRequestTargetPattern:
                     for alias in step_aliases
                 )
                 references_pr_head = self._has_pr_head(command) or alias_match
-                if self._GIT_FETCH.search(command) and references_pr_head:
-                    fetched_pr_head = True
+                if self._GIT_FETCH.search(command):
+                    fetched_pr_head = references_pr_head
                 if not self._GIT_TREE_SELECTION.search(command):
                     continue
                 if references_pr_head or (
@@ -1437,14 +1490,29 @@ class _GitHubActionsPullRequestTargetPattern:
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
-            if self._LOCAL_ACTION.match(line):
+            step_directory = self._step_working_directory(
+                lines, start, end, index
+            )
+            executes_target_path = bool(
+                required_directory
+                and f"{required_directory.rstrip('/')}/" in self._shell_code(stripped)
+                and self._is_local_command(stripped)
+            )
+            if self._LOCAL_ACTION.match(line) and required_directory is None:
                 return index
             compact_run = self._COMPACT_RUN.match(line)
             if compact_run:
                 value = compact_run.group("value").strip()
                 in_run_block = value[:1] in {"|", ">"}
                 run_indent = len(compact_run.group("indent"))
-                if not in_run_block and self._is_local_command(value):
+                in_materialized_directory = required_directory is None or (
+                    step_directory == required_directory
+                )
+                if (
+                    not in_run_block
+                    and self._is_local_command(value)
+                    and (in_materialized_directory or executes_target_path)
+                ):
                     return index
                 continue
             field = self._FIELD.match(line)
@@ -1452,12 +1520,20 @@ class _GitHubActionsPullRequestTargetPattern:
                 value = field.group("value").strip()
                 in_run_block = value[:1] in {"|", ">"}
                 run_indent = len(field.group("indent"))
-                if not in_run_block and self._is_local_command(value):
+                in_materialized_directory = required_directory is None or (
+                    step_directory == required_directory
+                )
+                if (
+                    not in_run_block
+                    and self._is_local_command(value)
+                    and (in_materialized_directory or executes_target_path)
+                ):
                     return index
                 continue
             if in_run_block:
                 if self._indent_width(line) <= run_indent:
                     in_run_block = False
+                    in_materialized_directory = required_directory is None
                 else:
                     if required_directory:
                         try:
@@ -1470,12 +1546,15 @@ class _GitHubActionsPullRequestTargetPattern:
                         except ValueError:
                             commands = []
                         if any(
-                            command[:1] == ["cd"]
+                            command[:1] in (["cd"], ["pushd"])
                             and command[-1:] == [required_directory]
                             for command in commands
                         ):
                             in_materialized_directory = True
-                    if in_materialized_directory and self._is_local_command(stripped):
+                    if (
+                        (in_materialized_directory or executes_target_path)
+                        and self._is_local_command(stripped)
+                    ):
                         return index
         return None
 

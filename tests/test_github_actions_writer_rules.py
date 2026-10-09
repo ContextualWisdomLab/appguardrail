@@ -201,6 +201,30 @@ jobs:
     ) == 1
 
 
+def test_boolean_inverted_other_event_guard_does_not_exclude_pr_target(
+    tmp_path,
+) -> None:
+    """Comparing a trusted-event predicate to false admits PR-target."""
+    workflow = """
+on: [pull_request_target, repository_dispatch]
+permissions: {id-token: write}
+jobs:
+  review:
+    if: (github.event_name == 'repository_dispatch') == false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
 def test_or_of_non_pr_target_events_is_not_reported(tmp_path) -> None:
     """Every disjunct excludes PR-target, so the job is unreachable there."""
     workflow = """
@@ -309,6 +333,52 @@ jobs:
     steps:
 {step}
 """
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "env_location",
+    [
+        "env: {PR_HEAD_SHA: \"${{ github.event.pull_request.head.sha }}\"}\n",
+        """jobs:
+  review:
+    env: {PR_HEAD_SHA: "${{ github.event.pull_request.head.sha }}"}
+    steps:
+      - run: |
+          git checkout "$PR_HEAD_SHA"
+          bash ./ci/review.sh
+""",
+        """jobs:
+  review:
+    steps:
+      - env: {PR_HEAD_SHA: "${{ github.event.pull_request.head.sha }}"}
+        run: |
+          git checkout "$PR_HEAD_SHA"
+          bash ./ci/review.sh
+""",
+    ],
+)
+def test_flow_env_pr_head_alias_is_reported(tmp_path, env_location: str) -> None:
+    """Flow and block env mappings have the same one-hop alias semantics."""
+    if env_location.startswith("env:"):
+        body = f"""{env_location}jobs:
+  review:
+    steps:
+      - run: |
+          git checkout "$PR_HEAD_SHA"
+          bash ./ci/review.sh
+"""
+    else:
+        body = env_location
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+{body}"""
 
     findings = _scan_workflow(tmp_path, workflow)
 
@@ -470,6 +540,111 @@ jobs:
     steps:
       - run: |
           {materialization}
+          bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_worktree_without_execution_link_is_not_reported(tmp_path) -> None:
+    """A later scalar command still runs in the trusted base workspace."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+env:
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git worktree add /tmp/review FETCH_HEAD
+      - run: bash ./ci/base.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize(
+    "execution",
+    [
+        "bash /tmp/review/ci/review.sh",
+        "pushd /tmp/review\nbash ./ci/review.sh",
+    ],
+)
+def test_worktree_linked_block_execution_is_reported(
+    tmp_path, execution: str
+) -> None:
+    """Absolute paths and pushd both bind execution to the PR worktree."""
+    indented_execution = execution.replace("\n", "\n          ")
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+env:
+  PR_HEAD_SHA: ${{{{ github.event.pull_request.head.sha }}}}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git worktree add /tmp/review FETCH_HEAD
+          {indented_execution}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+def test_worktree_working_directory_execution_is_reported(tmp_path) -> None:
+    """A later step may explicitly run inside the selected PR worktree."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+env:
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git worktree add /tmp/review FETCH_HEAD
+      - working-directory: /tmp/review
+        run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+def test_trusted_fetch_overwrites_pr_fetch_head(tmp_path) -> None:
+    """The most recent ordinary fetch determines FETCH_HEAD selection."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+env:
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git fetch origin main
+          git worktree add /tmp/review FETCH_HEAD
+          cd /tmp/review
           bash ./ci/review.sh
 """
 
