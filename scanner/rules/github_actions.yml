@@ -1,20 +1,19 @@
 rules:
-  # `npx -y` and `npm exec --yes` resolve and execute registry content during
-  # the trusted workflow run. A package version constrains resolution but is
-  # not a committed byte-integrity proof for the package and its dependency
-  # graph. Install a committed lock with npm ci, then execute the local binary.
+  # Bind a versioned registry-package environment value to its later npx/npm
+  # auto-install execution. Requiring both signals avoids treating every local
+  # npx invocation or documentation example as a registry-integrity defect.
   - id: github-actions-runtime-package-without-integrity
     patterns:
-      - pattern-regex: '^[ \t]*(?!#)(?:(?:-[ \t]+)?run[ \t]*:[ \t]*)?(?:exec[ \t]+)?(?:npx[ \t]+(?:-y|--yes)\b|npm[ \t]+exec[ \t]+(?:-y|--yes)\b)'
+      - pattern-regex: '^[ \t]*(?P<runtime_package_var>[A-Z][A-Z0-9_]*_PACKAGE)[ \t]*:[ \t]*["'']?(?![./])(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+@[0-9][A-Za-z0-9_.+-]*["'']?[ \t]*(?:#.*)?$\n(?:[^\n]*\n){0,30}?[ \t]*(?:(?:-[ \t]+)?run[ \t]*:[ \t]*)?(?:exec[ \t]+)?(?:npx|npm[ \t]+exec)(?=[^\n]*(?:-y|--yes)\b)[^\n]*["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))["'']?'
     message: |
-      This GitHub Actions workflow downloads and executes an npm registry
-      package at runtime without committed lockfile integrity verification.
-      A package version is not a byte-integrity boundary for its tarball and
-      transitive dependencies. Commit the package and lockfile, install it
-      with `npm ci --ignore-scripts`, and execute the verified local binary;
-      keep tool self-download disabled where supported. [CWE-829 - Inclusion
-      of Functionality from Untrusted Control Sphere; OWASP A08:2021 -
-      Software and Data Integrity Failures]
+      This GitHub Actions workflow binds a versioned npm registry package to
+      an npx/npm-exec auto-install path. The version constrains resolution but
+      does not bind package bytes to repository-reviewed integrity evidence.
+      Use a canonical protected workflow or immutable released tool contract;
+      install its committed lock with `npm ci --ignore-scripts`, execute the
+      verified local binary, and disable tool self-download where supported.
+      [CWE-829 - Inclusion of Functionality from Untrusted Control Sphere;
+      OWASP A08:2021 - Software and Data Integrity Failures]
     severity: HIGH
     languages: [generic]
     paths:
