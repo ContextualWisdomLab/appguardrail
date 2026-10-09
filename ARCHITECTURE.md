@@ -1,7 +1,7 @@
 # AppGuardrail Architecture
 
 **Status:** Accepted as-built/target architecture with maturity labels  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-14
 
 ## Architectural goal
 
@@ -61,7 +61,32 @@ flowchart LR
     DET --> RES
 ```
 
-A registry maps requirement identity to executable detector family; it cannot assert the detector answer. PR #911 is active-PR implementation of this contract.
+A registry maps requirement identity to executable detector family; it cannot assert the detector answer. Historical PR #911 remains a non-authoritative inventory prototype. Issue #938 and PR #939 replace its broad draft with one bounded, source-authoritative detector vertical slice.
+
+## Source-authoritative GitHub Actions evidence
+
+```mermaid
+flowchart LR
+    INTENT[Exact repository, run ID, job ID]
+    API[GitHub REST API 2022-11-28]
+    RUN[Authoritative workflow run object]
+    JOB[Authoritative workflow job object]
+    VALID[Identity, terminal-state, freshness validation]
+    HASH[Canonical SHA-256 source identity]
+    DECISION[Verified pass/failure evidence]
+
+    INTENT --> API
+    API --> RUN
+    API --> JOB
+    RUN --> VALID
+    JOB --> VALID
+    VALID --> HASH
+    HASH --> DECISION
+```
+
+`appguardrail_core.github_actions_evidence` is the first source-authoritative evidence acquirer. It does not accept a caller Boolean as detector truth. The production CLI fetches the exact GitHub run and job over a fixed HTTPS origin, rejects redirects and identity mismatch, caps response size, requires completed security-relevant states, rejects future/stale/duplicate evidence, and emits a bounded canonical digest. Raw logs, bearer credentials, and arbitrary cross-repository content are outside this evidence object.
+
+This slice is an acquisition-and-verification contract, not a claim that every historical issue family is directly detected. Each future detector family must supply its own authoritative source, independent oracle, mutation evidence, and production-path proof.
 
 ## SSRF architecture
 
@@ -120,4 +145,4 @@ These modes share normalized contracts but can operate separately.
 
 ## Change control
 
-A new detector engine, persistent schema, tenant authority, arbitrary autofix class, outbound target policy, issue-audit semantics, or automation credential boundary requires ADR and synchronized technical/security/test documentation.
+A new detector engine, evidence acquirer, persistent schema, tenant authority, arbitrary autofix class, outbound target policy, issue-audit semantics, or automation credential boundary requires ADR and synchronized technical/security/test documentation.

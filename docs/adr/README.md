@@ -10,9 +10,10 @@
 | [0004](0004-tenant-network-boundaries.md) | Tenant authority and outbound destinations are explicit security boundaries | Accepted |
 | [0005](0005-remediation-authority.md) | Deterministic autofix is limited to proven semantics-preserving transforms | Accepted |
 | [0006](0006-automation-authority.md) | Autonomous development remains separate from independent merge/release authority | Accepted |
+| [0007](0007-source-authoritative-actions-evidence.md) | GitHub Actions decisions bind to independently acquired run/job source evidence | Proposed |
 
 ## ADR triggers
 
-Create or update an ADR when changing detector truth semantics, issue obligation coverage, built-in versus external execution, autofix authority, persistent tenant schema/authz, outbound webhook/DAST egress, normalized finding/SARIF identity, or autonomous/release credentials.
+Create or update an ADR when changing detector truth semantics, evidence acquisition, issue obligation coverage, built-in versus external execution, autofix authority, persistent tenant schema/authz, outbound webhook/DAST egress, normalized finding/SARIF identity, or autonomous/release credentials.
 
 Implementation PRs must reconcile PRD/TRD/Architecture/UML/ERD/Threat/Test/Operability/Traceability and CHANGELOG where those contracts move.

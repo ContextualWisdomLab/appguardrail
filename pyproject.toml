@@ -41,6 +41,7 @@ Changelog = "https://github.com/ContextualWisdomLab/appguardrail/blob/develop/CH
 
 [project.scripts]
 appguardrail = "scanner.cli.appguardrail:main"
+appguardrail-actions-evidence = "appguardrail_core.github_actions_evidence:main"
 appguardrail-openssf-evidence = "appguardrail_core.openssf_evidence:main"
 
 [tool.setuptools.dynamic]

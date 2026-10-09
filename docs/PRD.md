@@ -1,7 +1,7 @@
 # AppGuardrail Product Requirements Document
 
-**Status:** Accepted cross-cutting product baseline for protected `develop` at `77e3e0c5867b1143970fcdce80962bda8a8fc80f`  
-**Last reviewed:** 2026-08-12
+**Status:** Accepted cross-cutting product baseline; protected-`develop` facts refetched against `a68b57d4ccad4f895d7a3d9f909fffbc4653b17e`  
+**Last reviewed:** 2026-08-14
 
 ## 1. Product purpose
 
@@ -29,7 +29,8 @@ The product goal is not merely to prevent one defect after a review. Security de
 
 - PR #924 is **implemented-main** prevention at the control-plane webhook write boundary: malformed bodies, non-string values, and unsafe destinations fail closed before persistence.
 - PR #910 is **implemented-main** scanner detection for the separate stored-webhook coding pattern through the packaged `python-stored-ssrf-webhook-url` rule. Its supported scope is the tested Python `set_webhook` direct and one-hop flows, including conditional/non-enforcing guard regressions; it is not a claim of universal interprocedural SSRF detection.
-- PR #911 proposes a no-exclusions registry mapping the repository's retained issue history to executable detector-family obligations and authenticated workflow-result evidence. It remains an active-PR product capability until merged and independently verified.
+- PR #911 is **closed unmerged**. Its no-exclusions registry remains historical inventory/prototype evidence, not current or active-PR capability. Broad issue-history coverage must be rebuilt through bounded source-authoritative detector/evidence slices rather than promoted from that draft.
+- PR #939 is an **active-PR** bounded source-authoritative GitHub Actions run/job evidence slice. It becomes current only after protected-branch integration and fresh protected-head verification.
 - Open UX/performance Jules PRs remain active-PR and must not be described as current release behavior before integration.
 
 ## 4. Primary users
@@ -123,4 +124,4 @@ AppGuardrail SHALL produce deterministic component inventory with lockfile prove
 
 ## 10. Release acceptance
 
-A release requires one exact protected head with full detector/test coverage, control-plane/security regressions, exact CI/security/review, packaging/SBOM/provenance, migration/recovery evidence for changed persistent state, updated CHANGELOG/version/artifacts, and post-publish smoke. PR #910 scanner detection and PR #924 write-boundary prevention are current protected-branch controls; PR #911 claims become current only after protected-branch integration and fresh protected-head verification.
+A release requires one exact protected head with full detector/test coverage, control-plane/security regressions, exact CI/security/review, packaging/SBOM/provenance, migration/recovery evidence for changed persistent state, updated CHANGELOG/version/artifacts, and post-publish smoke. PR #910 scanner detection and PR #924 write-boundary prevention are current protected-branch controls. PR #911 remains historical closed-unmerged inventory work; successor slices such as PR #939 become current only after protected-branch integration and fresh protected-head verification.
