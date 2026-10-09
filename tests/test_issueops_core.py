@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from appguardrail_core import issueops
@@ -50,6 +52,19 @@ def test_timeout_diagnosis_adds_timeout_specific_next_step():
 
     assert "insufficient to distinguish" in body
     assert "runner capacity and configured timeouts" in body
+
+
+@pytest.mark.parametrize(
+    ("conclusion", "expected"),
+    [
+        ("cancelled", "Determine who or what cancelled the run"),
+        ("action_required", "Have an authorized maintainer approve"),
+    ],
+)
+def test_diagnosis_adds_terminal_state_specific_next_step(conclusion, expected):
+    body = issueops.diagnosis(_finding(conclusion=conclusion))
+
+    assert expected in body
 
 
 def finding(**overrides):
@@ -177,10 +192,125 @@ def test_redact_handles_multiple_assignments_without_consuming_field_names():
     )
 
 
+@pytest.mark.parametrize(
+    ("secret_text", "forbidden"),
+    [
+        (
+            '{"Authorization": "Bearer syntheticCredentialValue123456"}',
+            "syntheticCredentialValue123456",
+        ),
+        (
+            "client_secret='syntheticCredentialValue123456'",
+            "syntheticCredentialValue123456",
+        ),
+        (
+            "access_token=syntheticCredentialValue123456",
+            "syntheticCredentialValue123456",
+        ),
+        (
+            "aws_secret_access_key=syntheticCredentialValue123456",
+            "syntheticCredentialValue123456",
+        ),
+        ("AWS_ACCESS_KEY_ID=AKIA" + "A" * 16, "AKIA" + "A" * 16),
+        (
+            "AWS_SECRET_ACCESS_KEY_ID=syntheticCredentialValue123456",
+            "syntheticCredentialValue123456",
+        ),
+        (
+            "Authorization: ApiKey opaque-secret-value trailing-parameter",
+            "opaque-secret-value",
+        ),
+        (
+            "Authorization: Digest username=demo,response=opaque-secret-value",
+            "opaque-secret-value",
+        ),
+        ("AKIA" + "A" * 16, "AKIA" + "A" * 16),
+        ("AIza" + "A" * 35, "AIza" + "A" * 35),
+        ("xoxb-" + "a" * 20, "xoxb-" + "a" * 20),
+        ("sk_live_" + "a" * 24, "sk_live_" + "a" * 24),
+        ("sk-ant-" + "a" * 24, "sk-ant-" + "a" * 24),
+        ("sk-proj-" + "a" * 24, "sk-proj-" + "a" * 24),
+        ("sk-svcacct-" + "a" * 24, "sk-svcacct-" + "a" * 24),
+        ("SG." + "a" * 20 + "." + "b" * 20, "SG." + "a" * 20),
+        ("npm_" + "a" * 24, "npm_" + "a" * 24),
+        ("pypi-" + "a" * 24, "pypi-" + "a" * 24),
+    ],
+)
+def test_redact_covers_supported_obvious_credential_forms(secret_text, forbidden):
+    assert forbidden not in issueops.redact(secret_text)
+
+
+def test_issueops_secret_re_alias_remains_effective(monkeypatch):
+    monkeypatch.setattr(issueops, "SECRET_RE", [re.compile(r"(custom=)[^\s]+")])
+
+    assert issueops.redact("custom=opaque-value") == "custom=[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    "benign_text",
+    [
+        "AKIA-short-example",
+        "npm_package_name=appguardrail",
+        "client_secretary=assigned",
+        "Authorization guidance belongs in the security handbook",
+        "sk-not-a-secret-but-long-enough-for-regex",
+    ],
+)
+def test_redact_preserves_near_miss_text(benign_text):
+    assert issueops.redact(benign_text) == benign_text
+
+
 def test_redact_fails_closed_for_unterminated_quoted_secret():
     assert issueops.redact("password='secret value without closing quote") == (
         "password=[REDACTED]"
     )
+
+
+def test_redact_consumes_multiline_quoted_secret():
+    log = "password='first-secret-line\nsecond-secret-line'"
+
+    assert issueops.redact(log) == "password=[REDACTED]"
+
+
+@pytest.mark.parametrize("delimiter", ("'''", '\"\"\"', "`"))
+def test_redact_consumes_multiline_delimited_secret(delimiter):
+    log = (
+        f"private_key = {delimiter}-----BEGIN PRIVATE KEY-----\n"
+        f"OPAQUEKEYBODY\n-----END PRIVATE KEY-----{delimiter}"
+    )
+
+    assert issueops.redact(log) == "private_key = [REDACTED]"
+
+
+@pytest.mark.parametrize(
+    "log",
+    (
+        r'password="""first-secret\""" second-secret"""',
+        r"password='''first-secret\''' second-secret'''",
+    ),
+)
+def test_redact_honors_escaped_triple_quote(log):
+    assert issueops.redact(log) == "password=[REDACTED]"
+
+
+def test_log_compression_and_marker_fallback_edges():
+    assert issueops.compress_log("") == "(no job log returned)"
+    assert issueops.compress_log("plain one\nplain two", max_lines=1) == (
+        "plain two\n...[compressed]"
+    )
+
+    many_failures = "\n".join(f"error failure {index}" for index in range(30))
+    compressed = issueops.compress_log(many_failures, max_lines=2, max_chars=12)
+    assert "...[truncated]" in compressed
+    assert "...[compressed]" in compressed
+
+    assert issueops.parse_marker(None) == {"seen": []}
+    assert issueops.parse_marker(
+        f"{issueops.MARKER_PREFIX} invalid-json {issueops.MARKER_SUFFIX}"
+    ) == {"seen": []}
+    inserted = issueops.replace_marker("existing body", "owner/repo", "CodeQL", {"1:2"})
+    assert inserted.startswith(issueops.MARKER_PREFIX)
+    assert inserted.endswith("existing body")
 
 
 def test_marker_body_and_replacement_round_trip():

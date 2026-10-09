@@ -54,6 +54,29 @@ def test_add_and_list_scan_counts():
     assert len(full["findings"]) == 2
 
 
+def test_add_scan_does_not_persist_untrusted_secret_evidence():
+    synthetic_token = "ghp_" + "d" * 24
+    conn = connect(":memory:")
+    oid, _ = create_org(conn, "Acme")
+
+    scan = add_scan(
+        conn,
+        oid,
+        [
+            {
+                "severity": "HIGH",
+                "rule_id": "external-finding-42",
+                "message": f"Observed token={synthetic_token}",
+                "raw_evidence": {"body": synthetic_token},
+            }
+        ],
+    )
+    persisted = get_scan(conn, oid, scan["id"])["findings"][0]
+
+    assert synthetic_token not in json.dumps(persisted)
+    assert persisted["raw_evidence"] == "[REDACTED]"
+
+
 def test_tenant_isolation():
     conn = connect(":memory:")
     a, _ = create_org(conn, "Acme")

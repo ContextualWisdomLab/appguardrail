@@ -4,12 +4,43 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from appguardrail_core.redaction import (
+    redact_sensitive_prefix,
+    redact_sensitive_text,
+    redact_sensitive_value,
+)
+
 SEVERITIES = ("CRITICAL", "HIGH", "WARNING", "INFO")
 DEPLOY_BLOCKING_SEVERITIES = {"CRITICAL", "HIGH"}
 NON_BLOCKING_CONTEXTS = {"doc", "test", "example", "scanner-fixture"}
 
 _SEVERITY_ORDER = {severity: index for index, severity in enumerate(SEVERITIES)}
 _SEV_SET = frozenset(SEVERITIES)
+_SENSITIVE_RULE_SEGMENTS = frozenset({"hardcoded"})
+_SENSITIVE_ASSET_SEGMENTS = frozenset(
+    {
+        "credential",
+        "credentials",
+        "jwt",
+        "password",
+        "secret",
+        "secrets",
+        "token",
+    }
+)
+_SENSITIVE_DISCLOSURE_SEGMENTS = frozenset(
+    {"checked", "committed", "disclosure", "exposure", "leak", "leaked"}
+)
+_SENSITIVE_RULE_IDS = frozenset(
+    {
+        "env-file-with-secrets-committed",
+        "next-public-secret",
+        "nextjs-env-secret-client-prefix",
+        "stripe-secret-key-client-exposure",
+    }
+)
+_REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
+_REDACTION_LOOKAHEAD = 128
 
 
 def normalize_finding(
@@ -18,7 +49,9 @@ def normalize_finding(
     snippet_max_len: int = 400,
 ) -> dict[str, Any]:
     """Return a normalized, report-safe AppGuardrail finding dictionary."""
-    normalized = dict(finding)
+    untrusted_finding = dict(finding)
+    untrusted_snippet = untrusted_finding.pop("snippet", "")
+    normalized = redact_sensitive_value(untrusted_finding)
 
     sev = normalized.get("severity")
     if type(sev) is not str or sev not in _SEV_SET:
@@ -48,7 +81,17 @@ def normalize_finding(
         except Exception:
             normalized["file"] = "n/a"
 
-    if not normalized.get("line"):
+    line = normalized.get("line")
+    if type(line) is int and line > 0:
+        normalized["line"] = line
+    elif (
+        type(line) is str
+        and len(line) <= 20
+        and line.isascii()
+        and line.isdecimal()
+    ):
+        normalized["line"] = max(1, int(line))
+    else:
         normalized["line"] = 1
 
     cat = normalized.get("category")
@@ -89,13 +132,20 @@ def normalize_finding(
         except Exception:
             normalized["verification"] = "Rerun AppGuardrail after remediation."
 
-    snip = normalized.get("snippet")
+    snip = untrusted_snippet
     if type(snip) is not str or not snip:
         try:
             snip = str(snip or "")
         except Exception:
             snip = ""
-    normalized["snippet"] = safe_report_snippet(snip, max_len=snippet_max_len)
+    safe_snippet = safe_report_snippet(
+        snip,
+        max_len=snippet_max_len,
+        rule_id=normalized["rule_id"],
+        category=normalized["category"],
+    )
+    normalized = redact_sensitive_value(normalized)
+    normalized["snippet"] = safe_snippet
 
     return normalized
 
@@ -194,8 +244,14 @@ def finding_sort_key(finding: dict[str, Any]) -> tuple[int, str, str]:
     )
 
 
-def safe_report_snippet(snippet: str, max_len: int = 400) -> str:
-    """Trim report evidence without carrying oversized raw snippets."""
+def safe_report_snippet(
+    snippet: str,
+    max_len: int = 400,
+    *,
+    rule_id: str = "",
+    category: str = "",
+) -> str:
+    """Redact sensitive report evidence and bound the remaining snippet."""
     if type(snippet) is not str:
         try:
             snippet = str(snippet or "")
@@ -203,10 +259,44 @@ def safe_report_snippet(snippet: str, max_len: int = 400) -> str:
             snippet = ""
     if not snippet:
         return ""
-    snippet = snippet.replace("\r\n", "\n").replace("\r", "\n").strip()
-    if len(snippet) <= max_len:
-        return snippet
-    return snippet[:max_len].rstrip() + "\n...[truncated]"
+    normalized_rule_id = rule_id.strip().lower() if type(rule_id) is str else ""
+    normalized_category = category.strip().lower() if type(category) is str else ""
+    rule_segments = frozenset(
+        filter(None, normalized_rule_id.replace("_", "-").split("-"))
+    )
+    sensitive_asset = bool(rule_segments.intersection(_SENSITIVE_ASSET_SEGMENTS))
+    sensitive_asset = sensitive_asset or {"private", "key"}.issubset(rule_segments)
+    sensitive_asset = sensitive_asset or {"api", "key"}.issubset(rule_segments)
+    disclosure_semantics = bool(
+        rule_segments.intersection(_SENSITIVE_DISCLOSURE_SEGMENTS)
+    )
+    if (
+        normalized_category == "secrets"
+        or normalized_rule_id in _SENSITIVE_RULE_IDS
+        or bool(rule_segments.intersection(_SENSITIVE_RULE_SEGMENTS))
+        or (sensitive_asset and disclosure_semantics)
+    ):
+        return _REDACTED_SENSITIVE_SNIPPET
+    max_len = max(0, max_len)
+    was_truncated = len(snippet) > max_len
+    inspection_len = max_len + _REDACTION_LOOKAHEAD
+    visible_snippet = snippet[:max_len]
+    inspection_snippet = (
+        snippet[:inspection_len] if len(snippet) > inspection_len else snippet
+    )
+    visible_snippet = visible_snippet.replace("\r\n", "\n").replace("\r", "\n")
+    inspection_snippet = inspection_snippet.replace("\r\n", "\n").replace(
+        "\r", "\n"
+    )
+    if was_truncated:
+        snippet = redact_sensitive_prefix(
+            inspection_snippet,
+            visible_length=len(visible_snippet),
+        )
+    else:
+        snippet = redact_sensitive_text(visible_snippet)
+    snippet = snippet.strip()
+    return snippet.rstrip() + ("\n...[truncated]" if was_truncated else "")
 
 
 def _as_tuple(value: Any) -> tuple[str, ...]:

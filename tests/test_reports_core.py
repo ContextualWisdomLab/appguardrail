@@ -1,3 +1,5 @@
+import pytest
+
 from appguardrail_core.reports import (ReportContext, render_agency_report,
                                        render_buyer_diligence_report,
                                        render_fix_pack,
@@ -78,6 +80,71 @@ def test_render_buyer_diligence_report_truncates_long_snippets():
 
     assert "...[truncated]" in report
     assert "x" * 450 not in report
+
+
+def test_render_report_does_not_reemit_imported_secret_snippet():
+    synthetic_secret = "synthetic-secret-value-for-regression-only"
+
+    report = render_buyer_diligence_report(
+        [
+            {
+                "rule_id": "external-finding-42",
+                "severity": "CRITICAL",
+                "category": "secrets",
+                "message": "External scanner located a credential.",
+                "file": "settings.py",
+                "line": 4,
+                "snippet": f'password="{synthetic_secret}"',
+            }
+        ],
+        ReportContext(generated_at="2026-10-09T00:00:00Z"),
+    )
+
+    assert "[REDACTED: sensitive match suppressed]" in report
+    assert synthetic_secret not in report
+
+
+def test_render_report_does_not_coerce_untrusted_line_object():
+    class LateSecretLine:
+        def __str__(self):
+            return "Authorization: ApiKey late-coercion-secret"
+
+    report = render_buyer_diligence_report(
+        [{"rule_id": "external-finding-42", "line": LateSecretLine()}],
+        ReportContext(generated_at="2026-10-09T00:00:00Z"),
+    )
+
+    assert "late-coercion-secret" not in report
+    assert "`n/a:1`" in report
+
+
+@pytest.mark.parametrize(
+    "renderer",
+    (
+        render_buyer_diligence_report,
+        render_founder_friendly_report,
+        render_agency_report,
+        render_fix_pack,
+    ),
+)
+def test_every_report_redacts_secrets_outside_snippet(renderer):
+    synthetic_token = "ghp_" + "b" * 24
+
+    report = renderer(
+        [
+            {
+                "rule_id": "external-finding-42",
+                "severity": "CRITICAL",
+                "category": "misconfig",
+                "message": f"Observed token={synthetic_token}",
+                "remediation": f"Rotate password='{synthetic_token}'",
+                "raw_evidence": synthetic_token,
+            }
+        ],
+        ReportContext(generated_at="2026-10-09T00:00:00Z"),
+    )
+
+    assert synthetic_token not in report
 
 
 def test_render_buyer_diligence_report_handles_empty_findings():
