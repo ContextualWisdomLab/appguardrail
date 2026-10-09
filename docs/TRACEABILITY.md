@@ -55,7 +55,9 @@ proximity regex. It is intentionally bounded to one step whose `env` mapping
 assigns a versioned registry identity to `*_PACKAGE` and whose immediately
 following `run` field places the exact same variable in a supported `npx` or
 `npm exec` package-selector position with `-y`/`--yes`. Variable-name boundaries
-are exact. Blank block-scalar lines do not end analysis. Heredoc bodies are shell
+are exact. Expanded `env:` and compact `- env:` step forms are equivalent, and
+same-indent YAML comments do not terminate the step mapping. Blank block-scalar
+lines do not end analysis. Heredoc bodies are shell
 data and are skipped; analysis resumes after the delimiter. An unquoted heredoc
 body counts only when it is redirected to a target and the same step later makes
 that exact target executable with `chmod`. This is evidence that auto-install is
