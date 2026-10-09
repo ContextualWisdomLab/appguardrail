@@ -3,8 +3,7 @@ rules:
   # package-selector position of that step's run command. Quoted heredocs are
   # excluded because their body is literal data, not shell execution.
   - id: github-actions-runtime-package-without-integrity
-    patterns:
-      - pattern-regex: '^(?P<runtime_field_indent>[ \t]+)env[ \t]*:[ \t]*(?:#.*)?$\n(?:(?P=runtime_field_indent)[ \t]+[^\n]*\n)*?(?P=runtime_field_indent)[ \t]+(?P<runtime_package_var>[A-Z][A-Z0-9_]*_PACKAGE)[ \t]*:[ \t]*["'']?(?![./])(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+@[0-9][A-Za-z0-9_.+-]*["'']?[ \t]*(?:#.*)?$\n(?:(?P=runtime_field_indent)[ \t]+[^\n]*\n)*(?P=runtime_field_indent)run[ \t]*:[ \t]*(?:(?:exec[ \t]+)?(?:npx[ \t]+(?:-y|--yes)[ \t]+["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|npm[ \t]+exec[ \t]+(?:(?:-y|--yes)[ \t]+(?:--[ \t]+)?["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|--package(?:=|[ \t]+)["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?[ \t]+(?:-y|--yes)(?=[ \t]|$)))|[|>][^\n]*$\n(?=(?P<runtime_command_indent>(?P=runtime_field_indent)[ \t]+))(?:(?P=runtime_command_indent)(?![^\n]*<<[ \t]*["''])[^\n]*\n)*?(?P=runtime_command_indent)[ \t]*(?:exec[ \t]+)?(?:npx[ \t]+(?:-y|--yes)[ \t]+["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|npm[ \t]+exec[ \t]+(?:(?:-y|--yes)[ \t]+(?:--[ \t]+)?["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?(?=[ \t]|$)|--package(?:=|[ \t]+)["'']?\$(?:\{(?P=runtime_package_var)\}|(?P=runtime_package_var))(?![A-Z0-9_])["'']?[ \t]+(?:-y|--yes)(?=[ \t]|$))))'
+    analyzer: github-actions-runtime-package-integrity
     message: |
       This GitHub Actions workflow binds a versioned npm registry package to
       an npx/npm-exec auto-install path. The version constrains resolution but
