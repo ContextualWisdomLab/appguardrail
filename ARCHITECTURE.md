@@ -44,11 +44,11 @@ The detector that observes evidence is authoritative for its finding. `scanner/r
 External engines retain their own engine/rule/version provenance. AppGuardrail normalizes their output but does not claim their analysis was performed internally.
 
 The proposed `github-actions-runtime-package-without-integrity` built-in rule owns
-the narrow workflow-source signal for runtime `npx`/`npm exec` downloads. It does
-not claim registry compromise. It reports the absent repository-committed byte
-integrity boundary and distinguishes the fixed shape: lock-verified `npm ci`
-installation followed by local binary execution. Central workflow prevention and
-this repository-local detector remain separate controls.
+the narrow workflow-source signal where a versioned registry package environment
+value is bound to an `npx`/`npm exec` auto-install path. It does not claim that a
+download or registry compromise occurred. Central protected workflow prevention,
+immutable tool distribution, consumer configuration, and this repository-local
+detector remain separate controls.
 
 ## Issue-to-detection boundary
 
