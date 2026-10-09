@@ -944,6 +944,158 @@ def _extensions_for_languages(languages):
     return sorted(set(extensions)) or None
 
 
+class _SourceMatch:
+    """Minimal match object for deterministic source analyzers."""
+
+    def __init__(self, start_index: int):
+        self._start_index = start_index
+
+    def start(self) -> int:
+        """Return the source offset used by the shared finding builder."""
+        return self._start_index
+
+
+class _GitHubActionsRuntimePackagePattern:
+    """Find step-local registry package execution without trusting proximity."""
+
+    _ENV = re.compile(r"^(?P<indent>[ \t]+)env[ \t]*:[ \t]*(?:#.*)?$")
+    _PACKAGE = re.compile(
+        r"^(?P<indent>[ \t]+)(?P<name>[A-Z][A-Z0-9_]*_PACKAGE)"
+        r"[ \t]*:[ \t]*[\"']?(?![./])"
+        r"(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+@[0-9][A-Za-z0-9_.+-]*"
+        r"[\"']?[ \t]*(?:#.*)?$"
+    )
+    _RUN = re.compile(r"^(?P<indent>[ \t]+)run[ \t]*:[ \t]*(?P<value>.*)$")
+    _HEREDOC = re.compile(
+        r"(?:(?:>{1,2}[ \t]*(?P<target>\"[^\"]+\"|'[^']+'|[^ \t]+)"
+        r"[ \t]+))?<<-?[ \t]*(?P<quote>[\"']?)(?P<delimiter>[A-Za-z_][A-Za-z0-9_]*)"
+        r"(?P=quote)"
+    )
+
+    @staticmethod
+    def _indent_width(line: str) -> int:
+        """Count leading YAML indentation characters."""
+        return len(line) - len(line.lstrip(" \t"))
+
+    @staticmethod
+    def _uses_package(command: str, variable: str) -> bool:
+        """Return whether a shell command uses variable as the package selector."""
+        token = rf'[\"\']?\$(?:\{{{re.escape(variable)}\}}|{re.escape(variable)})(?![A-Za-z0-9_])[\"\']?'
+        npx = rf"(?:^|[;&|][ \t]*)(?:exec[ \t]+)?npx[ \t]+(?:-y|--yes)[ \t]+{token}(?=[ \t]|$)"
+        npm = (
+            rf"(?:^|[;&|][ \t]*)npm[ \t]+exec[ \t]+(?:"
+            rf"(?:-y|--yes)[ \t]+(?:--[ \t]+)?{token}(?=[ \t]|$)|"
+            rf"--package(?:=|[ \t]+){token}[ \t]+(?:-y|--yes)(?=[ \t]|$))"
+        )
+        return bool(re.search(rf"(?:{npx}|{npm})", command))
+
+    @staticmethod
+    def _makes_executable(command: str, target: str) -> bool:
+        """Return whether a direct chmod command adds execution to target."""
+        try:
+            command_tokens = shlex.split(command, comments=True, posix=True)
+            target_tokens = shlex.split(target, comments=False, posix=True)
+        except ValueError:
+            return False
+        if len(command_tokens) < 3 or command_tokens[0] != "chmod":
+            return False
+        mode = command_tokens[1]
+        executable_mode = "+x" in mode
+        if mode.isdigit() and all(character in "01234567" for character in mode):
+            executable_mode = bool(int(mode, 8) & 0o111)
+        return bool(
+            executable_mode
+            and target_tokens
+            and target_tokens[0] in command_tokens[2:]
+        )
+
+    def _block_match(self, lines, offsets, start: int, end: int, variable: str):
+        """Find direct execution or a materialized executable heredoc wrapper."""
+        heredoc = None
+        for index in range(start, end):
+            command = lines[index].strip()
+            if heredoc is not None:
+                if command == heredoc["delimiter"]:
+                    if heredoc["candidate"] is not None and not heredoc["quoted"]:
+                        target = heredoc["target"]
+                        if target is not None and any(
+                            self._makes_executable(lines[later].strip(), target)
+                            for later in range(index + 1, end)
+                        ):
+                            return _SourceMatch(heredoc["candidate"])
+                    heredoc = None
+                elif self._uses_package(command, variable):
+                    heredoc["candidate"] = offsets[index]
+                continue
+
+            opener = self._HEREDOC.search(command)
+            if opener:
+                heredoc = {
+                    "delimiter": opener.group("delimiter"),
+                    "quoted": bool(opener.group("quote")),
+                    "target": opener.group("target"),
+                    "candidate": None,
+                }
+                continue
+            if self._uses_package(command, variable):
+                return _SourceMatch(offsets[index])
+        return None
+
+    def finditer(self, content: str):
+        """Yield step-local package execution matches in source order."""
+        lines = content.splitlines(keepends=True)
+        offsets = []
+        offset = 0
+        for line in lines:
+            offsets.append(offset)
+            offset += len(line)
+
+        for index, raw_line in enumerate(lines):
+            env_match = self._ENV.match(raw_line.rstrip("\r\n"))
+            if not env_match:
+                continue
+            field_width = len(env_match.group("indent"))
+            package = None
+            cursor = index + 1
+            while cursor < len(lines):
+                plain = lines[cursor].rstrip("\r\n")
+                if not plain.strip():
+                    cursor += 1
+                    continue
+                if self._indent_width(plain) <= field_width:
+                    break
+                package_match = self._PACKAGE.match(plain)
+                if package_match:
+                    package = package_match.group("name")
+                cursor += 1
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+            if package is None or cursor >= len(lines):
+                continue
+            run_match = self._RUN.match(lines[cursor].rstrip("\r\n"))
+            if not run_match or len(run_match.group("indent")) != field_width:
+                continue
+
+            run_value = run_match.group("value")
+            if run_value and run_value[0] not in "|>":
+                if self._uses_package(run_value, package):
+                    yield _SourceMatch(offsets[cursor])
+                continue
+
+            block_start = cursor + 1
+            block_end = block_start
+            while block_end < len(lines):
+                plain = lines[block_end].rstrip("\r\n")
+                if plain.strip() and self._indent_width(plain) <= field_width:
+                    break
+                block_end += 1
+            match = self._block_match(
+                lines, offsets, block_start, block_end, package
+            )
+            if match is not None:
+                yield match
+
+
 def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
     """Parse the supported pattern-regex subset of AppGuardrail rule YAML."""
     parsed_rules = []
@@ -971,6 +1123,7 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
                 "exclude_paths": [],
                 "required_substrings": [],
                 "severity": "WARNING",
+                "analyzer": None,
             }
             in_message = False
             path_mode = None
@@ -996,6 +1149,12 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
             current["severity"] = _unquote_rule_scalar(
                 raw_line.split(":", 1)[1]
             ).upper()
+            path_mode = None
+            continue
+        if raw_line.startswith("    analyzer: "):
+            current["analyzer"] = _unquote_rule_scalar(
+                raw_line.split(":", 1)[1]
+            )
             path_mode = None
             continue
         if raw_line.startswith("    languages: "):
@@ -1031,6 +1190,21 @@ def _compile_yaml_regex_rule(rule):
     """Build runtime regex scanner rules from one parsed YAML rule."""
     compiled_rules = []
     extensions = _extensions_for_languages(rule.get("languages") or [])
+    if rule.get("analyzer") == "github-actions-runtime-package-integrity":
+        return [
+            {
+                "id": rule["id"],
+                "pattern": _GitHubActionsRuntimePackagePattern(),
+                "severity": rule.get("severity", "WARNING"),
+                "message": rule.get("message") or f"Rule {rule['id']} matched.",
+                "extensions": extensions,
+                "include_paths": rule.get("include_paths") or [],
+                "exclude_paths": rule.get("exclude_paths") or [],
+                "required_substrings": tuple(
+                    rule.get("required_substrings") or ()
+                ),
+            }
+        ]
     for regex in rule.get("regexes") or []:
         try:
             pattern = re.compile(regex, re.MULTILINE)
