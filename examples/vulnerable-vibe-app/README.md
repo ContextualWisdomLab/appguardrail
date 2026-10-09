@@ -3,8 +3,8 @@
 **This is a demonstration of insecure code patterns for educational purposes.**
 **DO NOT deploy this to a public URL. DO NOT use real credentials.**
 
-This example shows common security mistakes in AI-generated Next.js + Supabase apps.
-See `../fixed-vibe-app/` for the corrected version.
+This example shows common security mistakes in AI-generated Next.js + Supabase apps. The security flaws are intentional; ambiguous ContextualWisdomLab-owned names are not. Organization-owned identifiers use bounded-context-specific names while vendor-owned fields such as Supabase `auth.users(id)` and response `data`/`error` remain at their adapter boundaries.
+See `../fixed-vibe-app/` for the corrected security version.
 
 ---
 
@@ -12,28 +12,30 @@ See `../fixed-vibe-app/` for the corrected version.
 
 ### 1. Missing Ownership Check (IDOR)
 
-`app/api/projects/[id]/route.ts`
+`app/api/projects/[projectId]/route.ts`
 
 ```typescript
 // ❌ VULNERABLE: No ownership check — any user can access any project
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  httpRequest: Request,
+  { params }: { params: { projectId: string } }
 ) {
-  const supabase = createClient(
+  const supabaseClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   // No authentication check!
   // No ownership verification!
-  const { data, error } = await supabase
-    .from('projects')
+  const { data: projectRecord, error: projectQueryError } = await supabaseClient
+    .from('project_records')
     .select('*')
-    .eq('id', params.id)
+    .eq('project_id', params.projectId)
     .single();
 
-  return Response.json(data);
+  // The ignored error and missing authorization are intentionally vulnerable.
+  void projectQueryError;
+  return Response.json(projectRecord);
 }
 ```
 
@@ -49,7 +51,7 @@ export async function GET(
 // ❌ VULNERABLE: Service role key used in a file that can be imported by client components
 import { createClient } from '@supabase/supabase-js';
 
-export const supabaseAdmin = createClient(
+export const supabaseAdminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY! // exposed in browser bundle!
 );
@@ -65,15 +67,15 @@ export const supabaseAdmin = createClient(
 
 ```typescript
 // ❌ VULNERABLE: No signature verification
-export async function POST(req: Request) {
-  const event = await req.json(); // trusting the body directly!
+export async function POST(httpRequest: Request) {
+  const unverifiedStripeEvent = await httpRequest.json(); // trusting the body directly!
 
-  if (event.type === 'checkout.session.completed') {
+  if (unverifiedStripeEvent.type === 'checkout.session.completed') {
     // Attacker can POST a fake 'checkout.session.completed' event
     // and get any account upgraded to Pro for free
-    await db.user.update({
-      where: { stripeCustomerId: event.data.object.customer },
-      data: { plan: 'pro' },
+    await applicationDatabase.userAccount.update({
+      where: { stripeCustomerId: unverifiedStripeEvent.data.object.customer },
+      data: { subscriptionPlan: 'pro' },
     });
   }
 
@@ -91,17 +93,17 @@ export async function POST(req: Request) {
 
 ```typescript
 // ❌ VULNERABLE: Price ID comes from the client
-export async function POST(req: Request) {
-  const { priceId } = await req.json(); // attacker controls this!
+export async function POST(httpRequest: Request) {
+  const { priceId: clientPriceId } = await httpRequest.json(); // attacker controls this!
 
-  const session = await stripe.checkout.sessions.create({
-    line_items: [{ price: priceId, quantity: 1 }], // price from attacker!
+  const checkoutSession = await stripe.checkout.sessions.create({
+    line_items: [{ price: clientPriceId, quantity: 1 }], // price from attacker!
     mode: 'subscription',
     success_url: `${process.env.NEXT_PUBLIC_URL}/success`,
     cancel_url: `${process.env.NEXT_PUBLIC_URL}/pricing`,
   });
 
-  return Response.json({ url: session.url });
+  return Response.json({ url: checkoutSession.url });
 }
 ```
 
@@ -115,7 +117,7 @@ export async function POST(req: Request) {
 
 ```typescript
 // ❌ VULNERABLE: Hardcoded database URL
-const db = new PrismaClient({
+const applicationDatabase = new PrismaClient({
   datasources: {
     db: {
       url: '******db.example.com:5432/myapp',
@@ -134,18 +136,19 @@ const db = new PrismaClient({
 
 ```sql
 -- ❌ VULNERABLE: RLS never enabled, no policies
-CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id),
-  name TEXT,
-  data JSONB
+-- `auth.users(id)` is Supabase-owned and intentionally remains unchanged.
+CREATE TABLE project_records (
+  project_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id UUID REFERENCES auth.users(id),
+  project_name TEXT,
+  project_payload JSONB
 );
 
--- Missing: ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
--- Missing: CREATE POLICY ... USING (auth.uid() = user_id);
+-- Missing: ALTER TABLE project_records ENABLE ROW LEVEL SECURITY;
+-- Missing: CREATE POLICY ... USING (auth.uid() = owner_user_id);
 ```
 
-**Impact:** Any authenticated user can read, modify, or delete any row in the `projects` table via the Supabase client.
+**Impact:** Any authenticated user can read, modify, or delete any row in the `project_records` table via the Supabase client.
 
 ---
 
@@ -157,30 +160,35 @@ CREATE TABLE projects (
 // ✅ SECURE: Admin role verified server-side
 import { auth } from '@/auth';
 
-export async function GET(req: Request) {
-  const session = await auth();
+export async function GET(httpRequest: Request) {
+  const authSession = await auth();
 
   // Step 1: Require authentication
-  if (!session) {
+  if (!authSession) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   // Step 2: Require admin role (from database, not just session claim)
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
+  const userAccount = await applicationDatabase.userAccount.findUnique({
+    where: { userAccountId: authSession.user.id },
+    select: { accountRole: true },
   });
 
-  if (user?.role !== 'admin') {
+  if (userAccount?.accountRole !== 'admin') {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const users = await db.user.findMany({
-    select: { id: true, email: true, createdAt: true, plan: true },
+  const userAccounts = await applicationDatabase.userAccount.findMany({
+    select: {
+      userAccountId: true,
+      emailAddress: true,
+      createdAt: true,
+      subscriptionPlan: true,
+    },
     // Never include passwords, secrets, or sensitive fields
   });
 
-  return Response.json(users);
+  return Response.json(userAccounts);
 }
 ```
 
@@ -207,4 +215,4 @@ npm run dev
 
 ## See the Fixed Version
 
-All of these vulnerabilities are fixed in `../fixed-vibe-app/`. Compare the two to understand each fix.
+All of these vulnerabilities are fixed in `../fixed-vibe-app/`. Compare the two to understand each security fix without conflating insecure behavior with ambiguous organization-owned naming.
