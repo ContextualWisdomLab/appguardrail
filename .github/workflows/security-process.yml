@@ -19,6 +19,7 @@ jobs:
     permissions:
       contents: read
     env:
+      CODEGRAPH_NO_DOWNLOAD: "1"
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repository
@@ -26,17 +27,20 @@ jobs:
 
       - name: Prepare CodeGraph CLI
         env:
-          CODEGRAPH_PACKAGE: "@colbymchenry/codegraph@0.9.9"
+          CODEGRAPH_TRUSTED_ROOT: ${{ runner.temp }}/trusted-codegraph
         run: |
           set -euo pipefail
-          codegraph_bin="${RUNNER_TEMP}/codegraph-bin"
-          mkdir -p "$codegraph_bin"
-          cat >"${codegraph_bin}/codegraph" <<SH
-          #!/bin/sh
-          exec npx -y "$CODEGRAPH_PACKAGE" "\$@"
-          SH
-          chmod 0755 "${codegraph_bin}/codegraph"
-          echo "$codegraph_bin" >>"$GITHUB_PATH"
+          mkdir -p "$CODEGRAPH_TRUSTED_ROOT"
+          cp scripts/ci/codegraph-package/package.json \
+            scripts/ci/codegraph-package/package-lock.json \
+            "$CODEGRAPH_TRUSTED_ROOT"/
+          (
+            cd "$CODEGRAPH_TRUSTED_ROOT"
+            npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+          )
+          CODEGRAPH_BIN="${CODEGRAPH_TRUSTED_ROOT}/node_modules/.bin/codegraph"
+          test -x "$CODEGRAPH_BIN"
+          echo "${CODEGRAPH_TRUSTED_ROOT}/node_modules/.bin" >>"$GITHUB_PATH"
 
       - name: Run AppGuardrail deploy gate
         run: |
