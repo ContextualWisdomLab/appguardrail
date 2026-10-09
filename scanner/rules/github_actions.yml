@@ -1,4 +1,27 @@
 rules:
+  # `npx -y` and `npm exec --yes` resolve and execute registry content during
+  # the trusted workflow run. A package version constrains resolution but is
+  # not a committed byte-integrity proof for the package and its dependency
+  # graph. Install a committed lock with npm ci, then execute the local binary.
+  - id: github-actions-runtime-package-without-integrity
+    patterns:
+      - pattern-regex: '^[ \t]*(?!#)(?:(?:-[ \t]+)?run[ \t]*:[ \t]*)?(?:exec[ \t]+)?(?:npx[ \t]+(?:-y|--yes)\b|npm[ \t]+exec[ \t]+(?:-y|--yes)\b)'
+    message: |
+      This GitHub Actions workflow downloads and executes an npm registry
+      package at runtime without committed lockfile integrity verification.
+      A package version is not a byte-integrity boundary for its tarball and
+      transitive dependencies. Commit the package and lockfile, install it
+      with `npm ci --ignore-scripts`, and execute the verified local binary;
+      keep tool self-download disabled where supported. [CWE-829 - Inclusion
+      of Functionality from Untrusted Control Sphere; OWASP A08:2021 -
+      Software and Data Integrity Failures]
+    severity: HIGH
+    languages: [generic]
+    paths:
+      include:
+        - .github/workflows/*.yml
+        - .github/workflows/*.yaml
+
   # A write token plus an explicit push back to contributor-controlled branch
   # state is materially different from a reviewed release publisher. Match the
   # structure, not temporary-looking names such as `once` or `repair`.
