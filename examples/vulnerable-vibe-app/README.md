@@ -12,13 +12,13 @@ See `../fixed-vibe-app/` for the corrected version.
 
 ### 1. Missing Ownership Check (IDOR)
 
-`app/api/projects/[id]/route.ts`
+`app/api/projects/[projectId]/route.ts`
 
 ```typescript
 // ❌ VULNERABLE: No ownership check — any user can access any project
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { projectId: string } }
 ) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,13 +27,13 @@ export async function GET(
 
   // No authentication check!
   // No ownership verification!
-  const { data, error } = await supabase
+  const { data: projectRecord, error: projectQueryError } = await supabase
     .from('projects')
     .select('*')
-    .eq('id', params.id)
+    .eq('project_id', params.projectId)
     .single();
 
-  return Response.json(data);
+  return Response.json(projectRecord);
 }
 ```
 
@@ -135,10 +135,10 @@ const db = new PrismaClient({
 ```sql
 -- ❌ VULNERABLE: RLS never enabled, no policies
 CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id),
-  name TEXT,
-  data JSONB
+  project_name TEXT,
+  project_payload_json JSONB
 );
 
 -- Missing: ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
