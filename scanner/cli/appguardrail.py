@@ -958,7 +958,10 @@ class _SourceMatch:
 class _GitHubActionsRuntimePackagePattern:
     """Find step-local registry package execution without trusting proximity."""
 
-    _ENV = re.compile(r"^(?P<indent>[ \t]+)env[ \t]*:[ \t]*(?:#.*)?$")
+    _ENV = re.compile(
+        r"^(?P<indent>[ \t]+)(?P<compact>-[ \t]+)?env"
+        r"[ \t]*:[ \t]*(?:#.*)?$"
+    )
     _PACKAGE = re.compile(
         r"^(?P<indent>[ \t]+)(?P<name>[A-Z][A-Z0-9_]*_PACKAGE)"
         r"[ \t]*:[ \t]*[\"']?(?![./])"
@@ -1054,7 +1057,9 @@ class _GitHubActionsRuntimePackagePattern:
             env_match = self._ENV.match(raw_line.rstrip("\r\n"))
             if not env_match:
                 continue
-            field_width = len(env_match.group("indent"))
+            field_width = len(env_match.group("indent")) + len(
+                env_match.group("compact") or ""
+            )
             package = None
             cursor = index + 1
             while cursor < len(lines):
@@ -1068,7 +1073,10 @@ class _GitHubActionsRuntimePackagePattern:
                 if package_match:
                     package = package_match.group("name")
                 cursor += 1
-            while cursor < len(lines) and not lines[cursor].strip():
+            while cursor < len(lines) and (
+                not lines[cursor].strip()
+                or lines[cursor].lstrip(" \t").startswith("#")
+            ):
                 cursor += 1
             if package is None or cursor >= len(lines):
                 continue
