@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| GitHub Actions runtime npm execution without committed integrity | built-in `github-actions-runtime-package-without-integrity` rule | Proposed: positive `npx`/`npm exec` and lock-verified local-binary regression corpus; promote only after protected merge |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +47,18 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Runtime package integrity boundary
+
+The GitHub Actions detector is intentionally bounded to executable workflow lines
+that invoke `npx -y`, `npx --yes`, `npm exec -y`, or `npm exec --yes`. It treats an
+exact package version as insufficient because registry content and the transitive
+dependency graph are not verified against repository-committed integrity metadata.
+The fixed boundary is a committed lockfile installed with `npm ci` followed by a
+local binary invocation, with tool self-download disabled when the tool supports it.
+Comments, printed examples, non-workflow YAML, other package managers, composite
+actions, chained commands, and indirect shell expansion are outside this first
+detector version.
 
 ## Standards/research
 
