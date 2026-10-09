@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-12-10 - O(N^2) Performance from list(dict).index(key)
+**Learning:** Using `list(dict).index(key)` inside loops introduces significant performance overhead, effectively transforming an O(1) dictionary key check into an O(N^2) bottleneck. This requires creating a new list allocation and scanning it linearly for every loop iteration.
+**Action:** When determining the insertion index or position of dictionary keys during list processing, avoid generating lists. Track indices dynamically in a separate companion dictionary mapping the key to its incremental sequence length or insertion order index (e.g. `rule_indices[rule_id] = len(rules)`) for an O(1) constant-time lookup.
