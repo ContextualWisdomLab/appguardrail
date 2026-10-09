@@ -1,5 +1,7 @@
 """Tests for SARIF 2.1.0 output (appguardrail_core.sarif)."""
 
+import json
+
 from appguardrail_core.sarif import findings_to_sarif
 
 FINDINGS = [
@@ -72,3 +74,21 @@ def test_empty_findings_valid():
     run = findings_to_sarif([])["runs"][0]
     assert run["results"] == []
     assert run["tool"]["driver"]["rules"] == []
+
+
+def test_sarif_does_not_emit_secret_from_untrusted_finding_fields():
+    synthetic_token = "ghp_" + "c" * 24
+
+    sarif = findings_to_sarif(
+        [
+            {
+                "severity": "HIGH",
+                "rule_id": "external-finding-42",
+                "message": f"Observed token={synthetic_token}",
+                "remediation": f"Rotate password='{synthetic_token}'",
+                "raw_evidence": synthetic_token,
+            }
+        ]
+    )
+
+    assert synthetic_token not in json.dumps(sarif)

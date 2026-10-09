@@ -73,7 +73,7 @@ Autofix tests prove preview/apply idempotence and semantics preservation for eac
 
 ## Reporting/SBOM tests
 
-Normalize deterministic finding envelopes, SARIF validity, buyer/founder/agency/fix-pack rendering, raw-secret omission, evidence warnings, lockfile/version provenance, SBOM deterministic component identity, and organization bundle manifest integrity.
+Normalize deterministic finding envelopes, SARIF validity, buyer/founder/agency/fix-pack rendering, raw-secret omission (including untrusted imported findings), evidence warnings, lockfile/version provenance, SBOM deterministic component identity, and organization bundle manifest integrity. Redaction regressions must cover secret-category suppression, sensitive-rule suppression despite incorrect category metadata, raw/credential-named extension fields and mapping keys, multiline single/double/triple/backtick assignments and escaped delimiters, obvious and scoped provider credentials, post-coercion text and line-number validation, source-aligned truncation-boundary lookahead, every report type, SARIF and control-plane persistence, and preservation of benign provider-related evidence.
 
 ## Performance
 

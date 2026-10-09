@@ -6,6 +6,8 @@ import json
 import re
 from typing import Any
 
+from appguardrail_core.redaction import SENSITIVE_TEXT_PATTERNS
+
 FAILURES = {"failure", "cancelled", "timed_out", "action_required"}
 SECURITY_TERMS = (
     "strix",
@@ -20,6 +22,9 @@ MARKER_SUFFIX = "-->"
 DEFAULT_MAX_LOG_CHARS = 30_000
 DEFAULT_MAX_LOG_LINES = 200
 MAX_GITHUB_RUN_ID_DIGITS = 20
+
+# Compatibility alias for callers that inspected the former module-level list.
+SECRET_RE = list(SENSITIVE_TEXT_PATTERNS)
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 TS_RE = re.compile(
@@ -36,19 +41,6 @@ _LINE_SEPARATOR_TRANSLATION = str.maketrans(
         for separator in ("\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
     }
 )
-SECRET_RE = [
-    re.compile(r"(?i)(authorization:\s*(?:bearer|token)\s+)[^\s]+"),
-    re.compile(
-        r"(?im)\b((?:api[_-]?key|token|secret|password|private[_-]?key)\s*[:=]\s*)"
-        r"(?:'(?:\\.|[^'\\\r\n])*(?:'|(?=\r?$))|"
-        r'"(?:\\.|[^"\\\r\n])*(?:"|(?=\r?$))|'
-        r"[^'\"\s]+['\"]?)"
-    ),
-    re.compile(
-        r"\b(?:gh[opsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9]{20,})\b"
-    ),
-    re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"),
-]
 PRIMARY_LOG_RE = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in (
@@ -112,8 +104,8 @@ def redact(log: str) -> str:
     if text.endswith("\n"):
         text = text[:-1]
     text = TS_RE.sub("", text)
-    for regex in SECRET_RE:
-        text = regex.sub(
+    for pattern in SECRET_RE:
+        text = pattern.sub(
             lambda match: (
                 f"{match.group(1)}[REDACTED]" if match.lastindex else "[REDACTED]"
             ),
