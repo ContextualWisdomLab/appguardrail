@@ -90,15 +90,18 @@ worktree creation and execution linked by normalized `cd`, `pushd`, exact step
 `working-directory`, or executable/script path
 commands so the retained fixture reproduces the issue #132 CodeGraph execution
 shape after the prevention fix merged in ContextualWisdomLab/.github PR #635.
-Non-overwriting `--no-write-fetch-head`/`--append` fetches preserve that provenance;
-a later trusted checkout, switch, or overwriting fetch invalidates it.
+Non-overwriting `--no-write-fetch-head`/`--append` fetches (including bundled short
+options) preserve that provenance; a later directly executed checkout/switch that
+selects a different tree, or an overwriting fetch, invalidates it. Path restore,
+current-HEAD branch creation, inert command text, repeated PR-head selection, and
+interpreter options retain their actual provenance semantics.
 
 Metadata-only `pull_request_target` handling, ordinary `pull_request`, trusted
 base-SHA checkout, inert output, privilege located only in another job, and a
 conservatively recognized scalar or block job-level guard whose every disjunct
 contains a standalone atom excluding PR-target execution are negative fixtures.
 Top-level mapping, sequence, inline trigger forms, field ordering, and trailing
-YAML comments are equivalent; YAML-looking action inputs, comments, and run
+YAML comments are equivalent; YAML-looking action inputs, comments, heredocs, and run
 data are not promoted to authority. A same-repository head predicate is
 deliberately not an exclusion. The first bounded analyzer does not claim
 complete coverage of reusable/composite action internals, cross-job artifacts,

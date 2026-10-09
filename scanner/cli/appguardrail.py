@@ -1016,7 +1016,8 @@ class _GitHubActionsPullRequestTargetPattern:
     _LOCAL_COMMAND = re.compile(
         r"(?:^|[;&|][ \t]*)"
         r"(?:\./[A-Za-z0-9_.-]|"
-        r"(?:bash|sh|zsh|python3?|node|ruby|perl)[ \t]+(?:\./|/|[A-Za-z0-9_.-]+/)|"
+        r"(?:bash|sh|zsh|python3?|node|ruby|perl)[ \t]+"
+        r"(?:-[A-Za-z0-9-]+[ \t]+)*(?:\./|/|[A-Za-z0-9_.-]+/)|"
         r"(?:npm[ \t]+exec|npx|pnpm[ \t]+(?:dlx|test|run)|"
         r"yarn[ \t]+(?:dlx|test|run))|"
         r"(?:cargo|go|make|pytest|tox|gradle|mvn)\b)"
@@ -1207,6 +1208,11 @@ class _GitHubActionsPullRequestTargetPattern:
                     break
                 step_start -= 1
             step_indent = self._indent_width(lines[step_start])
+            uses_indent = self._indent_width(line) + (
+                2 if line.lstrip(" \t").startswith("-") else 0
+            )
+            if uses_indent != step_indent + 2:
+                continue
             step_end = end
             for candidate_index in range(step_start + 1, end):
                 candidate = lines[candidate_index]
@@ -1217,10 +1223,7 @@ class _GitHubActionsPullRequestTargetPattern:
                 ):
                     step_end = candidate_index
                     break
-            uses_indent = self._indent_width(line)
-            step_key_indent = uses_indent + (
-                2 if line.lstrip(" \t").startswith("-") else 0
-            )
+            step_key_indent = uses_indent
             for nested_index in range(step_start, step_end):
                 nested = lines[nested_index].rstrip("\r\n")
                 field = self._FIELD.match(nested)
@@ -1449,10 +1452,50 @@ class _GitHubActionsPullRequestTargetPattern:
             if executable.startswith(directory_prefix):
                 return True
             if os.path.basename(tokens[0]) in interpreters and len(tokens) > 1:
-                script = os.path.normpath(tokens[1])
+                script_index = 1
+                while (
+                    script_index < len(tokens)
+                    and tokens[script_index].startswith("-")
+                ):
+                    if tokens[script_index] in {"-c", "--command", "-m"}:
+                        script_index = len(tokens)
+                        break
+                    script_index += 1
+                if script_index >= len(tokens):
+                    continue
+                script = os.path.normpath(tokens[script_index])
                 if script.startswith(directory_prefix):
                     return True
         return False
+
+    def _trusted_tree_selection(self, command: str, aliases) -> bool:
+        """Return whether an executed direct git command selects another tree."""
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return False
+        if len(tokens) < 3 or tokens[0] != "git":
+            return False
+        operation = tokens[1]
+        if operation not in {"checkout", "switch"}:
+            return False
+        if self._has_pr_head(command) or "FETCH_HEAD" in command:
+            return False
+        if any(
+            re.search(rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b", command)
+            for alias in aliases
+        ):
+            return False
+        arguments = tokens[2:]
+        if operation == "checkout":
+            if arguments[:1] == ["--"]:
+                return False
+            if arguments[:1] in (["-b"], ["-B"]) and len(arguments) == 2:
+                return False
+        if operation == "switch":
+            if arguments[:1] in (["-c"], ["-C"], ["--create"], ["--force-create"]):
+                return len(arguments) > 2
+        return True
 
     @staticmethod
     def _worktree_target(command: str):
@@ -1497,7 +1540,9 @@ class _GitHubActionsPullRequestTargetPattern:
                 )
                 references_pr_head = self._has_pr_head(command) or alias_match
                 if self._GIT_FETCH.search(command) and not re.search(
-                    r"(?:--no-write-fetch-head|--append|-a)\b", command
+                    r"(?:--no-write-fetch-head|--append|"
+                    r"(?:^|[ \t])-[A-Za-z]*a[A-Za-z]*(?=[ \t]|$))",
+                    command,
                 ):
                     fetched_pr_head = references_pr_head
                 if not self._GIT_TREE_SELECTION.search(command):
@@ -1544,6 +1589,7 @@ class _GitHubActionsPullRequestTargetPattern:
         active_run_indent=None,
         required_directory=None,
         selection_index=None,
+        aliases=None,
     ):
         """Return subsequent local action, script, test, or build execution."""
         if required_directory:
@@ -1554,6 +1600,7 @@ class _GitHubActionsPullRequestTargetPattern:
                 lines, 0, end, selection_index
             )
         in_run_block = active_run_indent is not None
+        aliases = aliases or set()
         run_indent = active_run_indent or 0
         in_materialized_directory = required_directory is None
         for index in range(start, end):
@@ -1565,22 +1612,25 @@ class _GitHubActionsPullRequestTargetPattern:
                 step_start, step_end, _ = self._step_range(
                     lines, 0, end, index
                 )
+                step_indent = self._indent_width(lines[step_start])
+                uses_indent = self._indent_width(line) + (
+                    2 if line.lstrip(" \t").startswith("-") else 0
+                )
                 if (
-                    step_start != selection_step_start
+                    uses_indent == step_indent + 2
+                    and step_start != selection_step_start
                     and self._checkout_materialization(lines, step_start, step_end)
                     is None
                 ):
                     return None
             if index != selection_index:
+                step_aliases = aliases | self._step_pr_head_aliases(
+                    lines, 0, end, index
+                )
                 for command in re.split(
                     r"(?:&&|\|\||;)", self._shell_code(stripped)
                 ):
-                    if (
-                        self._GIT_TREE_SELECTION.search(command)
-                        and "worktree" not in command
-                        and not self._has_pr_head(command)
-                        and "FETCH_HEAD" not in command
-                    ):
+                    if self._trusted_tree_selection(command.strip(), step_aliases):
                         return None
             step_directory = self._step_working_directory(
                 lines, start, end, index
@@ -1698,12 +1748,12 @@ class _GitHubActionsPullRequestTargetPattern:
             )
             if not privileged:
                 continue
+            aliases = workflow_aliases | self._pr_head_aliases(
+                lines, start, end, job_indent + 2
+            )
             materialized = self._checkout_materialization(lines, start, end)
             active_run_indent = None
             if materialized is None:
-                aliases = workflow_aliases | self._pr_head_aliases(
-                    lines, start, end, job_indent + 2
-                )
                 shell_materialization = self._git_materialization(
                     lines, start, end, aliases
                 )
@@ -1725,6 +1775,7 @@ class _GitHubActionsPullRequestTargetPattern:
                 active_run_indent,
                 required_directory,
                 materialized,
+                aliases,
             )
             if execution is not None:
                 yield _SourceMatch(offsets[execution])

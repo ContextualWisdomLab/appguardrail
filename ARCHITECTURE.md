@@ -56,11 +56,14 @@ must select the revision, or a worktree must select it and execution must bind
 through normalized `cd`, `pushd`, exact step `working-directory`, or an executable/script path.
 The most recent fetch that writes `FETCH_HEAD` owns its provenance; a later trusted
 overwriting fetch clears prior PR-head evidence, while `--no-write-fetch-head` and
-`--append` preserve it. A later trusted checkout/switch invalidates an earlier
-PR-tree selection. Action checkout materialization is bound
+`--append` (including bundled short options) preserve it. A later directly executed
+checkout/switch that selects a different tree invalidates an earlier PR-tree
+selection; path restore, branch creation at current HEAD, inert text, and repeated
+PR-head selection do not. Interpreter options do not break executable-path binding.
+Action checkout materialization is bound
 specifically to its owned `with.ref` input, including flow mappings. It
 does not merge evidence across jobs or treat
-YAML-looking action inputs, comments, or run-block data as workflow authority.
+YAML-looking action inputs, comments, heredocs, or run-block data as workflow authority.
 Same-repository author predicates do not change the result because collaborator
 branches remain mutable. Ordinary `pull_request`, metadata-only
 `pull_request_target`, trusted base checkout, authority isolated in another job,

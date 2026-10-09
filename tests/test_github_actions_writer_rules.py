@@ -637,6 +637,8 @@ jobs:
     "execution",
     [
         "bash /tmp/review/ci/review.sh",
+        "bash -e /tmp/review/ci/review.sh",
+        "python3 -u /tmp/review/ci/review.py",
         "pushd /tmp/review\nbash ./ci/review.sh",
     ],
 )
@@ -715,7 +717,9 @@ jobs:
     }
 
 
-@pytest.mark.parametrize("option", ["--no-write-fetch-head", "--append"])
+@pytest.mark.parametrize(
+    "option", ["--no-write-fetch-head", "--append", "-ap", "-pa"]
+)
 def test_non_overwriting_fetch_preserves_pr_fetch_head(
     tmp_path, option: str
 ) -> None:
@@ -777,6 +781,90 @@ jobs:
     assert _PR_TARGET_EXECUTION_RULE_ID not in {
         finding["rule_id"] for finding in findings
     }
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git checkout -- README.md",
+        "git switch -c review",
+        'echo "git checkout main"',
+        "if false; then git checkout main; fi",
+        'git checkout "$PR_HEAD_SHA"',
+    ],
+)
+def test_non_tree_changing_or_pr_selection_preserves_pr_tree(
+    tmp_path, command: str
+) -> None:
+    """Only an executed selection of a different tree clears PR provenance."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+env:
+  PR_HEAD_SHA: ${{{{ github.event.pull_request.head.sha }}}}
+jobs:
+  review:
+    steps:
+      - run: |
+          git checkout "$PR_HEAD_SHA"
+          {command}
+          bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+def test_run_block_checkout_document_is_not_authority(tmp_path) -> None:
+    """YAML-looking heredoc data cannot materialize a PR tree."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - run: |
+          cat <<'EOF'
+          uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+          with:
+            ref: ${{ github.event.pull_request.head.sha }}
+          EOF
+          bash ./ci/base.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_run_block_checkout_document_does_not_clear_pr_tree(tmp_path) -> None:
+    """YAML-looking heredoc data cannot invalidate a real PR checkout."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: |
+          cat <<'EOF'
+          uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+          EOF
+          bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
 
 
 @pytest.mark.parametrize(
