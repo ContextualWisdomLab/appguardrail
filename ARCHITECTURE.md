@@ -43,6 +43,49 @@ The detector that observes evidence is authoritative for its finding. `scanner/r
 
 External engines retain their own engine/rule/version provenance. AppGuardrail normalizes their output but does not claim their analysis was performed internally.
 
+The proposed
+`github-actions-pull-request-target-untrusted-head-execution` built-in rule
+owns a job-local GitHub Actions trust-boundary signal. A deterministic analyzer
+requires all four causal elements: a `pull_request_target` trigger, repository
+privilege in the same job, explicit materialization of an event-derived PR head,
+and subsequent execution of a local action, script, test, or build from that
+tree. It recognizes equivalent dot/bracket event expressions and one-hop
+workflow-, job-, or same-step block/flow (including multiline flow) `env` bindings used by the same shell command
+segment as Git tree selection. A fetch alone is insufficient; checkout/switch
+must select the revision, or a worktree must select it and execution must bind
+through normalized `cd`, `pushd`, exact step `working-directory`, or an executable/script path.
+The most recent fetch that writes `FETCH_HEAD` owns its provenance; a later trusted
+overwriting fetch clears prior PR-head evidence, while `--no-write-fetch-head` and
+`--append` (including bundled short options) preserve it. A later directly executed
+checkout/switch that selects a different tree invalidates an earlier PR-tree
+selection; path restore, branch creation at current HEAD, inert text, and repeated
+PR-head selection do not. Interpreter options do not break executable-path binding.
+Action checkout materialization is bound
+specifically to its owned `with.ref` input, including flow mappings. It
+does not merge evidence across jobs or treat
+YAML-looking action inputs, comments, heredocs, or run-block data as workflow authority.
+Same-repository author predicates do not change the result because collaborator
+branches remain mutable. Ordinary `pull_request`, metadata-only
+`pull_request_target`, trusted base checkout, authority isolated in another job,
+and a conservatively recognized scalar or block job-level event guard whose
+every disjunct contains a standalone non-PR-target event atom remain
+outside the finding boundary. The canonical prevention boundary remains a
+metadata-only trigger followed by a separately reviewed default-branch
+execution workflow.
+
+The proposed `github-actions-runtime-package-without-integrity` built-in rule owns
+the narrow workflow-source signal where one step binds a versioned registry
+package environment value to the exact package-selector position of that step's
+`npx`/`npm exec` auto-install command. A deterministic line/state analyzer tracks
+step-local field indentation, blank block-scalar lines, exact variable boundaries,
+compact or expanded step mappings, intervening YAML comments, and shell heredoc
+state. Heredoc body text is ignored unless an unquoted body is
+redirected to a target that the same step later makes executable with `chmod`.
+Lexical proximity is therefore not promoted to causal execution. The rule does
+not claim that a download or registry compromise occurred. Central protected workflow prevention, immutable tool
+distribution, consumer configuration, and this repository-local
+detector remain separate controls.
+
 ## Issue-to-detection boundary
 
 ```mermaid

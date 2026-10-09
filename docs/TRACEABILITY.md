@@ -19,6 +19,8 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| privileged `pull_request_target` execution of mutable PR-head code | built-in `github-actions-pull-request-target-untrusted-head-execution` rule | Proposed: issue #132 / `.github` PR #635 regression, job-local causal analyzer; promote only after protected merge |
+| GitHub Actions versioned registry package bound to npm auto-install | built-in `github-actions-runtime-package-without-integrity` rule | Proposed: bound-package positive and local/unbound/example negative corpus; promote only after protected merge |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
 ## Promotion rules
@@ -46,6 +48,65 @@ For stored webhook/callback SSRF, trace separately:
 7. exact-head security/review evidence.
 
 Current protected-branch evidence keeps those controls distinct: PR #924 supplies the fail-closed webhook storage boundary, and PR #910 supplies the packaged `python-stored-ssrf-webhook-url` detector plus focused regression corpus. Neither control expands the detector beyond its declared source/sink and flow contract.
+
+## Runtime package integrity boundary
+
+The GitHub Actions detector uses a deterministic step/run analyzer rather than a
+proximity regex. It is intentionally bounded to one step whose `env` mapping
+assigns a versioned registry identity to `*_PACKAGE` and whose immediately
+following `run` field places the exact same variable in a supported `npx` or
+`npm exec` package-selector position with `-y`/`--yes`. Variable-name boundaries
+are exact. Expanded `env:` and compact `- env:` step forms are equivalent, and
+same-indent YAML comments do not terminate the step mapping. Blank block-scalar
+lines do not end analysis. Heredoc bodies are shell
+data and are skipped; analysis resumes after the delimiter. An unquoted heredoc
+body counts only when it is redirected to a target and the same step later makes
+that exact target executable with `chmod`. This is evidence that auto-install is
+admitted, not proof that a download occurred.
+Cross-step references, variables used only as ordinary arguments, prefix-colliding
+names, unbound local tool names, local tarballs, comments, printed/quoted-heredoc
+examples, and non-workflow YAML remain clean. Direct literal package specs, command
+prefixes, quoted YAML `run` keys, wider option/order variants, multiple package
+variables in one environment mapping, other package managers, composite actions,
+reusable workflows, chaining, and indirect expansion remain outside this bounded
+analyzer.
+The current repository incident remains open until a canonical protected workflow
+or immutable released tool contract can scan PR source without trusting PR-owned
+bootstrap files.
+
+## Privileged PR-head execution boundary
+
+The GitHub Actions trust-boundary analyzer requires a `pull_request_target`
+workflow and evaluates each direct child job independently. A job is in scope
+when explicit write authority or a referenced repository secret is present, the
+job checks out or shell-materializes
+`github.event.pull_request.head.sha`/`ref` or `github.head_ref`, and a later step
+executes a repository-local action, script, test, or build command from the
+selected tree. One-hop workflow-, job-, and same-step block/flow (including multiline
+flow) `env` bindings of the
+event head are followed into the same shell command segment as checkout/switch,
+or from the most recent `FETCH_HEAD`-writing PR-head fetch into `FETCH_HEAD`
+worktree creation and execution linked by normalized `cd`, `pushd`, exact step
+`working-directory`, or executable/script path
+commands so the retained fixture reproduces the issue #132 CodeGraph execution
+shape after the prevention fix merged in ContextualWisdomLab/.github PR #635.
+Non-overwriting `--no-write-fetch-head`/`--append` fetches (including bundled short
+options) preserve that provenance; a later directly executed checkout/switch that
+selects a different tree, or an overwriting fetch, invalidates it. Path restore,
+current-HEAD branch creation, inert command text, repeated PR-head selection, and
+interpreter options retain their actual provenance semantics.
+
+Metadata-only `pull_request_target` handling, ordinary `pull_request`, trusted
+base-SHA checkout, inert output, privilege located only in another job, and a
+conservatively recognized scalar or block job-level guard whose every disjunct
+contains a standalone atom excluding PR-target execution are negative fixtures.
+Top-level mapping, sequence, inline trigger forms, field ordering, and trailing
+YAML comments are equivalent; YAML-looking action inputs, comments, heredocs, and run
+data are not promoted to authority. A same-repository head predicate is
+deliberately not an exclusion. The first bounded analyzer does not claim
+complete coverage of reusable/composite action internals, cross-job artifacts,
+API-downloaded source archives, cross-step or multi-hop environment aliases, container
+entrypoints, or third-party actions that fetch contributor content internally.
 
 ## Standards/research
 

@@ -944,6 +944,1031 @@ def _extensions_for_languages(languages):
     return sorted(set(extensions)) or None
 
 
+class _SourceMatch:
+    """Minimal match object for deterministic source analyzers."""
+
+    def __init__(self, start_index: int):
+        self._start_index = start_index
+
+    def start(self) -> int:
+        """Return the source offset used by the shared finding builder."""
+        return self._start_index
+
+
+class _GitHubActionsPullRequestTargetPattern:
+    """Find privileged PR-target jobs that execute materialized PR code."""
+
+    _FIELD = re.compile(
+        r"^(?P<indent>[ \t]*)(?:[\"']?(?P<name>[A-Za-z0-9_-]+)[\"']?)"
+        r"[ \t]*:[ \t]*(?P<value>.*)$"
+    )
+    _PERMISSION_SCOPES = frozenset(
+        {
+            "actions",
+            "attestations",
+            "checks",
+            "contents",
+            "deployments",
+            "discussions",
+            "id-token",
+            "issues",
+            "models",
+            "packages",
+            "pages",
+            "pull-requests",
+            "security-events",
+            "statuses",
+        }
+    )
+    _INLINE_WRITE_PERMISSION = re.compile(
+        r"(?:actions|attestations|checks|contents|deployments|discussions|"
+        r"id-token|issues|models|packages|pages|pull-requests|security-events|"
+        r"statuses)[\"']?[ \t]*:[ \t]*[\"']?write\b"
+    )
+    _SECRET = re.compile(
+        r"\$\{\{[ \t]*secrets(?:\.[A-Za-z_][A-Za-z0-9_]*|"
+        r"\[['\"][A-Za-z_][A-Za-z0-9_]*['\"]\])"
+    )
+    _CHECKOUT = re.compile(
+        r"^[ \t]*(?:-[ \t]*)?(?:[\"']?uses[\"']?)[ \t]*:[ \t]*"
+        r"[\"']?actions/checkout@",
+        re.IGNORECASE,
+    )
+    _PR_HEAD = re.compile(
+        r"github\.(?:event\.pull_request\.head\.(?:sha|ref)|head_ref)"
+    )
+    _BRACKET_KEY = re.compile(r"\[['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\]")
+    _GIT_FETCH = re.compile(r"\bgit[ \t]+fetch\b")
+    _GIT_TREE_SELECTION = re.compile(
+        r"\bgit[ \t]+(?:checkout|switch|worktree\b[^\n]*\badd)\b"
+    )
+    _FLOW_REF = re.compile(
+        r"(?:^|[{,])[ \t]*['\"]?ref['\"]?[ \t]*:[ \t]*"
+        r"(?P<value>.*?)(?=,[ \t]*['\"]?[A-Za-z0-9_-]+['\"]?[ \t]*:|}[ \t]*$)"
+    )
+    _LOCAL_ACTION = re.compile(
+        r"^[ \t]*(?:-[ \t]*)?(?:[\"']?uses[\"']?)[ \t]*:[ \t]*[\"']?\./"
+    )
+    _COMPACT_RUN = re.compile(
+        r"^(?P<indent>[ \t]*)-[ \t]*(?:[\"']?run[\"']?)[ \t]*:[ \t]*"
+        r"(?P<value>.*)$"
+    )
+    _LOCAL_COMMAND = re.compile(
+        r"(?:^|[;&|][ \t]*)"
+        r"(?:\./[A-Za-z0-9_.-]|"
+        r"(?:bash|sh|zsh|python3?|node|ruby|perl)[ \t]+"
+        r"(?:-[A-Za-z0-9-]+[ \t]+)*(?:\./|/|[A-Za-z0-9_.-]+/)|"
+        r"(?:npm[ \t]+exec|npx|pnpm[ \t]+(?:dlx|test|run)|"
+        r"yarn[ \t]+(?:dlx|test|run))|"
+        r"(?:cargo|go|make|pytest|tox|gradle|mvn)\b)"
+    )
+
+    @staticmethod
+    def _indent_width(line: str) -> int:
+        """Count leading YAML indentation characters."""
+        return len(line) - len(line.lstrip(" \t"))
+
+    @staticmethod
+    def _yaml_value(value: str) -> str:
+        """Remove a trailing YAML comment from the controlled scalar subset."""
+        value = re.sub(r"[ \t]+#.*$", "", value).strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"\"", "'"}:
+            return value[1:-1]
+        return value
+
+    def _has_pr_head(self, value: str) -> bool:
+        """Recognize equivalent dot and bracket GitHub context paths."""
+        normalized = self._BRACKET_KEY.sub(r".\1", value)
+        return bool(self._PR_HEAD.search(normalized))
+
+    def _has_pull_request_target(self, content: str) -> bool:
+        """Return whether the workflow has a top-level PR-target trigger."""
+        lines = content.splitlines()
+        for index, line in enumerate(lines):
+            field = self._FIELD.match(line)
+            if (
+                not field
+                or field.group("name") != "on"
+                or field.group("indent")
+            ):
+                continue
+            value = self._yaml_value(field.group("value"))
+            if re.search(r"\bpull_request_target\b", value):
+                return True
+            for nested in lines[index + 1 :]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) == 0:
+                    break
+                stripped = nested.strip()
+                if stripped.startswith("-"):
+                    event = self._yaml_value(stripped[1:])
+                    if event == "pull_request_target":
+                        return True
+                nested_field = self._FIELD.match(nested)
+                if (
+                    nested_field
+                    and nested_field.group("name") == "pull_request_target"
+                ):
+                    return True
+            break
+        return False
+
+    def _has_write_permission(
+        self, lines, start: int, end: int, permission_indent: int
+    ) -> bool:
+        """Recognize write authority only inside a permissions mapping."""
+        for index in range(start, end):
+            line = lines[index].rstrip("\r\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            field = self._FIELD.match(line)
+            if (
+                not field
+                or field.group("name") != "permissions"
+                or len(field.group("indent")) != permission_indent
+            ):
+                continue
+            value = self._yaml_value(field.group("value"))
+            if value == "write-all" or self._INLINE_WRITE_PERMISSION.search(value):
+                return True
+            for nested in lines[index + 1 : end]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= permission_indent:
+                    break
+                nested_field = self._FIELD.match(nested.rstrip("\r\n"))
+                if not nested_field:
+                    continue
+                nested_value = self._yaml_value(nested_field.group("value"))
+                if (
+                    nested_field.group("name") in self._PERMISSION_SCOPES
+                    and nested_value == "write"
+                ):
+                    return True
+        return False
+
+    def _has_secret(self, lines, start: int, end: int) -> bool:
+        """Return whether executable job YAML references a repository secret."""
+        return any(
+            self._SECRET.search(lines[index])
+            for index in range(start, end)
+            if not lines[index].lstrip().startswith("#")
+        )
+
+    def _job_excludes_pull_request_target(self, lines, start: int, end: int) -> bool:
+        """Recognize job guards that make PR-target execution unreachable."""
+        job_indent = self._indent_width(lines[start])
+        for index in range(start + 1, end):
+            field = self._FIELD.match(lines[index].rstrip("\r\n"))
+            if (
+                not field
+                or field.group("name") != "if"
+                or len(field.group("indent")) != job_indent + 2
+            ):
+                continue
+            guard = self._yaml_value(field.group("value"))
+            if guard[:1] in {"|", ">"}:
+                guard_lines = []
+                for nested in lines[index + 1 : end]:
+                    if not nested.strip() or nested.lstrip().startswith("#"):
+                        continue
+                    if self._indent_width(nested) <= job_indent + 2:
+                        break
+                    guard_lines.append(nested.strip())
+                guard = " ".join(guard_lines)
+            if guard.startswith("${{") and guard.endswith("}}"):
+                guard = guard[3:-2].strip()
+            branches = guard.split("||")
+            return all(
+                any(
+                    bool(
+                        re.fullmatch(
+                            r"github\.event_name[ \t]*!=[ \t]*"
+                            r"['\"]pull_request_target['\"]",
+                            atom.strip(" ()\t"),
+                        )
+                        or re.fullmatch(
+                            r"github\.event_name[ \t]*==[ \t]*['\"]"
+                            r"(?!pull_request_target['\"])[A-Za-z_]+['\"]",
+                            atom.strip(" ()\t"),
+                        )
+                    )
+                    for atom in branch.split("&&")
+                )
+                for branch in branches
+            )
+        return False
+
+    def _job_ranges(self, lines):
+        """Yield direct child job ranges without merging authority across jobs."""
+        jobs_index = None
+        jobs_indent = None
+        for index, line in enumerate(lines):
+            field = self._FIELD.match(line.rstrip("\r\n"))
+            if field and field.group("name") == "jobs":
+                jobs_index = index
+                jobs_indent = len(field.group("indent"))
+                break
+        if jobs_index is None:
+            return
+
+        job_indent = None
+        starts = []
+        jobs_end = len(lines)
+        for index in range(jobs_index + 1, len(lines)):
+            line = lines[index].rstrip("\r\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            width = self._indent_width(line)
+            if width <= jobs_indent:
+                jobs_end = index
+                break
+            field = self._FIELD.match(line)
+            if not field:
+                continue
+            if job_indent is None:
+                job_indent = width
+            if width == job_indent:
+                starts.append(index)
+        for position, start in enumerate(starts):
+            end = starts[position + 1] if position + 1 < len(starts) else jobs_end
+            yield start, end
+
+    def _checkout_materialization(self, lines, start: int, end: int):
+        """Return the source line that checks out an event-derived PR head."""
+        for index in range(start, end):
+            line = lines[index].rstrip("\r\n")
+            if not self._CHECKOUT.match(line):
+                continue
+            step_start = index
+            while step_start > start:
+                candidate = lines[step_start].lstrip(" \t")
+                if candidate.startswith("-"):
+                    break
+                step_start -= 1
+            step_indent = self._indent_width(lines[step_start])
+            uses_indent = self._indent_width(line) + (
+                2 if line.lstrip(" \t").startswith("-") else 0
+            )
+            if uses_indent != step_indent + 2:
+                continue
+            step_end = end
+            for candidate_index in range(step_start + 1, end):
+                candidate = lines[candidate_index]
+                if (
+                    candidate.strip()
+                    and self._indent_width(candidate) == step_indent
+                    and candidate.lstrip(" \t").startswith("-")
+                ):
+                    step_end = candidate_index
+                    break
+            step_key_indent = uses_indent
+            for nested_index in range(step_start, step_end):
+                nested = lines[nested_index].rstrip("\r\n")
+                field = self._FIELD.match(nested)
+                compact_with = re.match(
+                    r"^(?P<indent>[ \t]*)-[ \t]+with[ \t]*:[ \t]*(?P<value>.*)$",
+                    nested,
+                )
+                if field and field.group("name") == "with":
+                    with_indent = len(field.group("indent"))
+                    semantic_indent = with_indent
+                    value = self._yaml_value(field.group("value"))
+                elif compact_with:
+                    with_indent = len(compact_with.group("indent")) + 2
+                    semantic_indent = with_indent
+                    value = self._yaml_value(compact_with.group("value"))
+                else:
+                    continue
+                if semantic_indent != step_key_indent:
+                    continue
+                value = self._flow_mapping_value(
+                    lines, nested_index, step_end, semantic_indent, value
+                )
+                if value.startswith("{"):
+                    flow_ref = self._FLOW_REF.search(value)
+                    if flow_ref and self._has_pr_head(flow_ref.group("value")):
+                        return nested_index
+                    continue
+                for input_index in range(nested_index + 1, step_end):
+                    input_line = lines[input_index].rstrip("\r\n")
+                    if not input_line.strip() or input_line.lstrip().startswith("#"):
+                        continue
+                    if self._indent_width(input_line) <= with_indent:
+                        break
+                    input_field = self._FIELD.match(input_line)
+                    if (
+                        input_field
+                        and input_field.group("name") == "ref"
+                        and self._has_pr_head(input_field.group("value"))
+                    ):
+                        return input_index
+        return None
+
+    def _pr_head_aliases(self, lines, start: int, end: int, env_indent: int):
+        """Return PR-head aliases from env mappings at one exact scope."""
+        aliases = set()
+        for index in range(start, end):
+            field = self._FIELD.match(lines[index].rstrip("\r\n"))
+            if (
+                not field
+                or field.group("name") != "env"
+                or len(field.group("indent")) != env_indent
+            ):
+                continue
+            value = self._flow_mapping_value(
+                lines,
+                index,
+                end,
+                env_indent,
+                self._yaml_value(field.group("value")),
+            )
+            if value.startswith("{"):
+                aliases.update(self._flow_env_aliases(value))
+                continue
+            for nested in lines[index + 1 : end]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= env_indent:
+                    break
+                variable = self._FIELD.match(nested.rstrip("\r\n"))
+                if variable and self._has_pr_head(variable.group("value")):
+                    aliases.add(variable.group("name"))
+        return aliases
+
+    def _flow_env_aliases(self, value: str):
+        """Return PR-head aliases from the supported YAML flow mapping subset."""
+        aliases = set()
+        if not value.startswith("{") or not value.endswith("}"):
+            return aliases
+        for entry in value[1:-1].split(","):
+            if ":" not in entry:
+                continue
+            name, scalar = entry.split(":", 1)
+            name = name.strip(" '\"\t")
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) and self._has_pr_head(
+                scalar
+            ):
+                aliases.add(name)
+        return aliases
+
+    def _flow_mapping_value(
+        self, lines, index: int, end: int, owner_indent: int, value: str
+    ) -> str:
+        """Join a bounded multiline YAML flow mapping for deterministic parsing."""
+        if not value.startswith("{") or value.endswith("}"):
+            return value
+        parts = [value]
+        for nested in lines[index + 1 : end]:
+            stripped = nested.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if self._indent_width(nested) <= owner_indent and stripped != "}":
+                break
+            parts.append(stripped)
+            if stripped.endswith("}"):
+                break
+        return " ".join(parts)
+
+    def _step_range(self, lines, start: int, end: int, index: int):
+        """Return the YAML sequence item containing one run-block line."""
+        step_start = None
+        step_indent = None
+        for candidate in range(index, start - 1, -1):
+            line = lines[candidate]
+            if re.match(r"^[ \t]*-[ \t]+", line):
+                step_start = candidate
+                step_indent = self._indent_width(line)
+                break
+        if step_start is None:
+            return start, end, None
+        step_end = end
+        for candidate in range(step_start + 1, end):
+            line = lines[candidate]
+            if (
+                line.strip()
+                and self._indent_width(line) == step_indent
+                and re.match(r"^[ \t]*-[ \t]+", line)
+            ):
+                step_end = candidate
+                break
+        return step_start, step_end, step_indent
+
+    def _step_pr_head_aliases(self, lines, start: int, end: int, index: int):
+        """Return event-head env aliases live in the containing step only."""
+        step_start, step_end, step_indent = self._step_range(
+            lines, start, end, index
+        )
+        if step_indent is None:
+            return set()
+        step_key_indent = step_indent + 2
+        aliases = set()
+        env_pattern = re.compile(
+            r"^(?P<indent>[ \t]*)(?P<compact>-[ \t]+)?env[ \t]*:[ \t]*"
+            r"(?P<value>.*)$"
+        )
+        for env_index in range(step_start, step_end):
+            env_match = env_pattern.match(lines[env_index].rstrip("\r\n"))
+            if not env_match:
+                continue
+            env_indent = len(env_match.group("indent")) + (
+                2 if env_match.group("compact") else 0
+            )
+            if env_indent != step_key_indent:
+                continue
+            value = self._flow_mapping_value(
+                lines,
+                env_index,
+                step_end,
+                env_indent,
+                self._yaml_value(env_match.group("value")),
+            )
+            if value.startswith("{"):
+                aliases.update(self._flow_env_aliases(value))
+                continue
+            for nested in lines[env_index + 1 : step_end]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= env_indent:
+                    break
+                variable = self._FIELD.match(nested.rstrip("\r\n"))
+                if variable and self._has_pr_head(variable.group("value")):
+                    aliases.add(variable.group("name"))
+        return aliases
+
+    def _step_working_directory(self, lines, start: int, end: int, index: int):
+        """Return a step-owned working-directory scalar when present."""
+        step_start, step_end, step_indent = self._step_range(
+            lines, start, end, index
+        )
+        if step_indent is None:
+            return None
+        step_key_indent = step_indent + 2
+        compact_pattern = re.compile(
+            r"^(?P<indent>[ \t]*)-[ \t]+working-directory[ \t]*:[ \t]*(?P<value>.*)$"
+        )
+        for field_index in range(step_start, step_end):
+            line = lines[field_index].rstrip("\r\n")
+            field = self._FIELD.match(line)
+            compact = compact_pattern.match(line)
+            if (
+                field
+                and field.group("name") == "working-directory"
+                and len(field.group("indent")) == step_key_indent
+            ):
+                return self._yaml_value(field.group("value"))
+            if compact and len(compact.group("indent")) + 2 == step_key_indent:
+                return self._yaml_value(compact.group("value"))
+        return None
+
+    @staticmethod
+    def _shell_code(line: str) -> str:
+        """Remove a trailing shell comment before causal command matching."""
+        return re.split(r"[ \t]+#", line, maxsplit=1)[0]
+
+    @staticmethod
+    def _interpreter_script(tokens):
+        """Return the script operand after bounded interpreter options."""
+        interpreter = os.path.basename(tokens[0]) if tokens else ""
+        value_options = {
+            "bash": {"-O", "--rcfile", "--init-file"},
+            "sh": {"-O"},
+            "zsh": {"-O"},
+            "python": {"-W", "-X"},
+            "python3": {"-W", "-X"},
+        }.get(interpreter, set())
+        terminal_options = {
+            "bash": {"-c", "--command"},
+            "sh": {"-c"},
+            "zsh": {"-c"},
+            "python": {"-c", "-m"},
+            "python3": {"-c", "-m"},
+            "node": {"-e", "--eval"},
+            "ruby": {"-e"},
+            "perl": {"-e"},
+        }.get(interpreter, set())
+        if not value_options and not terminal_options and interpreter not in {
+            "node",
+            "ruby",
+            "perl",
+        }:
+            return None
+        index = 1
+        while index < len(tokens):
+            option = tokens[index]
+            if option == "--":
+                index += 1
+                break
+            if option in terminal_options:
+                return None
+            if option in value_options:
+                index += 2
+                continue
+            if option.startswith(("-", "+")):
+                index += 1
+                continue
+            break
+        return tokens[index] if index < len(tokens) else None
+
+    @classmethod
+    def _executes_from_directory(cls, command_line: str, directory: str) -> bool:
+        """Bind an executable or interpreter script path to one worktree."""
+        directory_prefix = f"{os.path.normpath(directory).rstrip('/')}/"
+        for segment in re.split(r"(?:&&|\|\||;)", command_line):
+            try:
+                tokens = shlex.split(segment)
+            except ValueError:
+                continue
+            if not tokens:
+                continue
+            executable = os.path.normpath(tokens[0])
+            if executable.startswith(directory_prefix):
+                return True
+            script_operand = cls._interpreter_script(tokens)
+            if script_operand:
+                script = os.path.normpath(script_operand)
+                if script.startswith(directory_prefix):
+                    return True
+        return False
+
+    def _trusted_tree_selection(self, command: str, aliases) -> bool:
+        """Return whether an executed direct git command selects another tree."""
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return False
+        if len(tokens) < 3 or tokens[0] != "git":
+            return False
+        operation = tokens[1]
+        if operation not in {"checkout", "switch"}:
+            return False
+        if self._has_pr_head(command) or "FETCH_HEAD" in command:
+            return False
+        if any(
+            re.search(rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b", command)
+            for alias in aliases
+        ):
+            return False
+        arguments = tokens[2:]
+        non_option_arguments = [
+            argument
+            for argument in arguments
+            if not argument.startswith("-")
+        ]
+        if not non_option_arguments or non_option_arguments == ["HEAD"]:
+            return False
+        if operation == "checkout":
+            if arguments[:1] == ["--"]:
+                return False
+            if arguments[:1] in (["-b"], ["-B"]) and len(arguments) == 2:
+                return False
+        if operation == "switch":
+            if arguments[:1] in (["-c"], ["-C"], ["--create"], ["--force-create"]):
+                return len(arguments) > 2
+        return True
+
+    @staticmethod
+    def _worktree_target(command: str):
+        """Return the destination argument from a simple git worktree add."""
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return None
+        try:
+            add_index = next(
+                index
+                for index in range(len(tokens) - 2)
+                if tokens[index : index + 3] == ["git", "worktree", "add"]
+            )
+        except StopIteration:
+            return None
+        index = add_index + 3
+        while index < len(tokens) and tokens[index].startswith("-"):
+            if tokens[index] in {"-b", "-B"}:
+                index += 2
+            else:
+                index += 1
+        return tokens[index] if index < len(tokens) else None
+
+    def _git_materialization(self, lines, start: int, end: int, aliases):
+        """Return a run-block line that materializes the event PR head."""
+        fetched_pr_head = False
+        for index in range(start, end):
+            line = self._shell_code(lines[index])
+            step_aliases = aliases | self._step_pr_head_aliases(
+                lines, start, end, index
+            )
+            selected_tree = False
+            worktree_target = None
+            for command in re.split(r"(?:&&|\|\||;)", line):
+                alias_match = any(
+                    re.search(
+                        rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b",
+                        command,
+                    )
+                    for alias in step_aliases
+                )
+                references_pr_head = self._has_pr_head(command) or alias_match
+                if self._GIT_FETCH.search(command) and not re.search(
+                    r"(?:--no-write-fetch-head|--append|"
+                    r"(?:^|[ \t])-[A-Za-z]*a[A-Za-z]*(?=[ \t]|$))",
+                    command,
+                ):
+                    fetched_pr_head = references_pr_head
+                if not self._GIT_TREE_SELECTION.search(command):
+                    continue
+                if references_pr_head or (
+                    fetched_pr_head and re.search(r"\bFETCH_HEAD\b", command)
+                ):
+                    selected_tree = True
+                    worktree_target = self._worktree_target(command)
+                    break
+            if not selected_tree:
+                continue
+            command_indent = self._indent_width(line)
+            for prior in range(index - 1, start - 1, -1):
+                compact_run = self._COMPACT_RUN.match(
+                    lines[prior].rstrip("\r\n")
+                )
+                if compact_run:
+                    block_value = compact_run.group("value").strip()[:1]
+                    if block_value in {"|", ">"}:
+                        return (
+                            index,
+                            len(compact_run.group("indent")),
+                            worktree_target,
+                        )
+                    break
+                field = self._FIELD.match(lines[prior].rstrip("\r\n"))
+                if not field:
+                    continue
+                field_indent = len(field.group("indent"))
+                if field_indent >= command_indent:
+                    continue
+                block_value = field.group("value").strip()[:1]
+                if field.group("name") == "run" and block_value in {"|", ">"}:
+                    return index, field_indent, worktree_target
+                break
+        return None
+
+    def _execution_line(
+        self,
+        lines,
+        start: int,
+        end: int,
+        active_run_indent=None,
+        required_directory=None,
+        selection_index=None,
+        aliases=None,
+    ):
+        """Return subsequent local action, script, test, or build execution."""
+        if required_directory:
+            required_directory = os.path.normpath(required_directory)
+        selection_step_start = None
+        if selection_index is not None:
+            selection_step_start, _, _ = self._step_range(
+                lines, 0, end, selection_index
+            )
+        in_run_block = active_run_indent is not None
+        aliases = aliases or set()
+        run_indent = active_run_indent or 0
+        in_materialized_directory = required_directory is None
+        for index in range(start, end):
+            line = lines[index].rstrip("\r\n")
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if self._CHECKOUT.match(line):
+                step_start, step_end, _ = self._step_range(
+                    lines, 0, end, index
+                )
+                step_indent = self._indent_width(lines[step_start])
+                uses_indent = self._indent_width(line) + (
+                    2 if line.lstrip(" \t").startswith("-") else 0
+                )
+                if (
+                    uses_indent == step_indent + 2
+                    and step_start != selection_step_start
+                    and self._checkout_materialization(lines, step_start, step_end)
+                    is None
+                ):
+                    return None
+            if index != selection_index:
+                step_aliases = aliases | self._step_pr_head_aliases(
+                    lines, 0, end, index
+                )
+                for command in re.split(
+                    r"(?:&&|\|\||;)", self._shell_code(stripped)
+                ):
+                    if self._trusted_tree_selection(command.strip(), step_aliases):
+                        return None
+            step_directory = self._step_working_directory(
+                lines, start, end, index
+            )
+            if step_directory:
+                step_directory = os.path.normpath(step_directory)
+            executes_target_path = bool(
+                required_directory
+                and self._executes_from_directory(
+                    self._shell_code(stripped), required_directory
+                )
+            )
+            if self._LOCAL_ACTION.match(line) and required_directory is None:
+                return index
+            compact_run = self._COMPACT_RUN.match(line)
+            if compact_run:
+                value = compact_run.group("value").strip()
+                in_run_block = value[:1] in {"|", ">"}
+                run_indent = len(compact_run.group("indent"))
+                in_materialized_directory = required_directory is None or (
+                    step_directory == required_directory
+                )
+                value_executes_target = bool(
+                    required_directory
+                    and self._executes_from_directory(value, required_directory)
+                )
+                if (
+                    not in_run_block
+                    and self._is_local_command(value)
+                    and (in_materialized_directory or value_executes_target)
+                ):
+                    return index
+                continue
+            field = self._FIELD.match(line)
+            if field and field.group("name") == "run":
+                value = field.group("value").strip()
+                in_run_block = value[:1] in {"|", ">"}
+                run_indent = len(field.group("indent"))
+                in_materialized_directory = required_directory is None or (
+                    step_directory == required_directory
+                )
+                value_executes_target = bool(
+                    required_directory
+                    and self._executes_from_directory(value, required_directory)
+                )
+                if (
+                    not in_run_block
+                    and self._is_local_command(value)
+                    and (in_materialized_directory or value_executes_target)
+                ):
+                    return index
+                continue
+            if in_run_block:
+                if self._indent_width(line) <= run_indent:
+                    in_run_block = False
+                    in_materialized_directory = required_directory is None
+                else:
+                    if required_directory:
+                        try:
+                            commands = [
+                                shlex.split(command)
+                                for command in re.split(
+                                    r"(?:&&|\|\||;)", self._shell_code(stripped)
+                                )
+                            ]
+                        except ValueError:
+                            commands = []
+                        for command in commands:
+                            if command[:1] in (["cd"], ["pushd"]):
+                                destination = (
+                                    os.path.normpath(command[-1])
+                                    if command[-1:]
+                                    else None
+                                )
+                                in_materialized_directory = (
+                                    destination == required_directory
+                                )
+                            elif command[:1] == ["popd"]:
+                                in_materialized_directory = False
+                    if (
+                        (in_materialized_directory or executes_target_path)
+                        and self._is_local_command(stripped)
+                    ):
+                        return index
+        return None
+
+    def _is_local_command(self, command: str) -> bool:
+        """Exclude inert printing while recognizing direct local execution."""
+        command = command.strip()
+        if re.match(r"^(?:echo|printf|cat)\b", command):
+            return False
+        for segment in re.split(r"(?:&&|\|\||;)", command):
+            try:
+                tokens = shlex.split(segment)
+            except ValueError:
+                continue
+            script = self._interpreter_script(tokens)
+            if script and (script.startswith(("./", "/")) or "/" in script):
+                return True
+        return bool(self._LOCAL_COMMAND.search(command))
+
+    def finditer(self, content: str):
+        """Yield one match for each causally complete privileged job."""
+        if not self._has_pull_request_target(content):
+            return
+        lines = content.splitlines(keepends=True)
+        offsets = []
+        offset = 0
+        for line in lines:
+            offsets.append(offset)
+            offset += len(line)
+
+        global_privilege = self._has_write_permission(lines, 0, len(lines), 0)
+        workflow_aliases = self._pr_head_aliases(lines, 0, len(lines), 0)
+
+        for start, end in self._job_ranges(lines):
+            if self._job_excludes_pull_request_target(lines, start, end):
+                continue
+            job_indent = self._indent_width(lines[start])
+            privileged = global_privilege or bool(
+                self._has_write_permission(lines, start, end, job_indent + 2)
+                or self._has_secret(lines, start, end)
+            )
+            if not privileged:
+                continue
+            aliases = workflow_aliases | self._pr_head_aliases(
+                lines, start, end, job_indent + 2
+            )
+            materialized = self._checkout_materialization(lines, start, end)
+            active_run_indent = None
+            if materialized is None:
+                shell_materialization = self._git_materialization(
+                    lines, start, end, aliases
+                )
+                if shell_materialization is None:
+                    continue
+                materialized, active_run_indent, required_directory = (
+                    shell_materialization
+                )
+                execution_start = materialized
+            else:
+                required_directory = None
+                execution_start = materialized + 1
+            if materialized is None:
+                continue
+            execution = self._execution_line(
+                lines,
+                execution_start,
+                end,
+                active_run_indent,
+                required_directory,
+                materialized,
+                aliases,
+            )
+            if execution is not None:
+                yield _SourceMatch(offsets[execution])
+
+
+class _GitHubActionsRuntimePackagePattern:
+    """Find step-local registry package execution without trusting proximity."""
+
+    _ENV = re.compile(
+        r"^(?P<indent>[ \t]+)(?P<compact>-[ \t]+)?env"
+        r"[ \t]*:[ \t]*(?:#.*)?$"
+    )
+    _PACKAGE = re.compile(
+        r"^(?P<indent>[ \t]+)(?P<name>[A-Z][A-Z0-9_]*_PACKAGE)"
+        r"[ \t]*:[ \t]*[\"']?(?![./])"
+        r"(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+@[0-9][A-Za-z0-9_.+-]*"
+        r"[\"']?[ \t]*(?:#.*)?$"
+    )
+    _RUN = re.compile(r"^(?P<indent>[ \t]+)run[ \t]*:[ \t]*(?P<value>.*)$")
+    _HEREDOC = re.compile(
+        r"(?:(?:>{1,2}[ \t]*(?P<target>\"[^\"]+\"|'[^']+'|[^ \t]+)"
+        r"[ \t]+))?<<-?[ \t]*(?P<quote>[\"']?)(?P<delimiter>[A-Za-z_][A-Za-z0-9_]*)"
+        r"(?P=quote)"
+    )
+
+    @staticmethod
+    def _indent_width(line: str) -> int:
+        """Count leading YAML indentation characters."""
+        return len(line) - len(line.lstrip(" \t"))
+
+    @staticmethod
+    def _uses_package(command: str, variable: str) -> bool:
+        """Return whether a shell command uses variable as the package selector."""
+        token = rf'[\"\']?\$(?:\{{{re.escape(variable)}\}}|{re.escape(variable)})(?![A-Za-z0-9_])[\"\']?'
+        npx = rf"(?:^|[;&|][ \t]*)(?:exec[ \t]+)?npx[ \t]+(?:-y|--yes)[ \t]+{token}(?=[ \t]|$)"
+        npm = (
+            rf"(?:^|[;&|][ \t]*)npm[ \t]+exec[ \t]+(?:"
+            rf"(?:-y|--yes)[ \t]+(?:--[ \t]+)?{token}(?=[ \t]|$)|"
+            rf"--package(?:=|[ \t]+){token}[ \t]+(?:-y|--yes)(?=[ \t]|$))"
+        )
+        return bool(re.search(rf"(?:{npx}|{npm})", command))
+
+    @staticmethod
+    def _makes_executable(command: str, target: str) -> bool:
+        """Return whether a direct chmod command adds execution to target."""
+        try:
+            command_tokens = shlex.split(command, comments=True, posix=True)
+            target_tokens = shlex.split(target, comments=False, posix=True)
+        except ValueError:
+            return False
+        if len(command_tokens) < 3 or command_tokens[0] != "chmod":
+            return False
+        mode = command_tokens[1]
+        executable_mode = "+x" in mode
+        if mode.isdigit() and all(character in "01234567" for character in mode):
+            executable_mode = bool(int(mode, 8) & 0o111)
+        return bool(
+            executable_mode
+            and target_tokens
+            and target_tokens[0] in command_tokens[2:]
+        )
+
+    def _block_match(self, lines, offsets, start: int, end: int, variable: str):
+        """Find direct execution or a materialized executable heredoc wrapper."""
+        heredoc = None
+        for index in range(start, end):
+            command = lines[index].strip()
+            if heredoc is not None:
+                if command == heredoc["delimiter"]:
+                    if heredoc["candidate"] is not None and not heredoc["quoted"]:
+                        target = heredoc["target"]
+                        if target is not None and any(
+                            self._makes_executable(lines[later].strip(), target)
+                            for later in range(index + 1, end)
+                        ):
+                            return _SourceMatch(heredoc["candidate"])
+                    heredoc = None
+                elif self._uses_package(command, variable):
+                    heredoc["candidate"] = offsets[index]
+                continue
+
+            opener = self._HEREDOC.search(command)
+            if opener:
+                heredoc = {
+                    "delimiter": opener.group("delimiter"),
+                    "quoted": bool(opener.group("quote")),
+                    "target": opener.group("target"),
+                    "candidate": None,
+                }
+                continue
+            if self._uses_package(command, variable):
+                return _SourceMatch(offsets[index])
+        return None
+
+    def finditer(self, content: str):
+        """Yield step-local package execution matches in source order."""
+        lines = content.splitlines(keepends=True)
+        offsets = []
+        offset = 0
+        for line in lines:
+            offsets.append(offset)
+            offset += len(line)
+
+        for index, raw_line in enumerate(lines):
+            env_match = self._ENV.match(raw_line.rstrip("\r\n"))
+            if not env_match:
+                continue
+            field_width = len(env_match.group("indent")) + len(
+                env_match.group("compact") or ""
+            )
+            package = None
+            cursor = index + 1
+            while cursor < len(lines):
+                plain = lines[cursor].rstrip("\r\n")
+                if not plain.strip():
+                    cursor += 1
+                    continue
+                if self._indent_width(plain) <= field_width:
+                    break
+                package_match = self._PACKAGE.match(plain)
+                if package_match:
+                    package = package_match.group("name")
+                cursor += 1
+            while cursor < len(lines) and (
+                not lines[cursor].strip()
+                or lines[cursor].lstrip(" \t").startswith("#")
+            ):
+                cursor += 1
+            if package is None or cursor >= len(lines):
+                continue
+            run_match = self._RUN.match(lines[cursor].rstrip("\r\n"))
+            if not run_match or len(run_match.group("indent")) != field_width:
+                continue
+
+            run_value = run_match.group("value")
+            if run_value and run_value[0] not in "|>":
+                if self._uses_package(run_value, package):
+                    yield _SourceMatch(offsets[cursor])
+                continue
+
+            block_start = cursor + 1
+            block_end = block_start
+            while block_end < len(lines):
+                plain = lines[block_end].rstrip("\r\n")
+                if plain.strip() and self._indent_width(plain) <= field_width:
+                    break
+                block_end += 1
+            match = self._block_match(
+                lines, offsets, block_start, block_end, package
+            )
+            if match is not None:
+                yield match
+
+
 def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
     """Parse the supported pattern-regex subset of AppGuardrail rule YAML."""
     parsed_rules = []
@@ -971,6 +1996,7 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
                 "exclude_paths": [],
                 "required_substrings": [],
                 "severity": "WARNING",
+                "analyzer": None,
             }
             in_message = False
             path_mode = None
@@ -996,6 +2022,12 @@ def _parse_yaml_regex_rules(text: str, origin: str = "<rules>"):
             current["severity"] = _unquote_rule_scalar(
                 raw_line.split(":", 1)[1]
             ).upper()
+            path_mode = None
+            continue
+        if raw_line.startswith("    analyzer: "):
+            current["analyzer"] = _unquote_rule_scalar(
+                raw_line.split(":", 1)[1]
+            )
             path_mode = None
             continue
         if raw_line.startswith("    languages: "):
@@ -1031,6 +2063,36 @@ def _compile_yaml_regex_rule(rule):
     """Build runtime regex scanner rules from one parsed YAML rule."""
     compiled_rules = []
     extensions = _extensions_for_languages(rule.get("languages") or [])
+    if rule.get("analyzer") == "github-actions-pull-request-target-execution":
+        return [
+            {
+                "id": rule["id"],
+                "pattern": _GitHubActionsPullRequestTargetPattern(),
+                "severity": rule.get("severity", "WARNING"),
+                "message": rule.get("message") or f"Rule {rule['id']} matched.",
+                "extensions": extensions,
+                "include_paths": rule.get("include_paths") or [],
+                "exclude_paths": rule.get("exclude_paths") or [],
+                "required_substrings": tuple(
+                    rule.get("required_substrings") or ()
+                ),
+            }
+        ]
+    if rule.get("analyzer") == "github-actions-runtime-package-integrity":
+        return [
+            {
+                "id": rule["id"],
+                "pattern": _GitHubActionsRuntimePackagePattern(),
+                "severity": rule.get("severity", "WARNING"),
+                "message": rule.get("message") or f"Rule {rule['id']} matched.",
+                "extensions": extensions,
+                "include_paths": rule.get("include_paths") or [],
+                "exclude_paths": rule.get("exclude_paths") or [],
+                "required_substrings": tuple(
+                    rule.get("required_substrings") or ()
+                ),
+            }
+        ]
     for regex in rule.get("regexes") or []:
         try:
             pattern = re.compile(regex, re.MULTILINE)
