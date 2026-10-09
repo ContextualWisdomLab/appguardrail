@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+from itertools import chain
+import re
 from typing import Any
 
 REFERENCE_RE = re.compile(r"\[(OWASP [^\]]+|CWE-\d+[^\]]*|CVE-\d{4}-\d+[^\]]*)\]")
@@ -105,13 +106,21 @@ class RuleMetadata:
 
 
 def extract_public_references(message: str) -> tuple[str, ...]:
-    """Extract OWASP, CWE, and CVE references already embedded in rule copy."""
-    return tuple(
-        dict.fromkeys(
-            " ".join(match.group(1).split())
-            for match in REFERENCE_RE.finditer(message or "")
-        )
-    )
+    """Extract bracketed OWASP, CWE, and CVE IDs already written in rule copy.
+
+    Only ``[OWASP …]``, ``[CWE-…]``, and ``[CVE-…]`` forms are kept. Plain-text
+    mentions are ignored so a finding report stays limited to the IDs the rule
+    author already published. Messages without ``[`` skip the regex scanner.
+    First-seen order is retained while normalization uses a bounded temporary
+    list rather than one generator frame per call.
+    """
+    if not message or "[" not in message:
+        return ()
+
+    normalized_references = [
+        " ".join(match.group(1).split()) for match in REFERENCE_RE.finditer(message)
+    ]
+    return tuple(dict.fromkeys(normalized_references))
 
 
 def _category_for_references(references: tuple[str, ...], fallback: str) -> str:
@@ -142,7 +151,7 @@ def build_rule_metadata(
     for ref in references:
         if ref.startswith("OWASP "):
             owasp_list.append(ref)
-        if ref.startswith("CWE-"):
+        elif ref.startswith("CWE-"):
             cwe_list.append(ref)
 
     return RuleMetadata(
@@ -174,8 +183,5 @@ def validate_rule_metadata(metadata: RuleMetadata | dict[str, Any]) -> list[str]
 
 
 def _merge_references(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            reference for group in groups for reference in group if reference
-        )
-    )
+    """Merge non-empty reference groups in first-seen order without generators."""
+    return tuple(dict.fromkeys(filter(None, chain.from_iterable(groups))))
