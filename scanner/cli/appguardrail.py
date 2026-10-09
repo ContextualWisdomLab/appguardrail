@@ -3339,7 +3339,7 @@ def cmd_serve(args):
         _console_print(f"✅ Created org '{create}' (id {oid}).")
         _console_print(f"🔑 API key written to {key_path}")
         return 0
-    if conn.execute("SELECT COUNT(*) AS c FROM orgs").fetchone()["c"] == 0:
+    if conn.execute("SELECT COUNT(*) AS c FROM tenant_organizations").fetchone()["c"] == 0:
         key_path = _api_key_output_path(args, db)
         if key_path.exists():
             conn.close()
