@@ -152,6 +152,69 @@ jobs:
     assert _RULE_ID not in {finding["rule_id"] for finding in findings}
 
 
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        """
+name: Cross-step variable
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Declare package
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: echo "declaration only"
+      - name: Undefined variable in another step
+        run: npx -y "$TOOL_PACKAGE"
+""",
+        """
+name: Quoted heredoc documentation
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Print documentation
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: |
+          cat <<'EXAMPLE'
+          npx -y "$TOOL_PACKAGE"
+          EXAMPLE
+""",
+        """
+name: Variable is not the package selector
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Label a local report
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: npx -y local-report --label "$TOOL_PACKAGE"
+""",
+        """
+name: Variable prefix collision
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Run a different package variable
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: npx -y "$TOOL_PACKAGE_SUFFIX"
+""",
+    ],
+)
+def test_noncausal_runtime_package_text_is_not_reported(
+    tmp_path: Path, workflow: str
+) -> None:
+    """Lexical proximity must not replace step-local package binding."""
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _RULE_ID not in {finding["rule_id"] for finding in findings}
+
+
 def test_repository_workflow_remains_a_positive_incident_fixture() -> None:
     """The protected incident remains detected until canonical consumption exists."""
     repository_root = Path(__file__).parents[1]
