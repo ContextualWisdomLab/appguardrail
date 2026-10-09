@@ -46,10 +46,12 @@ External engines retain their own engine/rule/version provenance. AppGuardrail n
 The proposed `github-actions-runtime-package-without-integrity` built-in rule owns
 the narrow workflow-source signal where one step binds a versioned registry
 package environment value to the exact package-selector position of that step's
-`npx`/`npm exec` auto-install command. Exact variable boundaries, step-local field
-indentation, and quoted-heredoc exclusion prevent lexical proximity from being
-promoted to causal execution. It does not claim that a download or registry
-compromise occurred. Central protected workflow prevention, immutable tool
+`npx`/`npm exec` auto-install command. A deterministic line/state analyzer tracks
+step-local field indentation, blank block-scalar lines, exact variable boundaries,
+and shell heredoc state. Heredoc body text is ignored unless an unquoted body is
+redirected to a target that the same step later makes executable with `chmod`.
+Lexical proximity is therefore not promoted to causal execution. The rule does
+not claim that a download or registry compromise occurred. Central protected workflow prevention, immutable tool
 distribution, consumer configuration, and this repository-local
 detector remain separate controls.
 
