@@ -128,6 +128,7 @@ jobs:
     [
         "github.event_name == 'repository_dispatch'",
         "github.event_name != 'pull_request_target'",
+        "github.event_name == 'repository_dispatch' && github.event.action == 'review'",
     ],
 )
 def test_job_guard_excluding_pr_target_is_not_reported(
@@ -152,6 +153,164 @@ jobs:
     assert _PR_TARGET_EXECUTION_RULE_ID not in {
         finding["rule_id"] for finding in findings
     }
+
+
+def test_block_job_guard_excluding_pr_target_is_not_reported(tmp_path) -> None:
+    """Folded job guards retain the same event-reachability semantics."""
+    workflow = """
+on: [pull_request_target, repository_dispatch]
+permissions: {id-token: write}
+jobs:
+  review:
+    if: >-
+      always()
+      && github.event_name == 'repository_dispatch'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_top_level_pr_head_env_alias_is_reported(tmp_path) -> None:
+    """Workflow env values are available to the shell materialization step."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+env:
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          git worktree add /tmp/review FETCH_HEAD
+          cd /tmp/review
+          npx -y @colbymchenry/codegraph@0.9.9 scan .
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - uses: example/action@0123456789abcdef0123456789abcdef01234567
+        with:
+          env:
+            PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          bash ./ci/review.sh
+""",
+        """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: echo scoped declaration
+      - run: |
+          git fetch origin "$PR_HEAD_SHA"
+          bash ./ci/review.sh
+""",
+    ],
+)
+def test_non_job_env_alias_does_not_cross_step_scope(
+    tmp_path, workflow: str
+) -> None:
+    """Action inputs and step-local env do not bind a later shell step."""
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_checkout_non_ref_pr_expression_is_not_reported(tmp_path) -> None:
+    """Only the checkout ref input selects materialized source revision."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          path: ${{ github.head_ref }}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_pr_alias_must_select_git_materialization_revision(tmp_path) -> None:
+    """Nearby output cannot bind a trusted git fetch to the PR revision."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+env:
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+jobs:
+  review:
+    steps:
+      - run: |
+          echo "$PR_HEAD_SHA"; git fetch origin main
+          bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_bracket_secret_context_grants_job_privilege(tmp_path) -> None:
+    """GitHub's bracket context syntax is equivalent to dot syntax."""
+    workflow = """
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - env:
+          REVIEW_TOKEN: ${{ secrets['REVIEW_TOKEN'] }}
+        run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
 
 
 @pytest.mark.parametrize(

@@ -985,7 +985,10 @@ class _GitHubActionsPullRequestTargetPattern:
         r"id-token|issues|models|packages|pages|pull-requests|security-events|"
         r"statuses)[\"']?[ \t]*:[ \t]*[\"']?write\b"
     )
-    _SECRET = re.compile(r"\$\{\{[ \t]*secrets\.[A-Za-z_][A-Za-z0-9_]*")
+    _SECRET = re.compile(
+        r"\$\{\{[ \t]*secrets(?:\.[A-Za-z_][A-Za-z0-9_]*|"
+        r"\[['\"][A-Za-z_][A-Za-z0-9_]*['\"]\])"
+    )
     _CHECKOUT = re.compile(
         r"^[ \t]*(?:-[ \t]*)?(?:[\"']?uses[\"']?)[ \t]*:[ \t]*"
         r"[\"']?actions/checkout@",
@@ -1102,7 +1105,7 @@ class _GitHubActionsPullRequestTargetPattern:
         )
 
     def _job_excludes_pull_request_target(self, lines, start: int, end: int) -> bool:
-        """Recognize simple job guards that make PR-target execution unreachable."""
+        """Recognize job guards that make PR-target execution unreachable."""
         job_indent = self._indent_width(lines[start])
         for index in range(start + 1, end):
             field = self._FIELD.match(lines[index].rstrip("\r\n"))
@@ -1113,17 +1116,34 @@ class _GitHubActionsPullRequestTargetPattern:
             ):
                 continue
             guard = self._yaml_value(field.group("value"))
+            if guard[:1] in {"|", ">"}:
+                guard_lines = []
+                for nested in lines[index + 1 : end]:
+                    if not nested.strip() or nested.lstrip().startswith("#"):
+                        continue
+                    if self._indent_width(nested) <= job_indent + 2:
+                        break
+                    guard_lines.append(nested.strip())
+                guard = " ".join(guard_lines)
             if guard.startswith("${{") and guard.endswith("}}"):
                 guard = guard[3:-2].strip()
-            return bool(
-                re.fullmatch(
-                    r"github\.event_name[ \t]*==[ \t]*['\"](?!pull_request_target['\"])[A-Za-z_]+['\"]",
-                    guard,
-                )
-                or re.fullmatch(
-                    r"github\.event_name[ \t]*!=[ \t]*['\"]pull_request_target['\"]",
-                    guard,
-                )
+            if "||" in guard:
+                return False
+            admits_pr_target = re.search(
+                r"github\.event_name[ \t]*==[ \t]*['\"]pull_request_target['\"]",
+                guard,
+            )
+            excludes_pr_target = re.search(
+                r"github\.event_name[ \t]*!=[ \t]*['\"]pull_request_target['\"]",
+                guard,
+            )
+            selects_other_event = re.search(
+                r"github\.event_name[ \t]*==[ \t]*['\"]"
+                r"(?!pull_request_target['\"])[A-Za-z_]+['\"]",
+                guard,
+            )
+            return not admits_pr_target and bool(
+                excludes_pr_target or selects_other_event
             )
         return False
 
@@ -1187,20 +1207,26 @@ class _GitHubActionsPullRequestTargetPattern:
                     break
             for nested_index in range(step_start, step_end):
                 nested = lines[nested_index].rstrip("\r\n")
-                if not nested.lstrip().startswith("#") and self._PR_HEAD.search(
-                    nested
+                field = self._FIELD.match(nested)
+                if (
+                    field
+                    and field.group("name") == "ref"
+                    and self._PR_HEAD.search(field.group("value"))
                 ):
                     return nested_index
         return None
 
-    def _pr_head_aliases(self, lines, start: int, end: int):
-        """Return one-hop env names bound to the pull-request head revision."""
+    def _pr_head_aliases(self, lines, start: int, end: int, env_indent: int):
+        """Return PR-head aliases from env mappings at one exact scope."""
         aliases = set()
         for index in range(start, end):
             field = self._FIELD.match(lines[index].rstrip("\r\n"))
-            if not field or field.group("name") != "env":
+            if (
+                not field
+                or field.group("name") != "env"
+                or len(field.group("indent")) != env_indent
+            ):
                 continue
-            env_indent = len(field.group("indent"))
             for nested in lines[index + 1 : end]:
                 if not nested.strip() or nested.lstrip().startswith("#"):
                     continue
@@ -1215,14 +1241,22 @@ class _GitHubActionsPullRequestTargetPattern:
         """Return a run-block line that materializes the event PR head."""
         for index in range(start, end):
             line = lines[index]
-            alias_match = any(
-                re.search(rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b", line)
-                for alias in aliases
-            )
-            if not (
-                (self._PR_HEAD.search(line) or alias_match)
-                and self._GIT_MATERIALIZATION.search(line)
-            ):
+            materializes_head = False
+            for command in re.split(r"(?:&&|\|\||;)", line):
+                alias_match = any(
+                    re.search(
+                        rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b",
+                        command,
+                    )
+                    for alias in aliases
+                )
+                if (
+                    self._GIT_MATERIALIZATION.search(command)
+                    and (self._PR_HEAD.search(command) or alias_match)
+                ):
+                    materializes_head = True
+                    break
+            if not materializes_head:
                 continue
             command_indent = self._indent_width(line)
             for prior in range(index - 1, start - 1, -1):
@@ -1310,6 +1344,7 @@ class _GitHubActionsPullRequestTargetPattern:
             len(lines),
         )
         global_privilege = self._has_write_permission(lines, 0, jobs_line, 0)
+        workflow_aliases = self._pr_head_aliases(lines, 0, jobs_line, 0)
 
         for start, end in self._job_ranges(lines):
             if self._job_excludes_pull_request_target(lines, start, end):
@@ -1324,7 +1359,9 @@ class _GitHubActionsPullRequestTargetPattern:
             materialized = self._checkout_materialization(lines, start, end)
             active_run_indent = None
             if materialized is None:
-                aliases = self._pr_head_aliases(lines, start, end)
+                aliases = workflow_aliases | self._pr_head_aliases(
+                    lines, start, end, job_indent + 2
+                )
                 shell_materialization = self._git_materialization(
                     lines, start, end, aliases
                 )

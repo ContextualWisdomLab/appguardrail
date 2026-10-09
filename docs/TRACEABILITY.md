@@ -82,19 +82,20 @@ when explicit write authority or a referenced repository secret is present, the
 job checks out or shell-materializes
 `github.event.pull_request.head.sha`/`ref` or `github.head_ref`, and a later step
 executes a repository-local action, script, test, or build command. One-hop
-workflow `env` binding of the event head is followed into shell fetch/worktree
+workflow- and job-level `env` bindings of the event head are followed into the
+same shell command segment as a fetch/worktree
 commands so the retained fixture reproduces the issue #132 CodeGraph execution
 shape after the prevention fix merged in ContextualWisdomLab/.github PR #635.
 
 Metadata-only `pull_request_target` handling, ordinary `pull_request`, trusted
 base-SHA checkout, inert output, privilege located only in another job, and a
-simple job-level guard excluding PR-target execution are negative fixtures.
+scalar or block job-level guard excluding PR-target execution are negative fixtures.
 Top-level mapping, sequence, inline trigger forms, field ordering, and trailing
 YAML comments are equivalent; YAML-looking action inputs, comments, and run
 data are not promoted to authority. A same-repository head predicate is
 deliberately not an exclusion. The first bounded analyzer does not claim
 complete coverage of reusable/composite action internals, cross-job artifacts,
-API-downloaded source archives, multi-hop environment aliases, container
+API-downloaded source archives, step-local or multi-hop environment aliases, container
 entrypoints, or third-party actions that fetch contributor content internally.
 
 ## Standards/research
