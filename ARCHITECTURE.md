@@ -43,6 +43,19 @@ The detector that observes evidence is authoritative for its finding. `scanner/r
 
 External engines retain their own engine/rule/version provenance. AppGuardrail normalizes their output but does not claim their analysis was performed internally.
 
+The proposed
+`github-actions-pull-request-target-untrusted-head-execution` built-in rule
+owns a job-local GitHub Actions trust-boundary signal. A deterministic analyzer
+requires all four causal elements: a `pull_request_target` trigger, repository
+privilege in the same job, explicit materialization of an event-derived PR head,
+and subsequent execution of a local action, script, test, or build from that
+tree. It does not merge evidence across jobs. Same-repository author predicates
+do not change the result because collaborator branches remain mutable. Ordinary
+`pull_request`, metadata-only `pull_request_target`, trusted base checkout, and
+authority isolated in another job remain outside the finding boundary. The
+canonical prevention boundary remains a metadata-only trigger followed by a
+separately reviewed default-branch execution workflow.
+
 The proposed `github-actions-runtime-package-without-integrity` built-in rule owns
 the narrow workflow-source signal where one step binds a versioned registry
 package environment value to the exact package-selector position of that step's

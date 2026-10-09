@@ -19,6 +19,7 @@
 | every retained issue claim mapped to executable detector obligation | issue-detection audit | PR #911 active-PR |
 | authenticated workflow-result detector evidence | issue-detection audit workflow evidence | PR #911 active-PR |
 | automatic scanner detection of unsafe stored-webhook SSRF pattern | built-in `python-stored-ssrf-webhook-url` rule | implemented-main through PR #910 for tested Python `set_webhook` direct and one-hop persistence flows; bounded scope |
+| privileged `pull_request_target` execution of mutable PR-head code | built-in `github-actions-pull-request-target-untrusted-head-execution` rule | Proposed: issue #132 / `.github` PR #635 regression, job-local causal analyzer; promote only after protected merge |
 | GitHub Actions versioned registry package bound to npm auto-install | built-in `github-actions-runtime-package-without-integrity` rule | Proposed: bound-package positive and local/unbound/example negative corpus; promote only after protected merge |
 | structural Semgrep-style `pattern:` execution by lightweight engine | built-in scanner | not implemented unless a real structural matcher is added; fixtures are not execution |
 
@@ -72,6 +73,25 @@ analyzer.
 The current repository incident remains open until a canonical protected workflow
 or immutable released tool contract can scan PR source without trusting PR-owned
 bootstrap files.
+
+## Privileged PR-head execution boundary
+
+The GitHub Actions trust-boundary analyzer requires a `pull_request_target`
+workflow and evaluates each direct child job independently. A job is in scope
+when explicit write authority or a referenced repository secret is present, the
+job checks out or shell-materializes
+`github.event.pull_request.head.sha`/`ref` or `github.head_ref`, and a later step
+executes a repository-local action, script, test, or build command. This retains
+appguardrail issue #132 as a detector regression after the prevention fix merged
+in ContextualWisdomLab/.github PR #635.
+
+Metadata-only `pull_request_target` handling, ordinary `pull_request`, trusted
+base-SHA checkout, inert output, and privilege located only in another job are
+negative fixtures. A same-repository head predicate is deliberately not an
+exclusion. The first bounded analyzer does not claim complete coverage of
+reusable/composite action internals, cross-job artifacts, API-downloaded source
+archives, indirect environment aliases, container entrypoints, or third-party
+actions that fetch contributor content internally.
 
 ## Standards/research
 

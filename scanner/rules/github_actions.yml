@@ -1,4 +1,27 @@
 rules:
+  # `pull_request_target` runs trusted-base workflow YAML with access to base
+  # repository authority. That authority must never cross into mutable PR-head
+  # code, even when the branch belongs to the same repository.
+  - id: github-actions-pull-request-target-untrusted-head-execution
+    analyzer: github-actions-pull-request-target-execution
+    message: |
+      This pull_request_target job combines repository privilege with an
+      event-derived PR-head checkout or git materialization and then executes
+      code from that mutable tree. A same-repository author predicate is not a
+      trust boundary because collaborator branches remain contributor-writable.
+      Keep pull_request_target metadata-only, or dispatch a separately reviewed
+      default-branch workflow that never loads PR-controlled executable content.
+      [CWE-829 - Inclusion of Functionality from Untrusted Control Sphere;
+      CWE-269 - Improper Privilege Management; OWASP A08:2021 - Software and
+      Data Integrity Failures]
+    severity: HIGH
+    languages: [generic]
+    prefilter: [pull_request_target, head]
+    paths:
+      include:
+        - .github/workflows/*.yml
+        - .github/workflows/*.yaml
+
   # Bind a step-local versioned registry-package environment value to the
   # package-selector position of that step's run command. Quoted heredocs are
   # excluded because their body is literal data, not shell execution.

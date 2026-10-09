@@ -955,6 +955,294 @@ class _SourceMatch:
         return self._start_index
 
 
+class _GitHubActionsPullRequestTargetPattern:
+    """Find privileged PR-target jobs that execute materialized PR code."""
+
+    _FIELD = re.compile(
+        r"^(?P<indent>[ \t]*)(?:[\"']?(?P<name>[A-Za-z0-9_-]+)[\"']?)"
+        r"[ \t]*:[ \t]*(?P<value>.*)$"
+    )
+    _INLINE_TRIGGER = re.compile(
+        r"^[ \t]*[\"']?on[\"']?[ \t]*:[^\n]*\bpull_request_target\b",
+        re.MULTILINE,
+    )
+    _NESTED_TRIGGER = re.compile(
+        r"^[ \t]+[\"']?pull_request_target[\"']?[ \t]*:", re.MULTILINE
+    )
+    _PERMISSION_SCOPES = frozenset(
+        {
+            "actions",
+            "attestations",
+            "checks",
+            "contents",
+            "deployments",
+            "discussions",
+            "id-token",
+            "issues",
+            "models",
+            "packages",
+            "pages",
+            "pull-requests",
+            "security-events",
+            "statuses",
+        }
+    )
+    _INLINE_WRITE_PERMISSION = re.compile(
+        r"(?:actions|attestations|checks|contents|deployments|discussions|"
+        r"id-token|issues|models|packages|pages|pull-requests|security-events|"
+        r"statuses)[\"']?[ \t]*:[ \t]*[\"']?write\b"
+    )
+    _SECRET = re.compile(r"\$\{\{[ \t]*secrets\.[A-Za-z_][A-Za-z0-9_]*")
+    _CHECKOUT = re.compile(
+        r"^[ \t]*(?:-[ \t]*)?(?:[\"']?uses[\"']?)[ \t]*:[ \t]*"
+        r"[\"']?actions/checkout@",
+        re.IGNORECASE,
+    )
+    _PR_HEAD = re.compile(
+        r"github\.(?:event\.pull_request\.head\.(?:sha|ref)|head_ref)"
+    )
+    _GIT_MATERIALIZATION = re.compile(
+        r"\bgit[ \t]+(?:fetch|checkout|switch|worktree\b[^\n]*\badd)\b"
+    )
+    _LOCAL_ACTION = re.compile(
+        r"^[ \t]*(?:-[ \t]*)?(?:[\"']?uses[\"']?)[ \t]*:[ \t]*[\"']?\./"
+    )
+    _COMPACT_RUN = re.compile(
+        r"^(?P<indent>[ \t]*)-[ \t]*(?:[\"']?run[\"']?)[ \t]*:[ \t]*"
+        r"(?P<value>.*)$"
+    )
+    _LOCAL_COMMAND = re.compile(
+        r"(?:^|[;&|][ \t]*)"
+        r"(?:\./[A-Za-z0-9_.-]|"
+        r"(?:bash|sh|zsh|python3?|node|ruby|perl)[ \t]+(?:\./|/|[A-Za-z0-9_.-]+/)|"
+        r"(?:npm|pnpm|yarn)[ \t]+(?:test|run)|"
+        r"(?:cargo|go|make|pytest|tox|gradle|mvn)\b)"
+    )
+
+    @staticmethod
+    def _indent_width(line: str) -> int:
+        """Count leading YAML indentation characters."""
+        return len(line) - len(line.lstrip(" \t"))
+
+    def _has_pull_request_target(self, content: str) -> bool:
+        """Return whether the workflow has a top-level PR-target trigger."""
+        if self._INLINE_TRIGGER.search(content):
+            return True
+        lines = content.splitlines()
+        for index, line in enumerate(lines):
+            field = self._FIELD.match(line)
+            if not field or field.group("name") != "on":
+                continue
+            on_indent = len(field.group("indent"))
+            for nested in lines[index + 1 :]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= on_indent:
+                    break
+                if self._NESTED_TRIGGER.match(nested):
+                    return True
+            break
+        return False
+
+    def _has_write_permission(self, text: str) -> bool:
+        """Recognize write authority only inside a permissions mapping."""
+        lines = text.splitlines()
+        for index, line in enumerate(lines):
+            field = self._FIELD.match(line)
+            if not field or field.group("name") != "permissions":
+                continue
+            value = field.group("value").strip().strip("\"'")
+            if value == "write-all" or self._INLINE_WRITE_PERMISSION.search(value):
+                return True
+            permission_indent = len(field.group("indent"))
+            for nested in lines[index + 1 :]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= permission_indent:
+                    break
+                nested_field = self._FIELD.match(nested)
+                if not nested_field:
+                    continue
+                nested_value = nested_field.group("value").strip().strip("\"'")
+                if (
+                    nested_field.group("name") in self._PERMISSION_SCOPES
+                    and nested_value == "write"
+                ):
+                    return True
+        return False
+
+    def _job_ranges(self, lines):
+        """Yield direct child job ranges without merging authority across jobs."""
+        jobs_index = None
+        jobs_indent = None
+        for index, line in enumerate(lines):
+            field = self._FIELD.match(line.rstrip("\r\n"))
+            if field and field.group("name") == "jobs":
+                jobs_index = index
+                jobs_indent = len(field.group("indent"))
+                break
+        if jobs_index is None:
+            return
+
+        job_indent = None
+        starts = []
+        jobs_end = len(lines)
+        for index in range(jobs_index + 1, len(lines)):
+            line = lines[index].rstrip("\r\n")
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            width = self._indent_width(line)
+            if width <= jobs_indent:
+                jobs_end = index
+                break
+            field = self._FIELD.match(line)
+            if not field:
+                continue
+            if job_indent is None:
+                job_indent = width
+            if width == job_indent:
+                starts.append(index)
+        for position, start in enumerate(starts):
+            end = starts[position + 1] if position + 1 < len(starts) else jobs_end
+            yield start, end
+
+    def _checkout_materialization(self, lines, start: int, end: int):
+        """Return the source line that checks out an event-derived PR head."""
+        for index in range(start, end):
+            line = lines[index].rstrip("\r\n")
+            if not self._CHECKOUT.match(line):
+                continue
+            step_indent = self._indent_width(line)
+            if not line.lstrip(" \t").startswith("-"):
+                step_indent = max(0, step_indent - 2)
+            for nested_index in range(index + 1, end):
+                nested = lines[nested_index].rstrip("\r\n")
+                if nested.strip() and self._indent_width(nested) <= step_indent:
+                    break
+                if self._PR_HEAD.search(nested):
+                    return nested_index
+        return None
+
+    def _git_materialization(self, lines, start: int, end: int):
+        """Return a run-block line that materializes the event PR head."""
+        for index in range(start, end):
+            line = lines[index]
+            if not (
+                self._PR_HEAD.search(line)
+                and self._GIT_MATERIALIZATION.search(line)
+            ):
+                continue
+            command_indent = self._indent_width(line)
+            for prior in range(index - 1, start - 1, -1):
+                compact_run = self._COMPACT_RUN.match(
+                    lines[prior].rstrip("\r\n")
+                )
+                if compact_run:
+                    block_value = compact_run.group("value").strip()[:1]
+                    if block_value in {"|", ">"}:
+                        return index, len(compact_run.group("indent"))
+                    break
+                field = self._FIELD.match(lines[prior].rstrip("\r\n"))
+                if not field:
+                    continue
+                field_indent = len(field.group("indent"))
+                if field_indent >= command_indent:
+                    continue
+                block_value = field.group("value").strip()[:1]
+                if field.group("name") == "run" and block_value in {"|", ">"}:
+                    return index, field_indent
+                break
+        return None
+
+    def _execution_line(
+        self, lines, start: int, end: int, active_run_indent=None
+    ):
+        """Return subsequent local action, script, test, or build execution."""
+        in_run_block = active_run_indent is not None
+        run_indent = active_run_indent or 0
+        for index in range(start, end):
+            line = lines[index].rstrip("\r\n")
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if self._LOCAL_ACTION.match(line):
+                return index
+            compact_run = self._COMPACT_RUN.match(line)
+            if compact_run:
+                value = compact_run.group("value").strip()
+                in_run_block = value[:1] in {"|", ">"}
+                run_indent = len(compact_run.group("indent"))
+                if not in_run_block and self._is_local_command(value):
+                    return index
+                continue
+            field = self._FIELD.match(line)
+            if field and field.group("name") == "run":
+                value = field.group("value").strip()
+                in_run_block = value[:1] in {"|", ">"}
+                run_indent = len(field.group("indent"))
+                if not in_run_block and self._is_local_command(value):
+                    return index
+                continue
+            if in_run_block:
+                if self._indent_width(line) <= run_indent:
+                    in_run_block = False
+                elif self._is_local_command(stripped):
+                    return index
+        return None
+
+    def _is_local_command(self, command: str) -> bool:
+        """Exclude inert printing while recognizing direct local execution."""
+        command = command.strip()
+        if re.match(r"^(?:echo|printf|cat)\b", command):
+            return False
+        return bool(self._LOCAL_COMMAND.search(command))
+
+    def finditer(self, content: str):
+        """Yield one match for each causally complete privileged job."""
+        if not self._has_pull_request_target(content):
+            return
+        lines = content.splitlines(keepends=True)
+        offsets = []
+        offset = 0
+        for line in lines:
+            offsets.append(offset)
+            offset += len(line)
+
+        jobs_line = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if (field := self._FIELD.match(line.rstrip("\r\n")))
+                and field.group("name") == "jobs"
+            ),
+            len(lines),
+        )
+        global_text = "".join(lines[:jobs_line])
+        global_privilege = self._has_write_permission(global_text)
+
+        for start, end in self._job_ranges(lines):
+            job_text = "".join(lines[start:end])
+            privileged = global_privilege or bool(
+                self._has_write_permission(job_text) or self._SECRET.search(job_text)
+            )
+            if not privileged:
+                continue
+            materialized = self._checkout_materialization(lines, start, end)
+            active_run_indent = None
+            if materialized is None:
+                shell_materialization = self._git_materialization(lines, start, end)
+                if shell_materialization is None:
+                    continue
+                materialized, active_run_indent = shell_materialization
+            if materialized is None:
+                continue
+            execution = self._execution_line(
+                lines, materialized + 1, end, active_run_indent
+            )
+            if execution is not None:
+                yield _SourceMatch(offsets[execution])
+
+
 class _GitHubActionsRuntimePackagePattern:
     """Find step-local registry package execution without trusting proximity."""
 
@@ -1198,6 +1486,21 @@ def _compile_yaml_regex_rule(rule):
     """Build runtime regex scanner rules from one parsed YAML rule."""
     compiled_rules = []
     extensions = _extensions_for_languages(rule.get("languages") or [])
+    if rule.get("analyzer") == "github-actions-pull-request-target-execution":
+        return [
+            {
+                "id": rule["id"],
+                "pattern": _GitHubActionsPullRequestTargetPattern(),
+                "severity": rule.get("severity", "WARNING"),
+                "message": rule.get("message") or f"Rule {rule['id']} matched.",
+                "extensions": extensions,
+                "include_paths": rule.get("include_paths") or [],
+                "exclude_paths": rule.get("exclude_paths") or [],
+                "required_substrings": tuple(
+                    rule.get("required_substrings") or ()
+                ),
+            }
+        ]
     if rule.get("analyzer") == "github-actions-runtime-package-integrity":
         return [
             {

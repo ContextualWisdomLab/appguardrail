@@ -7,10 +7,187 @@ import pytest
 from scanner.cli.appguardrail import SCAN_RULES, _scan_file
 
 
+_PR_TARGET_EXECUTION_RULE_ID = (
+    "github-actions-pull-request-target-untrusted-head-execution"
+)
+
+
 def _matches(rule_id: str, workflow: str) -> bool:
     matches = [rule for rule in SCAN_RULES if rule["id"] == rule_id]
     assert len(matches) == 1
     return bool(matches[0]["pattern"].search(workflow))
+
+
+def _scan_workflow(tmp_path, workflow: str) -> list[dict]:
+    """Scan one repository-local workflow through production path filters."""
+    workflow_path = tmp_path / ".github" / "workflows" / "review.yml"
+    workflow_path.parent.mkdir(parents=True, exist_ok=True)
+    workflow_path.write_text(workflow, encoding="utf-8")
+    return _scan_file(workflow_path, tmp_path)
+
+
+def test_pr_target_execution_rule_is_packaged_and_path_scoped() -> None:
+    """The detector must load once as a HIGH workflow-only rule."""
+    matches = [
+        rule for rule in SCAN_RULES if rule["id"] == _PR_TARGET_EXECUTION_RULE_ID
+    ]
+
+    assert len(matches) == 1
+    assert matches[0]["severity"] == "HIGH"
+    assert matches[0]["include_paths"] == [
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml",
+    ]
+    assert "CWE-829" in matches[0]["message"]
+
+
+def test_privileged_pull_request_target_pr_head_execution_is_reported(
+    tmp_path,
+) -> None:
+    """Same-repository PR heads remain mutable despite an author predicate."""
+    workflow = """
+name: Privileged review
+on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Materialize mutable PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - env:
+          REVIEW_TOKEN: ${{ secrets.REVIEW_TOKEN }}
+        run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+def test_metadata_only_pull_request_target_is_not_reported(tmp_path) -> None:
+    """Privileged base-code metadata handling does not execute the PR tree."""
+    workflow = """
+name: Label trusted metadata
+on: pull_request_target
+permissions:
+  pull-requests: write
+jobs:
+  label:
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ["triage"]
+            })
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_pr_head_git_worktree_execution_is_reported(tmp_path) -> None:
+    """The retained corpus incident used a shell-created PR-head worktree."""
+    workflow = """
+name: Review in worktree
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - run: |
+          git fetch origin "${{ github.event.pull_request.head.sha }}"
+          git worktree add /tmp/review FETCH_HEAD
+          bash /tmp/review/ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        """
+on: pull_request
+permissions:
+  id-token: write
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+""",
+        """
+on: pull_request_target
+permissions:
+  id-token: write
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+      - run: bash ./ci/review.sh
+""",
+        """
+on: pull_request_target
+jobs:
+  checkout:
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+  publish:
+    permissions:
+      id-token: write
+    steps:
+      - run: echo metadata-only
+""",
+        """
+on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  review:
+    env:
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+""",
+    ],
+)
+def test_incomplete_pr_target_causal_chains_are_not_reported(
+    tmp_path, workflow: str
+) -> None:
+    """Trigger, trust source, privilege, and execution must share one chain."""
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
 
 
 def test_mutable_contributor_branch_writer_is_reported() -> None:
