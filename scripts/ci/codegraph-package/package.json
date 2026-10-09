@@ -1,8 +1,0 @@
-{
-  "name": "appguardrail-codegraph-runtime",
-  "version": "0.0.0",
-  "private": true,
-  "dependencies": {
-    "@colbymchenry/codegraph": "0.9.9"
-  }
-}
