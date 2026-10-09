@@ -49,12 +49,16 @@ owns a job-local GitHub Actions trust-boundary signal. A deterministic analyzer
 requires all four causal elements: a `pull_request_target` trigger, repository
 privilege in the same job, explicit materialization of an event-derived PR head,
 and subsequent execution of a local action, script, test, or build from that
-tree. It does not merge evidence across jobs. Same-repository author predicates
-do not change the result because collaborator branches remain mutable. Ordinary
-`pull_request`, metadata-only `pull_request_target`, trusted base checkout, and
-authority isolated in another job remain outside the finding boundary. The
-canonical prevention boundary remains a metadata-only trigger followed by a
-separately reviewed default-branch execution workflow.
+tree. It recognizes direct event expressions and a one-hop workflow `env`
+binding used by a shell fetch. It does not merge evidence across jobs or treat
+YAML-looking action inputs, comments, or run-block data as workflow authority.
+Same-repository author predicates do not change the result because collaborator
+branches remain mutable. Ordinary `pull_request`, metadata-only
+`pull_request_target`, trusted base checkout, authority isolated in another job,
+and a job-level event guard that admits only a non-PR-target dispatch remain
+outside the finding boundary. The canonical prevention boundary remains a
+metadata-only trigger followed by a separately reviewed default-branch
+execution workflow.
 
 The proposed `github-actions-runtime-package-without-integrity` built-in rule owns
 the narrow workflow-source signal where one step binds a versioned registry

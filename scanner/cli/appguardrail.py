@@ -962,13 +962,6 @@ class _GitHubActionsPullRequestTargetPattern:
         r"^(?P<indent>[ \t]*)(?:[\"']?(?P<name>[A-Za-z0-9_-]+)[\"']?)"
         r"[ \t]*:[ \t]*(?P<value>.*)$"
     )
-    _INLINE_TRIGGER = re.compile(
-        r"^[ \t]*[\"']?on[\"']?[ \t]*:[^\n]*\bpull_request_target\b",
-        re.MULTILINE,
-    )
-    _NESTED_TRIGGER = re.compile(
-        r"^[ \t]+[\"']?pull_request_target[\"']?[ \t]*:", re.MULTILINE
-    )
     _PERMISSION_SCOPES = frozenset(
         {
             "actions",
@@ -1015,7 +1008,8 @@ class _GitHubActionsPullRequestTargetPattern:
         r"(?:^|[;&|][ \t]*)"
         r"(?:\./[A-Za-z0-9_.-]|"
         r"(?:bash|sh|zsh|python3?|node|ruby|perl)[ \t]+(?:\./|/|[A-Za-z0-9_.-]+/)|"
-        r"(?:npm|pnpm|yarn)[ \t]+(?:test|run)|"
+        r"(?:npm[ \t]+exec|npx|pnpm[ \t]+(?:dlx|test|run)|"
+        r"yarn[ \t]+(?:dlx|test|run))|"
         r"(?:cargo|go|make|pytest|tox|gradle|mvn)\b)"
     )
 
@@ -1024,51 +1018,113 @@ class _GitHubActionsPullRequestTargetPattern:
         """Count leading YAML indentation characters."""
         return len(line) - len(line.lstrip(" \t"))
 
+    @staticmethod
+    def _yaml_value(value: str) -> str:
+        """Remove a trailing YAML comment from the controlled scalar subset."""
+        value = re.sub(r"[ \t]+#.*$", "", value).strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"\"", "'"}:
+            return value[1:-1]
+        return value
+
     def _has_pull_request_target(self, content: str) -> bool:
         """Return whether the workflow has a top-level PR-target trigger."""
-        if self._INLINE_TRIGGER.search(content):
-            return True
         lines = content.splitlines()
         for index, line in enumerate(lines):
             field = self._FIELD.match(line)
-            if not field or field.group("name") != "on":
+            if (
+                not field
+                or field.group("name") != "on"
+                or field.group("indent")
+            ):
                 continue
-            on_indent = len(field.group("indent"))
+            value = self._yaml_value(field.group("value"))
+            if re.search(r"\bpull_request_target\b", value):
+                return True
             for nested in lines[index + 1 :]:
                 if not nested.strip() or nested.lstrip().startswith("#"):
                     continue
-                if self._indent_width(nested) <= on_indent:
+                if self._indent_width(nested) == 0:
                     break
-                if self._NESTED_TRIGGER.match(nested):
+                stripped = nested.strip()
+                if stripped.startswith("-"):
+                    event = self._yaml_value(stripped[1:])
+                    if event == "pull_request_target":
+                        return True
+                nested_field = self._FIELD.match(nested)
+                if (
+                    nested_field
+                    and nested_field.group("name") == "pull_request_target"
+                ):
                     return True
             break
         return False
 
-    def _has_write_permission(self, text: str) -> bool:
+    def _has_write_permission(
+        self, lines, start: int, end: int, permission_indent: int
+    ) -> bool:
         """Recognize write authority only inside a permissions mapping."""
-        lines = text.splitlines()
-        for index, line in enumerate(lines):
-            field = self._FIELD.match(line)
-            if not field or field.group("name") != "permissions":
+        for index in range(start, end):
+            line = lines[index].rstrip("\r\n")
+            if not line.strip() or line.lstrip().startswith("#"):
                 continue
-            value = field.group("value").strip().strip("\"'")
+            field = self._FIELD.match(line)
+            if (
+                not field
+                or field.group("name") != "permissions"
+                or len(field.group("indent")) != permission_indent
+            ):
+                continue
+            value = self._yaml_value(field.group("value"))
             if value == "write-all" or self._INLINE_WRITE_PERMISSION.search(value):
                 return True
-            permission_indent = len(field.group("indent"))
-            for nested in lines[index + 1 :]:
+            for nested in lines[index + 1 : end]:
                 if not nested.strip() or nested.lstrip().startswith("#"):
                     continue
                 if self._indent_width(nested) <= permission_indent:
                     break
-                nested_field = self._FIELD.match(nested)
+                nested_field = self._FIELD.match(nested.rstrip("\r\n"))
                 if not nested_field:
                     continue
-                nested_value = nested_field.group("value").strip().strip("\"'")
+                nested_value = self._yaml_value(nested_field.group("value"))
                 if (
                     nested_field.group("name") in self._PERMISSION_SCOPES
                     and nested_value == "write"
                 ):
                     return True
+        return False
+
+    def _has_secret(self, lines, start: int, end: int) -> bool:
+        """Return whether executable job YAML references a repository secret."""
+        return any(
+            self._SECRET.search(lines[index])
+            for index in range(start, end)
+            if not lines[index].lstrip().startswith("#")
+        )
+
+    def _job_excludes_pull_request_target(self, lines, start: int, end: int) -> bool:
+        """Recognize simple job guards that make PR-target execution unreachable."""
+        job_indent = self._indent_width(lines[start])
+        for index in range(start + 1, end):
+            field = self._FIELD.match(lines[index].rstrip("\r\n"))
+            if (
+                not field
+                or field.group("name") != "if"
+                or len(field.group("indent")) != job_indent + 2
+            ):
+                continue
+            guard = self._yaml_value(field.group("value"))
+            if guard.startswith("${{") and guard.endswith("}}"):
+                guard = guard[3:-2].strip()
+            return bool(
+                re.fullmatch(
+                    r"github\.event_name[ \t]*==[ \t]*['\"](?!pull_request_target['\"])[A-Za-z_]+['\"]",
+                    guard,
+                )
+                or re.fullmatch(
+                    r"github\.event_name[ \t]*!=[ \t]*['\"]pull_request_target['\"]",
+                    guard,
+                )
+            )
         return False
 
     def _job_ranges(self, lines):
@@ -1112,23 +1168,59 @@ class _GitHubActionsPullRequestTargetPattern:
             line = lines[index].rstrip("\r\n")
             if not self._CHECKOUT.match(line):
                 continue
-            step_indent = self._indent_width(line)
-            if not line.lstrip(" \t").startswith("-"):
-                step_indent = max(0, step_indent - 2)
-            for nested_index in range(index + 1, end):
-                nested = lines[nested_index].rstrip("\r\n")
-                if nested.strip() and self._indent_width(nested) <= step_indent:
+            step_start = index
+            while step_start > start:
+                candidate = lines[step_start].lstrip(" \t")
+                if candidate.startswith("-"):
                     break
-                if self._PR_HEAD.search(nested):
+                step_start -= 1
+            step_indent = self._indent_width(lines[step_start])
+            step_end = end
+            for candidate_index in range(step_start + 1, end):
+                candidate = lines[candidate_index]
+                if (
+                    candidate.strip()
+                    and self._indent_width(candidate) == step_indent
+                    and candidate.lstrip(" \t").startswith("-")
+                ):
+                    step_end = candidate_index
+                    break
+            for nested_index in range(step_start, step_end):
+                nested = lines[nested_index].rstrip("\r\n")
+                if not nested.lstrip().startswith("#") and self._PR_HEAD.search(
+                    nested
+                ):
                     return nested_index
         return None
 
-    def _git_materialization(self, lines, start: int, end: int):
+    def _pr_head_aliases(self, lines, start: int, end: int):
+        """Return one-hop env names bound to the pull-request head revision."""
+        aliases = set()
+        for index in range(start, end):
+            field = self._FIELD.match(lines[index].rstrip("\r\n"))
+            if not field or field.group("name") != "env":
+                continue
+            env_indent = len(field.group("indent"))
+            for nested in lines[index + 1 : end]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= env_indent:
+                    break
+                variable = self._FIELD.match(nested.rstrip("\r\n"))
+                if variable and self._PR_HEAD.search(variable.group("value")):
+                    aliases.add(variable.group("name"))
+        return aliases
+
+    def _git_materialization(self, lines, start: int, end: int, aliases):
         """Return a run-block line that materializes the event PR head."""
         for index in range(start, end):
             line = lines[index]
+            alias_match = any(
+                re.search(rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b", line)
+                for alias in aliases
+            )
             if not (
-                self._PR_HEAD.search(line)
+                (self._PR_HEAD.search(line) or alias_match)
                 and self._GIT_MATERIALIZATION.search(line)
             ):
                 continue
@@ -1217,20 +1309,25 @@ class _GitHubActionsPullRequestTargetPattern:
             ),
             len(lines),
         )
-        global_text = "".join(lines[:jobs_line])
-        global_privilege = self._has_write_permission(global_text)
+        global_privilege = self._has_write_permission(lines, 0, jobs_line, 0)
 
         for start, end in self._job_ranges(lines):
-            job_text = "".join(lines[start:end])
+            if self._job_excludes_pull_request_target(lines, start, end):
+                continue
+            job_indent = self._indent_width(lines[start])
             privileged = global_privilege or bool(
-                self._has_write_permission(job_text) or self._SECRET.search(job_text)
+                self._has_write_permission(lines, start, end, job_indent + 2)
+                or self._has_secret(lines, start, end)
             )
             if not privileged:
                 continue
             materialized = self._checkout_materialization(lines, start, end)
             active_run_indent = None
             if materialized is None:
-                shell_materialization = self._git_materialization(lines, start, end)
+                aliases = self._pr_head_aliases(lines, start, end)
+                shell_materialization = self._git_materialization(
+                    lines, start, end, aliases
+                )
                 if shell_materialization is None:
                     continue
                 materialized, active_run_indent = shell_materialization

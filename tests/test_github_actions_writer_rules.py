@@ -106,13 +106,146 @@ on: pull_request_target
 permissions: {id-token: write}
 jobs:
   review:
+    env:
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - run: |
-          git fetch origin "${{ github.event.pull_request.head.sha }}"
+          git fetch origin "$PR_HEAD_SHA"
           git worktree add /tmp/review FETCH_HEAD
-          bash /tmp/review/ci/review.sh
+          cd /tmp/review
+          npx -y @colbymchenry/codegraph@0.9.9 scan .
 """
 
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "job_guard",
+    [
+        "github.event_name == 'repository_dispatch'",
+        "github.event_name != 'pull_request_target'",
+    ],
+)
+def test_job_guard_excluding_pr_target_is_not_reported(
+    tmp_path, job_guard: str
+) -> None:
+    """A shared workflow may isolate execution to a trusted dispatch event."""
+    workflow = f"""
+on: [pull_request_target, repository_dispatch]
+permissions: {{id-token: write}}
+jobs:
+  review:
+    if: {job_guard}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{{{ github.event.client_payload.head_sha || github.event.pull_request.head.sha }}}}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        """
+on: pull_request
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - uses: example/action@0123456789abcdef0123456789abcdef01234567
+        with:
+          on: pull_request_target
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+""",
+        """
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  review:
+    steps:
+      # REVIEW_TOKEN: ${{ secrets.REVIEW_TOKEN }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+""",
+        """
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  review:
+    steps:
+      - run: |
+          cat <<'EXAMPLE'
+          permissions: write-all
+          EXAMPLE
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+""",
+    ],
+)
+def test_yaml_like_inert_text_is_not_causal_privilege_or_trigger(
+    tmp_path, workflow: str
+) -> None:
+    """Action inputs, comments, and run data cannot supply causal authority."""
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        """
+on:
+  - pull_request_target
+permissions:
+  id-token: write # OIDC exchange
+jobs:
+  review:
+    steps:
+      - with:
+          ref: ${{ github.event.pull_request.head.sha }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: bash ./ci/review.sh
+""",
+        """
+'on':
+  pull_request_target:
+permissions: {id-token: write} # trusted-base authority
+jobs:
+  review:
+    steps:
+      - name: Checkout
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: ./ci/review.sh
+""",
+    ],
+)
+def test_valid_yaml_order_comments_and_trigger_forms_are_reported(
+    tmp_path, workflow: str
+) -> None:
+    """Equivalent YAML syntax must not bypass a HIGH trust-boundary rule."""
     findings = _scan_workflow(tmp_path, workflow)
 
     assert [finding["rule_id"] for finding in findings].count(
