@@ -77,3 +77,6 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+## 2024-05-19 - Javascript Single Loop Optimization
+**Learning:** In JavaScript, chaining multiple array methods (`.map().filter().sort()`) on large datasets triggered by high-frequency events (like keystrokes) creates redundant memory allocations and unnecessary execution passes. Furthermore, using `.indexOf()` inside a `.sort()` comparator creates $O(N \log N)$ executions of an $O(M)$ lookup.
+**Action:** Use a single `for` loop with early returns to combine mapping and filtering into a single pass. For sorting priorities, pre-compute an $O(1)$ object lookup map (e.g., `Object.fromEntries(arr.map((s,i) => [s,i]))`) and inject the priority score into the array elements before sorting to minimize CPU overhead.
