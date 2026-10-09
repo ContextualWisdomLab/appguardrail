@@ -81,3 +81,6 @@
 ## 2026-08-12 - Skip to Content Accessibility
 **Learning:** Screen reader and keyboard-only users experience significant friction when forced to navigate through repetitive header controls on every page load.
 **Action:** Keep a visible-on-focus skip link as the first interactive element, target a programmatically focusable main container, and give the focused link a high-contrast outline.
+## 2026-10-09 - Accessible Close Buttons
+**Learning:** For icon-only buttons that trigger actions with keyboard shortcuts, adding `title="Close (Esc)"` alongside `aria-keyshortcuts="Escape"` and `aria-label` provides a visual tooltip for mouse users revealing the shortcut, improving both accessibility and UX, satisfying both screen reader accessibility and test contracts.
+**Action:** Always ensure keyboard shortcuts exposed via visual tooltips also include the programmatic `aria-keyshortcuts` attribute.
