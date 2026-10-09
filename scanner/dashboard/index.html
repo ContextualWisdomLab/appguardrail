@@ -65,6 +65,8 @@
   .dlg-head button{border:none;background:none;font-size:20px;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.2s, color 0.2s}
   .dlg-head button:hover{background:var(--bg);color:var(--text)}
   .dlg-head button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .clear-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s}
+  .clear-btn:hover{background:var(--divider)}
   .dlg-body{padding:6px 22px 22px}
   .sec{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px 16px;margin-top:14px}
   .sec h3{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
@@ -235,7 +237,7 @@ function render(){
           <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">File</th><th scope="col">Category</th><th scope="col">Status</th></tr></thead>
           <tbody>${rows||`<tr><td colspan="5" style="padding:32px 24px;text-align:center">
           <div style="color:var(--text);font-weight:600;font-size:14px;margin-bottom:8px">No findings match the filter</div>
-          <button type="button" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font:inherit;color:var(--text);font-weight:500;transition:background 0.2s">Clear filters</button>
+          <button type="button" aria-label="Clear filters" onclick="query=''; filterSev=''; render(); document.getElementById('q')?.focus();" class="clear-btn">Clear filters</button>
         </td></tr>`}</tbody>
         </table></div>
       </div>
@@ -281,7 +283,7 @@ function render(){
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
-  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
+  const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener" aria-label="${esc(r)} (opens in a new tab)">${esc(r)}</a>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
   const d = document.getElementById('detail');
