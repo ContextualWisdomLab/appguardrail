@@ -50,20 +50,23 @@ Current protected-branch evidence keeps those controls distinct: PR #924 supplie
 
 ## Runtime package integrity boundary
 
-The GitHub Actions detector is intentionally bounded to one step whose `env`
-mapping assigns a versioned registry identity to `*_PACKAGE` and whose immediately
+The GitHub Actions detector uses a deterministic step/run analyzer rather than a
+proximity regex. It is intentionally bounded to one step whose `env` mapping
+assigns a versioned registry identity to `*_PACKAGE` and whose immediately
 following `run` field places the exact same variable in a supported `npx` or
 `npm exec` package-selector position with `-y`/`--yes`. Variable-name boundaries
-are exact. Quoted heredoc bodies are literal data and remain clean; an unquoted
-heredoc that builds an executable wrapper remains executable shell input. This is
-evidence that auto-install is admitted, not proof that a download occurred.
+are exact. Blank block-scalar lines do not end analysis. Heredoc bodies are shell
+data and are skipped; analysis resumes after the delimiter. An unquoted heredoc
+body counts only when it is redirected to a target and the same step later makes
+that exact target executable with `chmod`. This is evidence that auto-install is
+admitted, not proof that a download occurred.
 Cross-step references, variables used only as ordinary arguments, prefix-colliding
 names, unbound local tool names, local tarballs, comments, printed/quoted-heredoc
 examples, and non-workflow YAML remain clean. Direct literal package specs, command
-prefixes, quoted YAML `run` keys, wider option/order variants, other package
-managers, composite actions, reusable workflows, chaining, and indirect expansion
-require a fuller structural workflow/shell analyzer and are outside this first
-high-confidence rule.
+prefixes, quoted YAML `run` keys, wider option/order variants, multiple package
+variables in one environment mapping, other package managers, composite actions,
+reusable workflows, chaining, and indirect expansion remain outside this bounded
+analyzer.
 The current repository incident remains open until a canonical protected workflow
 or immutable released tool contract can scan PR source without trusting PR-owned
 bootstrap files.
