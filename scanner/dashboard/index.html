@@ -198,9 +198,9 @@ function render(){
 
   const filtered = ALL
     .map((f,i)=>({f,i}))
-    .filter(({f})=> (!filterSev || String(f.severity).toUpperCase()===filterSev))
+    .filter(({f})=> (!filterSev || severityKey(f.severity)===filterSev))
     .filter(({f})=> !query || (String(f.message)+' '+String(f.file)+' '+String(f.rule_id)+' '+String(f.category)).toLowerCase().includes(query))
-    .sort((a,b)=> SEV_ORDER.indexOf(String(a.f.severity).toUpperCase()) - SEV_ORDER.indexOf(String(b.f.severity).toUpperCase()));
+    .sort((a,b)=> SEV_ORDER.indexOf(severityKey(a.f.severity)) - SEV_ORDER.indexOf(severityKey(b.f.severity)));
   const allFindingsText = formatFindingCount(ALL.length);
   const findingsText = filtered.length === ALL.length
     ? allFindingsText

@@ -155,6 +155,64 @@ console.log(JSON.stringify({{keys,colors,prototypeUnchanged:JSON.stringify(befor
     assert actual["prototypeUnchanged"] is True
 
 
+def test_dashboard_filter_and_sort_use_the_severity_boundary():
+    """Unknown severities must behave as INFO in every dashboard view."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the dashboard JavaScript regression")
+
+    html = dashboard_index_path().read_text(encoding="utf-8")
+    severity_map = re.search(r"const SEV = \{.*?\n\};", html, re.DOTALL)
+    severity_order = re.search(r"const SEV_ORDER = \[[^\n]+", html)
+    selector = re.search(r"function severityKey\(value\)\{.*?\n\}", html, re.DOTALL)
+    filter_line = next(
+        line.strip()
+        for line in html.splitlines()
+        if line.strip().startswith(".filter(({f})=> ")
+    )
+    sort_line = next(
+        line.strip()
+        for line in html.splitlines()
+        if line.strip().startswith(".sort((a,b)=> ")
+    )
+    assert severity_map is not None
+    assert severity_order is not None
+    assert selector is not None
+    filter_predicate = filter_line.removeprefix(".filter(({f})=> ").removesuffix(")")
+    sort_comparator = sort_line.removeprefix(".sort((a,b)=> ").removesuffix(");")
+
+    script = f"""
+{severity_map.group(0)}
+{severity_order.group(0)}
+{selector.group(0)}
+const findings=["INFO","constructor","HIGH","unknown","WARNING"]
+  .map((severity,index)=>({{f:{{severity}},index}}));
+const filterSev="INFO";
+const info=findings.filter(({{f}})=>{filter_predicate});
+const sorted=[...findings].sort((a,b)=>{sort_comparator});
+console.log(JSON.stringify({{
+  info:info.map(item=>item.f.severity),
+  sorted:sorted.map(item=>item.f.severity)
+}}));
+"""
+    result = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    actual = json.loads(result.stdout)
+
+    assert actual["info"] == ["INFO", "constructor", "unknown"]
+    assert actual["sorted"] == [
+        "HIGH",
+        "WARNING",
+        "INFO",
+        "constructor",
+        "unknown",
+    ]
+
+
 def test_dashboard_category_counts_reject_inherited_properties():
     """Category aggregation must count prototype-named categories as data."""
     node = shutil.which("node")
