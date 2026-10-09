@@ -313,6 +313,37 @@ jobs:
     assert [finding["rule_id"] for finding in findings].count(_RULE_ID) == 1
 
 
+@pytest.mark.parametrize(
+    "step",
+    [
+        '      - env:\n'
+        '          TOOL_PACKAGE: "example-tool@1.0.0"\n'
+        '        run: npx -y "$TOOL_PACKAGE"',
+        '      - name: Comment between fields\n'
+        '        env:\n'
+        '          TOOL_PACKAGE: "example-tool@1.0.0"\n'
+        '        # The comment does not end the step mapping.\n'
+        '        run: npx -y "$TOOL_PACKAGE"',
+    ],
+)
+def test_compact_or_commented_step_mapping_is_reported(
+    tmp_path: Path, step: str
+) -> None:
+    """Valid step mapping forms must preserve the env-to-run causal pair."""
+    workflow = f"""
+name: Valid step mapping
+on: pull_request
+jobs:
+  scan:
+    steps:
+{step}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(_RULE_ID) == 1
+
+
 def test_repository_workflow_remains_a_positive_incident_fixture() -> None:
     """The protected incident remains detected until canonical consumption exists."""
     repository_root = Path(__file__).parents[1]
