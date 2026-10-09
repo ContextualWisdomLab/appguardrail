@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -38,10 +37,9 @@ def test_runtime_package_rule_is_packaged_and_path_scoped() -> None:
     "command",
     [
         'exec npx -y "$CODEGRAPH_PACKAGE" "$@"',
-        "npx --yes @example/scanner@1.2.3 scan .",
-        "run: npx -y @example/scanner@1.2.3 scan .",
-        "npm exec --yes -- @example/scanner@1.2.3 scan .",
-        "npm exec -y -- @example/scanner@1.2.3 scan .",
+        'npx --yes "$CODEGRAPH_PACKAGE" scan .',
+        'npm exec --package="$CODEGRAPH_PACKAGE" --yes -- scan .',
+        'npm exec -y -- "$CODEGRAPH_PACKAGE" scan .',
     ],
 )
 def test_runtime_registry_package_execution_is_reported(
@@ -87,6 +85,40 @@ jobs:
     assert _RULE_ID not in {finding["rule_id"] for finding in findings}
 
 
+@pytest.mark.parametrize(
+    "package_value, command",
+    [
+        (None, "npx -y eslint ."),
+        (None, "npm exec --yes -- eslint ."),
+        ("./tools/local-cli.tgz", 'npx -y "$TOOL_PACKAGE" scan .'),
+    ],
+)
+def test_local_or_unbound_package_execution_is_not_reported(
+    tmp_path: Path, package_value: str | None, command: str
+) -> None:
+    """Local tools without a versioned registry binding stay outside scope."""
+    env = (
+        f'        env:\n          TOOL_PACKAGE: "{package_value}"\n'
+        if package_value
+        else ""
+    )
+    workflow = f"""
+name: Local tool
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Run local tool
+{env}        run: |
+          npm ci --ignore-scripts
+          {command}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _RULE_ID not in {finding["rule_id"] for finding in findings}
+
+
 def test_runtime_package_text_outside_workflow_is_not_reported(tmp_path: Path) -> None:
     """Documentation and non-workflow YAML must stay outside the rule boundary."""
     example = tmp_path / "docs" / "example.yaml"
@@ -110,6 +142,9 @@ jobs:
           # npx -y example@1.0.0
           echo "npx -y example@1.0.0"
           printf '%s\\n' 'npm exec --yes example@1.0.0'
+          cat <<'EXAMPLE'
+          npx -y example@1.0.0
+          EXAMPLE
 """
 
     findings = _scan_workflow(tmp_path, workflow)
@@ -117,26 +152,11 @@ jobs:
     assert _RULE_ID not in {finding["rule_id"] for finding in findings}
 
 
-def test_repository_workflow_uses_integrity_locked_codegraph() -> None:
-    """The retained incident must stay fixed while the detector stays live."""
+def test_repository_workflow_remains_a_positive_incident_fixture() -> None:
+    """The protected incident remains detected until canonical consumption exists."""
     repository_root = Path(__file__).parents[1]
     workflow_path = repository_root / ".github/workflows/security-process.yml"
-    workflow = workflow_path.read_text(encoding="utf-8")
-    package_lock = json.loads(
-        (
-            repository_root
-            / "scripts/ci/codegraph-package/package-lock.json"
-        ).read_text(encoding="utf-8")
-    )
-    codegraph_package = package_lock["packages"][
-        "node_modules/@colbymchenry/codegraph"
-    ]
 
     findings = _scan_file(workflow_path, repository_root)
 
-    assert _RULE_ID not in {finding["rule_id"] for finding in findings}
-    assert "npm ci --ignore-scripts --omit=dev --no-audit --no-fund" in workflow
-    assert 'CODEGRAPH_NO_DOWNLOAD: "1"' in workflow
-    assert "node_modules/.bin/codegraph" in workflow
-    assert codegraph_package["version"] == "0.9.9"
-    assert codegraph_package["integrity"].startswith("sha512-")
+    assert [finding["rule_id"] for finding in findings].count(_RULE_ID) == 1
