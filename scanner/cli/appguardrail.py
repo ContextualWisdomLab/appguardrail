@@ -997,8 +997,14 @@ class _GitHubActionsPullRequestTargetPattern:
     _PR_HEAD = re.compile(
         r"github\.(?:event\.pull_request\.head\.(?:sha|ref)|head_ref)"
     )
-    _GIT_MATERIALIZATION = re.compile(
-        r"\bgit[ \t]+(?:fetch|checkout|switch|worktree\b[^\n]*\badd)\b"
+    _BRACKET_KEY = re.compile(r"\[['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\]")
+    _GIT_FETCH = re.compile(r"\bgit[ \t]+fetch\b")
+    _GIT_TREE_SELECTION = re.compile(
+        r"\bgit[ \t]+(?:checkout|switch|worktree\b[^\n]*\badd)\b"
+    )
+    _FLOW_REF = re.compile(
+        r"(?:^|[{,])[ \t]*['\"]?ref['\"]?[ \t]*:[ \t]*"
+        r"(?P<value>.*?)(?=,[ \t]*['\"]?[A-Za-z0-9_-]+['\"]?[ \t]*:|}[ \t]*$)"
     )
     _LOCAL_ACTION = re.compile(
         r"^[ \t]*(?:-[ \t]*)?(?:[\"']?uses[\"']?)[ \t]*:[ \t]*[\"']?\./"
@@ -1028,6 +1034,11 @@ class _GitHubActionsPullRequestTargetPattern:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {"\"", "'"}:
             return value[1:-1]
         return value
+
+    def _has_pr_head(self, value: str) -> bool:
+        """Recognize equivalent dot and bracket GitHub context paths."""
+        normalized = self._BRACKET_KEY.sub(r".\1", value)
+        return bool(self._PR_HEAD.search(normalized))
 
     def _has_pull_request_target(self, content: str) -> bool:
         """Return whether the workflow has a top-level PR-target trigger."""
@@ -1127,23 +1138,23 @@ class _GitHubActionsPullRequestTargetPattern:
                 guard = " ".join(guard_lines)
             if guard.startswith("${{") and guard.endswith("}}"):
                 guard = guard[3:-2].strip()
-            if "||" in guard:
+            if re.search(r"!(?!=)", guard):
                 return False
-            admits_pr_target = re.search(
-                r"github\.event_name[ \t]*==[ \t]*['\"]pull_request_target['\"]",
-                guard,
-            )
-            excludes_pr_target = re.search(
-                r"github\.event_name[ \t]*!=[ \t]*['\"]pull_request_target['\"]",
-                guard,
-            )
-            selects_other_event = re.search(
-                r"github\.event_name[ \t]*==[ \t]*['\"]"
-                r"(?!pull_request_target['\"])[A-Za-z_]+['\"]",
-                guard,
-            )
-            return not admits_pr_target and bool(
-                excludes_pr_target or selects_other_event
+            branches = guard.split("||")
+            return all(
+                bool(
+                    re.search(
+                        r"github\.event_name[ \t]*!=[ \t]*"
+                        r"['\"]pull_request_target['\"]",
+                        branch,
+                    )
+                    or re.search(
+                        r"github\.event_name[ \t]*==[ \t]*['\"]"
+                        r"(?!pull_request_target['\"])[A-Za-z_]+['\"]",
+                        branch,
+                    )
+                )
+                for branch in branches
             )
         return False
 
@@ -1205,15 +1216,47 @@ class _GitHubActionsPullRequestTargetPattern:
                 ):
                     step_end = candidate_index
                     break
+            uses_indent = self._indent_width(line)
+            step_key_indent = uses_indent + (
+                2 if line.lstrip(" \t").startswith("-") else 0
+            )
             for nested_index in range(step_start, step_end):
                 nested = lines[nested_index].rstrip("\r\n")
                 field = self._FIELD.match(nested)
-                if (
-                    field
-                    and field.group("name") == "ref"
-                    and self._PR_HEAD.search(field.group("value"))
-                ):
-                    return nested_index
+                compact_with = re.match(
+                    r"^(?P<indent>[ \t]*)-[ \t]+with[ \t]*:[ \t]*(?P<value>.*)$",
+                    nested,
+                )
+                if field and field.group("name") == "with":
+                    with_indent = len(field.group("indent"))
+                    semantic_indent = with_indent
+                    value = self._yaml_value(field.group("value"))
+                elif compact_with:
+                    with_indent = len(compact_with.group("indent")) + 2
+                    semantic_indent = with_indent
+                    value = self._yaml_value(compact_with.group("value"))
+                else:
+                    continue
+                if semantic_indent != step_key_indent:
+                    continue
+                if value.startswith("{"):
+                    flow_ref = self._FLOW_REF.search(value)
+                    if flow_ref and self._has_pr_head(flow_ref.group("value")):
+                        return nested_index
+                    continue
+                for input_index in range(nested_index + 1, step_end):
+                    input_line = lines[input_index].rstrip("\r\n")
+                    if not input_line.strip() or input_line.lstrip().startswith("#"):
+                        continue
+                    if self._indent_width(input_line) <= with_indent:
+                        break
+                    input_field = self._FIELD.match(input_line)
+                    if (
+                        input_field
+                        and input_field.group("name") == "ref"
+                        and self._has_pr_head(input_field.group("value"))
+                    ):
+                        return input_index
         return None
 
     def _pr_head_aliases(self, lines, start: int, end: int, env_indent: int):
@@ -1233,30 +1276,123 @@ class _GitHubActionsPullRequestTargetPattern:
                 if self._indent_width(nested) <= env_indent:
                     break
                 variable = self._FIELD.match(nested.rstrip("\r\n"))
-                if variable and self._PR_HEAD.search(variable.group("value")):
+                if variable and self._has_pr_head(variable.group("value")):
                     aliases.add(variable.group("name"))
         return aliases
 
+    def _step_range(self, lines, start: int, end: int, index: int):
+        """Return the YAML sequence item containing one run-block line."""
+        step_start = None
+        step_indent = None
+        for candidate in range(index, start - 1, -1):
+            line = lines[candidate]
+            if re.match(r"^[ \t]*-[ \t]+", line):
+                step_start = candidate
+                step_indent = self._indent_width(line)
+                break
+        if step_start is None:
+            return start, end, None
+        step_end = end
+        for candidate in range(step_start + 1, end):
+            line = lines[candidate]
+            if (
+                line.strip()
+                and self._indent_width(line) == step_indent
+                and re.match(r"^[ \t]*-[ \t]+", line)
+            ):
+                step_end = candidate
+                break
+        return step_start, step_end, step_indent
+
+    def _step_pr_head_aliases(self, lines, start: int, end: int, index: int):
+        """Return event-head env aliases live in the containing step only."""
+        step_start, step_end, step_indent = self._step_range(
+            lines, start, end, index
+        )
+        if step_indent is None:
+            return set()
+        step_key_indent = step_indent + 2
+        aliases = set()
+        env_pattern = re.compile(
+            r"^(?P<indent>[ \t]*)(?P<compact>-[ \t]+)?env[ \t]*:[ \t]*(?:#.*)?$"
+        )
+        for env_index in range(step_start, step_end):
+            env_match = env_pattern.match(lines[env_index].rstrip("\r\n"))
+            if not env_match:
+                continue
+            env_indent = len(env_match.group("indent")) + (
+                2 if env_match.group("compact") else 0
+            )
+            if env_indent != step_key_indent:
+                continue
+            for nested in lines[env_index + 1 : step_end]:
+                if not nested.strip() or nested.lstrip().startswith("#"):
+                    continue
+                if self._indent_width(nested) <= env_indent:
+                    break
+                variable = self._FIELD.match(nested.rstrip("\r\n"))
+                if variable and self._has_pr_head(variable.group("value")):
+                    aliases.add(variable.group("name"))
+        return aliases
+
+    @staticmethod
+    def _shell_code(line: str) -> str:
+        """Remove a trailing shell comment before causal command matching."""
+        return re.split(r"[ \t]+#", line, maxsplit=1)[0]
+
+    @staticmethod
+    def _worktree_target(command: str):
+        """Return the destination argument from a simple git worktree add."""
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return None
+        try:
+            add_index = next(
+                index
+                for index in range(len(tokens) - 2)
+                if tokens[index : index + 3] == ["git", "worktree", "add"]
+            )
+        except StopIteration:
+            return None
+        index = add_index + 3
+        while index < len(tokens) and tokens[index].startswith("-"):
+            if tokens[index] in {"-b", "-B"}:
+                index += 2
+            else:
+                index += 1
+        return tokens[index] if index < len(tokens) else None
+
     def _git_materialization(self, lines, start: int, end: int, aliases):
         """Return a run-block line that materializes the event PR head."""
+        fetched_pr_head = False
         for index in range(start, end):
-            line = lines[index]
-            materializes_head = False
+            line = self._shell_code(lines[index])
+            step_aliases = aliases | self._step_pr_head_aliases(
+                lines, start, end, index
+            )
+            selected_tree = False
+            worktree_target = None
             for command in re.split(r"(?:&&|\|\||;)", line):
                 alias_match = any(
                     re.search(
                         rf"\$(?:\{{{re.escape(alias)}\}}|{re.escape(alias)})\b",
                         command,
                     )
-                    for alias in aliases
+                    for alias in step_aliases
                 )
-                if (
-                    self._GIT_MATERIALIZATION.search(command)
-                    and (self._PR_HEAD.search(command) or alias_match)
+                references_pr_head = self._has_pr_head(command) or alias_match
+                if self._GIT_FETCH.search(command) and references_pr_head:
+                    fetched_pr_head = True
+                if not self._GIT_TREE_SELECTION.search(command):
+                    continue
+                if references_pr_head or (
+                    fetched_pr_head and re.search(r"\bFETCH_HEAD\b", command)
                 ):
-                    materializes_head = True
+                    selected_tree = True
+                    worktree_target = self._worktree_target(command)
                     break
-            if not materializes_head:
+            if not selected_tree:
                 continue
             command_indent = self._indent_width(line)
             for prior in range(index - 1, start - 1, -1):
@@ -1266,7 +1402,11 @@ class _GitHubActionsPullRequestTargetPattern:
                 if compact_run:
                     block_value = compact_run.group("value").strip()[:1]
                     if block_value in {"|", ">"}:
-                        return index, len(compact_run.group("indent"))
+                        return (
+                            index,
+                            len(compact_run.group("indent")),
+                            worktree_target,
+                        )
                     break
                 field = self._FIELD.match(lines[prior].rstrip("\r\n"))
                 if not field:
@@ -1276,16 +1416,22 @@ class _GitHubActionsPullRequestTargetPattern:
                     continue
                 block_value = field.group("value").strip()[:1]
                 if field.group("name") == "run" and block_value in {"|", ">"}:
-                    return index, field_indent
+                    return index, field_indent, worktree_target
                 break
         return None
 
     def _execution_line(
-        self, lines, start: int, end: int, active_run_indent=None
+        self,
+        lines,
+        start: int,
+        end: int,
+        active_run_indent=None,
+        required_directory=None,
     ):
         """Return subsequent local action, script, test, or build execution."""
         in_run_block = active_run_indent is not None
         run_indent = active_run_indent or 0
+        in_materialized_directory = required_directory is None
         for index in range(start, end):
             line = lines[index].rstrip("\r\n")
             stripped = line.strip()
@@ -1312,8 +1458,25 @@ class _GitHubActionsPullRequestTargetPattern:
             if in_run_block:
                 if self._indent_width(line) <= run_indent:
                     in_run_block = False
-                elif self._is_local_command(stripped):
-                    return index
+                else:
+                    if required_directory:
+                        try:
+                            commands = [
+                                shlex.split(command)
+                                for command in re.split(
+                                    r"(?:&&|\|\||;)", self._shell_code(stripped)
+                                )
+                            ]
+                        except ValueError:
+                            commands = []
+                        if any(
+                            command[:1] == ["cd"]
+                            and command[-1:] == [required_directory]
+                            for command in commands
+                        ):
+                            in_materialized_directory = True
+                    if in_materialized_directory and self._is_local_command(stripped):
+                        return index
         return None
 
     def _is_local_command(self, command: str) -> bool:
@@ -1334,17 +1497,8 @@ class _GitHubActionsPullRequestTargetPattern:
             offsets.append(offset)
             offset += len(line)
 
-        jobs_line = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if (field := self._FIELD.match(line.rstrip("\r\n")))
-                and field.group("name") == "jobs"
-            ),
-            len(lines),
-        )
-        global_privilege = self._has_write_permission(lines, 0, jobs_line, 0)
-        workflow_aliases = self._pr_head_aliases(lines, 0, jobs_line, 0)
+        global_privilege = self._has_write_permission(lines, 0, len(lines), 0)
+        workflow_aliases = self._pr_head_aliases(lines, 0, len(lines), 0)
 
         for start, end in self._job_ranges(lines):
             if self._job_excludes_pull_request_target(lines, start, end):
@@ -1367,11 +1521,21 @@ class _GitHubActionsPullRequestTargetPattern:
                 )
                 if shell_materialization is None:
                     continue
-                materialized, active_run_indent = shell_materialization
+                materialized, active_run_indent, required_directory = (
+                    shell_materialization
+                )
+                execution_start = materialized
+            else:
+                required_directory = None
+                execution_start = materialized + 1
             if materialized is None:
                 continue
             execution = self._execution_line(
-                lines, materialized + 1, end, active_run_indent
+                lines,
+                execution_start,
+                end,
+                active_run_indent,
+                required_directory,
             )
             if execution is not None:
                 yield _SourceMatch(offsets[execution])

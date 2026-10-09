@@ -49,15 +49,19 @@ owns a job-local GitHub Actions trust-boundary signal. A deterministic analyzer
 requires all four causal elements: a `pull_request_target` trigger, repository
 privilege in the same job, explicit materialization of an event-derived PR head,
 and subsequent execution of a local action, script, test, or build from that
-tree. It recognizes direct event expressions and one-hop workflow- or job-level
-`env` bindings used by the same shell command segment as a Git materialization.
-Checkout materialization is bound specifically to the action's `ref` input. It
+tree. It recognizes equivalent dot/bracket event expressions and one-hop
+workflow-, job-, or same-step `env` bindings used by the same shell command
+segment as Git tree selection. A fetch alone is insufficient; checkout/switch
+must select the revision, or a worktree must select it and the shell must enter
+that worktree before local execution. Action checkout materialization is bound
+specifically to its owned `with.ref` input, including flow mappings. It
 does not merge evidence across jobs or treat
 YAML-looking action inputs, comments, or run-block data as workflow authority.
 Same-repository author predicates do not change the result because collaborator
 branches remain mutable. Ordinary `pull_request`, metadata-only
 `pull_request_target`, trusted base checkout, authority isolated in another job,
-and a scalar or block job-level event guard that admits only a non-PR-target dispatch remain
+and a conservatively recognized scalar or block job-level event guard whose
+every disjunct admits only non-PR-target events remain
 outside the finding boundary. The canonical prevention boundary remains a
 metadata-only trigger followed by a separately reviewed default-branch
 execution workflow.

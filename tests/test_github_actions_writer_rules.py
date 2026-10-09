@@ -179,6 +179,164 @@ jobs:
     }
 
 
+def test_negated_other_event_guard_does_not_exclude_pr_target(tmp_path) -> None:
+    """Negating a trusted-event equality admits PR-target execution."""
+    workflow = """
+on: [pull_request_target, repository_dispatch]
+permissions: {id-token: write}
+jobs:
+  review:
+    if: ${{ !(github.event_name == 'repository_dispatch') }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+def test_or_of_non_pr_target_events_is_not_reported(tmp_path) -> None:
+    """Every disjunct excludes PR-target, so the job is unreachable there."""
+    workflow = """
+on: [pull_request_target, repository_dispatch, workflow_dispatch]
+permissions: {id-token: write}
+jobs:
+  review:
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize(
+    "head_expression",
+    [
+        "github['event']['pull_request']['head']['sha']",
+        "github.event.pull_request.head['sha']",
+        "github['head_ref']",
+    ],
+)
+def test_bracket_pr_head_expression_is_reported(
+    tmp_path, head_expression: str
+) -> None:
+    """GitHub expression index and dot paths have identical trust semantics."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{{{ {head_expression} }}}}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize("global_field", ["permissions: write-all", "env:\n  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}"])
+def test_top_level_authority_after_jobs_is_reported(
+    tmp_path, global_field: str
+) -> None:
+    """Top-level YAML field order does not change authority or aliases."""
+    privilege = "" if global_field.startswith("permissions") else "permissions: write-all\n"
+    ref = (
+        "${{ github.event.pull_request.head.sha }}"
+        if global_field.startswith("permissions")
+        else '"$PR_HEAD_SHA"'
+    )
+    workflow = f"""
+on: pull_request_target
+{privilege}jobs:
+  review:
+    steps:
+      - run: |
+          git checkout {ref}
+          bash ./ci/review.sh
+{global_field}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        """      - env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout \"$PR_HEAD_SHA\"
+          bash ./ci/review.sh""",
+        """      - name: Review
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout \"$PR_HEAD_SHA\"
+          bash ./ci/review.sh""",
+    ],
+)
+def test_same_step_pr_head_env_alias_is_reported(tmp_path, step: str) -> None:
+    """A step-local alias is live in that same step's shell."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+jobs:
+  review:
+    steps:
+{step}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
+def test_inline_checkout_ref_is_reported(tmp_path) -> None:
+    """A flow-style with.ref still selects the mutable PR revision."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {ref: "${{ github.event.pull_request.head.sha }}"}
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(
+        _PR_TARGET_EXECUTION_RULE_ID
+    ) == 1
+
+
 def test_top_level_pr_head_env_alias_is_reported(tmp_path) -> None:
     """Workflow env values are available to the shell materialization step."""
     workflow = """
@@ -259,6 +417,60 @@ jobs:
           ref: main
           path: ${{ github.head_ref }}
       - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+def test_checkout_sibling_ref_is_not_reported(tmp_path) -> None:
+    """Only with.ref, not an env key named ref, controls checkout revision."""
+    workflow = """
+on: pull_request_target
+permissions: {id-token: write}
+jobs:
+  review:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        env:
+          ref: ${{ github.event.pull_request.head.sha }}
+        with:
+          ref: main
+      - run: bash ./ci/review.sh
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _PR_TARGET_EXECUTION_RULE_ID not in {
+        finding["rule_id"] for finding in findings
+    }
+
+
+@pytest.mark.parametrize(
+    "materialization",
+    [
+        'git fetch origin "$PR_HEAD_SHA"',
+        'git fetch origin main # "$PR_HEAD_SHA" is retained for logs',
+    ],
+)
+def test_fetch_without_pr_tree_selection_is_not_reported(
+    tmp_path, materialization: str
+) -> None:
+    """Fetching alone does not make a later trusted-base script PR code."""
+    workflow = f"""
+on: pull_request_target
+permissions: {{id-token: write}}
+env:
+  PR_HEAD_SHA: ${{{{ github.event.pull_request.head.sha }}}}
+jobs:
+  review:
+    steps:
+      - run: |
+          {materialization}
+          bash ./ci/review.sh
 """
 
     findings = _scan_workflow(tmp_path, workflow)
