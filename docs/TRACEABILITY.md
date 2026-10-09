@@ -50,15 +50,20 @@ Current protected-branch evidence keeps those controls distinct: PR #924 supplie
 
 ## Runtime package integrity boundary
 
-The GitHub Actions detector is intentionally bounded to a versioned registry
-package in an unquoted or quoted `*_PACKAGE` environment value followed within the
-same step-sized window by `npx` or `npm exec` with `-y`/`--yes` and that variable.
-This is evidence that auto-install is admitted, not proof that a download occurred.
-Unbound local tool names, local tarballs, comments, printed/heredoc examples, and
-non-workflow YAML remain clean. Direct literal package specs, command prefixes,
-quoted YAML `run` keys, wider option/order variants, other package managers,
-composite actions, reusable workflows, chaining, and indirect expansion require a
-structural workflow/shell analyzer and are outside this first high-confidence rule.
+The GitHub Actions detector is intentionally bounded to one step whose `env`
+mapping assigns a versioned registry identity to `*_PACKAGE` and whose immediately
+following `run` field places the exact same variable in a supported `npx` or
+`npm exec` package-selector position with `-y`/`--yes`. Variable-name boundaries
+are exact. Quoted heredoc bodies are literal data and remain clean; an unquoted
+heredoc that builds an executable wrapper remains executable shell input. This is
+evidence that auto-install is admitted, not proof that a download occurred.
+Cross-step references, variables used only as ordinary arguments, prefix-colliding
+names, unbound local tool names, local tarballs, comments, printed/quoted-heredoc
+examples, and non-workflow YAML remain clean. Direct literal package specs, command
+prefixes, quoted YAML `run` keys, wider option/order variants, other package
+managers, composite actions, reusable workflows, chaining, and indirect expansion
+require a fuller structural workflow/shell analyzer and are outside this first
+high-confidence rule.
 The current repository incident remains open until a canonical protected workflow
 or immutable released tool contract can scan PR source without trusting PR-owned
 bootstrap files.
