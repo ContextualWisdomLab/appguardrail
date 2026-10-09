@@ -215,6 +215,104 @@ def test_noncausal_runtime_package_text_is_not_reported(
     assert _RULE_ID not in {finding["rule_id"] for finding in findings}
 
 
+def test_blank_line_before_runtime_command_does_not_bypass_rule(tmp_path: Path) -> None:
+    """Blank block-scalar lines must not hide an executed package selector."""
+    workflow = """
+name: Blank line
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Run package
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: |
+
+          npx -y "$TOOL_PACKAGE"
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(_RULE_ID) == 1
+
+
+def test_command_after_quoted_heredoc_is_still_reported(tmp_path: Path) -> None:
+    """A literal heredoc must not hide a later executed command in the step."""
+    workflow = """
+name: Documentation then execution
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Run package
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: |
+          cat <<'EXAMPLE'
+          npx -y "$TOOL_PACKAGE"
+          EXAMPLE
+          npx -y "$TOOL_PACKAGE"
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(_RULE_ID) == 1
+
+
+@pytest.mark.parametrize(
+    "postlude",
+    ["", 'echo \'chmod 0755 "$wrapper"\'', 'chmod 0644 "$wrapper"'],
+)
+def test_unquoted_heredoc_without_executable_wrapper_is_not_reported(
+    tmp_path: Path, postlude: str
+) -> None:
+    """Unexecuted generated text is not a runtime package finding by itself."""
+    workflow = f"""
+name: Generated documentation
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Write example
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: |
+          wrapper="${{RUNNER_TEMP}}/example.txt"
+          cat >"$wrapper" <<EXAMPLE
+          npx -y "$TOOL_PACKAGE"
+          EXAMPLE
+          {postlude}
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert _RULE_ID not in {finding["rule_id"] for finding in findings}
+
+
+def test_materialized_executable_wrapper_is_reported(tmp_path: Path) -> None:
+    """An unquoted heredoc made executable retains runtime-path evidence."""
+    workflow = """
+name: Generated executable
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - name: Write wrapper
+        env:
+          TOOL_PACKAGE: "example-tool@1.0.0"
+        run: |
+          wrapper="${RUNNER_TEMP}/tool"
+          cat >"$wrapper" <<SCRIPT
+          exec npx -y "$TOOL_PACKAGE" "$@"
+          SCRIPT
+          chmod 0755 "$wrapper"
+"""
+
+    findings = _scan_workflow(tmp_path, workflow)
+
+    assert [finding["rule_id"] for finding in findings].count(_RULE_ID) == 1
+
+
 def test_repository_workflow_remains_a_positive_incident_fixture() -> None:
     """The protected incident remains detected until canonical consumption exists."""
     repository_root = Path(__file__).parents[1]
