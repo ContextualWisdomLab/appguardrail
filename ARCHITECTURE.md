@@ -48,7 +48,8 @@ the narrow workflow-source signal where one step binds a versioned registry
 package environment value to the exact package-selector position of that step's
 `npx`/`npm exec` auto-install command. A deterministic line/state analyzer tracks
 step-local field indentation, blank block-scalar lines, exact variable boundaries,
-and shell heredoc state. Heredoc body text is ignored unless an unquoted body is
+compact or expanded step mappings, intervening YAML comments, and shell heredoc
+state. Heredoc body text is ignored unless an unquoted body is
 redirected to a target that the same step later makes executable with `chmod`.
 Lexical proximity is therefore not promoted to causal execution. The rule does
 not claim that a download or registry compromise occurred. Central protected workflow prevention, immutable tool
