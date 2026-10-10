@@ -7,14 +7,6 @@ import re
 from typing import Any
 
 FAILURES = {"failure", "cancelled", "timed_out", "action_required"}
-SECURITY_TERMS = (
-    "strix",
-    "opencode",
-    "appguardrail",
-    "trivy",
-    "codeql",
-    "security process",
-)
 MARKER_PREFIX = "<!-- appguardrail-org-security-failure:"
 MARKER_SUFFIX = "-->"
 DEFAULT_MAX_LOG_CHARS = 30_000
@@ -33,7 +25,17 @@ WORKFLOW_DISPATCH_SUFFIX_RE = re.compile(
 _LINE_SEPARATOR_TRANSLATION = str.maketrans(
     {
         separator: "\n"
-        for separator in ("\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+        for separator in (
+            "\r",
+            "\v",
+            "\f",
+            "\x1c",
+            "\x1d",
+            "\x1e",
+            "\x85",
+            "\u2028",
+            "\u2029",
+        )
     }
 )
 SECRET_RE = [
@@ -73,7 +75,14 @@ def is_failure(conclusion: str | None) -> bool:
 def is_security_name(*names: str | None) -> bool:
     """Return whether workflow or job names look security-relevant."""
     text = " ".join(name or "" for name in names).lower()
-    return any(term in text for term in SECURITY_TERMS)
+    return (
+        "strix" in text
+        or "opencode" in text
+        or "appguardrail" in text
+        or "trivy" in text
+        or "codeql" in text
+        or "security process" in text
+    )
 
 
 def parse_run_url(url: str) -> tuple[str, int]:
