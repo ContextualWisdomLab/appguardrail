@@ -170,11 +170,12 @@ function render(){
     return;
   }
   const counts = {CRITICAL:0,HIGH:0,WARNING:0,INFO:0};
-  const byCat = {};
+  const byCat = Object.create(null);
   let blocking = 0;
   for(const f of ALL){
     const s = String(f.severity||'INFO').toUpperCase();
-    counts[s in counts ? s : 'INFO']++;
+    const sevKey = Object.hasOwn(counts, s) ? s : 'INFO';
+    counts[sevKey]++;
     const c = String(f.category||'misconfig');
     byCat[c] = (byCat[c]||0)+1;
     if(isDeployBlocking(f)) blocking++;
@@ -205,9 +206,10 @@ function render(){
 
   const rows = filtered.map(({f,i})=>{
     const s = String(f.severity||'INFO').toUpperCase();
+    const sevKey = Object.hasOwn(SEV, s) ? s : 'INFO';
     const block = isDeployBlocking(f);
     return `<tr data-i="${i}" tabindex="0" role="button" aria-haspopup="dialog" title="View details for finding">
-      <td><span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span></td>
+      <td><span class="chip" style="background:${esc(SEV[sevKey].color)}">${esc(s)}</span></td>
       <td>${esc(f.message)}</td>
       <td class="file">${esc(f.file)}:${esc(f.line)}</td>
       <td>${esc(f.category)}</td>
@@ -281,6 +283,7 @@ function render(){
 function openDetail(f){
   lastFocus = document.activeElement;
   const s = String(f.severity||'INFO').toUpperCase();
+  const sevKey = Object.hasOwn(SEV, s) ? s : 'INFO';
   const refs = (f.references||[]).map(r=>`<a href="${esc(safeUrl(r))}" target="_blank" rel="noopener">${esc(r)}</a>`).join('<br>');
   const owasp = (f.owasp||[]).join(', ');
   const cwe = (f.cwe||[]).join(', ');
@@ -288,7 +291,7 @@ function openDetail(f){
 
   d.innerHTML = `
     <div class="dlg-head">
-      <span class="chip" style="background:${SEV[s]?SEV[s].color:'var(--info)'}">${esc(s)}</span>
+      <span class="chip" style="background:${esc(SEV[sevKey].color)}">${esc(s)}</span>
       <span class="t" id="dlg-title">${esc(f.rule_id)}</span>
       <button aria-label="Close" title="Close (Esc)" onclick="document.getElementById('detail').close()">✕</button>
     </div>
