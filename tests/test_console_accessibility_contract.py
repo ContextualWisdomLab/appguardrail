@@ -23,3 +23,12 @@ def test_console_rows_preserve_cell_content_for_screen_readers():
 
     assert 'role="button" title="View scan details"' in html
     assert 'aria-label="View scan details"' not in html
+
+def test_console_skip_link_is_first_and_targets_focusable_main():
+    """Keyboard users can bypass repeated controls and focus the main region."""
+    html = _console_html()
+    skip_link = '<a href="#main" class="skip-link">Skip to content</a>'
+    assert skip_link in html
+    assert '<main id="main" tabindex="-1">' in html
+    assert html.index(skip_link) < html.index("<header>")
+    assert ".skip-link:focus" in html
