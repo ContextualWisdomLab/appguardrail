@@ -2255,37 +2255,18 @@ def _sanitize_terminal_output(text: str) -> str:
     return "".join(c if c.isprintable() or c == "\t" else repr(c)[1:-1] for c in text)
 
 
-_SENSITIVE_RULE_TOKENS = (
-    "secret",
-    "password",
-    "token",
-    "jwt",
-    "database-url",
-    "db-url",
-    "dsn",
-    "credential",
-    "stripe",
-    "openai",
-    "supabase-service-role",
-    "aws",
-    "private-key",
-    "anthropic",
-    "google",
-    "github",
-    "api-key",
-    "slack",
-    "twilio",
-    "sendgrid",
-    "npm",
-    "pypi",
-)
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
+
+# ⚡ Bolt: Use compiled regex for substring matching instead of any() with generators
+# Impact: Significant reduction in CPU overhead for category/sensitivity lookups in hot paths
+_SENSITIVE_RULE_RE = re.compile(
+    r"secret|password|token|jwt|database-url|db-url|dsn|credential|stripe|openai|supabase-service-role|aws|private-key|anthropic|google|github|api-key|slack|twilio|sendgrid|npm|pypi"
+)
 
 
 def _is_sensitive_rule(rule_id: str) -> bool:
     """Return whether a rule id is likely to expose secret material."""
-    lowered = (rule_id or "").lower()
-    return any(token in lowered for token in _SENSITIVE_RULE_TOKENS)
+    return bool(_SENSITIVE_RULE_RE.search((rule_id or "").lower()))
 
 
 def _safe_snippet(rule_id: str, snippet: str, category: str) -> str:
@@ -2315,6 +2296,14 @@ def _finding_context(file_path: str, snippet: str = "") -> str:
     return "app-code"
 
 
+_SECRETS_CATEGORY_RE = re.compile(
+    r"secret|jwt|password|database-url|credential|api-key|token|openai"
+)
+_AUTHZ_CATEGORY_RE = re.compile(r"auth|session|admin|route-without-auth")
+_INJECTION_CATEGORY_RE = re.compile(
+    r"eval|sql|command|subprocess|path-traversal"
+)
+
 def _finding_category(rule_id: str) -> str:
     """Map a rule id to a stable finding category."""
     rule = (rule_id or "").lower()
@@ -2322,32 +2311,15 @@ def _finding_category(rule_id: str) -> str:
         return "dependency"
     if "jwt-decode" in rule:
         return "authz"
-    if any(
-        token in rule
-        for token in (
-            "secret",
-            "jwt",
-            "password",
-            "database-url",
-            "credential",
-            "api-key",
-            "token",
-            "openai",
-        )
-    ):
+    if _SECRETS_CATEGORY_RE.search(rule):
         return "secrets"
     if "stripe" in rule or "webhook" in rule:
         return "payment"
     if "firebase" in rule or "supabase" in rule or "storage" in rule:
         return "storage"
-    if any(
-        token in rule for token in ("auth", "session", "admin", "route-without-auth")
-    ):
+    if _AUTHZ_CATEGORY_RE.search(rule):
         return "authz"
-    if any(
-        token in rule
-        for token in ("eval", "sql", "command", "subprocess", "path-traversal")
-    ):
+    if _INJECTION_CATEGORY_RE.search(rule):
         return "injection"
     return "misconfig"
 
