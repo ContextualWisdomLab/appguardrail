@@ -77,3 +77,7 @@
 ## 2024-11-20 - Optimize multiple tuple generation from a single collection
 **Learning:** `build_rule_metadata` derives exactly two collections, `owasp` and `cwe`, from the same references. Replacing its two generator traversals with one explicit loop reduces element visits from about 2N to N. Both versions remain O(N), so this is a constant-factor optimization rather than an asymptotic complexity improvement.
 **Action:** Combine repeated traversal when fixed derived collections share one source, while preserving ordering and classification semantics. Benchmark the production hot path before claiming a material wall-clock improvement.
+
+## 2024-11-20 - Replace any() with re.compile in hot loops
+**Learning:** Using `any(x in text for x in tuple)` requires Python to iteratively check each substring, which adds significant overhead when checking multiple tokens in hot loops (like `_finding_category` and `_is_sensitive_rule`).
+**Action:** Replace `any()` generators checking multiple substrings against a string with a single pre-compiled `re.compile(r"token1|token2|...").search(text)`. The C-compiled regular expression engine evaluates multiple token matches significantly faster than a Python generator expression.
