@@ -2277,6 +2277,7 @@ _SENSITIVE_RULE_TOKENS = (
     "twilio",
     "sendgrid",
     "npm",
+    "firebase-service-account",
     "pypi",
 )
 _REDACTED_SENSITIVE_SNIPPET = "[REDACTED: sensitive match suppressed]"
